@@ -37,14 +37,14 @@
 | macOS arm64 / Codex 0.162.0-alpha.17.2 | 两次调用在 60 秒截止前仅建立线程并报告服务重连/请求超时；取消后进程树结束 | 外部服务连接阻塞；没有成功任务证据 |
 | macOS / dsh | 本机未安装 | 未实测 |
 | Windows / dsh | 用户确认第二台电脑已安装并登录 | 等待该机 MCP 初始化和真实运行 |
-| Windows amd64 / Linux amd64 | Go 应用与相关平台代码交叉编译 | 编译通过；原生部署、服务管理及模型执行未验收 |
+| Windows amd64 / Linux amd64 | Go 应用与相关平台代码交叉编译；已启用 [GitHub 托管机器原生 CI](https://github.com/5intro/Coordica/actions) | 编译通过；各提交的原生测试结果见 CI；用户电脑上的部署、服务管理及模型执行未验收 |
 | macOS / Linux / Windows 用户级服务 | 配置、路径转义、重试与失败注入测试 | 不在开发机自动安装服务；真实安装/登录生命周期待实测 |
 
 `doctor` / MCP 版本探测只证明工具可找到并返回版本，不读取认证文件，也不证明已登录或能完成模型任务。`activation_requested` 只表示操作系统接受启动请求；以中心节点心跳确认上线。
 
 ## 仍需完成的发布验收
 
-1. 在用户 Windows 电脑通过 MCP 初始化，确认节点心跳、dsh 实际接任务、交接固定材料并通过相同门禁；运行 Windows 原生进程/服务测试。
+1. 在用户 Windows 电脑通过 MCP 初始化，确认节点心跳、dsh 实际接任务、交接固定材料并通过相同门禁；在该电脑核对进程终止与真实用户服务行为。托管 CI 的进程测试不替代目标电脑部署验收。
 2. 恢复 Codex 服务连接后，完成 Codex 与 Claude Code 跨两台电脑的真实功能任务，包含独立评审、程序检查和精确候选集成。
 3. 在 Linux 原生环境验证 systemd 用户服务、含空格/中文路径、子进程终止、断线与重启恢复；macOS 也需要真实用户服务安装验证。
 4. GitHub 仓库已创建于 [5intro/Coordica](https://github.com/5intro/Coordica)，用于源码及开发包分发；通过 Coordica 中心专用凭据完成真实 GitHub 候选集成的部署验收仍待进行。仓库发布不等于中心运行闭环已验收。
@@ -63,6 +63,10 @@
 - Windows batch 命令纯构造/拒绝测试通过；Windows amd64/arm64 进程测试及 Windows/Linux amd64 初始化测试已交叉编译。原生 stdin、退出码、取消和服务启动仍须目标机器执行。
 
 测试包位于本地 `bin/`，通过 [GitHub Releases](https://github.com/5intro/Coordica/releases) 分发，附初始化指南、模块文档、许可、第三方声明及 SHA-256 清单。它们是开发预览包，不是三系统、三工具均完成实际部署验收的稳定版本。
+
+## 首次远端 CI
+
+首次 GitHub 托管 CI 的 macOS/Linux 全套检查通过，Windows 的进程、Runner、MCP、初始化及服务配置测试通过，但备份与候选构建触发 Git for Windows 默认的长路径限制。这暴露的是实际 Git 路径兼容问题，不能通过缩短测试路径或启用用户全局配置来隐藏。后续提交在统一 Git 边界修复，并用超过 260 字符路径的真实 Git 操作回归；最终提交的完整检查状态以 [Actions](https://github.com/5intro/Coordica/actions) 和对应预发布说明为准。
 
 ## 分发许可
 

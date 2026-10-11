@@ -186,6 +186,11 @@ func controlledEnv(extra []string) []string {
 	// These settings control managed client commands. A remote's trusted
 	// receive hooks/protection remain authoritative and are never bypassed.
 	settings := [][2]string{{"core.hooksPath", os.DevNull}, {"core.fsmonitor", "false"}, {"core.attributesFile", os.DevNull}, {"credential.helper", ""}, {"protocol.allow", "never"}, {"protocol.file.allow", "always"}, {"protocol.https.allow", "always"}, {"http.followRedirects", "false"}, {"commit.gpgSign", "false"}, {"tag.gpgSign", "false"}, {"diff.external", ""}, {"core.autocrlf", "false"}, {"core.eol", "lf"}, {"core.quotePath", "false"}, {"merge.renames", "true"}, {"uploadpack.packObjectsHook", ""}}
+	if runtime.GOOS == "windows" {
+		// Managed workspaces and candidate refs can exceed MAX_PATH. Opt in
+		// per invocation because user/system Git configuration stays disabled.
+		settings = append(settings, [2]string{"core.longpaths", "true"})
+	}
 	var normalExtra []string
 	for _, e := range extra {
 		if strings.HasPrefix(e, "COORDICA_GIT_AUTHORIZATION=") {

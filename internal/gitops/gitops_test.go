@@ -209,6 +209,38 @@ func TestSnapshotBundleAndFreshFetch(t *testing.T) {
 	}
 }
 
+func TestCloneAndCandidateFetchBeyondWindowsPathLimit(t *testing.T) {
+	ctx := context.Background()
+	g := gitClient(t)
+	source, head := newRepo(t, g)
+	ref := "refs/coordica/candidates/" + string(head)
+	mustRun(t, g, source, "update-ref", ref, string(head))
+
+	workspace := t.TempDir()
+	for len(workspace) <= 280 {
+		workspace = filepath.Join(workspace, strings.Repeat("managed-path-", 4))
+	}
+	workspace = filepath.Join(workspace, "candidate")
+	if err := os.MkdirAll(filepath.Dir(workspace), 0700); err != nil {
+		t.Fatal(err)
+	}
+	// Exercise both pack creation during clone and the subsequent custom-ref
+	// fetch. Their paths exceed 260 characters independently of the temp root.
+	if err := g.Clone(ctx, source, workspace); err != nil {
+		t.Fatal(err)
+	}
+	got := strings.TrimSpace(string(mustRun(t, g, workspace, "rev-parse", "--verify", ref)))
+	if got != string(head) {
+		t.Fatalf("candidate reference lost in long workspace: %q", got)
+	}
+	if err := g.Checkout(ctx, workspace, head); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.VerifyClean(ctx, workspace, head); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestScopeRenameDeleteAndSpecialNames(t *testing.T) {
 	ctx := context.Background()
 	g := gitClient(t)
