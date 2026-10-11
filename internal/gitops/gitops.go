@@ -208,11 +208,23 @@ func controlledEnv(extra []string) []string {
 
 func (g *Client) run(ctx context.Context, dir string, extra []string, args ...string) ([]byte, error) {
 	argv := []string{"--no-pager"}
-	if dir != "" {
+	if dir != "" && runtime.GOOS != "windows" {
 		argv = append(argv, "-C", dir)
 	}
 	argv = append(argv, args...)
 	cmd := exec.CommandContext(ctx, g.GitPath, argv...)
+	if dir != "" && runtime.GOOS == "windows" {
+		// Git processes -C before reading core.longpaths. Let Go set the
+		// native working directory instead, preserving relative Git paths.
+		if !filepath.IsAbs(cmd.Path) {
+			absolute, err := filepath.Abs(cmd.Path)
+			if err != nil {
+				return nil, err
+			}
+			cmd.Path = absolute
+		}
+		cmd.Dir = dir
+	}
 	cmd.Env = controlledEnv(extra)
 	cmd.WaitDelay = 2 * time.Second
 	stdout := &limitedBuffer{limit: maxOutput}
@@ -273,13 +285,28 @@ func localDir(p string) (string, error) {
 }
 
 func (g *Client) Init(ctx context.Context, dir string, bare bool) error {
+	return g.initRepository(ctx, dir, bare, "")
+}
+
+func (g *Client) initRepository(ctx context.Context, dir string, bare bool, format string) error {
 	args := []string{"init", "--template=", "--initial-branch=main"}
 	if bare {
 		args = append(args, "--bare")
 	}
+	if format != "" {
+		args = append(args, "--object-format="+format)
+	}
 	args = append(args, "--", dir)
-	_, err := g.run(ctx, "", nil, args...)
-	return err
+	if _, err := g.run(ctx, "", nil, args...); err != nil {
+		return err
+	}
+	if runtime.GOOS == "windows" {
+		// Local upload-pack clears command-scoped Git configuration. Persist
+		// this filesystem option in repositories we create for its children.
+		_, err := g.run(ctx, dir, nil, "config", "--local", "core.longpaths", "true")
+		return err
+	}
+	return nil
 }
 
 // InitObjectFormat initializes an object store matching a verified full OID.
@@ -291,13 +318,7 @@ func (g *Client) InitObjectFormat(ctx context.Context, dir string, bare bool, oi
 	if len(oid) == 64 {
 		format = "sha256"
 	}
-	args := []string{"init", "--template=", "--initial-branch=main", "--object-format=" + format}
-	if bare {
-		args = append(args, "--bare")
-	}
-	args = append(args, "--", dir)
-	_, err := g.run(ctx, "", nil, args...)
-	return err
+	return g.initRepository(ctx, dir, bare, format)
 }
 
 // Clone supports a local or HTTPS source and creates an independent, unchecked-out
@@ -319,7 +340,24 @@ func (g *Client) Clone(ctx context.Context, source, dir string) error {
 	if _, err = os.Stat(dir); !os.IsNotExist(err) {
 		return fmt.Errorf("clone destination must not exist")
 	}
-	_, err = g.run(ctx, "", g.authEnv(src), "clone", "--no-local", "--no-checkout", "--no-recurse-submodules", "--template=", "--", src, dir)
+	args := []string{"clone", "--no-local", "--no-checkout", "--no-recurse-submodules", "--template="}
+	cloneDir, destination := "", dir
+	if runtime.GOOS == "windows" {
+		absolute, err := filepath.Abs(dir)
+		if err != nil {
+			return err
+		}
+		cloneDir, destination = filepath.Dir(absolute), filepath.Base(absolute)
+		if err := os.MkdirAll(cloneDir, 0700); err != nil {
+			return err
+		}
+		// Clone passes its Git directory to index-pack. Keep that value
+		// relative to avoid Git's separate fixed-size GIT_DIR check, and
+		// persist longpaths for subsequent local transport subprocesses.
+		args = append(args, "--config", "core.longpaths=true")
+	}
+	args = append(args, "--", src, destination)
+	_, err = g.run(ctx, cloneDir, g.authEnv(src), args...)
 	if err != nil {
 		return err
 	}
@@ -599,12 +637,8 @@ func (g *Client) CloneSnapshot(ctx context.Context, file string, h OID, dest str
 		return err
 	}
 	defer os.RemoveAll(tmp)
-	format := "sha1"
-	if len(h) == 64 {
-		format = "sha256"
-	}
 	stage := filepath.Join(tmp, "verified.git")
-	if _, err = g.run(ctx, "", nil, "init", "--bare", "--template=", "--initial-branch=main", "--object-format="+format, "--", stage); err != nil {
+	if err = g.InitObjectFormat(ctx, stage, true, h); err != nil {
 		return err
 	}
 	if _, err = g.importBundle(ctx, stage, file, h, h, false); err != nil {

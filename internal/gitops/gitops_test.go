@@ -239,6 +239,33 @@ func TestCloneAndCandidateFetchBeyondWindowsPathLimit(t *testing.T) {
 	if err := g.VerifyClean(ctx, workspace, head); err != nil {
 		t.Fatal(err)
 	}
+	// A freshly created loose object must also be readable by upload-pack
+	// when this long-path workspace becomes a local clone/fetch source.
+	writeFile(t, workspace, "src/later.txt", "loose object in long repository\n")
+	later := commit(t, g, workspace, "later")
+	mustRun(t, g, workspace, "update-ref", ref, string(later))
+	copy := filepath.Join(t.TempDir(), "copy")
+	if err := g.Clone(ctx, workspace, copy); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Checkout(ctx, copy, later); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.VerifyClean(ctx, copy, later); err != nil {
+		t.Fatal(err)
+	}
+	// Backup object stores use the same initialization policy, including
+	// stores whose object format is selected from an already verified OID.
+	bare := filepath.Join(filepath.Dir(workspace), "backup.git")
+	if err := g.InitObjectFormat(ctx, bare, true, later); err != nil {
+		t.Fatal(err)
+	}
+	mustRun(t, g, bare, "fetch", "--no-tags", "--", workspace, string(later)+":refs/heads/main")
+	mustRun(t, g, copy, "fetch", "--no-tags", "--", bare, "refs/heads/main:refs/coordica/backup/main")
+	got = strings.TrimSpace(string(mustRun(t, g, copy, "rev-parse", "--verify", "refs/coordica/backup/main")))
+	if got != string(later) {
+		t.Fatalf("backup reference lost in long repository: %q", got)
+	}
 }
 
 func TestScopeRenameDeleteAndSpecialNames(t *testing.T) {
