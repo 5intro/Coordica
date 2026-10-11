@@ -16,6 +16,7 @@ import (
 	"coordica/internal/agent"
 	"coordica/internal/domain"
 	"coordica/internal/gitops"
+	"coordica/internal/process"
 )
 
 func (r *Runner) perform(parent context.Context, record spool, clock responseClock) {
@@ -24,6 +25,14 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 	var evidenceLog *evidence
 	var outputText string
 	finish := func(err error) {
+		if errors.Is(err, process.ErrTreeNotStopped) {
+			completion.Quiescent = false
+			if errors.Is(err, gitops.ErrGit) || errors.Is(err, gitops.ErrOutputLimit) {
+				// The recorded PID belongs to the Agent, not a later Git command.
+				// Never use its dead group as evidence for an uncertain Git tree.
+				record.PID = 0
+			}
+		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			completion.Status = "stopped"
 		}
@@ -116,10 +125,14 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 	}
 	prompt := assignmentPrompt(assignment, definition.CommitMode)
 	if assignment.Run.Kind == "review" {
-		reviewInput, err := r.reviewInput(ctx, assignment, record.WorkDir)
+		reviewInput, err := r.readReviewInput(ctx, assignment, record.WorkDir)
 		if err != nil {
+			if errors.Is(err, process.ErrTreeNotStopped) {
+				finish(errors.Join(err, ctx.Err()))
+				return
+			}
 			if ctx.Err() != nil {
-				finish(ctx.Err())
+				finish(errors.Join(err, ctx.Err()))
 				return
 			}
 			completion.Review = &domain.Review{Candidate: assignment.Run.Base, Verdict: "blocked", Summary: "Complete fixed review input is unavailable", Findings: []string{shortDetail(err)}}

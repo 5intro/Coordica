@@ -20,7 +20,6 @@ import (
 	"coordica/internal/filelock"
 	"coordica/internal/gitops"
 	"coordica/internal/localfile"
-	"coordica/internal/process"
 )
 
 type Config struct {
@@ -40,17 +39,18 @@ type Config struct {
 type Runner struct {
 	// OnEvent may be set before Run to connect diagnostics to a local UI.
 	// The default emits concise local stderr logs; callbacks must return promptly.
-	OnEvent  func(Event)
-	config   Config
-	http     *http.Client
-	base     *url.URL
-	git      *gitops.Client
-	registry *agent.Registry
-	execute  func(context.Context, agent.Request, func(agent.Event)) (agent.Result, error)
-	mu       sync.Mutex
-	active   map[string]bool
-	logMu    sync.Mutex
-	lastLog  map[string]string
+	OnEvent         func(Event)
+	config          Config
+	http            *http.Client
+	base            *url.URL
+	git             *gitops.Client
+	registry        *agent.Registry
+	execute         func(context.Context, agent.Request, func(agent.Event)) (agent.Result, error)
+	readReviewInput func(context.Context, domain.Assignment, string) (string, error)
+	mu              sync.Mutex
+	active          map[string]bool
+	logMu           sync.Mutex
+	lastLog         map[string]string
 }
 
 type Event struct {
@@ -122,7 +122,9 @@ func New(config Config) (*Runner, error) {
 	if err = localfile.Protect(filepath.Join(config.DataDir, "spool")); err != nil {
 		return nil, err
 	}
-	return &Runner{config: config, http: client, base: base, git: gitops.New("git"), registry: registry, execute: registry.Execute, active: map[string]bool{}, lastLog: map[string]string{}}, nil
+	r := &Runner{config: config, http: client, base: base, git: gitops.New("git"), registry: registry, execute: registry.Execute, active: map[string]bool{}, lastLog: map[string]string{}}
+	r.readReviewInput = r.reviewInput
+	return r, nil
 }
 func (r *Runner) Config() Config { return r.config }
 func (r *Runner) capabilities(ctx context.Context) []domain.Capability {
@@ -264,8 +266,19 @@ func (r *Runner) recoverRecords(ctx context.Context) error {
 		if err := readJSON(path, &record); err != nil {
 			return fmt.Errorf("cannot recover handoff %s: %w", entry.Name(), err)
 		}
-		if record.Request != nil && !record.Acknowledged {
-			continue
+		if record.Request != nil {
+			if record.Acknowledged && record.Request.Quiescent {
+				// A durable local stop observation remains valid even if the
+				// center lost its acknowledgement during restore. Replay the
+				// original completion; do not downgrade it from a PID check.
+				record.Acknowledged = false
+				if err := writePrivateJSON(path, record); err != nil {
+					return err
+				}
+			}
+			if !record.Acknowledged {
+				continue
+			}
 		}
 		var remote domain.Run
 		if _, err := r.json(ctx, "GET", "/api/v1/runs/"+record.Assignment.Run.ID, "", nil, &remote); err != nil {
@@ -275,7 +288,7 @@ func (r *Runner) recoverRecords(ctx context.Context) error {
 			os.Remove(path)
 			continue
 		}
-		quiet, err := process.TreeQuiescent(record.PID)
+		quiet, err := recordedTreeQuiescent(record.PID)
 		if err != nil {
 			quiet = false
 		}
@@ -337,7 +350,7 @@ func (r *Runner) flush(ctx context.Context) {
 			r.report("spool.invalid", entry.Name(), shortDetail(err))
 			continue
 		}
-		if record.Request == nil || record.Acknowledged {
+		if record.Request == nil {
 			continue
 		}
 		r.mu.Lock()
@@ -345,6 +358,21 @@ func (r *Runner) flush(ctx context.Context) {
 		r.mu.Unlock()
 		if active {
 			continue
+		}
+		if record.Acknowledged {
+			if record.Request.Quiescent {
+				continue
+			}
+			var confirmed bool
+			record, confirmed, err = r.recheckStopped(path, record)
+			if err != nil {
+				r.report("recovery.process_unknown", record.Assignment.Run.ID, shortDetail(err))
+				continue
+			}
+			if !confirmed {
+				continue
+			}
+			r.report("recovery.process_stopped", record.Assignment.Run.ID, "recorded process group is now stopped; preserved workspace")
 		}
 		if err := r.deliver(ctx, record); err != nil {
 			r.report("handoff.pending", record.Assignment.Run.ID, shortDetail(err))

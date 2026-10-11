@@ -316,6 +316,9 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 	if e == nil {
 		e = w.Git.VerifyClean(runCtx, work, gitops.OID(c.Commit))
 	}
+	if errors.Is(e, process.ErrTreeNotStopped) {
+		quiescent = false
+	}
 	if e == nil {
 		for _, check := range p.Checks {
 			start := s.Now()
@@ -349,14 +352,27 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 		}
 	}
 	if e == nil {
-		e = w.Git.VerifyClean(ctx, work, gitops.OID(c.Commit))
+		e = w.Git.VerifyClean(runCtx, work, gitops.OID(c.Commit))
+		if errors.Is(e, process.ErrTreeNotStopped) {
+			quiescent = false
+		}
 	}
 	finalCtx, finalCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer finalCancel()
-	return s.DB.Update(finalCtx, func(tx *store.Tx) error {
+	return w.finishValidation(finalCtx, r, c, results, e, quiescent, ctx.Err() != nil)
+}
+
+// finishValidation records a process outcome only for its current execution.
+// A late validator cannot settle a replacement run or change its fixed candidate.
+func (w *Integrator) finishValidation(ctx context.Context, r domain.Run, c domain.Candidate, results []domain.CheckResult, validationErr error, quiescent, interrupted bool) error {
+	s := w.Service
+	return s.DB.Update(ctx, func(tx *store.Tx) error {
 		var current domain.Run
 		if err := tx.Get("run", r.ID, &current); err != nil {
 			return err
+		}
+		if !active(current) && current.State != "lost" {
+			return nil
 		}
 		var t domain.Task
 		if err := tx.Get("task", r.TaskID, &t); err != nil {
@@ -366,47 +382,66 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 		if err != nil {
 			return err
 		}
+		owns := t.CurrentRunID == current.ID && t.Generation == current.Generation
+		valid := owns && current.State == "running" && s.Now().Before(current.LeaseUntil) && !interrupted && !project.Paused && t.HoldReason == "" && t.State == "awaiting_integration" && t.CurrentCandidateID == c.ID && current.AuthorizationVersion == t.AuthorizationVersion && current.PolicyVersion == project.PolicyVersion
 		var cand domain.Candidate
-		if err = tx.Get("candidate", c.ID, &cand); err != nil {
-			return err
+		if owns {
+			if err = tx.Get("candidate", c.ID, &cand); err != nil {
+				return err
+			}
+			valid = valid && quiescent && current.CandidateID == c.ID && c.Commit == current.Base && cand.State == "validating" && cand.Commit == current.Base && cand.AuthorizationVersion == t.AuthorizationVersion && cand.PolicyVersion == project.PolicyVersion
 		}
-		if active(current) {
-			s.settle(&project, &t, &current, 0, true)
+		if owns && active(current) {
+			elapsed := int64(0)
+			if !quiescent || !s.Now().Before(current.LeaseUntil) {
+				elapsed = current.GrantSeconds
+			}
+			s.settle(&project, &t, &current, elapsed, true)
 		}
-		interrupted := current.State == "cancel_requested" || ctx.Err() != nil
 		current.Quiescent = quiescent
+		current.Version++
 		now := s.Now()
 		current.FinishedAt = &now
 		current.State = "succeeded"
-		if e != nil {
+		if validationErr != nil {
 			current.State = "failed"
-			current.Detail = errDetail(e)
+			current.Detail = errDetail(validationErr)
+		}
+		if !valid {
+			current.State = "stopped"
 		}
 		if !quiescent {
 			current.State = "lost"
-			t.HoldReason = "offline"
 		}
-		if t.CurrentRunID == current.ID && quiescent {
+		if err = tx.Put("run", current.ID, current); err != nil {
+			return err
+		}
+		if !owns {
+			return s.audit(tx, Actor{ID: "center"}, "run.late_validation", current.ID, current.State)
+		}
+		if valid {
 			t.CurrentRunID = ""
-		}
-		cand.Checks = results
-		cand.Version++
-		if t.CurrentCandidateID == c.ID && cand.State == "validating" {
-			if e == nil && len(results) == len(p.Checks) && len(results) > 0 {
+			cand.Checks = results
+			cand.Version++
+			if validationErr == nil && len(results) == len(project.Checks) && len(results) > 0 {
 				cand.State = "ready_to_land"
-			} else if project.Paused || t.HoldReason == "paused" || !quiescent || interrupted {
-				// An interrupted check can be rerun on the same fixed C after
-				// quiescence is confirmed; it is not an implementation defect.
-				cand.Detail = errDetail(e)
 			} else {
 				cand.State = "rejected"
-				cand.Detail = errDetail(e)
-				if !project.Paused && t.HoldReason == "" {
-					queueRepair(&t, &cand, true)
-				}
+				cand.Detail = errDetail(validationErr)
+				queueRepair(&t, &cand, true)
+			}
+			if err = tx.Put("candidate", cand.ID, cand); err != nil {
+				return err
+			}
+		} else {
+			if t.HoldReason == "" && t.State != "cancelled" && t.State != "integrated" {
+				t.HoldReason = "offline"
+			}
+			if _, err = s.recoverStopped(tx, project, &t, current); err != nil {
+				return err
 			}
 		}
-		if t.UsedSeconds >= t.BudgetSeconds || project.UsedSeconds >= project.TotalBudgetSeconds {
+		if (t.UsedSeconds >= t.BudgetSeconds || project.UsedSeconds >= project.TotalBudgetSeconds) && (t.HoldReason == "" || t.HoldReason == "offline") && t.State != "cancelled" && t.State != "integrated" {
 			t.HoldReason = "budget"
 		}
 		t.Version++
@@ -419,10 +454,12 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 		if err = tx.Put("project", project.ID, project); err != nil {
 			return err
 		}
-		if err = tx.Put("candidate", cand.ID, cand); err != nil {
-			return err
+		if t.State == "cancelled" && quiescent {
+			if err = releaseResources(tx, t.ID); err != nil {
+				return err
+			}
 		}
-		return s.audit(tx, Actor{ID: "center"}, "candidate.validated", c.ID, current.State)
+		return s.audit(tx, Actor{ID: "center"}, "candidate.validated", c.ID, fmt.Sprintf("%s; accepted=%t", current.State, valid))
 	})
 }
 func validationEnv() []string {

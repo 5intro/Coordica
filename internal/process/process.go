@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"sync"
@@ -14,6 +15,7 @@ import (
 )
 
 var ErrTreeNotStopped = errors.New("cannot confirm managed process tree stopped")
+var ErrOutputLimit = errors.New("managed process output limit exceeded")
 
 type Spec struct {
 	Executable   string
@@ -23,6 +25,7 @@ type Spec struct {
 	GracePeriod  time.Duration
 	DrainTimeout time.Duration
 	MaxLineBytes int
+	RawOutput    bool // preserves binary output, including NULs and final newlines.
 }
 
 type Output struct {
@@ -49,7 +52,8 @@ type Session struct {
 }
 
 // Start starts a new supervised command. Callers must consume Output until it
-// closes, or cancel the context. Lines omit their final newline. Stdout and
+// closes, or cancel the context. Lines omit their final newline unless RawOutput
+// is set, in which case Output.Line contains unmodified byte chunks. Stdout and
 // stderr are independently ordered; neither is interpreted as terminal text.
 func Start(ctx context.Context, spec Spec) (*Session, error) {
 	if err := ctx.Err(); err != nil {
@@ -154,6 +158,28 @@ func (s *Session) supervise(ctx context.Context, spec Spec, guard *platformGuard
 	readDone := make(chan error, 2)
 	discard := make(chan struct{})
 	read := func(stream string, f *os.File) {
+		if spec.RawOutput {
+			buffer := make([]byte, 32<<10)
+			for {
+				n, err := f.Read(buffer)
+				if n > 0 {
+					chunk := append([]byte(nil), buffer[:n]...)
+					select {
+					case s.output <- Output{Stream: stream, Line: chunk}:
+					case <-discard:
+					}
+				}
+				if err != nil {
+					if errors.Is(err, io.EOF) {
+						err = nil
+					} else {
+						s.Stop()
+					}
+					readDone <- err
+					return
+				}
+			}
+		}
 		scanner := bufio.NewScanner(f)
 		scanner.Buffer(make([]byte, 4096), spec.MaxLineBytes)
 		for scanner.Scan() {
@@ -248,15 +274,52 @@ func (s *Session) supervise(ctx context.Context, spec Spec, guard *platformGuard
 	s.errOut.Close()
 	close(s.output)
 	if s.result.Canceled {
-		waitErr = ctx.Err()
-		if waitErr == nil {
-			waitErr = context.Canceled
+		cancelErr := ctx.Err()
+		if cancelErr == nil {
+			cancelErr = context.Canceled
 		}
+		waitErr = errors.Join(waitErr, cancelErr)
 	}
 	s.err = errors.Join(waitErr, shutdownErr, cleanupErr, readErr)
 	if readErr != nil {
 		s.err = fmt.Errorf("managed process output: %w", s.err)
 	}
+}
+
+// CollectRaw collects binary stdout and stderr independently without line
+// parsing. Limits bound retained bytes; exceeding either stops the same managed
+// process tree and preserves its shutdown evidence in the returned error.
+func CollectRaw(ctx context.Context, spec Spec, stdoutLimit, stderrLimit int) ([]byte, []byte, Result, error) {
+	if stdoutLimit < 0 || stderrLimit < 0 {
+		return nil, nil, Result{ExitCode: -1}, errors.New("output limits cannot be negative")
+	}
+	spec.RawOutput = true
+	s, err := Start(ctx, spec)
+	if err != nil {
+		return nil, nil, Result{ExitCode: -1}, err
+	}
+	s.CloseInput()
+	var stdout, stderr []byte
+	tooLarge := false
+	for event := range s.Output() {
+		destination, limit := &stdout, stdoutLimit
+		if event.Stream == "stderr" {
+			destination, limit = &stderr, stderrLimit
+		}
+		remaining := limit - len(*destination)
+		chunk := event.Line
+		if len(chunk) > remaining {
+			tooLarge = true
+			chunk = chunk[:remaining]
+			s.Stop()
+		}
+		*destination = append(*destination, chunk...)
+	}
+	result, err := s.Wait()
+	if tooLarge {
+		err = errors.Join(err, ErrOutputLimit)
+	}
+	return stdout, stderr, result, err
 }
 
 // Collect is intended for short preflight commands. The supplied context still

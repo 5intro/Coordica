@@ -206,7 +206,7 @@ func TestCancelledCandidateCannotStartValidation(t *testing.T) {
 		t.Fatal("cancelled task created a new Run")
 	}
 }
-func TestStopConfirmationPreservesSpentBudgetAndAllowsExplicitResume(t *testing.T) {
+func TestStopConfirmationPreservesSpentBudgetAndAutomaticallyRecovers(t *testing.T) {
 	f := newServiceFixture(t)
 	ctx := context.Background()
 	a := f.claim(t, "run")
@@ -222,8 +222,8 @@ func TestStopConfirmationPreservesSpentBudgetAndAllowsExplicitResume(t *testing.
 		t.Fatal(e)
 	}
 	snap = f.snapshot(t)
-	if _, e := f.s.TaskAction(ctx, f.owner, "resume", f.task.ID, "resume", domain.VersionRequest{ExpectedVersion: snap.Tasks[0].Version}); e != nil {
-		t.Fatal(e)
+	if got := snap.Tasks[0]; got.State != "ready" || got.HoldReason != "" || got.CurrentRunID != "" || got.Retries != 1 {
+		t.Fatalf("stop confirmation requires another owner action: %+v", got)
 	}
 	next := f.claim(t, "new-run")
 	if next == nil || next.Run.Generation <= a.Run.Generation {

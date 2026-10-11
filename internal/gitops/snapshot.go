@@ -3,6 +3,7 @@ package gitops
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -136,9 +137,9 @@ func (g *Client) CommitScoped(ctx context.Context, repo string, expected OID, sc
 	}
 	if _, err = g.run(ctx, repo, nil, "update-ref", "--no-deref", "HEAD", string(commit), string(expected)); err != nil {
 		if ctx.Err() != nil {
-			return "", ctx.Err()
+			return "", errors.Join(ctx.Err(), err)
 		}
-		return "", fault("snapshot", ErrCAS, "HEAD changed before snapshot publication")
+		return "", fault("snapshot", errors.Join(ErrCAS, err), "HEAD changed before snapshot publication")
 	}
 	// No file checkout occurs. If this final synchronization or verification
 	// fails, the private snapshot remains for diagnosis and the caller must not
@@ -246,7 +247,7 @@ func (g *Client) snapshotIndex(ctx context.Context, repo string, expected OID) e
 		}
 	}
 	if _, err := g.run(ctx, repo, nil, "diff-index", "--cached", "--quiet", string(expected), "--"); err != nil {
-		return fault("snapshot", ErrDirty, "the managed index differs from fixed HEAD")
+		return fault("snapshot", errors.Join(ErrDirty, err), "the managed index differs from fixed HEAD")
 	}
 	return nil
 }

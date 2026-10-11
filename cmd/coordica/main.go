@@ -34,7 +34,7 @@ import (
 	"coordica/web"
 )
 
-const version = "0.1.3-dev"
+const version = "0.1.4-dev"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

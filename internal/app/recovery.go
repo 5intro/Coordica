@@ -5,8 +5,98 @@ import (
 	"coordica/internal/domain"
 	"coordica/internal/store"
 	"encoding/json"
+	"fmt"
 	"strings"
 )
+
+// recoverStopped advances only the execution that still owns the task. The
+// caller persists the changed task and its version in the same transaction as
+// the stop evidence. Network delivery and selecting a new Runner remain Claim's
+// responsibility; a stopped execution never regains its old lease.
+func (s *Service) recoverStopped(tx *store.Tx, p domain.Project, t *domain.Task, r domain.Run) (bool, error) {
+	if t.CurrentRunID != r.ID || t.Generation != r.Generation || !r.Quiescent || (r.State != "stopped" && r.State != "lost") {
+		return false, nil
+	}
+	if t.State == "cancelled" || t.State == "integrated" || t.ApprovedVersion == 0 || (t.HoldReason != "" && t.HoldReason != "offline") {
+		t.CurrentRunID = ""
+		return true, nil
+	}
+	block := func(reason, detail string) (bool, error) {
+		t.CurrentRunID = ""
+		t.HoldReason = reason
+		return true, s.audit(tx, Actor{ID: "center"}, "task.recovery_blocked", t.ID, detail)
+	}
+	if t.AuthorizationVersion != r.AuthorizationVersion || p.PolicyVersion != r.PolicyVersion {
+		return block("human_decision", "旧执行授权或项目策略已变化，不能自动恢复")
+	}
+	// A different unknown process is also a fence. This matters after a restored
+	// backup or when a historical stop confirmation arrives out of order.
+	runs, e := store.List[domain.Run](tx, "run")
+	if e != nil {
+		return false, e
+	}
+	for _, old := range runs {
+		if old.ID != r.ID && old.TaskID == t.ID && !old.Quiescent && (active(old) || old.State == "lost") {
+			changed := t.HoldReason != "offline"
+			t.HoldReason = "offline"
+			return changed, nil
+		}
+	}
+	if p.Paused {
+		changed := t.HoldReason != "offline"
+		t.HoldReason = "offline"
+		return changed, nil
+	}
+	if t.BudgetSeconds-t.UsedSeconds-t.ReservedSeconds <= 0 || p.TotalBudgetSeconds-p.UsedSeconds-p.ReservedSeconds <= 0 {
+		return block("budget", "停止已确认，但累计剩余预算不足")
+	}
+	if r.Kind == "implement" && t.CurrentCandidateID != "" {
+		var c domain.Candidate
+		if e = tx.Get("candidate", t.CurrentCandidateID, &c); e != nil {
+			return false, e
+		}
+		if t.State != "awaiting_integration" || c.AuthorizationVersion != t.AuthorizationVersion || c.PolicyVersion != p.PolicyVersion || (c.State != "accepted" && c.State != "reviewing" && c.State != "validating" && c.State != "ready_to_land") {
+			return block("human_decision", "已受理候选状态不允许自动恢复")
+		}
+		// Already accepted material proceeds through its existing gates; the old
+		// implementation is never dispatched again merely because delivery failed.
+		t.CurrentRunID = ""
+		t.HoldReason = ""
+		return true, s.audit(tx, Actor{ID: "center"}, "task.automatically_recovered", t.ID, "保留已受理候选，继续集成流程")
+	}
+	switch r.Kind {
+	case "implement":
+		if t.State != "executing" {
+			return block("human_decision", "任务状态不允许重新开发")
+		}
+	case "review", "validation":
+		var c domain.Candidate
+		if t.State != "awaiting_integration" || t.CurrentCandidateID != r.CandidateID || r.CandidateID == "" {
+			return block("human_decision", "恢复对象已不再是当前候选")
+		}
+		if e = tx.Get("candidate", r.CandidateID, &c); e != nil {
+			return false, e
+		}
+		if c.Commit != r.Base || c.AuthorizationVersion != t.AuthorizationVersion || c.PolicyVersion != p.PolicyVersion {
+			return block("human_decision", "固定候选或其授权已变化")
+		}
+		if r.Kind == "review" && (c.State != "reviewing" || c.Review != nil) || r.Kind == "validation" && (c.State != "validating" || c.Review == nil || c.Review.Verdict != "approve" || c.Review.Candidate != c.Commit) {
+			return block("human_decision", "固定候选不允许重试当前步骤")
+		}
+	default:
+		return block("human_decision", "未知执行类型不能自动恢复")
+	}
+	if t.Retries >= t.MaxRetries {
+		return block("human_decision", "自动恢复重试次数已用尽")
+	}
+	t.Retries++
+	t.CurrentRunID = ""
+	t.HoldReason = ""
+	if r.Kind == "implement" {
+		t.State = "ready"
+	}
+	return true, s.audit(tx, Actor{ID: "center"}, "task.automatically_recovered", t.ID, fmt.Sprintf("%s; prior_run=%s; retry=%d/%d", r.Kind, r.ID, t.Retries, t.MaxRetries))
+}
 
 // RecoverCenter fences validation processes from a previous center lifetime.
 // It never assumes that an orphaned process disappeared with its parent.
@@ -28,19 +118,27 @@ func (s *Service) RecoverCenter(ctx context.Context) error {
 			if e != nil {
 				return e
 			}
-			s.settle(&p, &t, &r, r.GrantSeconds, true)
+			owns := t.CurrentRunID == r.ID && t.Generation == r.Generation
+			if owns {
+				s.settle(&p, &t, &r, r.GrantSeconds, true)
+			}
 			r.State = "lost"
+			r.Version++
 			r.Detail = "中心已重启；旧验证进程需确认停止"
 			r.LeaseUntil = s.Now()
-			t.HoldReason = "offline"
+			if owns && t.HoldReason == "" {
+				t.HoldReason = "offline"
+			}
 			if e = tx.Put("run", r.ID, r); e != nil {
 				return e
 			}
-			if e = tx.Put("task", t.ID, t); e != nil {
-				return e
-			}
-			if e = tx.Put("project", p.ID, p); e != nil {
-				return e
+			if owns {
+				if e = tx.Put("task", t.ID, t); e != nil {
+					return e
+				}
+				if e = tx.Put("project", p.ID, p); e != nil {
+					return e
+				}
 			}
 			if e = s.audit(tx, Actor{ID: "center"}, "run.recovery_required", r.ID, r.Detail); e != nil {
 				return e
@@ -78,15 +176,24 @@ func (s *Service) ConfirmStopped(ctx context.Context, a Actor, key, id string, r
 		if e := tx.Get("task", r.TaskID, &t); e != nil {
 			return nil, e
 		}
-		if t.CurrentRunID == r.ID {
-			t.CurrentRunID = ""
+		p, e := getProject(tx)
+		if e != nil {
+			return nil, e
 		}
-		t.Version++
+		changed, e := s.recoverStopped(tx, p, &t, r)
+		if e != nil {
+			return nil, e
+		}
+		if changed {
+			t.Version++
+		}
 		if e := tx.Put("run", id, r); e != nil {
 			return nil, e
 		}
-		if e := tx.Put("task", t.ID, t); e != nil {
-			return nil, e
+		if changed {
+			if e := tx.Put("task", t.ID, t); e != nil {
+				return nil, e
+			}
 		}
 		if t.State == "cancelled" {
 			if e := releaseResources(tx, t.ID); e != nil {

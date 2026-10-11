@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf16"
+
+	"coordica/internal/process"
 )
 
 var (
@@ -157,24 +159,6 @@ func (g *Client) authEnv(remote string) []string {
 const MaxBundleBytes int64 = 64 << 20
 const maxOutput = 16 << 20
 
-type limitedBuffer struct {
-	buffer   bytes.Buffer
-	limit    int
-	overflow bool
-}
-
-func (b *limitedBuffer) Len() int       { return b.buffer.Len() }
-func (b *limitedBuffer) Bytes() []byte  { return b.buffer.Bytes() }
-func (b *limitedBuffer) String() string { return b.buffer.String() }
-
-func (b *limitedBuffer) Write(p []byte) (int, error) {
-	if b.Len()+len(p) > b.limit {
-		b.overflow = true
-		return 0, ErrOutputLimit
-	}
-	return b.buffer.Write(p)
-}
-
 func controlledEnv(extra []string) []string {
 	var env []string
 	for _, e := range os.Environ() {
@@ -217,43 +201,42 @@ func (g *Client) run(ctx context.Context, dir string, extra []string, args ...st
 		argv = append(argv, "-C", dir)
 	}
 	argv = append(argv, args...)
-	cmd := exec.CommandContext(ctx, g.GitPath, argv...)
+	spec := process.Spec{Executable: g.GitPath, Args: argv, Env: controlledEnv(extra), GracePeriod: 750 * time.Millisecond, DrainTimeout: 2 * time.Second}
 	if dir != "" && runtime.GOOS == "windows" {
 		// Git processes -C before reading core.longpaths. Let Go set the
 		// native working directory instead, preserving relative Git paths.
-		if !filepath.IsAbs(cmd.Path) {
-			absolute, err := filepath.Abs(cmd.Path)
+		if !filepath.IsAbs(spec.Executable) {
+			absolute, err := exec.LookPath(spec.Executable)
 			if err != nil {
 				return nil, err
 			}
-			cmd.Path = absolute
+			absolute, err = filepath.Abs(absolute)
+			if err != nil {
+				return nil, err
+			}
+			spec.Executable = absolute
 		}
-		cmd.Dir = dir
+		spec.Dir = dir
 	}
-	cmd.Env = controlledEnv(extra)
-	cmd.WaitDelay = 2 * time.Second
-	stdout := &limitedBuffer{limit: maxOutput}
-	stderr := &limitedBuffer{limit: 64 << 10}
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	err := cmd.Run()
+	stdout, stderr, result, err := process.CollectRaw(ctx, spec, maxOutput, 64<<10)
 	if ctx.Err() != nil {
-		return stdout.Bytes(), ctx.Err()
+		// Context cancellation must not hide a failed tree-stop observation.
+		err = errors.Join(err, ctx.Err())
 	}
-	if stdout.overflow || stderr.overflow {
-		return stdout.Bytes(), ErrOutputLimit
+	if errors.Is(err, process.ErrOutputLimit) {
+		return stdout, errors.Join(ErrOutputLimit, err)
 	}
 	if err != nil {
-		e := &Error{Op: args[0], Kind: ErrGit, Detail: strings.TrimSpace(stderr.String()), ExitCode: -1}
+		e := &Error{Op: args[0], Kind: errors.Join(ErrGit, err), Detail: strings.TrimSpace(string(stderr)), ExitCode: result.ExitCode}
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
 			e.ExitCode = exit.ExitCode()
 		} else if e.Detail == "" {
 			e.Detail = err.Error()
 		}
-		return stdout.Bytes(), e
+		return stdout, e
 	}
-	return stdout.Bytes(), nil
+	return stdout, nil
 }
 
 // Windows appends a directory separator and terminating NUL to its process
@@ -498,7 +481,7 @@ func (g *Client) IsAncestor(ctx context.Context, repo string, from, to OID) (boo
 		return true, nil
 	}
 	var command *Error
-	if errors.As(err, &command) && command.ExitCode == 1 {
+	if errors.As(err, &command) && command.ExitCode == 1 && !errors.Is(err, process.ErrTreeNotStopped) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 		return false, nil
 	}
 	return false, err
@@ -562,9 +545,8 @@ func (g *Client) CreateSnapshotBundle(ctx context.Context, repo string, h OID, d
 	return g.createBundle(ctx, repo, h, h, dest)
 }
 
-func (g *Client) createBundle(ctx context.Context, repo string, b, h OID, dest string) (Bundle, error) {
-	result := Bundle{Base: b, Head: h}
-	var err error
+func (g *Client) createBundle(ctx context.Context, repo string, b, h OID, dest string) (result Bundle, err error) {
+	result = Bundle{Base: b, Head: h}
 	var nonce [12]byte
 	if _, err = rand.Read(nonce[:]); err != nil {
 		return result, err
@@ -573,7 +555,13 @@ func (g *Client) createBundle(ctx context.Context, repo string, b, h OID, dest s
 	if _, err = g.run(ctx, repo, nil, "update-ref", result.Ref, string(h), strings.Repeat("0", len(h))); err != nil {
 		return result, err
 	}
-	defer g.run(context.WithoutCancel(ctx), repo, nil, "update-ref", "-d", result.Ref, string(h))
+	defer func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if _, cleanupErr := g.run(cleanupCtx, repo, nil, "update-ref", "-d", result.Ref, string(h)); cleanupErr != nil {
+			err = errors.Join(err, fmt.Errorf("bundle reference cleanup: %w", cleanupErr))
+		}
+	}()
 	tmp, err := os.MkdirTemp(filepath.Dir(dest), ".bundle-")
 	if err != nil {
 		return result, err
@@ -649,8 +637,10 @@ func (g *Client) importBundle(ctx context.Context, repo, file string, b, h OID, 
 		return result, err
 	}
 	// The application's issued baseline must already exist independently.
-	if err := g.requireCommit(ctx, repo, b); requireBase && err != nil {
-		return result, fault("bundle", ErrInvalidBundle, "baseline unavailable")
+	if requireBase {
+		if err := g.requireCommit(ctx, repo, b); err != nil {
+			return result, fault("bundle", errors.Join(ErrInvalidBundle, err), "baseline unavailable")
+		}
 	}
 	tmp, err := os.MkdirTemp("", "coordica-bundle-")
 	if err != nil {
@@ -663,7 +653,7 @@ func (g *Client) importBundle(ctx context.Context, repo, file string, b, h OID, 
 		return result, err
 	}
 	if _, err = g.run(ctx, repo, nil, "bundle", "verify", copy); err != nil {
-		return result, fault("bundle", ErrInvalidBundle, "verification failed")
+		return result, fault("bundle", errors.Join(ErrInvalidBundle, err), "verification failed")
 	}
 	out, err := g.run(ctx, repo, nil, "bundle", "list-heads", copy)
 	if err != nil {
@@ -679,16 +669,16 @@ func (g *Client) importBundle(ctx context.Context, repo, file string, b, h OID, 
 	}
 	result.Ref = fields[1]
 	if err = g.validRef(ctx, result.Ref); err != nil {
-		return result, ErrInvalidBundle
+		return result, errors.Join(ErrInvalidBundle, err)
 	}
 	if _, err = g.run(ctx, repo, nil, "bundle", "unbundle", copy); err != nil {
-		return result, fault("bundle", ErrInvalidBundle, "object import failed")
+		return result, fault("bundle", errors.Join(ErrInvalidBundle, err), "object import failed")
 	}
 	if err = g.requireCommit(ctx, repo, h); err != nil {
-		return result, ErrInvalidBundle
+		return result, errors.Join(ErrInvalidBundle, err)
 	}
 	if _, err = g.run(ctx, repo, nil, "fsck", "--strict", "--no-reflogs", string(h)); err != nil {
-		return result, fault("bundle", ErrInvalidBundle, "object integrity failed")
+		return result, fault("bundle", errors.Join(ErrInvalidBundle, err), "object integrity failed")
 	}
 	ok, err := g.IsAncestor(ctx, repo, b, h)
 	if err != nil {
@@ -700,12 +690,15 @@ func (g *Client) importBundle(ctx context.Context, repo, file string, b, h OID, 
 	// Keep imported objects reachable for later independent clones and backup.
 	// Never replace an existing material reference with a different object.
 	out, existingErr := g.run(ctx, repo, nil, "rev-parse", "--verify", result.Ref)
+	if errors.Is(existingErr, process.ErrTreeNotStopped) {
+		return result, existingErr
+	}
 	if existingErr == nil {
 		if strings.TrimSpace(string(out)) != string(h) {
 			return result, ErrInvalidBundle
 		}
 	} else if _, err = g.run(ctx, repo, nil, "update-ref", result.Ref, string(h), strings.Repeat("0", len(h))); err != nil {
-		return result, err
+		return result, errors.Join(existingErr, err)
 	}
 	return result, nil
 }
@@ -929,10 +922,16 @@ func (g *Client) BuildCandidate(ctx context.Context, repo string, m, h OID, work
 		return c, err
 	}
 	if _, err = g.run(ctx, workspace, env, "merge", "--no-ff", "--no-commit", "--no-edit", string(h)); err != nil {
+		if errors.Is(err, process.ErrTreeNotStopped) {
+			return c, err
+		}
 		if errors.Is(err, ErrGit) {
 			unmerged, e := g.run(ctx, workspace, nil, "ls-files", "--unmerged", "-z")
+			if e != nil {
+				return c, errors.Join(err, e)
+			}
 			if e == nil && len(unmerged) > 0 {
-				return c, fault("merge", ErrConflict, "candidate merge did not complete")
+				return c, fault("merge", errors.Join(ErrConflict, err), "candidate merge did not complete")
 			}
 		}
 		return c, err
@@ -1062,7 +1061,7 @@ func (g *Client) validRef(ctx context.Context, ref string) error {
 	}
 	_, err := g.run(ctx, "", nil, "check-ref-format", ref)
 	if err != nil {
-		return ErrInvalidRef
+		return errors.Join(ErrInvalidRef, err)
 	}
 	return nil
 }
@@ -1190,20 +1189,20 @@ func (g *Client) Publish(ctx context.Context, repo, remote, ref string, m, c OID
 	}
 	pushOut, pushErr := g.run(ctx, repo, g.authEnv(dir), "push", "--porcelain", "--no-verify", "--force-with-lease="+ref+":"+string(m), "--", dir, string(c)+":"+ref)
 	if ctx.Err() != nil {
-		return r, fault("publish", ErrUnknown, "context ended; query remote before retry")
+		return r, fault("publish", errors.Join(ErrUnknown, pushErr, ctx.Err()), "context ended; query remote before retry")
 	}
 	r.Observed, err = g.Query(ctx, dir, ref)
 	if err != nil {
-		return r, fault("publish", ErrUnknown, "remote observation unavailable")
+		return r, fault("publish", errors.Join(ErrUnknown, pushErr, err), "remote observation unavailable")
 	}
 	if pushErr == nil && r.Observed == c {
 		return r, nil
 	}
 	if pushErr != nil && strings.Contains(string(pushOut), "(stale info)") {
-		return r, ErrCAS
+		return r, errors.Join(ErrCAS, pushErr)
 	}
 	if pushErr != nil && r.Observed == m {
 		return r, pushErr
 	}
-	return r, fault("publish", ErrUnknown, "query intent and remote before retry")
+	return r, fault("publish", errors.Join(ErrUnknown, pushErr), "query intent and remote before retry")
 }

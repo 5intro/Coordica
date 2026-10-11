@@ -237,6 +237,13 @@ func (s *Service) Heartbeat(ctx context.Context, a Actor, id string, req domain.
 		return out, domain.Fail("forbidden", "只有Runner可续约")
 	}
 	err := s.DB.Update(ctx, func(tx *store.Tx) error {
+		var n domain.Node
+		if e := tx.Get("node", a.NodeID, &n); e != nil {
+			return e
+		}
+		if n.Revoked {
+			return domain.Fail("forbidden", "节点已撤销")
+		}
 		var r domain.Run
 		if e := tx.Get("run", id, &r); e != nil {
 			return e
@@ -252,15 +259,16 @@ func (s *Service) Heartbeat(ctx context.Context, a Actor, id string, req domain.
 		if e != nil {
 			return e
 		}
+		owns := t.CurrentRunID == id && t.Generation == r.Generation
 		reason := ""
-		if !active(r) || !s.Now().Before(r.LeaseUntil) || t.CurrentRunID != id || t.Generation != r.Generation {
+		if !active(r) || !s.Now().Before(r.LeaseUntil) || !owns {
 			reason = "stale_run"
 		} else if p.Paused || t.HoldReason != "" || t.State == "cancelled" || r.State == "cancel_requested" {
 			reason = "paused"
 		} else if t.AuthorizationVersion != r.AuthorizationVersion || p.PolicyVersion != r.PolicyVersion {
 			reason = "authorization_changed"
 		}
-		if active(r) {
+		if active(r) && owns {
 			s.settle(&p, &t, &r, req.ElapsedSeconds, false)
 			if r.ElapsedSeconds >= r.GrantSeconds || t.UsedSeconds >= t.BudgetSeconds || p.UsedSeconds >= p.TotalBudgetSeconds {
 				reason = "budget"
@@ -286,11 +294,13 @@ func (s *Service) Heartbeat(ctx context.Context, a Actor, id string, req domain.
 		if e = tx.Put("run", r.ID, r); e != nil {
 			return e
 		}
-		if e = tx.Put("task", t.ID, t); e != nil {
-			return e
-		}
-		if e = tx.Put("project", p.ID, p); e != nil {
-			return e
+		if owns {
+			if e = tx.Put("task", t.ID, t); e != nil {
+				return e
+			}
+			if e = tx.Put("project", p.ID, p); e != nil {
+				return e
+			}
 		}
 		return nil
 	})
@@ -301,6 +311,13 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 		return nil, domain.Fail("forbidden", "只有Runner可交接")
 	}
 	return s.mutate(ctx, a, key, "run.complete."+id, req, func(tx *store.Tx) (any, error) {
+		var n domain.Node
+		if e := tx.Get("node", a.NodeID, &n); e != nil {
+			return nil, e
+		}
+		if n.Revoked {
+			return nil, domain.Fail("forbidden", "节点已撤销")
+		}
 		var r domain.Run
 		if e := tx.Get("run", id, &r); e != nil {
 			return nil, e
@@ -319,9 +336,34 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 		if !active(r) && r.State != "lost" {
 			return r, nil
 		}
-		valid := active(r) && r.State != "cancel_requested" && s.Now().Before(r.LeaseUntil) && t.CurrentRunID == r.ID && t.Generation == r.Generation && t.AuthorizationVersion == r.AuthorizationVersion && p.PolicyVersion == r.PolicyVersion && !p.Paused && t.HoldReason == "" && t.State != "cancelled"
+		owns := t.CurrentRunID == r.ID && t.Generation == r.Generation
+		if !owns {
+			// Historical evidence can close its own execution, but never settle the
+			// current task, create a candidate, or replace a newer execution's hold.
+			r.Quiescent = r.Quiescent || req.Quiescent
+			r.Detail = req.Detail
+			r.SessionID = req.SessionID
+			r.State = "lost"
+			if r.Quiescent {
+				r.State = "stopped"
+				now := s.Now()
+				r.FinishedAt = &now
+			}
+			r.Version++
+			if e = tx.Put("run", r.ID, r); e != nil {
+				return nil, e
+			}
+			return r, s.audit(tx, a, "run.completed", id, fmt.Sprintf("%s; accepted=false; historical=true", r.State))
+		}
+		valid := active(r) && r.State != "cancel_requested" && s.Now().Before(r.LeaseUntil) && t.AuthorizationVersion == r.AuthorizationVersion && p.PolicyVersion == r.PolicyVersion && !p.Paused && t.HoldReason == "" && t.State != "cancelled"
 		if r.State != "lost" {
-			s.settle(&p, &t, &r, req.ElapsedSeconds, true)
+			elapsed := req.ElapsedSeconds
+			if !s.Now().Before(r.LeaseUntil) || !req.Quiescent {
+				// Unknown execution spends its whole finite grant, whether Expire
+				// or a delayed completion observes the timeout first.
+				elapsed = r.GrantSeconds
+			}
+			s.settle(&p, &t, &r, elapsed, true)
 		}
 		r.Quiescent = req.Quiescent
 		r.Detail = req.Detail
@@ -329,16 +371,20 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 		now := s.Now()
 		r.FinishedAt = &now
 		r.State = "stopped"
-		if t.CurrentRunID == r.ID {
-			t.CurrentRunID = ""
-		}
 		if !req.Quiescent {
-			t.HoldReason = "offline"
+			if t.HoldReason == "" {
+				t.HoldReason = "offline"
+			}
 			r.State = "lost"
 			valid = false
 		}
 		if t.UsedSeconds >= t.BudgetSeconds || p.UsedSeconds >= p.TotalBudgetSeconds {
-			t.HoldReason = "budget"
+			if t.HoldReason == "" || t.HoldReason == "offline" {
+				t.HoldReason = "budget"
+			}
+			valid = false
+		}
+		if req.Status == "stopped" {
 			valid = false
 		}
 		if valid && req.Status == "succeeded" {
@@ -415,7 +461,7 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 				}
 			}
 			r.State = "succeeded"
-		} else if valid {
+		} else if valid && req.Status != "stopped" {
 			r.State = "failed"
 			if req.Status == "transient_failure" && t.Retries < t.MaxRetries {
 				t.Retries++
@@ -431,7 +477,15 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 		} else if t.State != "cancelled" && t.HoldReason == "" {
 			t.HoldReason = "offline"
 		}
+		if !valid || req.Status == "stopped" {
+			if _, e = s.recoverStopped(tx, p, &t, r); e != nil {
+				return nil, e
+			}
+		} else {
+			t.CurrentRunID = ""
+		}
 		t.Version++
+		r.Version++
 		if e = tx.Put("run", id, r); e != nil {
 			return nil, e
 		}
@@ -484,22 +538,50 @@ func (s *Service) Expire(ctx context.Context) error {
 			if e = tx.Get("task", r.TaskID, &t); e != nil {
 				return e
 			}
+			owns := t.CurrentRunID == r.ID && t.Generation == r.Generation
 			// Unknown execution conservatively spends its entire finite grant. A later
 			// observation can confirm quiescence, but never silently refunds uncertainty.
-			s.settle(&p, &t, &r, r.GrantSeconds, true)
+			// Historical executions are already fenced and cannot debit a new Run.
+			if owns {
+				s.settle(&p, &t, &r, r.GrantSeconds, true)
+			}
 			r.State = "lost"
+			r.Version++
 			r.Detail = "租约已失效，等待进程停止确认"
-			if t.CurrentRunID == r.ID {
+			if owns && t.HoldReason == "" {
 				t.HoldReason = "offline"
 			}
 			if e = tx.Put("run", r.ID, r); e != nil {
 				return e
 			}
-			if e = tx.Put("task", t.ID, t); e != nil {
-				return e
+			if owns {
+				if e = tx.Put("task", t.ID, t); e != nil {
+					return e
+				}
 			}
 			if e = s.audit(tx, Actor{ID: "center"}, "run.expired", r.ID, ""); e != nil {
 				return e
+			}
+		}
+		// Stop confirmation may arrive while the project is paused. Keep the old
+		// ownership as a durable recovery marker and advance it after resume.
+		for _, r := range runs {
+			if !r.Quiescent || active(r) {
+				continue
+			}
+			var t domain.Task
+			if e = tx.Get("task", r.TaskID, &t); e != nil {
+				return e
+			}
+			changed, err := s.recoverStopped(tx, p, &t, r)
+			if err != nil {
+				return err
+			}
+			if changed {
+				t.Version++
+				if e = tx.Put("task", t.ID, t); e != nil {
+					return e
+				}
 			}
 		}
 		return tx.Put("project", p.ID, p)
