@@ -5,6 +5,21 @@ import { nodeSnapshot, localRun } from '../test/nodeSnapshot';
 import { RunnerWorkspace } from './RunnerWorkspace';
 
 describe('local Runner workbench', () => {
+  it('offers center navigation only for a safe same-machine link and does not fetch owner state', async () => {
+    const client = new LocalClient();
+    vi.spyOn(client, 'snapshot').mockResolvedValue(nodeSnapshot);
+    const rendered = render(<RunnerWorkspace client={client} centerConsoleURL="http://127.0.0.1:8080" />);
+    await screen.findByText('规范化问候姓名');
+    expect(screen.getByRole('link', { name: '中心任务池 ↗' }).getAttribute('href')).toBe('http://127.0.0.1:8080/#tasks');
+    expect(screen.getByRole('link', { name: '中心需求池 ↗' }).getAttribute('href')).toBe('http://127.0.0.1:8080/#requirements');
+    expect(screen.getByRole('link', { name: '中心配置与接入 ↗' }).getAttribute('href')).toBe('http://127.0.0.1:8080/#connection');
+    expect(screen.queryByLabelText('Owner token')).toBeNull();
+    rendered.rerender(<RunnerWorkspace client={client} centerConsoleURL="https://evil.example" />);
+    expect(screen.queryByRole('navigation', { name: '同机中心工作台' })).toBeNull();
+    rendered.rerender(<RunnerWorkspace client={client} />);
+    expect(screen.queryByRole('link', { name: '中心任务池 ↗' })).toBeNull();
+  });
+
   it('shows actual local execution and keeps the last state visibly stale when disconnected', async () => {
     const client = new LocalClient();
     vi.spyOn(client, 'snapshot').mockResolvedValueOnce(nodeSnapshot).mockRejectedValueOnce(new Error('中心离线'));

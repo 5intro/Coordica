@@ -26,15 +26,14 @@ type Client interface {
 }
 
 type Server struct {
-	API Client
-	UI  fs.FS
+	API       Client
+	UI        fs.FS
+	CenterURL string
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v1/local/info", func(w http.ResponseWriter, r *http.Request) {
-		respond(w, http.StatusOK, map[string]string{"mode": "runner"})
-	})
+	mux.HandleFunc("GET /api/v1/local/info", s.localInfo)
 	mux.HandleFunc("GET /api/v1/local/state", s.state)
 	mux.HandleFunc("POST /api/v1/local/requirements", s.requirement)
 	mux.HandleFunc("/api/", http.NotFound)

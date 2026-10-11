@@ -18,9 +18,10 @@ import (
 )
 
 type Server struct {
-	Service     *app.Service
-	Integration *app.Integrator
-	UI          fs.FS
+	Service        *app.Service
+	Integration    *app.Integrator
+	UI             fs.FS
+	ConnectionInfo domain.ConnectionInfo
 }
 
 // Handler combines console and runner operations for a loopback listener.
@@ -42,7 +43,7 @@ func (s *Server) handler(runners, admin bool) http.Handler {
 	})
 	if admin {
 		mux.HandleFunc("GET /api/v1/local/info", func(w http.ResponseWriter, r *http.Request) {
-			respond(w, map[string]string{"mode": "center"}, nil)
+			respond(w, domain.LocalInfo{Mode: "center", CenterConsoleURL: s.ConnectionInfo.ConsoleURL}, nil)
 		})
 	}
 	if runners {
@@ -99,7 +100,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 // paths never fall through to owner dispatch when new admin operations appear.
 func runnerRoute(r *http.Request) bool {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/")
-	if r.Method == http.MethodGet && path == "runner/state" {
+	if r.Method == http.MethodGet && (path == "runner/state" || path == "runner/local-entry") {
 		return true
 	}
 	if r.Method == http.MethodPost && (path == "runner/register" || path == "runner/claim" || path == "runner/requirements") {
@@ -156,8 +157,12 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 			result, err = s.Service.Snapshot(ctx, a)
 		case path == "export":
 			result, err = s.Service.Export(ctx, a)
+		case path == "system/connection":
+			result = s.ConnectionInfo
 		case path == "runner/state":
 			result, err = s.Service.NodeSnapshot(ctx, a)
+		case path == "runner/local-entry":
+			result = domain.CenterEntry{ConsoleURL: s.ConnectionInfo.ConsoleURL, RunnerURL: s.ConnectionInfo.RunnerURL}
 		case len(parts) == 3 && parts[0] == "runs" && parts[2] == "context":
 			result, err = s.Service.RunContext(ctx, a, parts[1])
 		case len(parts) == 2 && parts[0] == "runs":

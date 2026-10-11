@@ -34,7 +34,7 @@ import (
 	"coordica/web"
 )
 
-const version = "0.1.2-dev"
+const version = "0.1.3-dev"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -79,6 +79,8 @@ func serve(ctx context.Context, args []string) error {
 	dir := f.String("data", ".coordica-center", "Center directory")
 	addr := f.String("listen", "127.0.0.1:8080", "HTTP(S) listen address")
 	console := f.String("console-listen", "127.0.0.1:8080", "Machine-local HTTP console address")
+	runnerURL := f.String("runner-url", "", "Advertised HTTPS Runner URL (required for wildcard listeners to produce remote setup instructions)")
+	runnerConsole := f.String("local-runner-console", "http://127.0.0.1:8081", "Local Runner viewer link (off hides it; does not start a Runner)")
 	cert := f.String("tls-cert", "", "PEM certificate")
 	key := f.String("tls-key", "", "PEM private key")
 	authFile := f.String("git-auth-file", "", "Center-only file containing HTTPS Authorization header value")
@@ -90,8 +92,13 @@ func serve(ctx context.Context, args []string) error {
 	if e != nil {
 		return e
 	}
+	viewerURL, e := localRunnerConsoleURL(*runnerConsole)
+	if e != nil {
+		return e
+	}
+	var tlsPair tls.Certificate
 	if *cert != "" {
-		if _, e = tls.LoadX509KeyPair(*cert, *key); e != nil {
+		if tlsPair, e = tls.LoadX509KeyPair(*cert, *key); e != nil {
 			return e
 		}
 	}
@@ -155,6 +162,11 @@ func serve(ctx context.Context, args []string) error {
 	} else {
 		consoleAddr = listen.Addr().String()
 	}
+	api.ConnectionInfo, e = centerConnectionInfo(listen.Addr().String(), consoleAddr, *runnerURL, absolute, tlsPair)
+	if e != nil {
+		return e
+	}
+	api.ConnectionInfo.RunnerConsoleURL = viewerURL
 	workerCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var workers sync.WaitGroup

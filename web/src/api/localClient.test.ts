@@ -5,6 +5,16 @@ import { nodeSnapshot, localRun } from '../test/nodeSnapshot';
 afterEach(() => vi.unstubAllGlobals());
 
 describe('local Runner client', () => {
+  it('accepts mode-only metadata and the optional same-machine center link', async () => {
+    const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ mode: 'runner' })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ mode: 'runner', center_console_url: 'http://127.0.0.1:8080' })));
+    vi.stubGlobal('fetch', fetch);
+    const client = new LocalClient();
+    expect(await client.info()).toEqual({ mode: 'runner' });
+    expect(await client.info()).toEqual({ mode: 'runner', center_console_url: 'http://127.0.0.1:8080' });
+    expect(new Headers(fetch.mock.calls[0][1].headers).has('Authorization')).toBe(false);
+  });
+
   it('uses only the node-scoped local endpoint without sending a browser credential', async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(nodeSnapshot)));
     vi.stubGlobal('fetch', fetch);

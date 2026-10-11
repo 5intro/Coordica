@@ -1,17 +1,21 @@
-import type { NodeSnapshot, Requirement, RequirementProposal } from '../api.generated';
+import type { LocalInfo as ProtocolLocalInfo, NodeSnapshot, Requirement, RequirementProposal } from '../api.generated';
 import { ApiClient, ApiError } from './client';
+
+export interface LocalInfo extends Omit<ProtocolLocalInfo, 'mode'> {
+  mode: 'center' | 'runner';
+}
 
 // The Runner's loopback proxy owns its node credential. Browser requests stay
 // on that machine's same-origin page and never obtain an owner or node token.
 export class LocalClient {
   private readonly transport = new ApiClient('');
 
-  async info(signal?: AbortSignal): Promise<'center' | 'runner'> {
-    const info = await this.transport.read<{ mode: string }>('/local/info', signal);
+  async info(signal?: AbortSignal): Promise<LocalInfo> {
+    const info = await this.transport.read<LocalInfo>('/local/info', signal);
     if (!info || (info.mode !== 'center' && info.mode !== 'runner')) {
       throw new ApiError('incompatible_response', '本机页面类型无法识别，请更新 Coordica。');
     }
-    return info.mode;
+    return { mode: info.mode, ...(typeof info.center_console_url === 'string' ? { center_console_url: info.center_console_url } : {}) };
   }
 
   async snapshot(signal?: AbortSignal): Promise<NodeSnapshot> {

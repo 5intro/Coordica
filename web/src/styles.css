@@ -239,6 +239,17 @@ pre { font: 11px/1.8 'SF Mono', 'Consolas', monospace; white-space: pre-wrap; ov
 .runner-node-summary, .runner-requirement-form { margin-bottom: 24px; }
 .runner-node-summary > p { font-size: 12px; }
 .runner-submissions { margin-top: 32px; }
+.local-center-navigation { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.local-center-navigation .eyebrow { margin: 0 10px 4px; }
+.local-center-navigation .nav-item { text-decoration: none; font-size: 12px; }
+.local-workspace-link { display: inline-block; text-decoration: none; margin-bottom: 8px; }
+.connection-settings .facts { margin-bottom: 20px; }
+.connection-settings .pairing-form { margin-bottom: 12px; }
+.connection-generated { padding-top: 20px; border-top: 1px solid var(--border); }
+.connection-generated textarea { font: 11px/1.7 'SF Mono', 'Cascadia Code', 'Consolas', monospace; }
+.connection-generated .actions { margin-top: 16px; }
+.certificate-details { margin-top: 20px; font-size: 12px; }
+.certificate-details pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 1.7; }
 .login-layout { min-height: 100vh; display: grid; grid-template-columns: 1.15fr 1fr; background: white; }
 .login-intro { padding: 50px 64px; background: var(--bone); border-right: 1px solid var(--border); display: flex; flex-direction: column; justify-content: space-between; }
 .login-intro > div { margin: 80px 0; }

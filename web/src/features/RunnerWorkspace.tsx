@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Run } from '../api.generated';
 import { LocalClient } from '../api/localClient';
+import { localConsoleURL } from '../api/connection';
 import { Empty, Feedback, Field, SectionTitle, Status, duration, short, time } from '../components/ui';
 import { useAction } from '../hooks/useAction';
 import { useSnapshot } from '../hooks/useSnapshot';
@@ -11,12 +12,13 @@ const stages: Record<string, string> = { implement: '实现', review: '独立评
 
 function stage(run: Run) { return stages[run.kind] ?? run.kind; }
 
-export function RunnerWorkspace({ client: providedClient }: { client?: LocalClient }) {
+export function RunnerWorkspace({ client: providedClient, centerConsoleURL }: { client?: LocalClient; centerConsoleURL?: string }) {
   const client = useMemo(() => providedClient ?? new LocalClient(), [providedClient]);
   const { snapshot, error, updatedAt, loading, refresh } = useSnapshot(client);
   const [page, setPage] = useState<'activity' | 'requirements'>('activity');
   const action = useAction(refresh);
   const node = snapshot?.node;
+  const centerURL = localConsoleURL(centerConsoleURL);
   const runs = [...(snapshot?.runs ?? [])].sort((a, b) => b.started_at.localeCompare(a.started_at));
   const activeRuns = runs.filter((run) => activeStates.has(run.state) || run.state === 'lost' && !run.quiescent);
   const requirements = [...(snapshot?.requirements ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -38,6 +40,7 @@ export function RunnerWorkspace({ client: providedClient }: { client?: LocalClie
         <button className={page === 'activity' ? 'nav-item active' : 'nav-item'} aria-current={page === 'activity' ? 'page' : undefined} onClick={() => setPage('activity')}><span className="nav-number">01</span>本机活动{activeRuns.length > 0 && <span className="nav-count">{activeRuns.length}</span>}</button>
         <button className={page === 'requirements' ? 'nav-item active' : 'nav-item'} aria-current={page === 'requirements' ? 'page' : undefined} onClick={() => setPage('requirements')}><span className="nav-number">02</span>提交需求</button>
       </nav>
+      {centerURL && <nav className="local-center-navigation" aria-label="同机中心工作台"><span className="eyebrow">同机中心 · 需 owner 登录</span><a className="nav-item" href={`${centerURL}/#tasks`}>中心任务池 ↗</a><a className="nav-item" href={`${centerURL}/#requirements`}>中心需求池 ↗</a><a className="nav-item" href={`${centerURL}/#runs`}>中心运行与节点 ↗</a><a className="nav-item" href={`${centerURL}/#connection`}>中心配置与接入 ↗</a></nav>}
       <div className="sidebar-bottom"><div className={`connection ${error ? 'offline' : loading ? 'loading' : 'online'}`}><span />{error ? '中心连接异常' : loading ? '正在读取本机状态' : '中心已连接'}</div><small>本机页面 · 自动执行</small></div>
     </aside>
     <div className="main-shell">

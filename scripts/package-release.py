@@ -135,16 +135,22 @@ def start_here(version, platform, binary):
    注册 MCP。Windows 使用 .\\coordica.exe，Unix 使用 ./coordica 或固定绝对路径。
    可用 --client 选择一个客户端；dsh 会生成独立 overlay 并给出加载方式。
 4. 先调用 mcp__coordica__inspect_environment 检查本机环境，不需要中心服务。
-5. 提供真实中心 HTTPS 地址、一次性配对码、必要的公共 CA 绝对路径，
-   再下达 initialize_runner 指令以配对并启动独立的用户级 Runner。
+5. 使用中心“中心配置与接入”为这台电脑生成的一次性接入指令，
+   让 Agent 保存公共 CA、注册 MCP，再调用 initialize_runner 配对并启动用户级 Runner。
+   也可自行提供真实中心 HTTPS 地址、配对码和必要的公共 CA 绝对路径。
 6. 在中心“运行与节点”核对后续心跳。关闭 MCP 会话不影响独立 Runner。
 
 安装与 MCP 初始化：README.md 的“统一 MCP 初始化（主要接入方式）”
 中心首次启动及局域网证书：README.md 的“本机启动”和“两台电脑通过局域网连接”
-控制台只在中心电脑打开，默认 http://127.0.0.1:8080；
+中心统一管理入口只在中心电脑打开，默认 http://127.0.0.1:8080；
+需求池、任务池、运行与节点及政策均在这里。登录后打开 /#connection，
+可在建项目前查看实际部署与公共 CA，为每个远端节点分别生成一次性接入配置。
+重试复制使用“复制已有接入配置”，保留原配对码。指令不含 owner/node 令牌或中心私有数据路径。
 执行电脑使用中心另行提供的局域网 HTTPS 节点地址和公共 CA。
+通配监听地址不能分享；中心使用 --runner-url 指定 HTTPS 实际地址，且须由 TLS 证书 SAN 覆盖。
 支持本机页面的 Runner 启动后，可在该电脑打开 http://127.0.0.1:8081，
 查看自己的运行并向中心提交需求提案；提案不会自行创建或批准任务。
+仅当中心也在本机且连接信息匹配时显示中心各池与配置入口，中心仍须 owner 登录。
 工具注册示例：examples/tools/custom-acp.json
 独立验收小项目：examples/acceptance
 Windows batch 路径限制：internal/process/README.md
@@ -152,7 +158,7 @@ Windows batch 路径限制：internal/process/README.md
 包内不含个人凭据、中心地址或配对信息。解压不会自动安装或启动系统服务；
 只有调用 initialize_runner 时才配对及请求启动用户服务。
 已完成 Mac 中心与 Windows 节点连接、Windows dsh 实现及 Claude 独立评审的小项目闭环。
-新增本机页面的 Windows 原生部署、取消与断线等故障场景仍待实测；Linux 原生部署待实测。
+本机页面与接入配置的 Windows 原生部署、取消与断线等故障场景仍待实测；Linux 原生部署待实测。
 """
     if platform == "windows-amd64":
         instructions += """
@@ -219,7 +225,7 @@ def verify_archive(path, entries):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", default="0.1.2-dev", help="archive version (default: %(default)s)")
+    parser.add_argument("--version", default="0.1.3-dev", help="archive version (default: %(default)s)")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?", args.version):
         raise ValueError("version must be a numeric semantic version with an optional prerelease suffix")

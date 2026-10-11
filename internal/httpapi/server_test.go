@@ -181,6 +181,7 @@ func TestRunnerSurfaceHasNoConsoleOrOwnerAPI(t *testing.T) {
 		{"GET", "/"}, {"GET", "/index.html"}, {"GET", "/assets/app.js"},
 		{"GET", "/api/v1/local/info"},
 		{"GET", "/api/v1/state"}, {"GET", "/api/v1/export"},
+		{"GET", "/api/v1/system/connection"},
 		{"POST", "/api/v1/pairings"}, {"POST", "/api/v1/project"},
 		{"POST", "/api/v1/project/pause"}, {"POST", "/api/v1/requirements"},
 		{"POST", "/api/v1/tasks"}, {"POST", "/api/v1/tasks/task_test/approve"},
@@ -207,6 +208,54 @@ func TestRunnerSurfaceHasNoConsoleOrOwnerAPI(t *testing.T) {
 	snapshot, err := f.server.Service.Snapshot(context.Background(), owner)
 	if err != nil || snapshot.Project != nil || len(snapshot.Tasks) != 0 || len(snapshot.Nodes) != 1 {
 		t.Fatal("denied network requests changed state", err)
+	}
+}
+
+func TestRuntimeConnectionConfigurationStaysOwnerLocal(t *testing.T) {
+	f := newBoundaryFixture(t)
+	f.server.ConnectionInfo = domain.ConnectionInfo{
+		APIVersion: "v1", Version: "test-version", ConsoleURL: "http://127.0.0.1:8080",
+		RunnerURL: "https://192.0.2.1:8443", RunnerConsoleURL: "http://127.0.0.1:8081",
+		RunnerListen: "0.0.0.0:8443", ConsoleListen: "127.0.0.1:8080", DataDir: "private-runtime-directory",
+		CertificatePEM: "public-certificate", CertificateSHA256: "public-fingerprint",
+	}
+	for _, handler := range []http.Handler{f.server.AdminHandler(), f.server.Handler()} {
+		w := boundaryRequest(handler, "GET", "/api/v1/system/connection", f.owner, "")
+		var config domain.ConnectionInfo
+		if err := json.Unmarshal(w.Body.Bytes(), &config); err != nil || w.Code != http.StatusOK || config != f.server.ConnectionInfo {
+			t.Fatal("runtime configuration changed in transport", w.Code, err, w.Body.String())
+		}
+		if w.Header().Get("Cache-Control") != "no-store" {
+			t.Fatal("runtime configuration can be cached")
+		}
+		for _, token := range []string{"", f.node.Token} {
+			w = boundaryRequest(handler, "GET", "/api/v1/system/connection", token, "")
+			if w.Code < 400 || strings.Contains(w.Body.String(), f.server.ConnectionInfo.DataDir) {
+				t.Fatal("non-owner read center configuration", w.Code, w.Body.String())
+			}
+		}
+	}
+	for _, token := range []string{"", f.owner, f.node.Token} {
+		w := boundaryRequest(f.server.RunnerHandler(), "GET", "/api/v1/system/connection", token, "")
+		if w.Code != http.StatusNotFound || strings.Contains(w.Body.String(), f.server.ConnectionInfo.DataDir) {
+			t.Fatal("network surface exposed owner runtime information", w.Code, w.Body.String())
+		}
+	}
+	w := boundaryRequest(f.server.RunnerHandler(), "GET", "/api/v1/runner/local-entry", f.node.Token, "")
+	var entry domain.CenterEntry
+	if err := json.Unmarshal(w.Body.Bytes(), &entry); err != nil || w.Code != http.StatusOK || entry.ConsoleURL != f.server.ConnectionInfo.ConsoleURL || entry.RunnerURL != f.server.ConnectionInfo.RunnerURL {
+		t.Fatal("node entry does not use configured runtime addresses", w.Code, err, w.Body.String())
+	}
+	for _, private := range []string{f.server.ConnectionInfo.DataDir, f.server.ConnectionInfo.CertificatePEM, f.server.ConnectionInfo.CertificateSHA256, f.owner, f.node.Token} {
+		if strings.Contains(w.Body.String(), private) {
+			t.Fatal("node entry leaked owner runtime configuration", w.Body.String())
+		}
+	}
+	if w = boundaryRequest(f.server.RunnerHandler(), "GET", "/api/v1/runner/local-entry", f.owner, ""); w.Code != http.StatusForbidden {
+		t.Fatal("owner token accepted on node entry", w.Code)
+	}
+	if w = boundaryRequest(f.server.AdminHandler(), "GET", "/api/v1/runner/local-entry", f.owner, ""); w.Code != http.StatusNotFound {
+		t.Fatal("admin surface exposed node entry", w.Code)
 	}
 }
 
