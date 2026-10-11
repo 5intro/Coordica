@@ -96,6 +96,8 @@ macOS/Linux 同样注册 stdio 服务，只需替换二进制和数据目录的�
 
 Windows 的 npm 工具入口可能是 `.cmd` / `.bat`。Coordica 支持带空格和中文的受限本机路径，但会拒绝 shell 元字符、括号等不安全路径；例如 `Program Files (x86)` 中的 batch 入口需要改用满足约束的安装位置。失败会返回明确的 preflight 原因，不能据此判断账号登录失效。具体约束见 [进程与 Windows batch 入口](../internal/process/README.md)。
 
+Windows 上请保持中心和 Runner 的数据目录较短，例如 `C:\Coordica\runner-data`。受控 Git 已开启长文件路径支持，但 Windows 子进程的工作目录仍受系统长度限制：Coordica 在创建仓库或启动 Git 前拒绝超过 258 个 UTF-16 单位的绝对工作目录，并提示缩短数据目录。这不等于仓库中的文件或 Git 引用只能有 258 个字符；长文件及对象路径另有真实回归测试。需要自定义 Runner 数据目录时，在 MCP 配置的 `args` 中追加 `--runner-data` 和固定绝对路径。[Microsoft 对工作目录与进程启动限制的说明](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setcurrentdirectory)
+
 `save_runner_profile` 仅是诊断辅助：同一 MCP 会话先成功探测后，默认保存到固定 Runner 数据目录下的 `discovery.json`；可在 MCP 启动参数中用 `--profile` 指定其他固定位置。配置无 token，不会替换已配对的 `runner.json`，也不是主流程的必需步骤。
 
 接入完成后，再由中心建立有限预算的真实任务进行验收。Windows 上已安装并登录 dsh 是前置条件；仍需实际验证受管执行、提交、独立评审、停止与失联恢复。当前开发电脑上的测试与 Windows 交叉编译不能替代第二台 Windows 电脑的这些结果。

@@ -221,8 +221,33 @@ func TestCloneAndCandidateFetchBeyondWindowsPathLimit(t *testing.T) {
 		workspace = filepath.Join(workspace, strings.Repeat("managed-path-", 4))
 	}
 	workspace = filepath.Join(workspace, "candidate")
+	if runtime.GOOS == "windows" {
+		// Windows process working directories retain MAX_PATH restrictions,
+		// unlike the longer object/ref paths supported by Git itself.
+		if err := g.Clone(ctx, source, workspace); !errors.Is(err, ErrWorkingDirectoryTooLong) {
+			t.Fatalf("oversize working directory did not fail preflight: %v", err)
+		}
+		if err := g.InitObjectFormat(ctx, workspace, true, head); !errors.Is(err, ErrWorkingDirectoryTooLong) {
+			t.Fatalf("oversize initialization did not fail preflight: %v", err)
+		}
+		if _, err := os.Stat(workspace); !os.IsNotExist(err) {
+			t.Fatalf("rejected destination was created: %v", err)
+		}
+		workspace = t.TempDir()
+		for len(workspace) < 210 {
+			remaining := 210 - len(workspace) - 1
+			if remaining == 0 {
+				break
+			}
+			workspace = filepath.Join(workspace, strings.Repeat("p", min(40, remaining)))
+		}
+		workspace = filepath.Join(workspace, "candidate")
+	}
 	if err := os.MkdirAll(filepath.Dir(workspace), 0700); err != nil {
 		t.Fatal(err)
+	}
+	if len(filepath.Join(workspace, ".git", filepath.FromSlash(ref))) <= 260 {
+		t.Fatal("regression fixture does not exceed the Git reference path limit")
 	}
 	// Exercise both pack creation during clone and the subsequent custom-ref
 	// fetch. Their paths exceed 260 characters independently of the temp root.
@@ -265,6 +290,28 @@ func TestCloneAndCandidateFetchBeyondWindowsPathLimit(t *testing.T) {
 	got = strings.TrimSpace(string(mustRun(t, g, copy, "rev-parse", "--verify", "refs/coordica/backup/main")))
 	if got != string(later) {
 		t.Fatalf("backup reference lost in long repository: %q", got)
+	}
+}
+
+func TestWindowsWorkingDirectoryLimitCountsUTF16AndReservesTerminator(t *testing.T) {
+	for _, path := range []string{`C:\` + strings.Repeat("x", 255), `C:\` + strings.Repeat("界", 255), `C:\` + strings.Repeat("😀", 127) + "x\\"} {
+		if err := checkWindowsWorkingDirectory(path); err != nil {
+			t.Fatalf("258 UTF-16 unit directory rejected: %v", err)
+		}
+	}
+	for _, path := range []string{`C:\` + strings.Repeat("x", 256), `C:\` + strings.Repeat("😀", 128)} {
+		if err := checkWindowsWorkingDirectory(path); !errors.Is(err, ErrWorkingDirectoryTooLong) || !strings.Contains(err.Error(), "shorter") {
+			t.Fatalf("oversize directory lacks actionable error: %v", err)
+		}
+	}
+}
+
+func TestGitStartFailurePreservesDiagnostic(t *testing.T) {
+	g := New(filepath.Join(t.TempDir(), "missing-git"))
+	_, err := g.run(context.Background(), "", nil, "version")
+	var failure *Error
+	if !errors.As(err, &failure) || failure.ExitCode != -1 || !strings.Contains(failure.Detail, "missing-git") {
+		t.Fatalf("process startup diagnostic lost: %v", err)
 	}
 }
 

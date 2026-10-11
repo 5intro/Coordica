@@ -21,23 +21,25 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf16"
 )
 
 var (
-	ErrInvalidOID        = errors.New("gitops: invalid full object ID")
-	ErrInvalidRef        = errors.New("gitops: invalid reference")
-	ErrGit               = errors.New("gitops: Git command failed")
-	ErrUnsafeConfig      = errors.New("gitops: executable or included repository config")
-	ErrInvalidBundle     = errors.New("gitops: invalid bundle")
-	ErrNotAncestor       = errors.New("gitops: expected ancestor relationship absent")
-	ErrOutOfScope        = errors.New("gitops: changes outside scope")
-	ErrUnsupportedObject = errors.New("gitops: unsupported object or path")
-	ErrDirty             = errors.New("gitops: worktree differs from fixed commit")
-	ErrConflict          = errors.New("gitops: merge conflict")
-	ErrNoChanges         = errors.New("gitops: head already contained in main")
-	ErrCAS               = errors.New("gitops: remote reference changed")
-	ErrUnknown           = errors.New("gitops: publication result requires reconciliation")
-	ErrOutputLimit       = errors.New("gitops: command output limit exceeded")
+	ErrInvalidOID              = errors.New("gitops: invalid full object ID")
+	ErrInvalidRef              = errors.New("gitops: invalid reference")
+	ErrGit                     = errors.New("gitops: Git command failed")
+	ErrUnsafeConfig            = errors.New("gitops: executable or included repository config")
+	ErrInvalidBundle           = errors.New("gitops: invalid bundle")
+	ErrNotAncestor             = errors.New("gitops: expected ancestor relationship absent")
+	ErrOutOfScope              = errors.New("gitops: changes outside scope")
+	ErrUnsupportedObject       = errors.New("gitops: unsupported object or path")
+	ErrDirty                   = errors.New("gitops: worktree differs from fixed commit")
+	ErrConflict                = errors.New("gitops: merge conflict")
+	ErrNoChanges               = errors.New("gitops: head already contained in main")
+	ErrCAS                     = errors.New("gitops: remote reference changed")
+	ErrUnknown                 = errors.New("gitops: publication result requires reconciliation")
+	ErrOutputLimit             = errors.New("gitops: command output limit exceeded")
+	ErrWorkingDirectoryTooLong = errors.New("gitops: Windows working directory is too long")
 )
 
 // Error preserves a machine-readable kind without requiring stderr parsing.
@@ -207,6 +209,9 @@ func controlledEnv(extra []string) []string {
 }
 
 func (g *Client) run(ctx context.Context, dir string, extra []string, args ...string) ([]byte, error) {
+	if err := validateWorkingDirectory(dir); err != nil {
+		return nil, err
+	}
 	argv := []string{"--no-pager"}
 	if dir != "" && runtime.GOOS != "windows" {
 		argv = append(argv, "-C", dir)
@@ -243,10 +248,36 @@ func (g *Client) run(ctx context.Context, dir string, extra []string, args ...st
 		var exit *exec.ExitError
 		if errors.As(err, &exit) {
 			e.ExitCode = exit.ExitCode()
+		} else if e.Detail == "" {
+			e.Detail = err.Error()
 		}
 		return stdout.Bytes(), e
 	}
 	return stdout.Bytes(), nil
+}
+
+// Windows appends a directory separator and terminating NUL to its process
+// working directory. Reserve both within MAX_PATH even when Git itself can
+// access longer object/reference paths with core.longpaths enabled.
+const windowsMaxWorkingDirectoryUnits = 258
+
+func checkWindowsWorkingDirectory(absolute string) error {
+	units := len(utf16.Encode([]rune(strings.TrimRight(absolute, `/\`))))
+	if units > windowsMaxWorkingDirectoryUnits {
+		return fault("preflight", ErrWorkingDirectoryTooLong, fmt.Sprintf("repository directory uses %d UTF-16 units; maximum is %d excluding the trailing separator; choose a shorter center or Runner data directory", units, windowsMaxWorkingDirectoryUnits))
+	}
+	return nil
+}
+
+func validateWorkingDirectory(dir string) error {
+	if runtime.GOOS != "windows" || dir == "" {
+		return nil
+	}
+	absolute, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+	return checkWindowsWorkingDirectory(absolute)
 }
 
 // guardRepo reads only config key names. Arbitrary external filters/drivers and
@@ -289,6 +320,9 @@ func (g *Client) Init(ctx context.Context, dir string, bare bool) error {
 }
 
 func (g *Client) initRepository(ctx context.Context, dir string, bare bool, format string) error {
+	if err := validateWorkingDirectory(dir); err != nil {
+		return err
+	}
 	args := []string{"init", "--template=", "--initial-branch=main"}
 	if bare {
 		args = append(args, "--bare")
@@ -324,6 +358,9 @@ func (g *Client) InitObjectFormat(ctx context.Context, dir string, bare bool, oi
 // Clone supports a local or HTTPS source and creates an independent, unchecked-out
 // repository. It never copies Git config, hooks, hardlinks, or submodules.
 func (g *Client) Clone(ctx context.Context, source, dir string) error {
+	if err := validateWorkingDirectory(dir); err != nil {
+		return err
+	}
 	var src string
 	var err error
 	if strings.Contains(source, "://") {

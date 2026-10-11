@@ -66,7 +66,9 @@
 
 ## 首次远端 CI
 
-首次 GitHub 托管 CI 的 macOS/Linux 全套检查通过，Windows 的进程、Runner、MCP、初始化及服务配置测试通过，但备份与候选构建触发 Git for Windows 默认的长路径限制。这暴露的是实际 Git 路径兼容问题，不能通过缩短测试路径或启用用户全局配置来隐藏。后续提交在统一 Git 边界修复，并用超过 260 字符路径的真实 Git 操作回归；最终提交的完整检查状态以 [Actions](https://github.com/5intro/Coordica/actions) 和对应预发布说明为准。
+首次 GitHub 托管 CI 的 macOS/Linux 全套检查通过，Windows 的进程、Runner、MCP、初始化及服务配置测试通过，但备份与候选构建触发 Git for Windows 默认的长路径限制。后续在统一 Git 边界修复了命令配置、本地传输子进程与 clone 路径处理，Windows 原有集成、备份和恢复测试随后全部通过。
+
+额外的超深目录回归还确认了 Windows 子进程工作目录本身的系统限制。实现对超过 258 个 UTF-16 单位的绝对工作目录在创建/启动前明确拒绝，并提示缩短数据目录；测试验证拒绝前不创建目标。同时保留受支持工作目录内超过 260 字符的对象与引用路径的真实 clone/fetch/备份回归；Unix 继续验证超过 280 字符的工作目录。最终提交的完整检查状态以 [Actions](https://github.com/5intro/Coordica/actions) 和对应预发布说明为准。
 
 ## 分发许可
 
