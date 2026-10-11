@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "status": "scope_requested",
+  "requested_paths": ["src/greeting.mjs"],
+  "reason": "The existing task requires updating the greeting implementation, but initial authority covers only test/**",
+  "summary": "Stopped before editing; request source scope for the original task"
+}

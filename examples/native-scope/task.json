@@ -1,0 +1,11 @@
+{
+  "title": "Normalize greeting names through native scope intent",
+  "description": "Improve greeting(name) in src/greeting.mjs: omitted or undefined name uses guest; for strings, trim and collapse Unicode whitespace to one ASCII space, use guest for empty normalized names, and preserve Unicode letters; every other non-string argument, including null, must throw TypeError. Add regression tests in test/greeting.test.mjs. Initial task authority covers only test/**, which is insufficient for the requested source behavior. Request the exact additional src/greeting.mjs path through the supplied native execution intent schema, then stop before editing files. After Leader extends this original task and a new generation is assigned, implement and test within the extended scope. Do not edit tools, configuration, or documentation; do not use HTTP or configure MCP; do not run Git or commit.",
+  "acceptance": "node --test test/greeting.test.mjs and the owner's immutable node tools/verify-acceptance.mjs pass. Actual diff is within test/** plus exactly src/greeting.mjs after the extension. A fresh independent Claude reviewer assesses the fixed candidate before integration.",
+  "allowed_paths": ["test/**"],
+  "tool": "codex",
+  "budget_seconds": 1200,
+  "max_run_seconds": 600,
+  "max_repairs": 1,
+  "max_retries": 2
+}

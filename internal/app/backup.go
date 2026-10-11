@@ -17,6 +17,7 @@ import (
 
 	"coordica/internal/domain"
 	"coordica/internal/gitops"
+	"coordica/internal/localfile"
 	"coordica/internal/store"
 )
 
@@ -73,7 +74,7 @@ func (s *Service) backup(ctx context.Context, a Actor, g *gitops.Client) (string
 	if err := os.MkdirAll(parent, 0700); err != nil {
 		return "", err
 	}
-	if err := os.Chmod(parent, 0700); err != nil {
+	if err := localfile.Protect(parent); err != nil {
 		return "", err
 	}
 	id := ID("backup_")
@@ -88,10 +89,18 @@ func (s *Service) backup(ctx context.Context, a Actor, g *gitops.Client) (string
 			os.RemoveAll(stage)
 		}
 	}()
+	// Protect before SQLite or copied files write confidential content, so
+	// Windows children inherit an owner-only DACL from the staging root.
+	if err := localfile.Protect(stage); err != nil {
+		return "", err
+	}
 	database := filepath.Join(stage, "coordica.db")
 	// SQLite creates a consistent independent file. The active db/WAL files are
 	// never copied; records below are read from this exact snapshot.
 	if err := s.DB.Backup(ctx, database); err != nil {
+		return "", err
+	}
+	if err := localfile.Protect(database); err != nil {
 		return "", err
 	}
 	records, err := readBackupRecords(ctx, database, true)
@@ -400,6 +409,9 @@ func copyBackupFile(ctx context.Context, source, root, rel string) (backupFile, 
 	if err = os.MkdirAll(filepath.Dir(dest), 0700); err != nil {
 		return f, err
 	}
+	if err = localfile.Protect(filepath.Dir(dest)); err != nil {
+		return f, err
+	}
 	input, err := os.Open(source)
 	if err != nil {
 		return f, err
@@ -410,6 +422,9 @@ func copyBackupFile(ctx context.Context, source, root, rel string) (backupFile, 
 		return f, err
 	}
 	defer output.Close()
+	if err = localfile.Protect(dest); err != nil {
+		return f, err
+	}
 	h := sha256.New()
 	f.Size, err = io.Copy(io.MultiWriter(output, h), contextReader{ctx, input})
 	if err != nil {
@@ -435,6 +450,9 @@ func writeBackupManifest(dir string, m backupManifest) error {
 		return err
 	}
 	defer f.Close()
+	if err = localfile.Protect(filepath.Join(dir, "manifest.json")); err != nil {
+		return err
+	}
 	if _, err = f.Write(append(b, '\n')); err != nil {
 		return err
 	}
@@ -521,6 +539,9 @@ func restoreBackup(ctx context.Context, backupDir, destination string, g *gitops
 			os.RemoveAll(destination)
 		}
 	}()
+	if err = localfile.Protect(destination); err != nil {
+		return err
+	}
 	for _, f := range all {
 		source, e := safeBackupFile(backupDir, f.Path)
 		if e != nil {

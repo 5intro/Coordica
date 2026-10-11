@@ -1,0 +1,18 @@
+{
+  "fixture_version": 1,
+  "development_tool": "codex",
+  "development_model": "gpt-6.1-sol",
+  "review_tool": "claude",
+  "initial_paths": ["test/**"],
+  "requested_paths": ["src/greeting.mjs"],
+  "extended_paths": ["test/**", "src/greeting.mjs"],
+  "owner_checks": ["node --test test/greeting.test.mjs", "node tools/verify-acceptance.mjs"],
+  "required_observations": [
+    "Initial native Codex final output validates against the embedded execution v1 schema with scope_requested; no root-authored HTTP scope request substitutes for this observation",
+    "Original Agent process tree stops and original fixed worktree remains unchanged before Runner submits the exact current generation request_scope",
+    "Receipt precedes stopped/quiescent Complete; original Run produces no commit or bundle and consumes no repair or retry",
+    "Center Leader assesses and extends the same original task after durable stop; cumulative budgets and counters remain monotonic",
+    "A new generation of native Codex completes within extended paths, with Runner verifying actual fixed-base scope and material",
+    "Fresh independent Claude session reviews the fixed candidate before integration"
+  ]
+}

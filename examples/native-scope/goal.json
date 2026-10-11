@@ -1,0 +1,9 @@
+{
+  "objective": "Normalize the existing greeting through one original task and native scope intent",
+  "non_goals": "No new products, architecture changes, tools, configuration, documentation, or publication changes",
+  "acceptance": "The existing greeting passes regression and immutable owner verification; a stopped initial native Codex Run requests source scope, Leader extends only its original task, a later native Codex generation completes, and an independent Claude reviewer evaluates the fixed candidate",
+  "architecture": "ES modules using Node built-in test and assertion libraries; preserve the public greeting function",
+  "directory_outline": "src/greeting.mjs is implementation; test/greeting.test.mjs is regression coverage; tools/verify-acceptance.mjs is immutable owner verification",
+  "allowed_roots": ["src", "test"],
+  "budget_seconds": 2400
+}

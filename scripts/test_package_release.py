@@ -24,7 +24,7 @@ class ReleaseTests(unittest.TestCase):
                                  '同一任务以新授权恢复并保留累计支出',
                                  'node:test', '本地测试 Git 的 main',
                                  '不代表完整 Phase B dsh 协作或多机部署已通过',
-                                 'GitHub CI 结果仍待确认',
+                                 '当前发布版本关联的 GitHub checks',
                                  '多机 Phase B 与 Linux 原生部署仍待验证',
                                  '运行中取消的 Phase A 验收已通过', 'Claude / dsh'):
                     self.assertIn(expected, text)
@@ -64,6 +64,12 @@ class ReleaseTests(unittest.TestCase):
             'examples/acceptance/test/greeting.test.mjs',
             'examples/acceptance/tools/verify-acceptance.mjs',
             'examples/acceptance/task.json',
+            'examples/native-scope/README.md', 'examples/native-scope/goal.json',
+            'examples/native-scope/task.json', 'examples/native-scope/flow.json',
+            'examples/native-scope/expected-scope-intent.json',
+            'examples/native-scope/src/greeting.mjs',
+            'examples/native-scope/test/greeting.test.mjs',
+            'examples/native-scope/tools/verify-acceptance.mjs',
         }
         self.assertEqual({name for name in entries if not name.startswith('third_party/licenses/')}, expected)
         for name in entries:
@@ -71,7 +77,8 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn('个人非商业使用许可协议', entries['LICENSE'][0].decode())
 
     def test_archive_round_trip_and_determinism(self):
-        entries = {'README.md': (b'public instructions', 0o644), 'coordica': (b'test binary', 0o755)}
+        entries = release.common_entries()
+        entries['coordica'] = (b'test binary', 0o755)
         with tempfile.TemporaryDirectory() as directory:
             for suffix, writer in (('.tar.gz', release.write_tar), ('.zip', release.write_zip)):
                 first, second = (Path(directory) / (name + suffix) for name in ('first', 'second'))

@@ -362,12 +362,15 @@ func TestBackupPlanningQuietReceiptReplaysDBRunningAfterRestore(t *testing.T) {
 	if e := RestoreBackup(ctx, backup, dest); e != nil {
 		t.Fatal(e)
 	}
-	file := filepath.Join(dest, "planning-outcomes", r.ID+".json")
-	info, e := os.Stat(file)
-	if e != nil || info.Mode().Perm() != 0600 {
-		t.Fatal("receipt not restored privately", e)
+	assertBackupPrivate(t, filepath.Dir(backup), true)
+	for _, root := range []string{backup, dest} {
+		assertBackupPrivate(t, root, true)
+		assertBackupPrivate(t, filepath.Join(root, "planning-outcomes"), true)
+		assertBackupPrivate(t, filepath.Join(root, "planning-outcomes", r.ID+".json"), false)
+		assertBackupPrivate(t, filepath.Join(root, "coordica.db"), false)
+		assertBackupPrivate(t, filepath.Join(root, "manifest.json"), false)
 	}
-	if _, e = os.Stat(filepath.Join(dest, "planning-outcomes", "bogus.json")); !os.IsNotExist(e) {
+	if _, e := os.Stat(filepath.Join(dest, "planning-outcomes", "bogus.json")); !os.IsNotExist(e) {
 		t.Fatal("unreferenced receipt restored")
 	}
 	db, e := store.Open(filepath.Join(dest, "coordica.db"))

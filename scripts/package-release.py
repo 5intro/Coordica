@@ -78,6 +78,12 @@ def common_entries():
         "examples/acceptance/.gitignore", "examples/acceptance/src/greeting.mjs",
         "examples/acceptance/test/greeting.test.mjs", "examples/acceptance/tools/verify-acceptance.mjs",
         "examples/acceptance/task.json",
+        "examples/native-scope/README.md", "examples/native-scope/goal.json",
+        "examples/native-scope/task.json", "examples/native-scope/flow.json",
+        "examples/native-scope/expected-scope-intent.json",
+        "examples/native-scope/src/greeting.mjs",
+        "examples/native-scope/test/greeting.test.mjs",
+        "examples/native-scope/tools/verify-acceptance.mjs",
     ]
     license_dir = ROOT / "third_party/licenses"
     if not license_dir.is_dir() or license_dir.is_symlink():
@@ -170,7 +176,7 @@ macOS 本机 Phase B 实测：原生 Codex gpt-6.1-sol Leader 规划 → 自动�
 原生 Leader 运行中取消验收也已通过：观察到结构化会话，取消前确认真实存活 PID，
 取消后确认进程消失、静止与结算，保留实际耗时支出。
 本机 Claude 与 dsh 原生协议冒烟测试已通过，不代表完整 Phase B dsh 协作或多机部署已通过。
-最终根目录汇总检查与 GitHub CI 结果仍待确认，不将局部测试结果视为最终通过。
+完整测试与各平台 CI 结果以当前发布版本关联的 GitHub checks 为准，本地局部检查不替代完整测试或平台 CI。
 普通 LAN 测试不覆盖断线、重启、重复消息、旧租约及进程树停止语义。
 跨平台编译不等于目标系统原生认证；仅取得实际测量证据后标记通过。
 
