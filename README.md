@@ -1,6 +1,6 @@
 # Coordica
 
-个人多电脑、多 Agent 开发协调底座。阶段 A 实现采用 Go 中心与 Runner、SQLite、React/TypeScript 控制台；Web 产物嵌入中心二进制，无 Redis、消息队列或额外后台运行时。
+多电脑、多 Agent 开发协调底座。采用 Go 中心与 Runner、SQLite、React/TypeScript 控制台；Web 产物嵌入中心二进制，无 Redis、消息队列或额外后台运行时。
 
 当前是 **0.1.0 开发版**。已实现固定 Git 候选、独立评审、程序检查和条件发布闭环；真实工具与各操作系统的验收情况见 [验证记录](docs/implementation-status.md)。没有把协议模拟测试或跨平台编译称为真实部署验收。
 
