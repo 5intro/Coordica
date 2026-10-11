@@ -9,6 +9,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"coordica/internal/localfile"
 	"golang.org/x/sys/windows"
 )
 
@@ -79,17 +80,31 @@ func TestBackupPlanningWindowsRootsProtectNewChildren(t *testing.T) {
 	}
 	for _, root := range []string{filepath.Dir(backup), backup, dest} {
 		assertBackupPrivate(t, root, true)
-		// No explicit Protect call: children must already inherit privacy before
-		// any caller writes their content, including SQLite and tool adapters.
+		// ACLs inherit the user SID, but ownership comes from the creating token.
+		// Explicitly protect empty children before content, as the copy path does.
 		child := filepath.Join(root, "new-private-child")
 		if err := os.Mkdir(child, 0700); err != nil {
 			t.Fatal(err)
 		}
-		file := filepath.Join(child, "receipt.json")
-		if err := os.WriteFile(file, []byte("confidential test receipt"), 0600); err != nil {
+		if err := localfile.Protect(child); err != nil {
 			t.Fatal(err)
 		}
-		assertBackupOwnerOnlyDACL(t, child, true, false)
-		assertBackupOwnerOnlyDACL(t, file, false, false)
+		file := filepath.Join(child, "receipt.json")
+		output, err := os.OpenFile(file, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer output.Close()
+		if err := localfile.Protect(file); err != nil {
+			output.Close()
+			t.Fatal(err)
+		}
+		assertBackupPrivate(t, child, true)
+		assertBackupPrivate(t, file, false)
+		_, writeErr := output.Write([]byte("confidential test receipt"))
+		closeErr := output.Close()
+		if writeErr != nil || closeErr != nil {
+			t.Fatal("write protected receipt", writeErr, closeErr)
+		}
 	}
 }

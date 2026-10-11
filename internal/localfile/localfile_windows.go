@@ -7,40 +7,43 @@ import (
 	"os"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var kernel32 = syscall.NewLazyDLL("kernel32.dll")
-var advapi32 = syscall.NewLazyDLL("advapi32.dll")
 
-// Protect uses an owner-only protected DACL. Directories also carry inheritable
-// permissions for new child files and directories; existing child objects
-// should be protected explicitly when migrating older data.
+// Protect sets the current process user as owner with a protected user-only
+// DACL. Directory ACEs inherit that specific user SID, independent of an
+// elevated token's default Administrators owner. Protect children explicitly
+// before writing to set their ownership as well; ownership does not inherit.
 func Protect(path string) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
 	}
-	sddl := "D:P(A;;FA;;;OW)"
-	if info.IsDir() {
-		sddl = "D:P(A;OICI;FA;;;OW)"
+	user, err := windows.GetCurrentProcessToken().GetTokenUser()
+	if err != nil {
+		return fmt.Errorf("private file user: %w", err)
 	}
-	text, err := syscall.UTF16PtrFromString(sddl)
+	sid := user.User.Sid.String()
+	sddl := "D:P(A;;FA;;;" + sid + ")"
+	if info.IsDir() {
+		sddl = "D:P(A;OICI;FA;;;" + sid + ")"
+	}
+	descriptor, err := windows.SecurityDescriptorFromString(sddl)
 	if err != nil {
 		return err
 	}
-	var descriptor uintptr
-	ok, _, err := advapi32.NewProc("ConvertStringSecurityDescriptorToSecurityDescriptorW").Call(uintptr(unsafe.Pointer(text)), 1, uintptr(unsafe.Pointer(&descriptor)), 0)
-	if ok == 0 {
+	dacl, _, err := descriptor.DACL()
+	if err != nil {
 		return fmt.Errorf("private security descriptor: %w", err)
 	}
-	defer kernel32.NewProc("LocalFree").Call(descriptor)
-	name, err := syscall.UTF16PtrFromString(path)
-	if err != nil {
-		return err
-	}
-	ok, _, err = advapi32.NewProc("SetFileSecurityW").Call(uintptr(unsafe.Pointer(name)), 0x80000004, descriptor)
-	if ok == 0 {
-		return fmt.Errorf("private file ACL: %w", err)
+	// Set owner and DACL together while the existing access still permits
+	// WRITE_OWNER and WRITE_DAC. Do not enable privileges or accept another owner.
+	const security = windows.OWNER_SECURITY_INFORMATION | windows.DACL_SECURITY_INFORMATION | windows.PROTECTED_DACL_SECURITY_INFORMATION
+	if err := windows.SetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, security, user.User.Sid, nil, dacl, nil); err != nil {
+		return fmt.Errorf("private file owner and ACL: %w", err)
 	}
 	return nil
 }
