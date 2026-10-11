@@ -55,6 +55,9 @@ func (s *Service) audit(tx *store.Tx, a Actor, kind, id, detail string) error {
 	return tx.Audit(domain.Event{Time: s.Now(), Actor: a.ID, Kind: kind, ObjectID: id, Detail: detail})
 }
 func (s *Service) mutate(ctx context.Context, a Actor, key, action string, input any, fn func(*store.Tx) (any, error)) (json.RawMessage, error) {
+	return s.mutateWithCheck(ctx, a, key, action, input, nil, fn)
+}
+func (s *Service) mutateWithCheck(ctx context.Context, a Actor, key, action string, input any, check func(*store.Tx) error, fn func(*store.Tx) (any, error)) (json.RawMessage, error) {
 	if key == "" || len(key) > 200 {
 		return nil, domain.Fail("invalid_input", "写操作需要 Idempotency-Key")
 	}
@@ -65,6 +68,11 @@ func (s *Service) mutate(ctx context.Context, a Actor, key, action string, input
 	digest := Hash(action + "\x00" + string(b))
 	var result json.RawMessage
 	err = s.DB.Update(ctx, func(tx *store.Tx) error {
+		if check != nil {
+			if err := check(tx); err != nil {
+				return err
+			}
+		}
 		replay, ok, e := tx.Replay(a.ID, key, digest)
 		if e != nil {
 			return e
@@ -195,7 +203,7 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, key string, p doma
 	}
 	// Phase A dogfoods Coordica. Its authorization and integration controls
 	// cannot accidentally become ordinary changes through an empty UI list.
-	for _, required := range []string{"AGENTS.md", ".github/**", "cmd/coordica/**", "internal/app/**", "internal/domain/**", "internal/httpapi/**", "internal/gitops/**", "internal/process/**", "internal/store/**", "internal/agent/**", "internal/runner/**", "internal/onboarding/**", "internal/nodeservice/**", "internal/localfile/**", "internal/filelock/**", "api/**"} {
+	for _, required := range []string{"AGENTS.md", ".github/**", "cmd/coordica/**", "internal/app/**", "internal/domain/**", "internal/httpapi/**", "internal/localhttp/**", "internal/nodeconsole/**", "internal/gitops/**", "internal/process/**", "internal/store/**", "internal/agent/**", "internal/runner/**", "internal/onboarding/**", "internal/nodeservice/**", "internal/localfile/**", "internal/filelock/**", "api/**"} {
 		found := false
 		for _, configured := range p.ProtectedPaths {
 			if configured == required {
@@ -237,6 +245,7 @@ func (s *Service) CreateRequirement(ctx context.Context, a Actor, key string, r 
 	if err := owner(a); err != nil {
 		return nil, err
 	}
+	r.SourceNodeID = ""
 	if strings.TrimSpace(r.Title) == "" || strings.TrimSpace(r.Body) == "" {
 		return nil, domain.Fail("invalid_input", "需求标题和内容不能为空")
 	}

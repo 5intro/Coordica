@@ -23,7 +23,7 @@ export class ApiClient {
         signal: controller.signal,
         headers: {
           Accept: 'application/json',
-          Authorization: `Bearer ${this.token}`,
+          ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
           ...init.headers,
         },
       });
@@ -50,6 +50,8 @@ export class ApiClient {
     }
   }
 
+  read<T>(path: string, signal?: AbortSignal): Promise<T> { return this.request<T>(path, { signal }); }
+
   async snapshot(signal?: AbortSignal): Promise<Snapshot> {
     const snapshot = await this.request<Snapshot>('/state', { signal });
     if (!snapshot || snapshot.api_version !== 'v1' || !('project' in snapshot)
@@ -60,14 +62,14 @@ export class ApiClient {
     return snapshot;
   }
 
-  async write<T>(path: string, body: unknown, idempotencyKey?: string): Promise<T> {
+  async write<T>(path: string, body: unknown, idempotencyKey?: string, headers: Record<string, string> = {}): Promise<T> {
     const serialized = JSON.stringify(body);
     const fingerprint = `${path}\n${serialized}`;
     const key = idempotencyKey ?? this.uncertainWrites.get(fingerprint) ?? crypto.randomUUID();
     try {
       const result = await this.request<T>(path, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+        headers: { ...headers, 'Content-Type': 'application/json', 'Idempotency-Key': key },
         body: serialized,
       });
       this.uncertainWrites.delete(fingerprint);

@@ -24,17 +24,18 @@ import (
 )
 
 type Config struct {
-	CenterURL    string             `json:"center_url"`
-	DataDir      string             `json:"data_dir"`
-	Name         string             `json:"name"`
-	TLSCA        string             `json:"tls_ca"`
-	RuntimePath  string             `json:"runtime_path,omitempty"`
-	NodeID       string             `json:"node_id"`
-	Token        string             `json:"token"`
-	Capacity     int                `json:"capacity"`
-	Executables  map[string]string  `json:"executables,omitempty"`
-	Tools        []agent.Definition `json:"tools,omitempty"`
-	PollInterval time.Duration      `json:"poll_interval,omitempty"`
+	CenterURL     string             `json:"center_url"`
+	DataDir       string             `json:"data_dir"`
+	Name          string             `json:"name"`
+	TLSCA         string             `json:"tls_ca"`
+	RuntimePath   string             `json:"runtime_path,omitempty"`
+	ConsoleListen string             `json:"console_listen,omitempty"`
+	NodeID        string             `json:"node_id"`
+	Token         string             `json:"token"`
+	Capacity      int                `json:"capacity"`
+	Executables   map[string]string  `json:"executables,omitempty"`
+	Tools         []agent.Definition `json:"tools,omitempty"`
+	PollInterval  time.Duration      `json:"poll_interval,omitempty"`
 }
 type Runner struct {
 	// OnEvent may be set before Run to connect diagnostics to a local UI.

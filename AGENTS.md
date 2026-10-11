@@ -1,6 +1,6 @@
 # Coordica implementation rules
 
-- Follow `docs/lightweight-multi-agent-design-baseline-v0.2.md`. Phase A is authorized as of 2026-10-11.
+- Follow the implementation rules below. Maintainers also keep local design notes under ignored `docs/`; those private files are not required to build or use the published project. Phase A is authorized as of 2026-10-11.
 - Keep modules cohesive: domain types/rules, transactional application service, persistence, transports, Git operations, and process/tool adapters have distinct owners.
 - HTTP, CLI, MCP, and background workers must call the same application use cases. Never duplicate authorization or state transitions in an entry point.
 - `internal/gitops` and `internal/process` know nothing about HTTP, SQLite, or task state. `internal/agent` knows tool protocols, not scheduling.

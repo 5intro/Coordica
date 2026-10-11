@@ -25,7 +25,21 @@ export interface Requirement {
   version: number;
   title: string;
   body: string;
+  source_node_id?: string;
   created_at: string;
+}
+export interface RequirementProposal {
+  title: string;
+  body: string;
+}
+export interface NodeSnapshot {
+  api_version: string;
+  node: Node;
+  project_name: string;
+  project_paused: boolean;
+  tasks: (Task)[] | null;
+  runs: (Run)[] | null;
+  requirements: (Requirement)[] | null;
 }
 export interface Task {
   id: string;

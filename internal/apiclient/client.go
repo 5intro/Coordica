@@ -16,7 +16,23 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"coordica/internal/domain"
 )
+
+const maxResponseBytes = 16 << 20
+
+// HTTPError preserves the center's status for transports that need to
+// distinguish rejected requests from network failures. HTML error pages and
+// undeclared fields are never included in the error.
+type HTTPError struct {
+	Status  int
+	Problem domain.Problem
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("HTTP %d: %s", e.Status, e.Problem.Message)
+}
 
 type Client struct {
 	base, token string
@@ -75,12 +91,22 @@ func (c *Client) Do(ctx context.Context, method, path, key string, input any) (j
 		return nil, e
 	}
 	defer res.Body.Close()
-	b, e := io.ReadAll(io.LimitReader(res.Body, 16<<20))
+	b, e := io.ReadAll(io.LimitReader(res.Body, maxResponseBytes+1))
 	if e != nil {
 		return nil, e
 	}
 	if res.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(b)))
+		problem := domain.Problem{Code: "upstream_error", Message: "center rejected the request"}
+		if len(b) <= 64<<10 {
+			var parsed domain.Problem
+			if json.Unmarshal(b, &parsed) == nil && parsed.Code != "" && parsed.Message != "" {
+				problem = parsed
+			}
+		}
+		return nil, &HTTPError{Status: res.StatusCode, Problem: problem}
+	}
+	if len(b) > maxResponseBytes {
+		return nil, errors.New("center response exceeds 16 MiB")
 	}
 	if !json.Valid(b) {
 		return nil, errors.New("center returned invalid JSON")

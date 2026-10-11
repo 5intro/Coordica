@@ -14,6 +14,7 @@ import (
 
 	"coordica/internal/app"
 	"coordica/internal/domain"
+	"coordica/internal/localhttp"
 )
 
 type Server struct {
@@ -22,22 +23,49 @@ type Server struct {
 	UI          fs.FS
 }
 
-func (s *Server) Handler() http.Handler {
+// Handler combines console and runner operations for a loopback listener.
+// Separate listeners must use AdminHandler and RunnerHandler instead.
+func (s *Server) Handler() http.Handler { return localhttp.Guard(s.handler(true, true)) }
+
+// AdminHandler serves the Web console and owner API. Its listener must be bound
+// to loopback; node credentials are never accepted on this surface.
+func (s *Server) AdminHandler() http.Handler { return localhttp.Guard(s.handler(false, true)) }
+
+// RunnerHandler exposes only pairing and node execution operations. It may be
+// mounted on the center's authenticated HTTPS listener for remote runners.
+func (s *Server) RunnerHandler() http.Handler { return s.handler(true, false) }
+
+func (s *Server) handler(runners, admin bool) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		respond(w, map[string]string{"status": "ok", "api_version": domain.APIVersion}, nil)
 	})
-	mux.HandleFunc("POST /api/v1/runner/register", func(w http.ResponseWriter, r *http.Request) {
-		var in domain.RegisterRequest
-		if e := decode(r, &in); e != nil {
-			respond(w, nil, e)
+	if admin {
+		mux.HandleFunc("GET /api/v1/local/info", func(w http.ResponseWriter, r *http.Request) {
+			respond(w, map[string]string{"mode": "center"}, nil)
+		})
+	}
+	if runners {
+		mux.HandleFunc("POST /api/v1/runner/register", s.register)
+	}
+	ownerAPI, nodeAPI := s.auth("owner", s.api), s.auth("node", s.api)
+	mux.HandleFunc("/api/v1/", func(w http.ResponseWriter, r *http.Request) {
+		// Check the transport audience before authentication: the network
+		// listener has no owner API, even when a valid owner token is supplied.
+		if runnerRoute(r) {
+			if runners {
+				nodeAPI(w, r)
+				return
+			}
+		} else if admin {
+			ownerAPI(w, r)
 			return
 		}
-		v, e := s.Service.Register(r.Context(), in)
-		respond(w, v, e)
+		http.NotFound(w, r)
 	})
-	mux.HandleFunc("/api/v1/", s.auth(s.api))
-	if s.UI != nil {
+	if !admin {
+		mux.HandleFunc("/", http.NotFound)
+	} else if s.UI != nil {
 		files := http.FileServer(http.FS(s.UI))
 		mux.Handle("/", files)
 	} else {
@@ -56,9 +84,46 @@ func (s *Server) Handler() http.Handler {
 	})
 }
 
+func (s *Server) register(w http.ResponseWriter, r *http.Request) {
+	var in domain.RegisterRequest
+	if e := decode(r, &in); e != nil {
+		respond(w, nil, e)
+		return
+	}
+	// The one-time pairing code is authenticated by the shared use case.
+	v, e := s.Service.Register(r.Context(), in)
+	respond(w, v, e)
+}
+
+// runnerRoute is the complete network execution surface. Unknown methods and
+// paths never fall through to owner dispatch when new admin operations appear.
+func runnerRoute(r *http.Request) bool {
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/")
+	if r.Method == http.MethodGet && path == "runner/state" {
+		return true
+	}
+	if r.Method == http.MethodPost && (path == "runner/register" || path == "runner/claim" || path == "runner/requirements") {
+		return true
+	}
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 || parts[0] != "runs" || parts[1] == "" {
+		return false
+	}
+	if r.Method == http.MethodGet {
+		return len(parts) == 2 || len(parts) == 3 && (parts[2] == "context" || parts[2] == "input.bundle")
+	}
+	if r.Method == http.MethodPost && len(parts) == 3 {
+		switch parts[2] {
+		case "heartbeat", "complete", "artifacts", "block":
+			return true
+		}
+	}
+	return false
+}
+
 type actorKey struct{}
 
-func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
+func (s *Server) auth(role string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		raw := r.Header.Get("Authorization")
 		if !strings.HasPrefix(raw, "Bearer ") {
@@ -68,6 +133,10 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 		a, e := s.Service.Authenticate(r.Context(), strings.TrimPrefix(raw, "Bearer "))
 		if e != nil {
 			respond(w, nil, e)
+			return
+		}
+		if a.Role != role {
+			respond(w, nil, domain.Fail("forbidden", "访问凭据不适用于此接口"))
 			return
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), actorKey{}, a)))
@@ -87,6 +156,8 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 			result, err = s.Service.Snapshot(ctx, a)
 		case path == "export":
 			result, err = s.Service.Export(ctx, a)
+		case path == "runner/state":
+			result, err = s.Service.NodeSnapshot(ctx, a)
 		case len(parts) == 3 && parts[0] == "runs" && parts[2] == "context":
 			result, err = s.Service.RunContext(ctx, a, parts[1])
 		case len(parts) == 2 && parts[0] == "runs":
@@ -178,6 +249,11 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		var in domain.ClaimRequest
 		if err = decode(r, &in); err == nil {
 			result, err = s.Integration.Claim(ctx, a, key, in)
+		}
+	case path == "runner/requirements":
+		var in domain.RequirementProposal
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.SubmitRequirement(ctx, a, key, in)
 		}
 	case len(parts) == 3 && parts[0] == "runs" && parts[2] == "heartbeat":
 		var in domain.HeartbeatRequest

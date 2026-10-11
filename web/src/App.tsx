@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
-import { ApiClient } from './api/client';
+import { useEffect, useMemo, useState } from 'react';
+import { ApiClient, messageOf } from './api/client';
+import { LocalClient } from './api/localClient';
 import { Empty, Feedback, time } from './components/ui';
 import { useSnapshot } from './hooks/useSnapshot';
 import { Login, TOKEN_KEY } from './features/Login';
@@ -11,6 +12,7 @@ import { Runs } from './features/Runs';
 import { Candidates } from './features/Candidates';
 import { Audit } from './features/Audit';
 import { Settings } from './features/Settings';
+import { RunnerWorkspace } from './features/RunnerWorkspace';
 
 export type Page = 'overview' | 'requirements' | 'tasks' | 'runs' | 'candidates' | 'audit' | 'settings';
 const pages: { id: Page; label: string; number: string }[] = [
@@ -22,6 +24,23 @@ const pages: { id: Page; label: string; number: string }[] = [
 function storedToken() { try { return sessionStorage.getItem(TOKEN_KEY) ?? ''; } catch { return ''; } }
 
 export function App() {
+  const [mode, setMode] = useState<'center' | 'runner'>();
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    const client = new LocalClient();
+    setError('');
+    void client.info(controller.signal).then((next) => { if (!controller.signal.aborted) setMode(next); })
+      .catch((failure) => { if (!controller.signal.aborted) setError(messageOf(failure)); });
+    return () => controller.abort();
+  }, [retry]);
+  if (mode === 'runner') return <RunnerWorkspace />;
+  if (mode === 'center') return <CenterApp />;
+  return <main className="local-entry"><span className="wordmark">Coordica<span className="wordmark-dot" /></span><section className="panel"><Feedback error={error} /><Empty title={error ? '尚未连接本机服务' : '正在打开本机工作台'}>{error ? '确认 Coordica 服务已启动，然后重新连接。' : '读取本机页面类型。'}</Empty>{error && <button className="primary" onClick={() => setRetry((value) => value + 1)}>重新连接</button>}</section></main>;
+}
+
+function CenterApp() {
   const [token, setToken] = useState(storedToken);
   function connect(value: string, remember: boolean) {
     try { if (remember) sessionStorage.setItem(TOKEN_KEY, value); else sessionStorage.removeItem(TOKEN_KEY); } catch { /* Private mode can deny sessionStorage. */ }

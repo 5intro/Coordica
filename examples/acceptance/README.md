@@ -6,4 +6,4 @@
 
 `node tools/verify-acceptance.mjs` 在初始基线上应失败，开发完成后应通过。中心必须在固定候选 C 上运行它，不能仅接受 Agent 的自测总结。所有文件无模型密钥或中心凭据。
 
-完整部署、检查参数、故障测试与实际项目开发顺序见安装包 `docs/two-machine-acceptance.md`。
+中心启动与 Runner 初始化见项目 [README](../../README.md)。把任务保存为草稿，再由中心 owner 批准；中心最低检查应包含上述回归测试与独立 verifier，均由本机 Node 执行。

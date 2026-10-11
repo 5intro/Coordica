@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -33,7 +34,7 @@ import (
 	"coordica/web"
 )
 
-const version = "0.1.1-dev"
+const version = "0.1.2-dev"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -56,27 +57,7 @@ func run(ctx context.Context, args []string) error {
 	case "pair":
 		return pair(ctx, args[1:])
 	case "runner":
-		f := flag.NewFlagSet("runner", flag.ContinueOnError)
-		dir := f.String("data", ".coordica-runner", "Runner directory")
-		if e := f.Parse(args[1:]); e != nil {
-			return e
-		}
-		cfg, e := runner.Load(*dir)
-		if e != nil {
-			return e
-		}
-		// Only the standalone Runner receives the initialization-time PATH.
-		// User service managers may otherwise omit Git or npm's Node runtime.
-		if cfg.RuntimePath != "" {
-			if e = os.Setenv("PATH", cfg.RuntimePath); e != nil {
-				return e
-			}
-		}
-		r, e := runner.New(cfg)
-		if e != nil {
-			return e
-		}
-		return r.Run(ctx)
+		return runRunner(ctx, args[1:])
 	case "ctl":
 		return ctl(ctx, args[1:])
 	case "mcp":
@@ -97,6 +78,7 @@ func serve(ctx context.Context, args []string) error {
 	f := flag.NewFlagSet("serve", flag.ContinueOnError)
 	dir := f.String("data", ".coordica-center", "Center directory")
 	addr := f.String("listen", "127.0.0.1:8080", "HTTP(S) listen address")
+	console := f.String("console-listen", "127.0.0.1:8080", "Machine-local HTTP console address")
 	cert := f.String("tls-cert", "", "PEM certificate")
 	key := f.String("tls-key", "", "PEM private key")
 	authFile := f.String("git-auth-file", "", "Center-only file containing HTTPS Authorization header value")
@@ -104,16 +86,14 @@ func serve(ctx context.Context, args []string) error {
 	if e := f.Parse(args); e != nil {
 		return e
 	}
-	host, _, e := net.SplitHostPort(*addr)
+	runnerAddr, consoleAddr, shared, e := centerAddresses(*addr, *console, *cert, *key)
 	if e != nil {
 		return e
 	}
-	ip := net.ParseIP(host)
-	if *cert == "" && (host != "localhost" && (ip == nil || !ip.IsLoopback())) {
-		return errors.New("non-loopback listen requires --tls-cert and --tls-key")
-	}
-	if (*cert == "") != (*key == "") {
-		return errors.New("both TLS certificate and key are required")
+	if *cert != "" {
+		if _, e = tls.LoadX509KeyPair(*cert, *key); e != nil {
+			return e
+		}
 	}
 	absolute, e := filepath.Abs(*dir)
 	if e != nil {
@@ -153,7 +133,28 @@ func serve(ctx context.Context, args []string) error {
 	}
 	integration := &app.Integrator{Service: s, Git: g}
 	api := &httpapi.Server{Service: s, Integration: integration, UI: web.FS()}
-	server := &http.Server{Addr: *addr, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 90 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10}
+	var endpoints []centerEndpoint
+	runnerHandler := api.RunnerHandler()
+	if shared {
+		runnerHandler = api.Handler()
+	}
+	listen, e := net.Listen("tcp", runnerAddr)
+	if e != nil {
+		return e
+	}
+	defer listen.Close()
+	endpoints = append(endpoints, centerEndpoint{server: consoleHTTPServer(runnerHandler), listener: listen, cert: *cert, key: *key})
+	if !shared {
+		local, err := net.Listen("tcp", consoleAddr)
+		if err != nil {
+			return fmt.Errorf("console listen: %w", err)
+		}
+		defer local.Close()
+		endpoints = append(endpoints, centerEndpoint{server: consoleHTTPServer(api.AdminHandler()), listener: local})
+		consoleAddr = local.Addr().String()
+	} else {
+		consoleAddr = listen.Addr().String()
+	}
 	workerCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var workers sync.WaitGroup
@@ -178,21 +179,17 @@ func serve(ctx context.Context, args []string) error {
 	// Lease expiry must remain responsive while a long validation command runs.
 	start(time.Second, s.Expire)
 	start(time.Second, integration.Tick)
-	listen, e := net.Listen("tcp", *addr)
-	if e != nil {
-		cancel()
-		workers.Wait()
-		return e
+	result := make(chan error, len(endpoints))
+	for _, endpoint := range endpoints {
+		go func() {
+			if endpoint.cert != "" {
+				result <- endpoint.server.ServeTLS(endpoint.listener, endpoint.cert, endpoint.key)
+			} else {
+				result <- endpoint.server.Serve(endpoint.listener)
+			}
+		}()
 	}
-	result := make(chan error, 1)
-	go func() {
-		if *cert != "" {
-			result <- server.ServeTLS(listen, *cert, *key)
-		} else {
-			result <- server.Serve(listen)
-		}
-	}()
-	slog.Info("center ready", "listen", listen.Addr(), "owner_token_file", tokenPath, "version", version)
+	slog.Info("center ready", "listen", listen.Addr(), "console", "http://"+consoleAddr, "owner_token_file", tokenPath, "version", version)
 	select {
 	case e = <-result:
 	case <-ctx.Done():
@@ -201,7 +198,11 @@ func serve(ctx context.Context, args []string) error {
 	cancel()
 	shutdown, done := context.WithTimeout(context.Background(), 10*time.Second)
 	defer done()
-	_ = server.Shutdown(shutdown)
+	for _, endpoint := range endpoints {
+		if err := endpoint.server.Shutdown(shutdown); err != nil {
+			_ = endpoint.server.Close()
+		}
+	}
 	workers.Wait()
 	if errors.Is(e, http.ErrServerClosed) {
 		return nil

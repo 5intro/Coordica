@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Snapshot } from '../api.generated';
-import { ApiClient, messageOf } from '../api/client';
+import { messageOf } from '../api/client';
 
-export function useSnapshot(client: ApiClient, interval = 3000) {
-  const [snapshot, setSnapshot] = useState<Snapshot>();
+export function useSnapshot<T>(client: { snapshot(signal?: AbortSignal): Promise<T> }, interval = 3000) {
+  const [snapshot, setSnapshot] = useState<T>();
   const [error, setError] = useState('');
   const [updatedAt, setUpdatedAt] = useState<Date>();
   const [loading, setLoading] = useState(true);

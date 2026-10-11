@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const APIVersion = "v1"
@@ -35,11 +36,16 @@ type Project struct {
 	CreatedAt          time.Time `json:"created_at"`
 }
 type Requirement struct {
-	ID        string    `json:"id"`
-	Version   int64     `json:"version"`
-	Title     string    `json:"title"`
-	Body      string    `json:"body"`
-	CreatedAt time.Time `json:"created_at"`
+	ID           string    `json:"id"`
+	Version      int64     `json:"version"`
+	Title        string    `json:"title"`
+	Body         string    `json:"body"`
+	SourceNodeID string    `json:"source_node_id,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+type RequirementProposal struct {
+	Title string `json:"title"`
+	Body  string `json:"body"`
 }
 type Task struct {
 	ID                   string    `json:"id"`
@@ -167,6 +173,15 @@ type Snapshot struct {
 	Nodes        []Node        `json:"nodes"`
 	Events       []Event       `json:"events"`
 }
+type NodeSnapshot struct {
+	APIVersion    string        `json:"api_version"`
+	Node          Node          `json:"node"`
+	ProjectName   string        `json:"project_name"`
+	ProjectPaused bool          `json:"project_paused"`
+	Tasks         []Task        `json:"tasks"`
+	Runs          []Run         `json:"runs"`
+	Requirements  []Requirement `json:"requirements"`
+}
 type Pairing struct {
 	ID        string    `json:"id"`
 	CodeHash  string    `json:"code_hash"`
@@ -266,6 +281,15 @@ type Error struct {
 
 func (e *Error) Error() string        { return e.Message }
 func Fail(code, message string) error { return &Error{code, message} }
+func ValidateRequirementProposal(r RequirementProposal) error {
+	if strings.TrimSpace(r.Title) == "" || strings.TrimSpace(r.Body) == "" {
+		return Fail("invalid_input", "需求标题和内容不能为空")
+	}
+	if !utf8.ValidString(r.Title) || !utf8.ValidString(r.Body) || utf8.RuneCountInString(r.Title) > 200 || len(r.Body) > 64<<10 {
+		return Fail("invalid_input", "需求标题最多200个字符，内容最多64 KiB，且必须为有效UTF-8")
+	}
+	return nil
+}
 func ValidateProject(p Project) error {
 	if strings.TrimSpace(p.Name) == "" || strings.TrimSpace(p.RepositoryURL) == "" {
 		return Fail("invalid_input", "项目名称和仓库地址不能为空")

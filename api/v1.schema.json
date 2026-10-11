@@ -478,6 +478,60 @@
       ],
       "type": "object"
     },
+    "NodeSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "type": "string"
+        },
+        "node": {
+          "$ref": "#/$defs/Node"
+        },
+        "project_name": {
+          "type": "string"
+        },
+        "project_paused": {
+          "type": "boolean"
+        },
+        "requirements": {
+          "items": {
+            "$ref": "#/$defs/Requirement"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "runs": {
+          "items": {
+            "$ref": "#/$defs/Run"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/Task"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "api_version",
+        "node",
+        "project_name",
+        "project_paused",
+        "tasks",
+        "runs",
+        "requirements"
+      ],
+      "type": "object"
+    },
     "Problem": {
       "additionalProperties": false,
       "properties": {
@@ -630,6 +684,9 @@
         "id": {
           "type": "string"
         },
+        "source_node_id": {
+          "type": "string"
+        },
         "title": {
           "type": "string"
         },
@@ -643,6 +700,22 @@
         "title",
         "body",
         "created_at"
+      ],
+      "type": "object"
+    },
+    "RequirementProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "body"
       ],
       "type": "object"
     },

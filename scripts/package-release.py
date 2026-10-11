@@ -43,6 +43,8 @@ def checked_name(name):
     path = Path(name)
     if path.is_absolute() or ".." in path.parts or "\\" in name:
         raise ValueError(f"unsafe archive path: {name}")
+    if path.parts and path.parts[0].lower() == "docs":
+        raise ValueError(f"local-only documentation cannot be release input: {name}")
     if any(part.lower() in FORBIDDEN_DIRS for part in path.parts):
         raise ValueError(f"private directory in release input: {name}")
     if any(fnmatch.fnmatch(part.lower(), pattern)
@@ -71,15 +73,12 @@ def common_entries():
     required = [
         "LICENSE", "THIRD_PARTY_NOTICES.md", "README.md", "go.mod", "go.sum",
         "third_party/licenses/manifest.json",
-        "docs/windows-onboarding.md", "docs/implementation-status.md", "docs/mcp-clients.md",
         "internal/process/README.md", "examples/dsh/coordica.cordis.yml",
         "examples/tools/custom-acp.json", "examples/acceptance/README.md",
         "examples/acceptance/.gitignore", "examples/acceptance/src/greeting.mjs",
         "examples/acceptance/test/greeting.test.mjs", "examples/acceptance/tools/verify-acceptance.mjs",
         "examples/acceptance/task.json",
     ]
-    required.extend(path.relative_to(ROOT).as_posix()
-                    for path in sorted((ROOT / "docs").glob("*.md")))
     license_dir = ROOT / "third_party/licenses"
     if not license_dir.is_dir() or license_dir.is_symlink():
         raise ValueError("required third_party/licenses directory is missing or a symlink")
@@ -130,6 +129,7 @@ def start_here(version, platform, binary):
 
 执行电脑：
 1. 将 {binary} 放入固定目录，不要从临时目录或 go run 启动。
+   安装路径可自定义；macOS 首次安装建议固定于 ~/Library/Application Support/Coordica/bin，数据与项目选用 Desktop/Documents/Downloads 之外的目录。
 2. 本机需要 Git；要使用的 Agent CLI 应已安装并登录，沿用其自身配置。
 3. 运行 {binary} setup 预览，再运行 {binary} setup --apply，统一为发现的客户端
    注册 MCP。Windows 使用 .\\coordica.exe，Unix 使用 ./coordica 或固定绝对路径。
@@ -139,17 +139,20 @@ def start_here(version, platform, binary):
    再下达 initialize_runner 指令以配对并启动独立的用户级 Runner。
 6. 在中心“运行与节点”核对后续心跳。关闭 MCP 会话不影响独立 Runner。
 
-完整接入示例：docs/windows-onboarding.md（同时说明 macOS/Linux）
-客户端配置、版本条件与受管执行能力的区别：docs/mcp-clients.md
-中心首次启动及局域网证书：README.md
-工具注册与共享协议：docs/tool-registry.md
-双机 dsh 实测计划及独立小项目：docs/two-machine-acceptance.md / examples/acceptance
-已验证与待验收范围：docs/implementation-status.md
+安装与 MCP 初始化：README.md 的“统一 MCP 初始化（主要接入方式）”
+中心首次启动及局域网证书：README.md 的“本机启动”和“两台电脑通过局域网连接”
+控制台只在中心电脑打开，默认 http://127.0.0.1:8080；
+执行电脑使用中心另行提供的局域网 HTTPS 节点地址和公共 CA。
+支持本机页面的 Runner 启动后，可在该电脑打开 http://127.0.0.1:8081，
+查看自己的运行并向中心提交需求提案；提案不会自行创建或批准任务。
+工具注册示例：examples/tools/custom-acp.json
+独立验收小项目：examples/acceptance
 Windows batch 路径限制：internal/process/README.md
 
 包内不含个人凭据、中心地址或配对信息。解压不会自动安装或启动系统服务；
 只有调用 initialize_runner 时才配对及请求启动用户服务。
-Windows/Linux 包已交叉编译，尚未完成对应系统的原生部署与真实多 Agent 验收。
+已完成 Mac 中心与 Windows 节点连接、Windows dsh 实现及 Claude 独立评审的小项目闭环。
+新增本机页面的 Windows 原生部署、取消与断线等故障场景仍待实测；Linux 原生部署待实测。
 """
     if platform == "windows-amd64":
         instructions += """
@@ -216,7 +219,7 @@ def verify_archive(path, entries):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", default="0.1.1-dev", help="archive version (default: %(default)s)")
+    parser.add_argument("--version", default="0.1.2-dev", help="archive version (default: %(default)s)")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?", args.version):
         raise ValueError("version must be a numeric semantic version with an optional prerelease suffix")
