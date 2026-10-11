@@ -1,0 +1,50 @@
+package agent
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"runtime"
+	"testing"
+	"time"
+
+	"coordica/internal/process"
+)
+
+// This test is intentionally opt-in: it invokes an installed authenticated
+// CLI and may consume model credits. Ordinary go test never invokes a model.
+func TestLiveAgentSmoke(t *testing.T) {
+	tool := os.Getenv("COORDICA_LIVE_AGENT")
+	if tool == "" {
+		t.Skip("set COORDICA_LIVE_AGENT=codex|claude|dsh to opt in to a real model call")
+	}
+	if tool != "codex" && tool != "claude" && tool != "dsh" {
+		t.Fatal("unknown COORDICA_LIVE_AGENT")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cap := Probe(ctx, tool, "")
+	if !cap.Available {
+		t.Fatalf("%s unavailable: %s", tool, cap.Detail)
+	}
+	t.Logf("platform=%s/%s version=%s interface preflight; executing explicit live smoke", runtime.GOOS, runtime.GOARCH, cap.Version)
+	dir := t.TempDir()
+	if _, _, err := process.Collect(ctx, process.Spec{Executable: "git", Args: []string{"init", "-q"}, Dir: dir}, 16<<10); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Execute(ctx, Request{Tool: tool, WorkDir: dir, Role: "review", AllowedTools: []string{"Read", "Glob", "Grep"}, Prompt: `Return exactly one JSON object {"status":"coordica_smoke_ok"}. Do not use tools, edit files, execute commands, browse, or explain.`}, func(event Event) {
+		if event.Type == "error" || event.Type == "turn.failed" {
+			safe := SanitizeEvent(event)
+			t.Logf("%s: %s", safe.Type, safe.Data)
+		}
+	})
+	if err != nil {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	var reply struct {
+		Status string `json:"status"`
+	}
+	if json.Unmarshal([]byte(result.OutputText), &reply) != nil || reply.Status != "coordica_smoke_ok" || result.SessionID == "" || !result.TreeStopped {
+		t.Fatalf("invalid live result: %+v", result)
+	}
+}

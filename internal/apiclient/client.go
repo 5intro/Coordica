@@ -1,0 +1,89 @@
+// Package apiclient is the transport shared by human CLI and restricted MCP.
+package apiclient
+
+import (
+	"bytes"
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
+	"time"
+)
+
+type Client struct {
+	base, token string
+	http        *http.Client
+}
+
+func New(center, token, ca string) (*Client, error) {
+	u, e := url.Parse(center)
+	if e != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" && u.Path != "/" {
+		return nil, errors.New("invalid center URL")
+	}
+	host := u.Hostname()
+	ip := net.ParseIP(host)
+	if u.Scheme != "https" && !(u.Scheme == "http" && (host == "localhost" || ip != nil && ip.IsLoopback())) {
+		return nil, errors.New("LAN connections require HTTPS")
+	}
+	cfg := &tls.Config{MinVersion: tls.VersionTLS12}
+	if ca != "" {
+		b, e := os.ReadFile(ca)
+		if e != nil {
+			return nil, e
+		}
+		pool, e := x509.SystemCertPool()
+		if e != nil {
+			pool = x509.NewCertPool()
+		}
+		if !pool.AppendCertsFromPEM(b) {
+			return nil, errors.New("invalid CA certificate")
+		}
+		cfg.RootCAs = pool
+	}
+	h := &http.Client{Timeout: 90 * time.Second, Transport: &http.Transport{TLSClientConfig: cfg}, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirect refused") }}
+	return &Client{strings.TrimRight(center, "/"), strings.TrimSpace(token), h}, nil
+}
+func (c *Client) Do(ctx context.Context, method, path, key string, input any) (json.RawMessage, error) {
+	if !strings.HasPrefix(path, "/api/v1/") || strings.Contains(path, "..") || strings.ContainsAny(path, "?#") {
+		return nil, errors.New("invalid API path")
+	}
+	var body io.Reader
+	if input != nil {
+		b, e := json.Marshal(input)
+		if e != nil {
+			return nil, e
+		}
+		body = bytes.NewReader(b)
+	}
+	req, e := http.NewRequestWithContext(ctx, method, c.base+path, body)
+	if e != nil {
+		return nil, e
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", key)
+	res, e := c.http.Do(req)
+	if e != nil {
+		return nil, e
+	}
+	defer res.Body.Close()
+	b, e := io.ReadAll(io.LimitReader(res.Body, 16<<20))
+	if e != nil {
+		return nil, e
+	}
+	if res.StatusCode/100 != 2 {
+		return nil, fmt.Errorf("HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(b)))
+	}
+	if !json.Valid(b) {
+		return nil, errors.New("center returned invalid JSON")
+	}
+	return b, nil
+}

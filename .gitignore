@@ -1,0 +1,12 @@
+.tools/
+.cache/
+.coordica*/
+*.token
+*.key
+web/*.tsbuildinfo
+bin/
+web/node_modules/
+*.db
+*.db-shm
+*.db-wal
+.DS_Store

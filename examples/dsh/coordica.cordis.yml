@@ -1,0 +1,15 @@
+# Windows quick start: extract the development package into C:\Coordica.
+# This overlay contains no center, pairing code, node token, or model key.
+# Start with: dsh web --patch C:\Coordica\coordica.cordis.yml
+- insert:
+    - id: coordica-bootstrap
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: coordica
+        transport: stdio
+        command: 'C:\Coordica\coordica.exe'
+        args:
+          - mcp
+          - --bootstrap
+        env: {}
+        toolCallTimeoutMs: 180000
