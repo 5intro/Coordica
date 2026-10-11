@@ -6,7 +6,9 @@ Windows、macOS 和 Linux 使用同一流程：安装本机 Coordica MCP，在�
 
 准备当前操作系统的 `coordica` 二进制，放在不会被临时清理的固定位置。执行电脑需要 Git；本机已有的 dsh、Codex 或 Claude Code 继续使用自己的安装和登录状态。Coordica 不收集模型账号密码，也不代为安装这些工具。
 
-在所用 Agent 的 MCP 设置中注册本机 stdio 服务：
+先运行 `coordica setup` 预览，再运行 `coordica setup --apply`，自动为发现的客户端配置 MCP。Windows 解压到 `C:\Coordica` 时，对应命令为 `& C:\Coordica\coordica.exe setup --apply`。同一入口处理 Claude Code、Codex、Cursor、Kimi Code、pi 的配置差异，并为 dsh 生成本机 overlay；详细版本条件和配置冲突处理见 [统一客户端接入](mcp-clients.md)。
+
+如果客户端没有内置注册适配，可通过 `setup --client generic --apply` 导出通用配置，或在其 MCP 设置中注册以下 stdio 服务：
 
 | 字段 | 值 |
 | --- | --- |
@@ -62,7 +64,7 @@ dsh web --patch .\coordica.cordis.yml
 
 官方示例支持通过 `--patch` 加载独立 overlay。等待 `mcp__coordica__initialize_runner` 出现在工具列表后再下指令；不同 dsh 发行版本的 profile 和插件安装情况应以本机版本为准。[官方 overlay 示例](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/guide/mcp-memory.md)
 
-macOS/Linux 同样注册 stdio 服务，只需替换二进制和数据目录的绝对路径。其他 MCP 客户端按自己的配置格式填写上表的命令和参数。
+macOS/Linux 推荐使用 `coordica setup --apply` 自动生成本机路径，免去修改 Windows 模板。上面的固定路径模板仍可用于快速试用。
 
 ## 下达一句初始化指令
 

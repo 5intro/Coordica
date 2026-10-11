@@ -71,7 +71,7 @@ def common_entries():
     required = [
         "LICENSE", "THIRD_PARTY_NOTICES.md", "README.md", "go.mod", "go.sum",
         "third_party/licenses/manifest.json",
-        "docs/windows-onboarding.md", "docs/implementation-status.md",
+        "docs/windows-onboarding.md", "docs/implementation-status.md", "docs/mcp-clients.md",
         "internal/process/README.md", "examples/dsh/coordica.cordis.yml",
     ]
     required.extend(path.relative_to(ROOT).as_posix()
@@ -127,14 +127,16 @@ def start_here(version, platform, binary):
 执行电脑：
 1. 将 {binary} 放入固定目录，不要从临时目录或 go run 启动。
 2. 本机需要 Git；要使用的 Agent CLI 应已安装并登录，沿用其自身配置。
-3. 在 Agent 客户端注册 stdio MCP：command 为 {binary} 的绝对路径，
-   args 为 ["mcp", "--bootstrap"]。
+3. 运行 {binary} setup 预览，再运行 {binary} setup --apply，统一为发现的客户端
+   注册 MCP。Windows 使用 .\\coordica.exe，Unix 使用 ./coordica 或固定绝对路径。
+   可用 --client 选择一个客户端；dsh 会生成独立 overlay 并给出加载方式。
 4. 先调用 mcp__coordica__inspect_environment 检查本机环境，不需要中心服务。
 5. 提供真实中心 HTTPS 地址、一次性配对码、必要的公共 CA 绝对路径，
    再下达 initialize_runner 指令以配对并启动独立的用户级 Runner。
 6. 在中心“运行与节点”核对后续心跳。关闭 MCP 会话不影响独立 Runner。
 
 完整接入示例：docs/windows-onboarding.md（同时说明 macOS/Linux）
+客户端配置、版本条件与受管执行能力的区别：docs/mcp-clients.md
 中心首次启动及局域网证书：README.md
 已验证与待验收范围：docs/implementation-status.md
 Windows batch 路径限制：internal/process/README.md
@@ -154,10 +156,9 @@ PowerShell：dsh web --patch C:\\Coordica\\coordica.cordis.yml
     else:
         instructions += """
 macOS/Linux 的 dsh 接入：
-examples/dsh/coordica.cordis.yml 是 Windows 路径模板。
-复制它并将 command 改为本机 coordica 的固定绝对路径，再加载该 overlay：
-dsh web --patch /绝对路径/coordica.cordis.yml
-不要直接使用模板中的 C:\\Coordica\\coordica.exe。
+运行 ./coordica setup --client dsh --apply，使用结果给出的本机 overlay 路径：
+dsh web --patch /结果中的路径/coordica.cordis.yml
+examples/dsh/coordica.cordis.yml 保留作 Windows 路径示例。
 """
     return instructions.encode("utf-8")
 

@@ -30,6 +30,7 @@ flowchart LR
 | process / filelock | 进程树生命周期、跨进程互斥 | 不理解提示词与任务 |
 | localfile | 私密文件权限、原子替换 | 不理解节点或任务 |
 | onboarding | 本机节点配对、重入初始化和启动协调 | 不做任务调度或 owner 授权 |
+| mcpconfig | 本机客户端发现、MCP 注册配置与冲突检查 | 不配对节点、不启动 Runner、不做任务执行适配 |
 | nodeservice | launchd / systemd / Task Scheduler 用户级服务 | 不持有中心业务规则或模型协议 |
 | agent | 官方结构化接口、能力差异 | 不做放行决定 |
 | runner | 本地许可监督、材料交接、持久重放 | 不更新受保护分支 |
@@ -68,6 +69,7 @@ Git、模型与验证子进程不放进数据库事务。执行器读取计划�
 ## 扩展方式
 
 - 接新 Agent：增加适配器及结构化协议测试，不改任务状态枚举。
+- 接新 MCP 客户端：在 mcpconfig 中增加配置适配，继续启动同一个 bootstrap；这不授予 Runner 调度新 Agent 的能力。
 - 新入口：新增 API/MCP 映射，复用 app 用例。
 - 新门禁：扩展中心检查政策与固定 C 证据，不能靠前端布尔值放行。
 - 新平台：实现 process/filelock 的平台边界并运行真实进程测试。

@@ -45,7 +45,7 @@ func main() {
 }
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: coordica serve|pair|runner|ctl|mcp|doctor|tls|restore|version")
+		return errors.New("usage: coordica serve|pair|runner|ctl|mcp|setup|doctor|tls|restore|version")
 	}
 	switch args[0] {
 	case "version":
@@ -81,6 +81,8 @@ func run(ctx context.Context, args []string) error {
 		return ctl(ctx, args[1:])
 	case "mcp":
 		return serveMCP(ctx, args[1:])
+	case "setup":
+		return setup(ctx, args[1:])
 	case "doctor":
 		caps := []agent.Capability{}
 		for _, tool := range []string{"codex", "claude", "dsh"} {

@@ -10,7 +10,7 @@
 
 第三方组件保留各自许可，见 [第三方声明](THIRD_PARTY_NOTICES.md)。本许可不会仅因使用 Coordica 就要求你公开独立开发的项目。
 
-预编译开发包通过 [GitHub Releases](https://github.com/5intro/Coordica/releases) 提供。Windows amd64 包内包含 `coordica.exe` 和可直接加载的 dsh 配置模板 `coordica.cordis.yml`；安装步骤见 [MCP 初始化指南](docs/windows-onboarding.md)。发布包附 `SHA256SUMS`，当前均为待完成实际部署验收的开发预览版。
+预编译开发包通过 [GitHub Releases](https://github.com/5intro/Coordica/releases) 提供。通过 `coordica setup --apply` 统一配置本机 Agent 的 MCP 接入，不必逐家手写配置；详见 [客户端接入](docs/mcp-clients.md)。Windows amd64 包内还附 `coordica.exe` 和 dsh 配置模板 `coordica.cordis.yml`。发布包附 `SHA256SUMS`，当前均为待完成实际部署验收的开发预览版。
 
 ## 构建
 
@@ -46,6 +46,8 @@ go test -race ./...
 Web 中建立项目、明确总预算和最低检查，录入需求与任务并批准。仓库地址支持不含凭据的 HTTPS URL，或中心本机 Git 仓库绝对路径。远端需要已有目标分支与至少一个提交。阶段 A 针对 Coordica 自举，中心强制保护授权、验证、集成、适配器与初始化服务模块；用户还可追加保护路径。路径模式按仓库根目录、大小写敏感的 `/` 路径匹配，支持 `*` 和完整路径段 `**`；符号链接、submodule 等当前不支持的变化会拒绝集成。
 
 ## 统一 MCP 初始化（主要接入方式）
+
+安装到固定目录后，先运行 `coordica setup` 预览，再用 `coordica setup --apply` 为发现的客户端注册同一个 MCP。支持 Claude Code、Codex、Cursor、Kimi Code、pi 的已核验配置格式，并为 dsh 生成本机 overlay；有版本或配置冲突会明确报告。需要指定客户端时使用 `--client`。客户端注册与 Runner 执行适配器是独立能力，当前受管执行仍限 Codex、Claude Code、dsh，详见 [兼容边界](docs/mcp-clients.md)。
 
 macOS、Windows、Linux 都把对应平台的 `coordica` 可执行文件安装为 stdio MCP，参数为 `mcp --bootstrap`。在中心“运行与节点”创建一次性配对码，然后向客户端下达初始化指令，提供中心 URL、配对码和必要的公共 CA 路径。MCP 自动发现 Git 与工具路径，交给 Runner 配对，并安装/启动用户级后台服务。无需手工执行 `pair` 或 `runner`。每台电脑使用独立节点身份，容量为 1 或 2。
 
