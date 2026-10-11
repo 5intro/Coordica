@@ -34,7 +34,7 @@ import (
 	"coordica/web"
 )
 
-const version = "0.1.4-dev"
+const version = "0.2.0-dev"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -138,6 +138,10 @@ func serve(ctx context.Context, args []string) error {
 	if e = s.RecoverCenter(ctx); e != nil {
 		return e
 	}
+	planning := &app.PlanningWorker{Service: s, Executor: CodexPlanningExecutor{}, ExecutionAdapter: "codex"}
+	if e = planning.Recover(ctx); e != nil {
+		return e
+	}
 	integration := &app.Integrator{Service: s, Git: g}
 	api := &httpapi.Server{Service: s, Integration: integration, UI: web.FS()}
 	var endpoints []centerEndpoint
@@ -191,6 +195,7 @@ func serve(ctx context.Context, args []string) error {
 	// Lease expiry must remain responsive while a long validation command runs.
 	start(time.Second, s.Expire)
 	start(time.Second, integration.Tick)
+	start(time.Second, planning.Tick)
 	result := make(chan error, len(endpoints))
 	for _, endpoint := range endpoints {
 		go func() {

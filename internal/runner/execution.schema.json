@@ -1,0 +1,42 @@
+{
+  "$id": "https://coordica.local/contracts/execution/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "reason": {
+      "type": "string"
+    },
+    "requested_paths": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "scope_requested",
+        "blocked"
+      ],
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "version": {
+      "enum": [
+        1
+      ],
+      "type": "integer"
+    }
+  },
+  "required": [
+    "version",
+    "status",
+    "requested_paths",
+    "reason",
+    "summary"
+  ],
+  "title": "Coordica execution intent v1",
+  "type": "object"
+}

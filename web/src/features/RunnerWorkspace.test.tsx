@@ -13,9 +13,13 @@ describe('local Runner workbench', () => {
     expect(screen.getByRole('link', { name: '中心任务池 ↗' }).getAttribute('href')).toBe('http://127.0.0.1:8080/#tasks');
     expect(screen.getByRole('link', { name: '中心需求池 ↗' }).getAttribute('href')).toBe('http://127.0.0.1:8080/#requirements');
     expect(screen.getByRole('link', { name: '中心配置与接入 ↗' }).getAttribute('href')).toBe('http://127.0.0.1:8080/#connection');
+    expect(screen.getByRole('link', { name: '中心阻塞管理 ↗' }).getAttribute('href')).toBe('http://127.0.0.1:8080/#blocks');
+    expect(screen.getByRole('link', { name: '中心 Agents 管理 ↗' }).getAttribute('href')).toBe('http://127.0.0.1:8080/#agents');
     expect(screen.queryByLabelText('Owner token')).toBeNull();
     rendered.rerender(<RunnerWorkspace client={client} centerConsoleURL="https://evil.example" />);
     expect(screen.queryByRole('navigation', { name: '同机中心工作台' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '配对节点 ＋' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '撤销节点' })).toBeNull();
     rendered.rerender(<RunnerWorkspace client={client} />);
     expect(screen.queryByRole('link', { name: '中心任务池 ↗' })).toBeNull();
   });

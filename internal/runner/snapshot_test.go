@@ -20,10 +20,11 @@ import (
 
 func TestWorkerScopedRunnerCommitMode(t *testing.T) {
 	for _, test := range []struct {
-		name, kind, status                string
-		outside, ignored, cancel, unquiet bool
+		name, kind, status                         string
+		outside, ignored, cancel, unquiet, builtin bool
 	}{
 		{name: "authorized snapshot", kind: "implement", status: "succeeded"},
+		{name: "builtin Codex file-only snapshot", kind: "implement", status: "succeeded", builtin: true},
 		{name: "outside scope", kind: "implement", status: "failed", outside: true},
 		{name: "ignored input", kind: "implement", status: "failed", ignored: true},
 		{name: "cancelled", kind: "implement", status: "stopped", cancel: true},
@@ -84,7 +85,13 @@ func TestWorkerScopedRunnerCommitMode(t *testing.T) {
 			}))
 			defer server.Close()
 			custom := agent.Definition{ID: "file-only-acp", Executables: []string{"fixture-acp"}, Protocol: agent.ProtocolACP, Cancel: true, Review: true, CommitMode: "runner"}
-			r, err := New(Config{CenterURL: server.URL, DataDir: t.TempDir(), NodeID: "node_test", Token: "test-node-token", Tools: []agent.Definition{custom}})
+			tools := []agent.Definition{custom}
+			tool := "file-only-acp"
+			if test.builtin {
+				tools = nil
+				tool = "codex"
+			}
+			r, err := New(Config{CenterURL: server.URL, DataDir: t.TempDir(), NodeID: "node_test", Token: "test-node-token", Tools: tools})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -118,7 +125,7 @@ func TestWorkerScopedRunnerCommitMode(t *testing.T) {
 				return agent.Result{ExitCode: 0, TreeStopped: !test.unquiet, OutputText: "fixture result"}, nil
 			}
 			now := time.Now()
-			assignment := domain.Assignment{Run: domain.Run{ID: "run_test", NodeID: "node_test", Generation: 7, Kind: test.kind, Tool: "file-only-acp", Base: base.String(), LeaseUntil: now.Add(time.Minute), Deadline: now.Add(time.Minute)}, Task: domain.Task{Title: "change", Description: "change code", Acceptance: "test", AllowedPaths: []string{"code.txt"}}, InputURL: "/api/v1/runs/run_test/input.bundle"}
+			assignment := domain.Assignment{Run: domain.Run{ID: "run_test", NodeID: "node_test", Generation: 7, Kind: test.kind, Tool: tool, Base: base.String(), LeaseUntil: now.Add(time.Minute), Deadline: now.Add(time.Minute)}, Task: domain.Task{Title: "change", Description: "change code", Acceptance: "test", AllowedPaths: []string{"code.txt"}}, InputURL: "/api/v1/runs/run_test/input.bundle"}
 			if test.kind == "review" {
 				assignment.Candidate = &domain.Candidate{Main: base.String(), Commit: base.String()}
 			}

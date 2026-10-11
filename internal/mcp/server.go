@@ -60,7 +60,7 @@ func (s Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 				reply["result"] = map[string]any{"tools": []any{
 					tool("get_context", "Read this Run's task, authorization and fixed candidate.", map[string]any{}, nil),
 					tool("report_block", "Stop and report a required human decision.", map[string]any{"reason": map[string]string{"type": "string"}, "idempotency_key": map[string]string{"type": "string"}}, []string{"reason", "idempotency_key"}),
-					tool("request_scope", "Request a scope change; stops work without granting new paths.", map[string]any{"reason": map[string]string{"type": "string"}, "idempotency_key": map[string]string{"type": "string"}}, []string{"reason", "idempotency_key"}),
+					tool("request_scope", "Request ordinary additional paths; stops work before assessment.", map[string]any{"paths": map[string]any{"type": "array", "items": map[string]string{"type": "string"}}, "reason": map[string]string{"type": "string"}, "idempotency_key": map[string]string{"type": "string"}}, []string{"reason", "idempotency_key"}),
 				}}
 			case "tools/call":
 				if !initialized {
@@ -90,15 +90,20 @@ func (s Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 					}
 				case "report_block", "request_scope":
 					var args struct {
-						Reason string `json:"reason"`
-						Key    string `json:"idempotency_key"`
+						Paths  []string `json:"paths,omitempty"`
+						Reason string   `json:"reason"`
+						Key    string   `json:"idempotency_key"`
 					}
 					err = strict(call.Arguments, &args)
 					if err == nil && (strings.TrimSpace(args.Reason) == "" || args.Key == "") {
 						err = fmt.Errorf("reason and idempotency_key are required")
 					}
 					if err == nil {
-						result, err = s.API.Do(ctx, "POST", "/api/v1/runs/"+s.RunID+"/block", args.Key, map[string]any{"generation": s.Generation, "reason": call.Name + ": " + args.Reason})
+						if call.Name == "request_scope" {
+							result, err = s.API.Do(ctx, "POST", "/api/v1/runs/"+s.RunID+"/request_scope", args.Key, map[string]any{"generation": s.Generation, "reason": args.Reason, "paths": args.Paths})
+						} else {
+							result, err = s.API.Do(ctx, "POST", "/api/v1/runs/"+s.RunID+"/block", args.Key, map[string]any{"generation": s.Generation, "reason": args.Reason})
+						}
 					}
 				default:
 					fail(-32602, "Unknown tool")

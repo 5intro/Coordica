@@ -43,7 +43,7 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 		if e = tx.Put("node", n.ID, n); e != nil {
 			return nil, e
 		}
-		if p.Paused {
+		if p.Paused || n.Draining || n.DisabledNewWork {
 			return nil, nil
 		}
 		runs, e := store.List[domain.Run](tx, "run")
@@ -79,7 +79,7 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 				if e = tx.Get("candidate", t.CurrentCandidateID, &c); e != nil {
 					return nil, e
 				}
-				if c.State != "reviewing" || c.Review != nil {
+				if c.State != "reviewing" || c.Review != nil || !candidateAuthority(tx, t, p, c) {
 					continue
 				}
 				kind = "review"
@@ -87,14 +87,14 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 				candidate = &c
 				tool = ""
 				for _, capability := range req.Capabilities {
-					if capability.Tool != t.Tool && capability.Review && available(req.Capabilities, capability.Tool) {
+					if capability.Tool != t.Tool && nodeAllows(n, capability.Tool, "review") && capability.Review && available(req.Capabilities, capability.Tool) {
 						tool = capability.Tool
 						break
 					}
 				}
 				if tool == "" {
 					for _, capability := range req.Capabilities {
-						if capability.Tool == t.Tool && capability.Review && available(req.Capabilities, t.Tool) {
+						if capability.Tool == t.Tool && nodeAllows(n, capability.Tool, "review") && capability.Review && available(req.Capabilities, t.Tool) {
 							tool = t.Tool
 							break
 						}
@@ -120,7 +120,12 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 					runBase = candidate.Commit
 				}
 			}
-			if !available(req.Capabilities, tool) || runBase == "" {
+			{
+				if err := goalGate(tx, &t, false); err != nil {
+					continue
+				}
+			}
+			if !nodeAllows(n, tool, kind) || !available(req.Capabilities, tool) || runBase == "" {
 				continue
 			}
 			ready := true
@@ -152,6 +157,13 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 				continue
 			}
 			grant := limit(t.MaxRunSeconds, t.BudgetSeconds-t.UsedSeconds-t.ReservedSeconds, p.TotalBudgetSeconds-p.UsedSeconds-p.ReservedSeconds)
+			if t.GoalVersion != 0 {
+				var d domain.PlanningDocument
+				if e = tx.Get("planning_document", "current", &d); e != nil {
+					return nil, e
+				}
+				grant = limit(grant, d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds)
+			}
 			if grant <= 0 {
 				t.HoldReason = "budget"
 				t.Version++
@@ -174,6 +186,11 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			if candidate != nil {
 				r.CandidateID = candidate.ID
 			}
+			r.GoalVersion = t.GoalVersion
+			r.GoalAuthorizationVersion = t.GoalAuthorizationVersion
+			if e = reserveGoal(tx, t, grant); e != nil {
+				return nil, e
+			}
 			t.ReservedSeconds += grant
 			p.ReservedSeconds += grant
 			t.CurrentRunID = r.ID
@@ -194,7 +211,11 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			if e = s.audit(tx, a, "run.claimed", r.ID, kind+":"+tool); e != nil {
 				return nil, e
 			}
-			return domain.Assignment{Run: r, Task: t, Project: p, Candidate: candidate, InputURL: "/api/v1/runs/" + r.ID + "/input.bundle", HeartbeatSeconds: 10}, nil
+			goalContext, e := assignedGoalContext(tx)
+			if e != nil {
+				return nil, e
+			}
+			return domain.Assignment{GoalContext: goalContext, Run: r, Task: t, Project: p, Candidate: candidate, InputURL: "/api/v1/runs/" + r.ID + "/input.bundle", HeartbeatSeconds: 10}, nil
 		}
 		return nil, nil
 	})
@@ -260,6 +281,12 @@ func (s *Service) Heartbeat(ctx context.Context, a Actor, id string, req domain.
 			return e
 		}
 		owns := t.CurrentRunID == id && t.Generation == r.Generation
+		if owns && active(r) && s.Now().Before(r.LeaseUntil) {
+			n.LastSeen = s.Now()
+			if e = tx.Put("node", n.ID, n); e != nil {
+				return e
+			}
+		}
 		reason := ""
 		if !active(r) || !s.Now().Before(r.LeaseUntil) || !owns {
 			reason = "stale_run"
@@ -269,7 +296,11 @@ func (s *Service) Heartbeat(ctx context.Context, a Actor, id string, req domain.
 			reason = "authorization_changed"
 		}
 		if active(r) && owns {
+			before := r.ElapsedSeconds
 			s.settle(&p, &t, &r, req.ElapsedSeconds, false)
+			if e = settleGoal(tx, t, r.ElapsedSeconds-before, 0); e != nil {
+				return e
+			}
 			if r.ElapsedSeconds >= r.GrantSeconds || t.UsedSeconds >= t.BudgetSeconds || p.UsedSeconds >= p.TotalBudgetSeconds {
 				reason = "budget"
 			}
@@ -310,6 +341,9 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 	if a.Role != "node" {
 		return nil, domain.Fail("forbidden", "只有Runner可交接")
 	}
+	if req.IntentStatus != "" && (req.Status != "stopped" || (req.IntentStatus != "scope_requested" && req.IntentStatus != "blocked")) {
+		return nil, domain.Fail("invalid_input", "native intent disposition must be a scope/block stopped handoff")
+	}
 	return s.mutate(ctx, a, key, "run.complete."+id, req, func(tx *store.Tx) (any, error) {
 		var n domain.Node
 		if e := tx.Get("node", a.NodeID, &n); e != nil {
@@ -337,6 +371,9 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 			return r, nil
 		}
 		owns := t.CurrentRunID == r.ID && t.Generation == r.Generation
+		if req.IntentStatus != "" && r.Kind != "implement" {
+			return nil, domain.Fail("invalid_input", "native intent disposition requires an implementation Run")
+		}
 		if !owns {
 			// Historical evidence can close its own execution, but never settle the
 			// current task, create a candidate, or replace a newer execution's hold.
@@ -355,7 +392,7 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 			}
 			return r, s.audit(tx, a, "run.completed", id, fmt.Sprintf("%s; accepted=false; historical=true", r.State))
 		}
-		valid := active(r) && r.State != "cancel_requested" && s.Now().Before(r.LeaseUntil) && t.AuthorizationVersion == r.AuthorizationVersion && p.PolicyVersion == r.PolicyVersion && !p.Paused && t.HoldReason == "" && t.State != "cancelled"
+		valid := grantedGoalAuthority(tx, &t, r) && active(r) && r.State != "cancel_requested" && s.Now().Before(r.LeaseUntil) && s.Now().Before(r.Deadline) && r.GrantSeconds > 0 && req.ElapsedSeconds <= r.GrantSeconds && t.AuthorizationVersion == r.AuthorizationVersion && p.PolicyVersion == r.PolicyVersion && !p.Paused && t.HoldReason == "" && t.State != "cancelled"
 		if r.State != "lost" {
 			elapsed := req.ElapsedSeconds
 			if !s.Now().Before(r.LeaseUntil) || !req.Quiescent {
@@ -363,7 +400,11 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 				// or a delayed completion observes the timeout first.
 				elapsed = r.GrantSeconds
 			}
+			before := r.ElapsedSeconds
 			s.settle(&p, &t, &r, elapsed, true)
+			if e = settleGoal(tx, t, r.ElapsedSeconds-before, r.GrantSeconds-r.ElapsedSeconds); e != nil {
+				return nil, e
+			}
 		}
 		r.Quiescent = req.Quiescent
 		r.Detail = req.Detail
@@ -478,6 +519,12 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 			t.HoldReason = "offline"
 		}
 		if !valid || req.Status == "stopped" {
+			// A native scope/block stop is not an offline retry. If its receipt
+			// was unavailable, preserve finite spend and hold for inspection.
+			// This flag creates no scope request, approval, or stop proof.
+			if req.IntentStatus != "" && t.State != "cancelled" && (t.HoldReason == "" || t.HoldReason == "offline") {
+				t.HoldReason = "human_decision"
+			}
 			if _, e = s.recoverStopped(tx, p, &t, r); e != nil {
 				return nil, e
 			}
@@ -498,6 +545,9 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 			return nil, e
 		}
 		if e = tx.Put("project", p.ID, p); e != nil {
+			return nil, e
+		}
+		if e = s.taskDecision(tx, t, r.Detail); e != nil {
 			return nil, e
 		}
 		return r, s.audit(tx, a, "run.completed", id, fmt.Sprintf("%s; accepted=%t", r.State, valid))
@@ -543,7 +593,11 @@ func (s *Service) Expire(ctx context.Context) error {
 			// observation can confirm quiescence, but never silently refunds uncertainty.
 			// Historical executions are already fenced and cannot debit a new Run.
 			if owns {
+				before := r.ElapsedSeconds
 				s.settle(&p, &t, &r, r.GrantSeconds, true)
+				if e = settleGoal(tx, t, r.ElapsedSeconds-before, 0); e != nil {
+					return e
+				}
 			}
 			r.State = "lost"
 			r.Version++
@@ -584,6 +638,18 @@ func (s *Service) Expire(ctx context.Context) error {
 				}
 			}
 		}
+		tasks, e := store.List[domain.Task](tx, "task")
+		if e != nil {
+			return e
+		}
+		for _, task := range tasks {
+			if e = s.taskDecision(tx, task, ""); e != nil {
+				return e
+			}
+		}
+		if e = s.goalBudgetDecision(tx); e != nil {
+			return e
+		}
 		return tx.Put("project", p.ID, p)
 	})
 }
@@ -614,6 +680,10 @@ func (s *Service) RunContext(ctx context.Context, a Actor, id string) (domain.As
 			return e
 		}
 		var e error
+		out.GoalContext, e = assignedGoalContext(tx)
+		if e != nil {
+			return e
+		}
 		out.Project, e = getProject(tx)
 		if e != nil {
 			return e

@@ -115,7 +115,7 @@ func runnerRoute(r *http.Request) bool {
 	}
 	if r.Method == http.MethodPost && len(parts) == 3 {
 		switch parts[2] {
-		case "heartbeat", "complete", "artifacts", "block":
+		case "heartbeat", "complete", "artifacts", "block", "request_scope":
 			return true
 		}
 	}
@@ -191,6 +191,41 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case path == "system/automation":
+		var in domain.AutomationRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.ConfigureAutomation(ctx, a, key, in)
+		}
+	case path == "planning/save":
+		var in domain.PlanningSaveRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.SavePlanning(ctx, a, key, in)
+		}
+	case path == "planning/authorize":
+		var in domain.VersionRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.AuthorizePlanning(ctx, a, key, in)
+		}
+	case path == "planning/messages" || path == "planning/evaluate":
+		var in domain.PlanningMessageRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.SchedulePlanning(ctx, a, key, in)
+		}
+	case path == "planning/cancel":
+		var in domain.VersionRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.CancelPlanning(ctx, a, key, in)
+		}
+	case len(parts) == 3 && parts[0] == "nodes" && parts[2] == "configure":
+		var in domain.NodeConfigureRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.ConfigureNode(ctx, a, key, parts[1], in)
+		}
+	case len(parts) == 3 && parts[0] == "decisions" && parts[2] == "resolve":
+		var in domain.DecisionResolveRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.ResolveDecision(ctx, a, key, parts[1], in)
+		}
 	case path == "project":
 		var in domain.Project
 		if err = decode(r, &in); err == nil {
@@ -272,6 +307,11 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		}
 	case len(parts) == 3 && parts[0] == "runs" && parts[2] == "artifacts":
 		result, err = s.Service.UploadArtifact(ctx, a, parts[1], r.Body)
+	case len(parts) == 3 && parts[0] == "runs" && parts[2] == "request_scope":
+		var in domain.RunScopeRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.RequestScope(ctx, a, key, parts[1], in)
+		}
 	case len(parts) == 3 && parts[0] == "runs" && parts[2] == "block":
 		var in struct {
 			Generation int64  `json:"generation"`

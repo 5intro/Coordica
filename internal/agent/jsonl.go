@@ -12,7 +12,7 @@ import (
 // JSONL drivers share process supervision and framing. The terminal schemas
 // remain distinct: an unfamiliar event or prose never becomes completion.
 func executeJSONL(ctx context.Context, def Definition, req Request, onEvent func(Event)) (Result, error) {
-	s, err := process.Start(ctx, process.Spec{Executable: req.Executable, Args: launchArgs(def, req), Dir: req.WorkDir, Env: developmentEnv()})
+	s, err := process.Start(ctx, process.Spec{Executable: req.Executable, Args: launchArgs(def, req), Dir: req.WorkDir, Env: executionEnv(req)})
 	if err != nil {
 		return Result{ExitCode: -1}, err
 	}

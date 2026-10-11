@@ -2,7 +2,7 @@
 
 多电脑、多 Agent 开发协调底座。采用 Go 中心与 Runner、SQLite、React/TypeScript 控制台；Web 产物嵌入中心二进制，无 Redis、消息队列或额外后台运行时。
 
-当前是 **0.1.4 开发版**。已实现固定 Git 候选、独立评审、程序检查和条件发布闭环；构建与测试结果见 [GitHub Actions](https://github.com/5intro/Coordica/actions)。协议模拟测试、跨平台编译和托管 CI 不代表用户电脑上的真实部署验收。
+当前是 **[v0.2.0-dev 开发预览版](https://github.com/5intro/Coordica/releases/tag/v0.2.0-dev)**。已实现固定 Git 候选、独立评审、程序检查和条件发布闭环；构建与测试结果见 [GitHub Actions](https://github.com/5intro/Coordica/actions)。协议模拟测试、跨平台编译和托管 CI 不代表用户电脑上的真实部署验收。
 
 ## 许可与下载
 
@@ -10,7 +10,7 @@
 
 第三方组件保留各自许可，见 [第三方声明](THIRD_PARTY_NOTICES.md)。本许可不会仅因使用 Coordica 就要求你公开独立开发的项目。
 
-预编译开发包通过 [GitHub Releases](https://github.com/5intro/Coordica/releases) 提供。通过 `coordica setup --apply` 统一配置本机 Agent 的 MCP 接入，不必逐家手写配置；见下方初始化步骤。Windows amd64 包内还附 `coordica.exe` 和 dsh 配置模板 `coordica.cordis.yml`。发布包附 `SHA256SUMS`，当前均为待完成实际部署验收的开发预览版。
+预编译开发包通过 [v0.2.0-dev Release](https://github.com/5intro/Coordica/releases/tag/v0.2.0-dev) 提供。通过 `coordica setup --apply` 统一配置本机 Agent 的 MCP 接入，不必逐家手写配置；见下方初始化步骤。Windows amd64 包内还附 `coordica.exe` 和 dsh 配置模板 `coordica.cordis.yml`。发布包附 `SHA256SUMS`，当前仍为开发预览版；实际验收范围见下方“验证状态”。
 
 ## 构建
 
@@ -41,7 +41,7 @@ go test -race ./...
 
 当前开发版没有稳定的 Developer ID 分发签名。构建产物变化会改变 ad hoc 签名的 `cdhash`，系统可能重新请求权限，不能保证一次授权跨版本有效；请按实际需要授权，不要为减少弹窗而授予全磁盘访问。[Apple 分发签名说明](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac/)、[DR 身份说明](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements)
 
-已有节点升级保持原数据目录和节点身份，不直接搬动已有数据；材料和仓库记录可能使用绝对路径。
+已有节点升级保持原数据目录和节点身份，不直接搬动已有数据；材料和仓库记录可能使用绝对路径。Phase B 使用 v0.2.0-dev 中心与 Runner；升级并重启由用户实施，代码合并不会更新运行中的服务。
 
 ## 本机启动
 
@@ -55,7 +55,57 @@ go test -race ./...
 
 为每个远端节点分别生成一次性接入指令，再发给那台电脑的 Agent；指令包含公共 CA 和配对码，不包含 owner/node 令牌、私钥或中心私有数据路径。复制失败时使用“复制已有接入配置”或手动复制文本，保留原配对码；到期后再重新生成。
 
-Web 中建立项目、明确总预算和最低检查，录入需求与任务并批准。仓库地址支持不含凭据的 HTTPS URL，或中心本机 Git 仓库绝对路径。远端需要已有目标分支与至少一个提交。阶段 A 针对 Coordica 自举，中心强制保护授权、验证、集成、适配器与初始化服务模块；用户还可追加保护路径。路径模式按仓库根目录、大小写敏感的 `/` 路径匹配，支持 `*` 和完整路径段 `**`；符号链接、submodule 等当前不支持的变化会拒绝集成。
+Web 中建立项目、明确有限累计总预算和最低检查，录入需求，再按下方 Phase B 流程保存、批准和评估目标。仓库地址支持不含凭据的 HTTPS URL，或中心本机 Git 仓库绝对路径。远端需要已有目标分支与至少一个提交。阶段 A 针对 Coordica 自举，中心强制保护授权、验证、集成、适配器与初始化服务模块；用户还可追加保护路径。路径模式按仓库根目录、大小写敏感的 `/` 路径匹配，支持 `*` 和完整路径段 `**`；符号链接、submodule 等当前不支持的变化会拒绝集成。
+
+## Phase B：目标授权、Leader 与有限自动执行
+
+在中心本机 Owner 控制台的“项目概览”建立项目，填写仓库、目标分支、有限累计项目预算、受保护路径和最低检查；在“需求池”录入需求。随后进入“目标规划与 Leader”，创建完整目标文档：objective（目标）、non_goals（非目标）、acceptance（验收标准）、关联 requirement_ids、architecture（架构）、directory_outline（目录大纲）、字面 allowed_roots（允许根目录）和正整数 budget_seconds（有限累计目标预算）。空架构或缺失边界仍属于规划，不表示可执行。
+
+保存后由 Owner 点击“一次授权”，批准当前文档与授权版本。再向 Leader 输入说明并点击“评估规划”；“发送消息”与“评估规划”都提交版本化规划执行请求，最终以实际运行及中心准入记录为准。Leader 是中心配置的原生 Codex CLI 执行，固定显式使用 `gpt-6.1-sol`、只读规划材料；它与桌面聊天会话不同。规划请求、执行代次、租约、截止时间、进程树停止证据、结算、结构化结果和任务映射均持久化。模型文字中的 ready 或“完成”不能替代中心准入、授权或实际进程停止。所有受管 Codex 执行均显式指定 `gpt-6.1-sol`，不回退到其他模型。
+
+目标获批准并经实际 Leader 评估准入后，启用系统自动化才允许在已批准架构、允许根目录、政策及剩余累计预算内自动批准普通任务与普通范围。中心本机“系统自动化”页面默认关闭开关，可设置规划超时、有限规划累计预算及最大重试次数（0–2）。关闭开关阻止新自动授权，不取消已经授权的任务；目标一次授权独立于开关。新目标、架构变化、检查变化、受保护变化和外部权限仍需要 Owner 明确批准；受保护变化针对固定候选 C 特别批准。测试通过不能替代这些授权，决策处理也不能批准目标或绕过预算。保存目标修改会使旧目标批准与准入失效。
+
+原生严格执行意图协议 v1（native execution intent v1）要求最终输出仅为严格 JSON 对象，字段为 `version=1`、`status`、非 null 的字符串数组 `requested_paths`、字符串 `reason` 与非空 `summary`；不接受额外字段、重复字段、缺失字段或 JSON 外的文字。`completed` 只表达执行意图，不是完成证据；Runner 仍须核对实际变化、范围、固定基线和进程树静止，随后由独立评审、中心检查与固定候选条件发布决定结果。意图与请求回执均不授予权限。
+
+任务范围不足时，执行 Agent 必须在任何编辑前停止，保持固定工作区无变化，返回 `scope_requested`、准确的新增仓库路径及原因。Runner 确认实际进程树停止并复核无变化后，持久化并提交绑定原 Run、执行代次和任务的请求；中心核对停止与结算，再交给只读 Leader 评估。仅在自动化启用、目标批准与准入仍有效、请求属于目标字面允许根目录、政策与剩余累计预算允许时，普通范围才可自动批准。同一任务随后以新授权和新执行代次恢复，保留累计支出，不创建替代任务或清零预算。请求投递及规划重试均有限；旧版本、无变化核对失败或未知停止状态不会放行。
+
+重大工作或其他阻断返回 `blocked`，保持工作区无变化并说明原因；重大工作不会自动批准，仍需 Owner 决策。`scope_requested` 与 `blocked` 是停止交接，不是成功完成，不能通过模型文字或测试通过绕过边界。
+
+这些 UI 使用同一套本机 Owner API，前缀为 `/api/v1`；CLI `ctl --path` 省略该前缀。真实操作路径如下：
+
+| UI 操作 | HTTP / CLI 路径 | 请求内容 |
+| --- | --- | --- |
+| 建立项目 | POST `project` | name、repository_url、target_branch、total_budget_seconds、protected_paths、checks |
+| 录入需求 | POST `requirements` | title、body |
+| 保存目标 | POST `planning/save` | expected_version、document |
+| Owner 一次授权 | POST `planning/authorize` | expected_version |
+| Leader 消息 / 评估 | POST `planning/messages` / `planning/evaluate` | expected_version、text |
+| 取消规划 | POST `planning/cancel` | expected_version |
+| 系统自动化 | POST `system/automation` | expected_version、settings |
+| 节点调度配置 | POST `nodes/节点ID/configure` | expected_version、name、capacity、draining、disabled_new_work、tools |
+| 处理决策 | POST `decisions/决策ID/resolve` | expected_version、expected_source_version、action、evidence |
+
+例如用 `coordica ctl --method POST --path planning/evaluate --body-file evaluation.json` 提交当前版本与说明；用 `coordica ctl --path state` 读取真实版本和结果。JSON 字段以 [公开 API Schema](api/v1.schema.json) 为准，不猜测版本。所有写操作携带幂等键，旧版本请求会冲突。
+
+规划失败只允许有限重试，持续累计已用与预留预算；不能通过重新请求清零。未知进程停止状态保留阻断和证据，确认进程树停止并结算后才允许后续执行。预算耗尽、重试用尽、重大决策或越界范围进入 Owner 决策流程，不由普通测试或模型回复自动放行。
+
+## 池、来源与节点能力
+
+中心 Owner 页面是私有本机控制台。需求池保存输入，任务池显示授权、范围、预算及状态；运行池记录执行与停止事实，候选池显示固定代码、独立评审、检查和受保护批准，阻断池汇总待处理来源与决策。来源按钮返回对应任务、运行、候选或规划记录；规划文档与决策本身不是缺失的任务。决策页保留来源版本、证据和处理历史，规划页保留 Leader 对话、实际规划运行、结构化任务/范围/重大决策提案；任务详情保留范围请求、授权版本及相关历史，审计页保留事件。请核对这些记录，不从汇总文案推断授权。
+
+“Agent 池”和“运行与节点”按实际节点报告能力展示工具，不保证固定 Agent 名单。Owner 通过节点配置控制工具 enabled、implement（实现）、review（评审），节点容量为 1 或 2，并可排空、禁用新工作或撤销节点。能力发现与调度权限分开；排空、禁用或撤销不表示在途进程已经停止。工具支持以节点实际报告、可信工具注册表和协议能力为准，安装或版本探测不代表已认证、可承担某角色或已验收。其他 Agent 可按报告能力承担已允许的角色；Leader 与自动开发政策的原生 Codex 模型固定如上。
+
+远端执行电脑的 `http://127.0.0.1:8081` 只展示该 Runner 身份可见的本机能力、任务、运行与需求提案，不提供 Owner 目标批准、扩围、预算或发布权限。远端浏览器不能通过局域网节点接口访问中心 Owner UI；同机导航也仍要求 Owner 独立登录。
+
+## 验证状态
+
+既有 Phase A 已完成真实 Mac 中心与 Windows 节点连接、Windows dsh 实现、Claude 独立评审的小项目闭环，以及运行中取消验收。该 Phase A 的实际 Agent 验收事实限于 Claude / dsh，不把支持定义或版本探测说成其他工具已实测。
+
+**macOS 本机 Phase B 端到端验收已通过。** 实测流程为原生 Codex CLI `gpt-6.1-sol` Leader 规划 → 自动授权一个任务 → 原生 Codex 返回 `scope_requested` 且无编辑 → 实际进程停止 → Leader 在目标字面允许根目录内自动批准普通范围 → 同一任务以新授权恢复并保留累计支出 → 原生 Codex 开发 → 独立本机 Claude 节点只读评审 → 中心对不可变固定候选执行 `node:test` 验证 → 精确固定候选条件更新本地测试 Git 的 `main`。Owner 仅批准目标一次，没有手动批准范围或提交替代请求。结束时所有 Run 进程树均已停止，项目与目标预留预算均为零。
+
+**原生 Leader 运行中取消验收也已通过。** 已观察到结构化会话，取消前确认真实存活 PID，取消后确认进程消失、静止与结算，保留实际耗时支出。本机 Claude 与 dsh 原生协议冒烟测试已通过；这不代表完整 Phase B dsh 协作或多机部署已通过。
+
+最终根目录汇总检查与 GitHub CI 结果仍待确认，不将局部测试结果视为最终通过。多机 Phase B 与 Linux 原生部署仍待验证。既有普通局域网连通与任务测试不覆盖断线、重启、重复消息、旧租约及全部进程树停止语义；单元/协议模拟、CI 和跨平台编译分别记录，跨编译不等于目标系统原生认证。
 
 ## 统一 MCP 初始化（主要接入方式）
 
@@ -67,7 +117,7 @@ macOS、Windows、Linux 都把对应平台的 `coordica` 可执行文件安装�
 
 ## 执行电脑的本机页面
 
-Runner 启动后，在该电脑打开 `http://127.0.0.1:8081`，查看本机节点、工具能力、已领取任务、Run 状态和自己提交的需求。页面可向中心提交需求提案；阶段 A 只登记需求，由中心 owner 创建并批准任务，不会因为提交文字自动启动开发。
+Runner 启动后，在该电脑打开 `http://127.0.0.1:8081`，查看本机节点、工具能力、已领取任务、Run 状态和自己提交的需求。页面可向中心提交需求提案；提案先进入需求池，不因提交文字而获得目标或任务授权。Phase B 的目标批准与自动化设置由中心本机 Owner 完成。
 
 本机页面使用 Runner 已配对的节点身份，无需输入 owner 令牌；节点令牌保留在 Runner 中，不发给浏览器。节点身份只能查看自己的运行与需求，不能批准、扩围、改预算或发布。页面仅监听回环 HTTP，前台启动可通过 `runner --console-listen 127.0.0.1:端口` 自定义端口。关闭页面或聊天客户端不影响后台执行。
 
@@ -153,4 +203,4 @@ Web 或 CLI 创建一致备份，返回中心上的备份目录。备份包含�
 
 真实 Agent 验收可使用安装包中的 [独立小项目](examples/acceptance/README.md)，在隔离仓库执行，不影响本项目或用户实际项目。
 
-没有开启后台自动升级、公开上传、自动计划生成或阶段 B 的全局自动批准。
+没有开启后台自动升级或公开上传。Phase B 自动化默认关闭；启用也不提供全局无限授权。

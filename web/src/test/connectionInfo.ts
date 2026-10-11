@@ -1,3 +1,4 @@
+import { emptyPhaseB } from './phaseB';
 import type { ConnectionInfo, Project, Snapshot } from '../api.generated';
 
 export const connectionInfo: ConnectionInfo = {
@@ -14,4 +15,4 @@ export const centerProject: Project = {
   policy_version: 1, created_at: '2026-10-11T05:00:00Z',
 };
 
-export const centerSnapshot: Snapshot = { api_version: 'v1', project: centerProject, requirements: [], tasks: [], runs: [], candidates: [], nodes: [], events: [] };
+export const centerSnapshot: Snapshot = { ...emptyPhaseB, api_version: 'v1', project: centerProject, requirements: [], tasks: [], runs: [], candidates: [], nodes: [], events: [] };

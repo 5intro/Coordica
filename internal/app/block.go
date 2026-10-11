@@ -16,7 +16,10 @@ func (s *Service) Block(ctx context.Context, a Actor, key, id string, generation
 		Generation int64
 		Reason     string
 	}{generation, reason}
-	return s.mutate(ctx, a, key, "run.block."+id, input, func(tx *store.Tx) (any, error) {
+	return s.mutateWithCheck(ctx, a, key, "run.block."+id, input, func(tx *store.Tx) error {
+		_, err := nodeConsoleActor(tx, a)
+		return err
+	}, func(tx *store.Tx) (any, error) {
 		var r domain.Run
 		if e := tx.Get("run", id, &r); e != nil {
 			return nil, e
@@ -40,6 +43,9 @@ func (s *Service) Block(ctx context.Context, a Actor, key, id string, generation
 			return nil, e
 		}
 		if e := tx.Put("run", r.ID, r); e != nil {
+			return nil, e
+		}
+		if e := s.taskDecision(tx, t, reason); e != nil {
 			return nil, e
 		}
 		return t, s.audit(tx, a, "run.blocked", r.ID, reason)

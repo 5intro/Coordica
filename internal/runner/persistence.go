@@ -21,6 +21,7 @@ type spool struct {
 	WorkDir      string                  `json:"work_dir"`
 	StartedAt    time.Time               `json:"started_at"`
 	Request      *domain.CompleteRequest `json:"request,omitempty"`
+	Intent       *intentHandoff          `json:"intent,omitempty"`
 	Acknowledged bool                    `json:"acknowledged"`
 }
 type claimPending struct {

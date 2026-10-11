@@ -189,6 +189,9 @@ func (s *Service) snapshot(ctx context.Context, a Actor, eventLimit int) (domain
 		if v.Nodes, err = store.List[domain.Node](tx, "node"); err != nil {
 			return err
 		}
+		if err = phaseBSnapshot(tx, &v); err != nil {
+			return err
+		}
 		v.Events, err = tx.Events(eventLimit)
 		return err
 	})
@@ -320,6 +323,9 @@ func (s *Service) TaskAction(ctx context.Context, a Actor, key, id, action strin
 			if t.State != "draft" {
 				return nil, domain.Fail("conflict", "只能批准草稿任务")
 			}
+			if e := goalGate(tx, &t, true); e != nil {
+				return nil, e
+			}
 			t.State = "ready"
 			t.ApprovedVersion = t.Version + 1
 		case "pause":
@@ -337,6 +343,11 @@ func (s *Service) TaskAction(ctx context.Context, a Actor, key, id, action strin
 			if e := requireQuiescence(tx, t.ID); e != nil {
 				return nil, e
 			}
+			if t.CurrentCandidateID == "" {
+				if e := goalGate(tx, &t, true); e != nil {
+					return nil, e
+				}
+			}
 			t.HoldReason = ""
 			t.CurrentRunID = ""
 			if t.CurrentCandidateID == "" {
@@ -345,6 +356,20 @@ func (s *Service) TaskAction(ctx context.Context, a Actor, key, id, action strin
 				var c domain.Candidate
 				if e := tx.Get("candidate", t.CurrentCandidateID, &c); e != nil {
 					return nil, e
+				}
+				// Reconciliation processes an existing publication intent's reality.
+				// Other resumes can admit new runs only under the exact current goal.
+				if c.State != "reconciling" && c.State != "landing" {
+					if e := goalGate(tx, &t, false); e != nil {
+						return nil, e
+					}
+					p, e := getProject(tx)
+					if e != nil {
+						return nil, e
+					}
+					if c.TaskID != t.ID || c.AuthorizationVersion != t.AuthorizationVersion || c.PolicyVersion != p.PolicyVersion {
+						return nil, domain.Fail("authorization_changed", "candidate authority changed")
+					}
 				}
 				if c.State == "rejected" {
 					if t.Repairs >= t.MaxRepairs {
@@ -448,6 +473,9 @@ func (s *Service) ProjectAction(ctx context.Context, a Actor, key, action string
 		switch action {
 		case "pause":
 			p.Paused = true
+			if e := stopPlanning(tx); e != nil {
+				return nil, e
+			}
 			if e := requestStop(tx, ""); e != nil {
 				return nil, e
 			}
@@ -491,6 +519,9 @@ func (s *Service) Scope(ctx context.Context, a Actor, key, id string, req domain
 			}
 		}
 		t.AllowedPaths = req.AllowedPaths
+		if e := goalGate(tx, &t, true); e != nil {
+			return nil, e
+		}
 		if _, e := gitops.NewScope(t.AllowedPaths, nil); e != nil {
 			return nil, domain.Fail("invalid_input", e.Error())
 		}

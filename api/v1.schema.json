@@ -42,6 +42,16 @@
             }
           ]
         },
+        "goal_context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GoalContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "heartbeat_seconds": {
           "type": "integer"
         },
@@ -64,6 +74,96 @@
         "project",
         "input_url",
         "heartbeat_seconds"
+      ],
+      "type": "object"
+    },
+    "AutomationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "type": "integer"
+        },
+        "settings": {
+          "$ref": "#/$defs/AutomationSettings"
+        }
+      },
+      "required": [
+        "expected_version",
+        "settings"
+      ],
+      "type": "object"
+    },
+    "AutomationSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "development_model": {
+          "type": "string"
+        },
+        "development_tool": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "leader_model": {
+          "type": "string"
+        },
+        "leader_tool": {
+          "type": "string"
+        },
+        "planning_budget_seconds": {
+          "type": "integer"
+        },
+        "planning_max_retries": {
+          "type": "integer"
+        },
+        "planning_timeout_seconds": {
+          "type": "integer"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "enabled",
+        "development_tool",
+        "development_model",
+        "leader_tool",
+        "leader_model",
+        "planning_timeout_seconds",
+        "planning_budget_seconds",
+        "planning_max_retries"
+      ],
+      "type": "object"
+    },
+    "BlockItem": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "object_id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "object_id",
+        "reason",
+        "actions"
       ],
       "type": "object"
     },
@@ -341,6 +441,9 @@
         "head": {
           "type": "string"
         },
+        "intent_status": {
+          "type": "string"
+        },
         "quiescent": {
           "type": "boolean"
         },
@@ -421,6 +524,92 @@
       ],
       "type": "object"
     },
+    "Decision": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "authorization_version": {
+          "type": "integer"
+        },
+        "document_version": {
+          "type": "integer"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "resolution": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "source_kind": {
+          "type": "string"
+        },
+        "source_version": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "source_kind",
+        "source_id",
+        "source_version",
+        "document_version",
+        "authorization_version",
+        "kind",
+        "evidence",
+        "actions",
+        "status",
+        "resolution"
+      ],
+      "type": "object"
+    },
+    "DecisionResolveRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "expected_source_version": {
+          "type": "integer"
+        },
+        "expected_version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "expected_version",
+        "expected_source_version",
+        "action",
+        "evidence"
+      ],
+      "type": "object"
+    },
     "Event": {
       "additionalProperties": false,
       "properties": {
@@ -451,6 +640,91 @@
         "kind",
         "object_id",
         "detail"
+      ],
+      "type": "object"
+    },
+    "ExecutionIntent": {
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "requested_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "scope_requested",
+            "blocked"
+          ],
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "version": {
+          "enum": [
+            1
+          ],
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "status",
+        "requested_paths",
+        "reason",
+        "summary"
+      ],
+      "type": "object"
+    },
+    "GoalContext": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "type": "string"
+        },
+        "allowed_roots": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "authorization_version": {
+          "type": "integer"
+        },
+        "directory_outline": {
+          "type": "string"
+        },
+        "non_goals": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "authorization_version",
+        "objective",
+        "non_goals",
+        "acceptance",
+        "architecture",
+        "directory_outline",
+        "allowed_roots"
       ],
       "type": "object"
     },
@@ -495,6 +769,101 @@
       ],
       "type": "object"
     },
+    "LeaderMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "document_version": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "document_version",
+        "role",
+        "text",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "LeaderResult": {
+      "additionalProperties": false,
+      "properties": {
+        "clarifications": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "major_decisions": {
+          "items": {
+            "$ref": "#/$defs/MajorDecisionProposal"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "missing_items": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "reply": {
+          "type": "string"
+        },
+        "scopes": {
+          "items": {
+            "$ref": "#/$defs/ScopeProposal"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/TaskProposal"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "reply",
+        "ready",
+        "missing_items",
+        "clarifications",
+        "tasks",
+        "scopes",
+        "major_decisions"
+      ],
+      "type": "object"
+    },
     "LocalInfo": {
       "additionalProperties": false,
       "properties": {
@@ -507,6 +876,32 @@
       },
       "required": [
         "mode"
+      ],
+      "type": "object"
+    },
+    "MajorDecisionProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "evidence",
+        "actions"
       ],
       "type": "object"
     },
@@ -525,6 +920,12 @@
         "capacity": {
           "type": "integer"
         },
+        "disabled_new_work": {
+          "type": "boolean"
+        },
+        "draining": {
+          "type": "boolean"
+        },
         "id": {
           "type": "string"
         },
@@ -541,11 +942,27 @@
         "revoked": {
           "type": "boolean"
         },
+        "scheduling_configured": {
+          "type": "boolean"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/ToolScheduling"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "version": {
           "type": "integer"
         }
       },
       "required": [
+        "draining",
+        "disabled_new_work",
+        "scheduling_configured",
+        "tools",
         "id",
         "version",
         "name",
@@ -554,6 +971,44 @@
         "capacity",
         "revoked",
         "last_seen"
+      ],
+      "type": "object"
+    },
+    "NodeConfigureRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "capacity": {
+          "type": "integer"
+        },
+        "disabled_new_work": {
+          "type": "boolean"
+        },
+        "draining": {
+          "type": "boolean"
+        },
+        "expected_version": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/ToolScheduling"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "expected_version",
+        "name",
+        "capacity",
+        "draining",
+        "disabled_new_work",
+        "tools"
       ],
       "type": "object"
     },
@@ -608,6 +1063,287 @@
         "tasks",
         "runs",
         "requirements"
+      ],
+      "type": "object"
+    },
+    "PlanningDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "type": "string"
+        },
+        "admitted_authorization_version": {
+          "type": "integer"
+        },
+        "admitted_document_version": {
+          "type": "integer"
+        },
+        "allowed_roots": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "approved_authorization_version": {
+          "type": "integer"
+        },
+        "approved_version": {
+          "type": "integer"
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "authorization_version": {
+          "type": "integer"
+        },
+        "budget_seconds": {
+          "type": "integer"
+        },
+        "directory_outline": {
+          "type": "string"
+        },
+        "leader_result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LeaderResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "leader_session": {
+          "type": "string"
+        },
+        "missing_items": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "non_goals": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "planning_reserved_seconds": {
+          "type": "integer"
+        },
+        "planning_used_seconds": {
+          "type": "integer"
+        },
+        "requirement_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "reserved_seconds": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "used_seconds": {
+          "type": "integer"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "approved_authorization_version",
+        "version",
+        "authorization_version",
+        "approved_version",
+        "objective",
+        "non_goals",
+        "acceptance",
+        "requirement_ids",
+        "architecture",
+        "directory_outline",
+        "allowed_roots",
+        "budget_seconds",
+        "used_seconds",
+        "reserved_seconds",
+        "planning_used_seconds",
+        "planning_reserved_seconds",
+        "status",
+        "admitted_document_version",
+        "admitted_authorization_version",
+        "missing_items",
+        "leader_session"
+      ],
+      "type": "object"
+    },
+    "PlanningMessageRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected_version",
+        "text"
+      ],
+      "type": "object"
+    },
+    "PlanningRun": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt": {
+          "type": "integer"
+        },
+        "authorization_version": {
+          "type": "integer"
+        },
+        "automation_version": {
+          "type": "integer"
+        },
+        "deadline": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "document_version": {
+          "type": "integer"
+        },
+        "elapsed_seconds": {
+          "type": "integer"
+        },
+        "execution_adapter": {
+          "type": "string"
+        },
+        "generation": {
+          "type": "integer"
+        },
+        "grant_seconds": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "lease_until": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "max_retries": {
+          "type": "integer"
+        },
+        "pending_result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LeaderResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "process_id": {
+          "type": "integer"
+        },
+        "scope_request_id": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "settled": {
+          "type": "boolean"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "task_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "task_mapping": {
+          "items": {
+            "$ref": "#/$defs/ProposalTaskMapping"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "tree_stopped": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "working_directory": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_request_id",
+        "execution_adapter",
+        "process_id",
+        "working_directory",
+        "task_mapping",
+        "id",
+        "version",
+        "document_version",
+        "authorization_version",
+        "automation_version",
+        "generation",
+        "state",
+        "attempt",
+        "max_retries",
+        "grant_seconds",
+        "elapsed_seconds",
+        "lease_until",
+        "deadline",
+        "started_at",
+        "tree_stopped",
+        "settled",
+        "session_id",
+        "detail",
+        "task_ids"
+      ],
+      "type": "object"
+    },
+    "PlanningSaveRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "document": {
+          "$ref": "#/$defs/PlanningDocument"
+        },
+        "expected_version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "expected_version",
+        "document"
       ],
       "type": "object"
     },
@@ -697,6 +1433,22 @@
         "checks",
         "policy_version",
         "created_at"
+      ],
+      "type": "object"
+    },
+    "ProposalTaskMapping": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "task_id"
       ],
       "type": "object"
     },
@@ -868,6 +1620,12 @@
         "generation": {
           "type": "integer"
         },
+        "goal_authorization_version": {
+          "type": "integer"
+        },
+        "goal_version": {
+          "type": "integer"
+        },
         "grant_seconds": {
           "type": "integer"
         },
@@ -914,6 +1672,8 @@
         }
       },
       "required": [
+        "goal_version",
+        "goal_authorization_version",
         "id",
         "version",
         "task_id",
@@ -935,6 +1695,132 @@
         "detail",
         "quiescent",
         "started_at"
+      ],
+      "type": "object"
+    },
+    "RunScopeRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "type": "integer"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "generation",
+        "reason",
+        "paths"
+      ],
+      "type": "object"
+    },
+    "ScopeAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "authorization_version": {
+          "type": "integer"
+        },
+        "automation_version": {
+          "type": "integer"
+        },
+        "generation": {
+          "type": "integer"
+        },
+        "goal_authorization_version": {
+          "type": "integer"
+        },
+        "goal_version": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "policy_version": {
+          "type": "integer"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "task_version": {
+          "type": "integer"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "run_id",
+        "generation",
+        "task_id",
+        "task_version",
+        "authorization_version",
+        "goal_version",
+        "goal_authorization_version",
+        "automation_version",
+        "policy_version",
+        "reason",
+        "paths",
+        "state"
+      ],
+      "type": "object"
+    },
+    "ScopeProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "type": "integer"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "expected_version",
+        "paths",
+        "reason"
       ],
       "type": "object"
     },
@@ -970,9 +1856,30 @@
         "api_version": {
           "type": "string"
         },
+        "automation": {
+          "$ref": "#/$defs/AutomationSettings"
+        },
+        "blocks": {
+          "items": {
+            "$ref": "#/$defs/BlockItem"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "candidates": {
           "items": {
             "$ref": "#/$defs/Candidate"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "decisions": {
+          "items": {
+            "$ref": "#/$defs/Decision"
           },
           "type": [
             "array",
@@ -988,9 +1895,37 @@
             "null"
           ]
         },
+        "leader_messages": {
+          "items": {
+            "$ref": "#/$defs/LeaderMessage"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "nodes": {
           "items": {
             "$ref": "#/$defs/Node"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "planning_document": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanningDocument"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "planning_runs": {
+          "items": {
+            "$ref": "#/$defs/PlanningRun"
           },
           "type": [
             "array",
@@ -1025,6 +1960,15 @@
             "null"
           ]
         },
+        "scope_requests": {
+          "items": {
+            "$ref": "#/$defs/ScopeAssessment"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "tasks": {
           "items": {
             "$ref": "#/$defs/Task"
@@ -1036,6 +1980,13 @@
         }
       },
       "required": [
+        "automation",
+        "planning_document",
+        "leader_messages",
+        "planning_runs",
+        "decisions",
+        "scope_requests",
+        "blocks",
         "api_version",
         "project",
         "requirements",
@@ -1112,6 +2063,12 @@
         "generation": {
           "type": "integer"
         },
+        "goal_authorization_version": {
+          "type": "integer"
+        },
+        "goal_version": {
+          "type": "integer"
+        },
         "hold_reason": {
           "type": "string"
         },
@@ -1171,6 +2128,8 @@
         }
       },
       "required": [
+        "goal_version",
+        "goal_authorization_version",
         "id",
         "version",
         "title",
@@ -1197,6 +2156,110 @@
         "current_run_id",
         "current_candidate_id",
         "created_at"
+      ],
+      "type": "object"
+    },
+    "TaskProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "type": "string"
+        },
+        "budget_seconds": {
+          "type": "integer"
+        },
+        "dependencies": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "hot_resources": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "key": {
+          "type": "string"
+        },
+        "max_repairs": {
+          "type": "integer"
+        },
+        "max_retries": {
+          "type": "integer"
+        },
+        "max_run_seconds": {
+          "type": "integer"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "requirement_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "objective",
+        "acceptance",
+        "requirement_ids",
+        "paths",
+        "dependencies",
+        "hot_resources",
+        "budget_seconds",
+        "max_run_seconds",
+        "max_repairs",
+        "max_retries"
+      ],
+      "type": "object"
+    },
+    "ToolScheduling": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "implement": {
+          "type": "boolean"
+        },
+        "review": {
+          "type": "boolean"
+        },
+        "tool": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "enabled",
+        "implement",
+        "review"
       ],
       "type": "object"
     },

@@ -27,7 +27,7 @@ func TestRestrictedToolsAndScopeDoesNotGrant(t *testing.T) {
 	if e := s.Serve(context.Background(), strings.NewReader(input), &out); e != nil {
 		t.Fatal(e)
 	}
-	if len(f.paths) != 2 || f.paths[0] != "POST /api/v1/runs/run_abc/block" {
+	if len(f.paths) != 2 || f.paths[0] != "POST /api/v1/runs/run_abc/request_scope" {
 		t.Fatalf("unexpected authority: %v", f.paths)
 	}
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")

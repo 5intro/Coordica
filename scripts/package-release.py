@@ -117,9 +117,11 @@ def common_entries():
 
 
 def start_here(version, platform, binary):
-    instructions = f"""Coordica {version} — {platform}
+    instructions = f"""Coordica v{version} — {platform}
 
-这是开发预发布包，尚未完成阶段 A 全部真实部署与双机验收。
+这是 v0.2.0-dev Phase B 开发预发布包。
+发布说明：https://github.com/5intro/Coordica/releases/tag/v0.2.0-dev
+macOS 本机 Phase B 端到端验收已通过；多机 Phase B 与 Linux 原生部署仍待验证。
 中心、MCP 与 Runner 使用同一个可执行文件，无需单独安装 Runner 或构建源码。
 
 许可：仅个人非商业使用及私人本地修改免费。商业用途、团队或公司使用、
@@ -158,7 +160,42 @@ Windows batch 路径限制：internal/process/README.md
 包内不含个人凭据、中心地址或配对信息。解压不会自动安装或启动系统服务；
 只有调用 initialize_runner 时才配对及请求启动用户服务。
 已完成 Mac 中心与 Windows 节点连接、Windows dsh 实现及 Claude 独立评审的小项目闭环。
-本机页面与接入配置的 Windows 原生部署、取消与断线等故障场景仍待实测；Linux 原生部署待实测。
+运行中取消的 Phase A 验收已通过；该 Phase A 的实际 Agent 验收事实限于 Claude / dsh。
+macOS 本机 Phase B 实测：原生 Codex gpt-6.1-sol Leader 规划 → 自动授权一个任务 →
+原生 Codex scope_requested 且无编辑 → 实际进程停止 → Leader 在目标字面允许根目录内
+自动批准普通范围 → 同一任务以新授权恢复并保留累计支出 → 原生 Codex 开发 →
+独立本机 Claude 节点只读评审 → 中心对不可变固定候选执行 node:test 验证 →
+精确固定候选条件更新本地测试 Git 的 main。Owner 仅批准目标一次，没有手动批准范围
+或提交替代请求。结束时所有 Run 进程树均已停止，项目与目标预留预算均为零。
+原生 Leader 运行中取消验收也已通过：观察到结构化会话，取消前确认真实存活 PID，
+取消后确认进程消失、静止与结算，保留实际耗时支出。
+本机 Claude 与 dsh 原生协议冒烟测试已通过，不代表完整 Phase B dsh 协作或多机部署已通过。
+最终根目录汇总检查与 GitHub CI 结果仍待确认，不将局部测试结果视为最终通过。
+普通 LAN 测试不覆盖断线、重启、重复消息、旧租约及进程树停止语义。
+跨平台编译不等于目标系统原生认证；仅取得实际测量证据后标记通过。
+
+Phase B：在中心本机 Owner 页面建立项目与需求，保存完整目标、非目标、验收、
+关联需求、架构、目录大纲、字面允许根目录及有限累计预算，再由 Owner 一次授权。
+“目标规划与 Leader”的评估通过持久化原生 Codex 只读执行完成；Leader 是配置的
+CLI 执行，不是桌面聊天会话。所有受管 Codex 显式使用 gpt-6.1-sol，无模型回退。
+目标准入后，中心本机“系统自动化”开关才允许边界内普通任务与范围自动授权；默认关闭。
+新目标、架构、检查、受保护变化与外部权限仍需 Owner 批准，测试不替代授权。
+原生严格执行意图协议 v1（native execution intent v1）最终输出仅为严格 JSON：
+version=1、status、非 null 字符串数组 requested_paths、字符串 reason、非空 summary；
+拒绝额外、重复或缺失字段及 JSON 外文字。completed 是意图，不是完成证据；
+Runner 仍核对实际变化、范围、固定基线及进程树静止，独立评审、中心检查与固定候选
+条件发布仍须通过。意图与请求回执均不授予权限。
+范围不足时须在任何编辑前停止并保持固定工作区无变化，以 scope_requested 提出准确
+新增路径和原因；Runner 确认实际进程树停止并复核无变化后持久化、提交原 Run 请求。
+中心核对停止与结算，再交给只读 Leader 评估；只有自动化启用、目标批准与准入仍有效、
+请求属于目标字面允许根目录且政策及剩余累计预算允许，普通范围才可自动批准。
+同一任务以新授权和新执行代次恢复并保留累计支出，不创建替代任务或清零预算。
+重大工作或其他阻断返回 blocked，保持工作区无变化；重大工作不会自动批准，须 Owner 决策。
+scope_requested 与 blocked 是停止交接，不是成功完成。
+请求投递、规划重试及累计预算有限；旧版本、无变化核对失败或未知停止状态不会放行，
+须保留阻断并核对进程树停止证据。
+节点能力按实际报告发现，由 Owner 管理实现/评审角色、排空、禁用及容量。
+详细池、来源导航、决策、规划与任务范围历史，以及真实 API/CLI 路径见 README.md。
 """
     if platform == "windows-amd64":
         instructions += """
@@ -225,7 +262,7 @@ def verify_archive(path, entries):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", default="0.1.4-dev", help="archive version (default: %(default)s)")
+    parser.add_argument("--version", default="0.2.0-dev", help="archive version (default: %(default)s)")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?", args.version):
         raise ValueError("version must be a numeric semantic version with an optional prerelease suffix")

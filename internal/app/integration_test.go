@@ -325,7 +325,7 @@ func TestIntegrationLostAcknowledgementReconcilesExactCandidateInDescendant(t *t
 	f.reviewAndValidate(t)
 	candidate := f.candidate(t)
 	ctx := context.Background()
-	intent := domain.Intent{ID: "lost_ack", CandidateID: candidate.ID, Expected: candidate.Main, Desired: candidate.Commit, State: "unknown", CreatedAt: f.s.Now()}
+	intent := domain.Intent{ID: "lost_ack", CandidateID: candidate.ID, Expected: candidate.Main, Desired: candidate.Commit, State: "dispatching", CreatedAt: f.s.Now()}
 	// Model the durable intent/publication boundary followed by a lost ACK.
 	// The ensuing Tick may only observe; it must not regenerate/push another C.
 	if err := f.s.DB.Update(ctx, func(tx *store.Tx) error {
@@ -340,6 +340,11 @@ func TestIntegrationLostAcknowledgementReconcilesExactCandidateInDescendant(t *t
 	}
 	if _, err := f.g.Publish(ctx, f.w.repo(), f.remote, "refs/heads/main", gitops.OID(candidate.Main), gitops.OID(candidate.Commit)); err != nil {
 		t.Fatal(err)
+	}
+	b, e := f.s.CreateRequirement(ctx, f.owner, "reconcile-goal-req", domain.Requirement{Title: "New architecture", Body: "Use TypeScript"})
+	req := itDecode[domain.Requirement](t, b, e)
+	if _, e = f.s.SavePlanning(ctx, f.owner, "reconcile-goal-edit", domain.PlanningSaveRequest{Document: domain.PlanningDocument{Objective: "New same-root goal", NonGoals: "No other source", Acceptance: "TypeScript checks", RequirementIDs: []string{req.ID}, Architecture: "TypeScript", DirectoryOutline: "src/: source", AllowedRoots: []string{"src"}, BudgetSeconds: 10000}}); e != nil {
+		t.Fatal(e)
 	}
 	other := filepath.Join(t.TempDir(), "after-candidate")
 	if err := f.g.Clone(ctx, f.remote, other); err != nil {
@@ -379,5 +384,96 @@ func TestIntegrationLostAcknowledgementReconcilesExactCandidateInDescendant(t *t
 		return nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPhaseBFinalRealGitScopeRejectsAcceptedCandidateAfterGoalEdit(t *testing.T) {
+	f := newITFixture(t)
+	f.implement(t, "src/feature.txt")
+	f.reviewAndValidate(t)
+	fixed := f.candidate(t)
+	b, e := f.s.CreateRequirement(context.Background(), f.owner, "goal-requirement", domain.Requirement{Title: "Restricted", Body: "Only change approved directory"})
+	req := itDecode[domain.Requirement](t, b, e)
+	_, e = f.s.SavePlanning(context.Background(), f.owner, "goal-final-scope", domain.PlanningSaveRequest{Document: domain.PlanningDocument{Objective: "Restricted goal", NonGoals: "No other source", Acceptance: "Check", RequirementIDs: []string{req.ID}, Architecture: "Go", DirectoryOutline: "src/allowed/: source", AllowedRoots: []string{"src/allowed"}, BudgetSeconds: 10000}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if got := f.candidate(t); got.Commit != fixed.Commit || got.State != fixed.State {
+		t.Fatal("goal edit destroyed accepted candidate")
+	}
+	if e = f.w.Tick(context.Background()); e != nil {
+		t.Fatal(e)
+	}
+	actual, e := f.g.Query(context.Background(), f.remote, "refs/heads/main")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if actual != f.b || f.candidate(t).State != fixed.State {
+		t.Fatal("candidate outside current goal scope was published")
+	}
+}
+
+func TestNewPublicationIntentRejectsOldAdmittedGoalWithIdenticalRoots(t *testing.T) {
+	ctx := context.Background()
+	f := newITFixture(t)
+	b, e := f.s.CreateRequirement(ctx, f.owner, "intent-goal-requirement", domain.Requirement{Title: "Source", Body: "Build Go source"})
+	req := itDecode[domain.Requirement](t, b, e)
+	d := domain.PlanningDocument{Objective: "Build source", NonGoals: "No other source", Acceptance: "Go checks pass", RequirementIDs: []string{req.ID}, Architecture: "Go", DirectoryOutline: "src/: source", AllowedRoots: []string{"src"}, BudgetSeconds: 20000}
+	admit := func(key string) {
+		t.Helper()
+		b, e := f.s.AuthorizePlanning(ctx, f.owner, key+"-auth", domain.VersionRequest{ExpectedVersion: d.Version})
+		d = itDecode[domain.PlanningDocument](t, b, e)
+		if _, e = f.s.SchedulePlanning(ctx, f.owner, key+"-evaluate", domain.PlanningMessageRequest{ExpectedVersion: d.Version}); e != nil {
+			t.Fatal(e)
+		}
+		result := domain.LeaderResult{Reply: "Ready", Ready: true, MissingItems: []string{}, Clarifications: []string{}, Tasks: []domain.TaskProposal{}, Scopes: []domain.ScopeProposal{}, MajorDecisions: []domain.MajorDecisionProposal{}}
+		worker := &PlanningWorker{Service: f.s, Executor: resultExecutor(result)}
+		if e = worker.Tick(ctx); e != nil {
+			t.Fatal(e)
+		}
+	}
+	b, e = f.s.SavePlanning(ctx, f.owner, "intent-initial-goal", domain.PlanningSaveRequest{Document: d})
+	d = itDecode[domain.PlanningDocument](t, b, e)
+	admit("intent-initial")
+	task := f.snapshot(t).Tasks[0]
+	if e = f.s.DB.Update(ctx, func(tx *store.Tx) error { task.RequirementIDs = []string{req.ID}; return tx.Put("task", task.ID, task) }); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = f.s.TaskAction(ctx, f.owner, "intent-initial-resume", task.ID, "resume", domain.VersionRequest{ExpectedVersion: task.Version}); e != nil {
+		t.Fatal(e)
+	}
+	f.implement(t, "src/feature.txt")
+	f.reviewAndValidate(t)
+	fixed := f.candidate(t)
+	d.Architecture = "TypeScript"
+	d.Acceptance = "TypeScript checks pass"
+	b, e = f.s.SavePlanning(ctx, f.owner, "intent-same-root-edit", domain.PlanningSaveRequest{ExpectedVersion: d.Version, Document: d})
+	d = itDecode[domain.PlanningDocument](t, b, e)
+	admit("intent-new")
+	if e = f.s.DB.Update(ctx, func(tx *store.Tx) error {
+		var current domain.Task
+		if e := tx.Get("task", task.ID, &current); e != nil {
+			return e
+		}
+		current.HoldReason = ""
+		return tx.Put("task", current.ID, current)
+	}); e != nil {
+		t.Fatal(e)
+	}
+	if e = f.w.land(ctx, fixed); e == nil || !strings.Contains(e.Error(), "older goal") {
+		t.Fatal("new publication intent accepted old goal authority", e)
+	}
+	if e = f.s.DB.View(ctx, func(tx *store.Tx) error {
+		intents, e := store.List[domain.Intent](tx, "intent")
+		if len(intents) != 0 {
+			t.Error("old goal created external intent")
+		}
+		return e
+	}); e != nil {
+		t.Fatal(e)
+	}
+	actual, e := f.g.Query(ctx, f.remote, "refs/heads/main")
+	if e != nil || actual != f.b || f.candidate(t).State != fixed.State {
+		t.Fatal("old goal changed main or accepted material", e)
 	}
 }

@@ -29,6 +29,9 @@ func (w *Integrator) Claim(ctx context.Context, a Actor, key string, req domain.
 		if e = tx.Get("node", a.NodeID, &n); e != nil {
 			return e
 		}
+		if n.Draining || n.DisabledNewWork {
+			return nil
+		}
 		if n.Revoked {
 			return domain.Fail("forbidden", "节点已撤销")
 		}
@@ -51,6 +54,9 @@ func (w *Integrator) Claim(ctx context.Context, a Actor, key string, req domain.
 		}
 		for _, t := range tasks {
 			if t.State == "ready" && t.ApprovedVersion > 0 && t.HoldReason == "" && t.CurrentRunID == "" && available(req.Capabilities, t.Tool) {
+				if goalGate(tx, &t, false) != nil || !nodeAllows(n, t.Tool, "implement") {
+					continue
+				}
 				needed = true
 				break
 			}

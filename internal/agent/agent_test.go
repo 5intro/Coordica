@@ -435,3 +435,42 @@ func TestACPCancellationCannotBlockBehindFullInputPipe(t *testing.T) {
 		t.Fatalf("unbounded input cancellation: %+v %v", result, err)
 	}
 }
+
+func TestOptionalOutputSchemaProtocolBoundary(t *testing.T) {
+	for _, tool := range []string{"codex", "claude", "dsh", "cursor", "kimi", "pi"} {
+		t.Run(tool, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			req := fixtureRequest(t, tool, "args")
+			// Default requests retain their existing protocol behavior.
+			result, err := Execute(ctx, req, nil)
+			if err != nil || strings.Contains(result.OutputText, "--output-schema") {
+				t.Fatal("default schema changed launch", result, err)
+			}
+			req.OutputSchemaPath = filepath.Join(t.TempDir(), "trusted schema.json")
+			result, err = Execute(ctx, req, nil)
+			if tool != "codex" {
+				if err == nil || !strings.Contains(err.Error(), "does not support output schemas") {
+					t.Fatal("unsupported schema silently accepted", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			var args []string
+			if err := json.Unmarshal([]byte(result.OutputText), &args); err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for i, arg := range args {
+				if arg == "--output-schema" {
+					found = i+1 < len(args) && args[i+1] == req.OutputSchemaPath
+				}
+			}
+			if !found {
+				t.Fatal("schema flag/path not forwarded", args)
+			}
+		})
+	}
+}

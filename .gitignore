@@ -11,3 +11,5 @@ web/node_modules/
 *.db-wal
 .DS_Store
 /docs/
+__pycache__/
+*.py[cod]

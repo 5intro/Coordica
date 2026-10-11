@@ -32,17 +32,19 @@ type backupGit struct {
 	File backupFile `json:"file"`
 }
 type backupManifest struct {
-	Version   int          `json:"version"`
-	CreatedAt time.Time    `json:"created_at"`
-	Database  backupFile   `json:"database"`
-	Artifacts []backupFile `json:"artifacts"`
-	Git       []backupGit  `json:"git"`
+	Version          int          `json:"version"`
+	CreatedAt        time.Time    `json:"created_at"`
+	Database         backupFile   `json:"database"`
+	Artifacts        []backupFile `json:"artifacts"`
+	PlanningReceipts []backupFile `json:"planning_receipts"`
+	Git              []backupGit  `json:"git"`
 }
 type backupRecords struct {
 	Artifacts          map[string]domain.Artifact
 	CandidateArtifacts map[string]domain.Artifact
 	Candidates         []domain.Candidate
 	Runs               []domain.Run
+	PlanningRuns       []domain.PlanningRun
 	Intents            []domain.Intent
 }
 
@@ -133,6 +135,26 @@ func (s *Service) backup(ctx context.Context, a Actor, g *gitops.Client) (string
 		}
 		manifest.Artifacts = append(manifest.Artifacts, copied)
 	}
+	for _, r := range records.PlanningRuns {
+		if err = gitops.ValidatePath(r.ID); err != nil || strings.Contains(r.ID, "/") {
+			return "", fmt.Errorf("invalid planning run identifier")
+		}
+		rel := "planning-outcomes/" + r.ID + ".json"
+		source := filepath.Join(s.Dir, filepath.FromSlash(rel))
+		if _, e := os.Lstat(source); errors.Is(e, os.ErrNotExist) {
+			continue
+		} else if e != nil {
+			return "", e
+		}
+		copied, e := copyBackupFile(ctx, source, stage, rel)
+		if e != nil {
+			return "", e
+		}
+		if e = validatePlanningReceipt(stage, rel, r); e != nil {
+			return "", e
+		}
+		manifest.PlanningReceipts = append(manifest.PlanningReceipts, copied)
+	}
 	oids, err := requiredBackupOIDs(records)
 	if err != nil {
 		return "", err
@@ -207,7 +229,7 @@ func readBackupRecords(ctx context.Context, file string, sanitize bool) (backupR
 			return result, err
 		}
 	}
-	rows, err := db.QueryContext(ctx, "SELECT kind,id,data FROM records WHERE kind IN ('artifact','candidate_artifact','candidate','run','intent') ORDER BY kind,id")
+	rows, err := db.QueryContext(ctx, "SELECT kind,id,data FROM records WHERE kind IN ('artifact','candidate_artifact','candidate','run','intent','planning_run') ORDER BY kind,id")
 	if err != nil {
 		return result, err
 	}
@@ -246,6 +268,12 @@ func readBackupRecords(ctx context.Context, file string, sanitize bool) (backupR
 				return result, err
 			}
 			result.Runs = append(result.Runs, r)
+		case "planning_run":
+			var r domain.PlanningRun
+			if err = json.Unmarshal(b, &r); err != nil {
+				return result, err
+			}
+			result.PlanningRuns = append(result.PlanningRuns, r)
 		case "intent":
 			var in domain.Intent
 			if err = json.Unmarshal(b, &in); err != nil {
@@ -458,6 +486,12 @@ func restoreBackup(ctx context.Context, backupDir, destination string, g *gitops
 			return fmt.Errorf("invalid Git backup entry")
 		}
 	}
+	for _, f := range manifest.PlanningReceipts {
+		if !strings.HasPrefix(f.Path, "planning-outcomes/") || strings.Contains(strings.TrimPrefix(f.Path, "planning-outcomes/"), "/") || !strings.HasSuffix(f.Path, ".json") {
+			return fmt.Errorf("invalid planning receipt backup entry")
+		}
+	}
+	all = append(all, manifest.PlanningReceipts...)
 	all = append(all, manifest.Artifacts...)
 	for _, item := range manifest.Git {
 		all = append(all, item.File)
@@ -503,6 +537,19 @@ func restoreBackup(ctx context.Context, backupDir, destination string, g *gitops
 	records, err := readBackupRecords(ctx, filepath.Join(destination, "coordica.db"), true)
 	if err != nil {
 		return err
+	}
+	referenced := map[string]domain.PlanningRun{}
+	for _, r := range records.PlanningRuns {
+		referenced["planning-outcomes/"+r.ID+".json"] = r
+	}
+	for _, f := range manifest.PlanningReceipts {
+		r, ok := referenced[f.Path]
+		if !ok {
+			return fmt.Errorf("unreferenced planning receipt")
+		}
+		if err = validatePlanningReceipt(destination, f.Path, r); err != nil {
+			return err
+		}
 	}
 	for id, a := range records.Artifacts {
 		rel := "artifacts/" + id
@@ -618,7 +665,11 @@ func freezeRestoredState(ctx context.Context, s *Service) error {
 			if err = tx.Get("task", r.TaskID, &task); err != nil {
 				return err
 			}
+			before := r.ElapsedSeconds
 			s.settle(&p, &task, &r, r.GrantSeconds, true)
+			if err = settleGoal(tx, task, r.ElapsedSeconds-before, 0); err != nil {
+				return err
+			}
 			r.State = "lost"
 			r.Quiescent = false
 			r.LeaseUntil = s.Now().Add(-time.Second)
@@ -665,4 +716,23 @@ func freezeRestoredState(ctx context.Context, s *Service) error {
 		}
 		return s.audit(tx, Actor{ID: "recovery", Role: "owner"}, "backup.restored", p.ID, "暂停项目、撤销旧凭据/节点，需重新引导用户并对账")
 	})
+}
+
+func validatePlanningReceipt(root, rel string, r domain.PlanningRun) error {
+	file, err := safeBackupFile(root, rel)
+	if err != nil {
+		return err
+	}
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	var out PlanningOutcome
+	if err = json.Unmarshal(b, &out); err != nil {
+		return fmt.Errorf("invalid planning receipt: %w", err)
+	}
+	if out.Generation != r.Generation || out.DocumentVersion != r.DocumentVersion || out.FinishedAt.IsZero() || out.FinishedAt.Before(r.StartedAt) || out.ElapsedSeconds < 0 || r.GrantSeconds <= 0 {
+		return fmt.Errorf("planning receipt source/evidence mismatch")
+	}
+	return nil
 }

@@ -105,7 +105,7 @@ func (w *Integrator) eligible(ctx context.Context, c domain.Candidate) (bool, er
 		if e != nil {
 			return e
 		}
-		ok = !p.Paused && t.HoldReason == "" && t.State != "cancelled" && t.State != "integrated" && t.CurrentCandidateID == c.ID && t.AuthorizationVersion == c.AuthorizationVersion && p.PolicyVersion == c.PolicyVersion && t.UsedSeconds < t.BudgetSeconds && p.UsedSeconds < p.TotalBudgetSeconds
+		ok = candidateAuthority(tx, t, p, c) && t.UsedSeconds < t.BudgetSeconds && p.UsedSeconds < p.TotalBudgetSeconds
 		return nil
 	})
 	return ok, e
@@ -115,12 +115,20 @@ func (w *Integrator) prepare(ctx context.Context, c domain.Candidate) error {
 	var t domain.Task
 	var p domain.Project
 	var material domain.Artifact
+	var goalScope *gitops.Scope
 	e := s.DB.View(ctx, func(tx *store.Tx) error {
 		if e := tx.Get("task", c.TaskID, &t); e != nil {
 			return e
 		}
 		var e error
 		p, e = getProject(tx)
+		if e != nil {
+			return e
+		}
+		if e = goalGate(tx, &t, false); e != nil {
+			return e
+		}
+		goalScope, e = currentGoalScope(tx)
 		if e != nil {
 			return e
 		}
@@ -147,6 +155,9 @@ func (w *Integrator) prepare(ctx context.Context, c domain.Candidate) error {
 		var diff gitops.DiffResult
 		diff, e = w.Git.CheckScope(ctx, w.repo(), gitops.OID(c.Base), gitops.OID(c.Head), scope)
 		c.Protected = len(diff.Scope.Protected) > 0
+		if e == nil && goalScope != nil {
+			_, e = w.Git.CheckScope(ctx, w.repo(), gitops.OID(c.Base), gitops.OID(c.Head), goalScope)
+		}
 	}
 	if e != nil {
 		w.mu.Unlock()
@@ -158,6 +169,9 @@ func (w *Integrator) prepare(ctx context.Context, c domain.Candidate) error {
 		var diff gitops.DiffResult
 		diff, e = w.Git.CheckScope(ctx, w.repo(), gitops.OID(main), candidate.Commit, scope)
 		c.Protected = c.Protected || len(diff.Scope.Protected) > 0
+		if e == nil && goalScope != nil {
+			_, e = w.Git.CheckScope(ctx, w.repo(), gitops.OID(main), candidate.Commit, goalScope)
+		}
 	}
 	w.mu.Unlock()
 	if e != nil {
@@ -179,7 +193,11 @@ func (w *Integrator) prepare(ctx context.Context, c domain.Candidate) error {
 		if e := tx.Get("task", c.TaskID, &task); e != nil {
 			return e
 		}
-		if task.CurrentCandidateID != c.ID || task.AuthorizationVersion != c.AuthorizationVersion {
+		latestProject, e := getProject(tx)
+		if e != nil {
+			return e
+		}
+		if !candidateAuthority(tx, task, latestProject, c) {
 			return nil
 		}
 		if e := tx.Put("candidate", c.ID, c); e != nil {
@@ -221,6 +239,9 @@ func (w *Integrator) reject(ctx context.Context, c domain.Candidate, cause error
 		if e := tx.Put("task", t.ID, t); e != nil {
 			return e
 		}
+		if e := s.taskDecision(tx, t, current.Detail); e != nil {
+			return e
+		}
 		return s.audit(tx, Actor{ID: "center"}, "candidate.rejected", c.ID, current.Detail)
 	})
 }
@@ -242,7 +263,7 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 		if e = tx.Get("candidate", c.ID, &latest); e != nil {
 			return e
 		}
-		if latest.State != "validating" || latest.Commit != c.Commit || t.State != "awaiting_integration" || t.AuthorizationVersion != latest.AuthorizationVersion || p.PolicyVersion != latest.PolicyVersion || p.Paused || t.HoldReason != "" || t.CurrentRunID != "" || t.CurrentCandidateID != c.ID {
+		if goalGate(tx, &t, false) != nil || latest.State != "validating" || latest.Commit != c.Commit || t.State != "awaiting_integration" || t.AuthorizationVersion != latest.AuthorizationVersion || p.PolicyVersion != latest.PolicyVersion || p.Paused || t.HoldReason != "" || t.CurrentRunID != "" || t.CurrentCandidateID != c.ID {
 			return domain.Fail("conflict", "候选暂不可验证")
 		}
 		c = latest
@@ -250,12 +271,24 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 			return domain.Fail("conflict", "缺少固定候选独立评审")
 		}
 		grant := limit(t.MaxRunSeconds, t.BudgetSeconds-t.UsedSeconds-t.ReservedSeconds, p.TotalBudgetSeconds-p.UsedSeconds-p.ReservedSeconds)
+		if t.GoalVersion != 0 {
+			var d domain.PlanningDocument
+			if e = tx.Get("planning_document", "current", &d); e != nil {
+				return e
+			}
+			grant = limit(grant, d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds)
+		}
 		if grant <= 0 {
 			return domain.Fail("budget", "验证预算不足")
 		}
 		now := s.Now()
 		t.Generation++
 		r = domain.Run{ID: ID("check_"), Version: 1, TaskID: t.ID, NodeID: "center", Kind: "validation", Tool: "program", State: "running", Generation: t.Generation, AuthorizationVersion: t.AuthorizationVersion, PolicyVersion: p.PolicyVersion, LeaseUntil: now.Add(time.Duration(grant) * time.Second), Deadline: now.Add(time.Duration(grant) * time.Second), GrantSeconds: grant, Base: c.Commit, CandidateID: c.ID, StartedAt: now}
+		r.GoalVersion = t.GoalVersion
+		r.GoalAuthorizationVersion = t.GoalAuthorizationVersion
+		if e = reserveGoal(tx, t, grant); e != nil {
+			return e
+		}
 		t.CurrentRunID = r.ID
 		t.ReservedSeconds += grant
 		p.ReservedSeconds += grant
@@ -383,7 +416,7 @@ func (w *Integrator) finishValidation(ctx context.Context, r domain.Run, c domai
 			return err
 		}
 		owns := t.CurrentRunID == current.ID && t.Generation == current.Generation
-		valid := owns && current.State == "running" && s.Now().Before(current.LeaseUntil) && !interrupted && !project.Paused && t.HoldReason == "" && t.State == "awaiting_integration" && t.CurrentCandidateID == c.ID && current.AuthorizationVersion == t.AuthorizationVersion && current.PolicyVersion == project.PolicyVersion
+		valid := grantedGoalAuthority(tx, &t, current) && owns && current.State == "running" && s.Now().Before(current.LeaseUntil) && s.Now().Before(current.Deadline) && current.GrantSeconds > 0 && !interrupted && !project.Paused && t.HoldReason == "" && t.State == "awaiting_integration" && t.CurrentCandidateID == c.ID && current.AuthorizationVersion == t.AuthorizationVersion && current.PolicyVersion == project.PolicyVersion
 		var cand domain.Candidate
 		if owns {
 			if err = tx.Get("candidate", c.ID, &cand); err != nil {
@@ -396,7 +429,11 @@ func (w *Integrator) finishValidation(ctx context.Context, r domain.Run, c domai
 			if !quiescent || !s.Now().Before(current.LeaseUntil) {
 				elapsed = current.GrantSeconds
 			}
+			before := current.ElapsedSeconds
 			s.settle(&project, &t, &current, elapsed, true)
+			if err = settleGoal(tx, t, current.ElapsedSeconds-before, current.GrantSeconds-current.ElapsedSeconds); err != nil {
+				return err
+			}
 		}
 		current.Quiescent = quiescent
 		current.Version++
@@ -459,6 +496,9 @@ func (w *Integrator) finishValidation(ctx context.Context, r domain.Run, c domai
 				return err
 			}
 		}
+		if err = s.taskDecision(tx, t, current.Detail); err != nil {
+			return err
+		}
 		return s.audit(tx, Actor{ID: "center"}, "candidate.validated", c.ID, fmt.Sprintf("%s; accepted=%t", current.State, valid))
 	})
 }
@@ -490,6 +530,43 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 	if string(actual) != c.Main {
 		return w.invalidate(ctx, c, "主线已变化，必须重建候选")
 	}
+	var goalScope *gitops.Scope
+	var goalVersion int64
+	e = s.DB.View(ctx, func(tx *store.Tx) error {
+		var task domain.Task
+		if err := tx.Get("task", c.TaskID, &task); err != nil {
+			return err
+		}
+		if err := goalGate(tx, &task, false); err != nil {
+			return err
+		}
+		var err error
+		goalScope, err = currentGoalScope(tx)
+		if err != nil {
+			return err
+		}
+		var d domain.PlanningDocument
+		if err = tx.Get("planning_document", "current", &d); err == nil {
+			goalVersion = d.Version
+		} else if !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
+		return nil
+	})
+	if e != nil {
+		return e
+	}
+	if goalScope != nil {
+		w.mu.Lock()
+		_, e = w.Git.CheckScope(ctx, w.repo(), gitops.OID(c.Base), gitops.OID(c.Head), goalScope)
+		if e == nil {
+			_, e = w.Git.CheckScope(ctx, w.repo(), gitops.OID(c.Main), gitops.OID(c.Commit), goalScope)
+		}
+		w.mu.Unlock()
+		if e != nil {
+			return w.reject(ctx, c, e, false)
+		}
+	}
 	var in domain.Intent
 	e = s.DB.Update(ctx, func(tx *store.Tx) error {
 		var current domain.Candidate
@@ -504,7 +581,16 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 		if e != nil {
 			return e
 		}
-		if current.State != "ready_to_land" || t.CurrentCandidateID != c.ID || project.Paused || t.HoldReason != "" || t.State != "awaiting_integration" || t.AuthorizationVersion != c.AuthorizationVersion || project.PolicyVersion != c.PolicyVersion || t.UsedSeconds >= t.BudgetSeconds || project.UsedSeconds >= project.TotalBudgetSeconds {
+		if goalVersion != 0 {
+			var d domain.PlanningDocument
+			if e := tx.Get("planning_document", "current", &d); e != nil {
+				return e
+			}
+			if d.Version != goalVersion {
+				return domain.Fail("version_conflict", "goal changed during final scope check")
+			}
+		}
+		if goalGate(tx, &t, false) != nil || current.State != "ready_to_land" || t.CurrentCandidateID != c.ID || project.Paused || t.HoldReason != "" || t.State != "awaiting_integration" || t.AuthorizationVersion != c.AuthorizationVersion || project.PolicyVersion != c.PolicyVersion || t.UsedSeconds >= t.BudgetSeconds || project.UsedSeconds >= project.TotalBudgetSeconds {
 			return domain.Fail("conflict", "放行条件已变化")
 		}
 		if current.Protected && current.ApprovedCommit != current.Commit {

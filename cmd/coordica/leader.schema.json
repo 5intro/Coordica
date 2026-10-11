@@ -1,0 +1,223 @@
+{
+  "$defs": {
+    "LeaderResult": {
+      "additionalProperties": false,
+      "properties": {
+        "clarifications": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "major_decisions": {
+          "items": {
+            "$ref": "#/$defs/MajorDecisionProposal"
+          },
+          "type": "array"
+        },
+        "missing_items": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "reply": {
+          "type": "string"
+        },
+        "scopes": {
+          "items": {
+            "$ref": "#/$defs/ScopeProposal"
+          },
+          "type": "array"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/TaskProposal"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "reply",
+        "ready",
+        "missing_items",
+        "clarifications",
+        "tasks",
+        "scopes",
+        "major_decisions"
+      ],
+      "type": "object"
+    },
+    "MajorDecisionProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "evidence",
+        "actions"
+      ],
+      "type": "object"
+    },
+    "ScopeProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "type": "integer"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "expected_version",
+        "paths",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "TaskProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "type": "string"
+        },
+        "budget_seconds": {
+          "type": "integer"
+        },
+        "dependencies": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "hot_resources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "key": {
+          "type": "string"
+        },
+        "max_repairs": {
+          "type": "integer"
+        },
+        "max_retries": {
+          "type": "integer"
+        },
+        "max_run_seconds": {
+          "type": "integer"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "requirement_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "objective",
+        "acceptance",
+        "requirement_ids",
+        "paths",
+        "dependencies",
+        "hot_resources",
+        "budget_seconds",
+        "max_run_seconds",
+        "max_repairs",
+        "max_retries"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "clarifications": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "major_decisions": {
+      "items": {
+        "$ref": "#/$defs/MajorDecisionProposal"
+      },
+      "type": "array"
+    },
+    "missing_items": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "ready": {
+      "type": "boolean"
+    },
+    "reply": {
+      "type": "string"
+    },
+    "scopes": {
+      "items": {
+        "$ref": "#/$defs/ScopeProposal"
+      },
+      "type": "array"
+    },
+    "tasks": {
+      "items": {
+        "$ref": "#/$defs/TaskProposal"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "reply",
+    "ready",
+    "missing_items",
+    "clarifications",
+    "tasks",
+    "scopes",
+    "major_decisions"
+  ],
+  "type": "object"
+}

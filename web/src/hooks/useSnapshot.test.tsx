@@ -1,10 +1,11 @@
+import { emptyPhaseB } from '../test/phaseB';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Snapshot } from '../api.generated';
 import { ApiClient } from '../api/client';
 import { useSnapshot } from './useSnapshot';
 
-const snapshot: Snapshot = { api_version: 'v1', project: null, tasks: null, requirements: null, runs: null, candidates: null, nodes: null, events: null };
+const snapshot: Snapshot = { ...emptyPhaseB, api_version: 'v1', project: null, tasks: null, requirements: null, runs: null, candidates: null, nodes: null, events: null };
 afterEach(() => vi.restoreAllMocks());
 
 describe('snapshot polling', () => {

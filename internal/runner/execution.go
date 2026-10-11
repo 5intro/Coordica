@@ -59,7 +59,17 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 				r.report("evidence.failed", assignment.Run.ID, completion.Detail)
 			}
 		}
-		record.Request = &completion
+		if record.Intent != nil {
+			// Receipt replay must precede Complete, including after a restart.
+			if record.Intent.Settled {
+				completion.Detail = record.Intent.Completion.Detail
+				record.Request = &completion
+			} else {
+				record.Intent.Completion = completion
+			}
+		} else {
+			record.Request = &completion
+		}
 		if err := writePrivateJSON(r.spoolPath(assignment.Run.ID), record); err == nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -145,6 +155,16 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 		prompt += reviewInput
 	}
 	request := agent.Request{Tool: assignment.Run.Tool, Executable: r.config.Executables[assignment.Run.Tool], WorkDir: record.WorkDir, Prompt: prompt, Role: assignment.Run.Kind, AllowedTools: []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash"}}
+	nativeIntent := assignment.GoalContext != nil && assignment.Run.Kind == "implement" && definition.Protocol == agent.ProtocolCodex && definition.ID == "codex"
+	if nativeIntent {
+		schemaPath := filepath.Join(dir, "execution.schema.json")
+		if err = os.WriteFile(schemaPath, executionOutputSchema, 0600); err != nil {
+			finish(err)
+			return
+		}
+		request.OutputSchemaPath = schemaPath
+		request.Prompt += nativeIntentPrompt
+	}
 	if assignment.Run.Kind == "review" {
 		request.AllowedTools = []string{"Read", "Glob", "Grep"}
 	}
@@ -184,6 +204,11 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 	}{result.SessionID, loggedOutput, outputTruncated, result.ExitCode, result.TreeStopped}, true)
 	completion.SessionID = result.SessionID
 	completion.Quiescent = result.TreeStopped || !started
+	if nativeIntent && err == nil {
+		// A successful native outcome needs an affirmative tree-stop receipt;
+		// an absent process-start event alone cannot prove it.
+		completion.Quiescent = result.TreeStopped
+	}
 	if persistErr != nil {
 		err = errors.Join(err, persistErr)
 	}
@@ -199,6 +224,49 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 		completion.Status = "stopped"
 		finish(ctx.Err())
 		return
+	}
+	if nativeIntent {
+		if !result.TreeStopped || result.ExitCode != 0 {
+			finish(errors.New("native execution lacks a successful stopped protocol result"))
+			return
+		}
+		intent, parseErr := domain.ParseExecutionIntent(result.OutputText)
+		if parseErr != nil {
+			finish(parseErr)
+			return
+		}
+		if intent.Status != "completed" {
+			// Never convert a scope/block intent to an ordinary repair failure.
+			completion.Status = "stopped"
+			completion.IntentStatus = intent.Status
+			if intent.Status == "scope_requested" {
+				if err = r.git.VerifyClean(ctx, record.WorkDir, base); err != nil {
+					finish(fmt.Errorf("native scope/block intent requires unchanged fixed workspace: %w", err))
+					return
+				}
+				if _, err = gitops.NewScope(intent.RequestedPaths, nil); err != nil {
+					finish(err)
+					return
+				}
+			}
+			if ctx.Err() != nil {
+				finish(ctx.Err())
+				return
+			}
+			completion.Detail = "native " + intent.Status + " intent; actual process tree stopped; fixed workspace unchanged"
+			if intent.Status == "blocked" {
+				completion.Detail = "native blocked intent; actual process tree stopped; workspace preserved without snapshot"
+			}
+			completion.ElapsedSeconds = int64(time.Since(record.StartedAt) / time.Second)
+			record.Intent = &intentHandoff{Intent: intent, Key: intentKey(assignment.Run), Completion: completion}
+			if err = writePrivateJSON(r.spoolPath(assignment.Run.ID), record); err != nil {
+				finish(err)
+				return
+			}
+			err = r.attemptIntent(ctx, &record)
+			finish(err)
+			return
+		}
 	}
 	var head gitops.OID
 	if assignment.Run.Kind == "implement" && definition.CommitMode == "runner" {
@@ -270,6 +338,13 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 	completion.Detail = "structured tool result and fixed workspace verified"
 	finish(nil)
 }
+
+const nativeIntentPrompt = `
+Native execution intent protocol v1: return ONLY a JSON object matching the supplied output schema with EXACT fields version=1, status, requested_paths (non-null string array), reason (string), summary (nonempty string). No Markdown or prose outside JSON.
+If task paths are insufficient, STOP before editing any files and return status="scope_requested", the exact additional repository paths in requested_paths, and a nonempty reason. Leave the fixed workspace unchanged. The Runner will submit your request after your actual process tree stops; it grants no permission. Wait for a new assignment with extended authority before implementing. Do not call HTTP or configure MCP yourself.
+For major changes or other blockers, leave the fixed workspace unchanged and return status="blocked", requested_paths=[], and a nonempty reason. Never approve or carry out a major change yourself.
+When implementation and relevant checks are finished within current scope, return status="completed", requested_paths=[], reason="", and a summary. This is intent only: Runner still verifies actual changes, scope, fixed base, and process quiescence before snapshotting.
+`
 
 func (r *Runner) watchPermission(ctx context.Context, stop context.CancelFunc, assignment domain.Assignment, started, lease, deadline, lastSuccess time.Time) func() {
 	heartCtx, end := context.WithCancel(ctx)
@@ -381,6 +456,10 @@ func (r *Runner) reviewInput(ctx context.Context, a domain.Assignment, dir strin
 func assignmentPrompt(a domain.Assignment, commitMode string) string {
 	var text strings.Builder
 	fmt.Fprintf(&text, "Coordica Run %s; generation %d; authorization %d.\nTask: %s\nGoal: %s\nAcceptance: %s\nAllowed repository paths: %s\nProtected paths require a separate decision: %s\nFixed base: %s\n", a.Run.ID, a.Run.Generation, a.Run.AuthorizationVersion, a.Task.Title, a.Task.Description, a.Task.Acceptance, strings.Join(a.Task.AllowedPaths, ", "), strings.Join(a.Project.ProtectedPaths, ", "), a.Run.Base)
+	if a.GoalContext != nil {
+		g := a.GoalContext
+		fmt.Fprintf(&text, "Current project goal v%d; authorization %d. Objective: %s\nNon-goals: %s\nGoal acceptance: %s\nArchitecture: %s\nDirectory outline: %s\nGoal directory roots: %s\nPreserve this architecture and these non-goals. Every change must satisfy task scope and goal roots. Major changes require an owner decision.\n", g.Version, g.AuthorizationVersion, g.Objective, g.NonGoals, g.Acceptance, g.Architecture, g.DirectoryOutline, strings.Join(g.AllowedRoots, ", "))
+	}
 	if a.Run.Kind == "review" {
 		fmt.Fprintf(&text, "You are an independent reviewer in a new session. Read the fixed candidate and inspect its diff; do not edit or commit files. Return ONLY one JSON object, no Markdown, with EXACT fields: candidate (must be %q), verdict (approve, changes_requested, or blocked), summary (nonempty), findings (array of strings), run_id (empty). Treat implementation summaries as unverified.\n", a.Run.Base)
 		if a.Candidate != nil {

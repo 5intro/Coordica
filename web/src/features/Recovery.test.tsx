@@ -1,3 +1,4 @@
+import { emptyPhaseB } from '../test/phaseB';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Project, Run, Snapshot, Task } from '../api.generated';
@@ -6,19 +7,19 @@ import { Tasks } from './Tasks';
 import { Runs } from './Runs';
 import { Settings } from './Settings';
 
-const task: Task = {
+const task: Task = { goal_version: 0, goal_authorization_version: 0,
   id: 'task-1', version: 7, title: '恢复测试', description: '目标', acceptance: '验收', requirement_ids: null,
   dependencies: null, allowed_paths: ['src/**'], hot_resources: null, tool: 'codex', state: 'ready',
   hold_reason: 'budget', approved_version: 2, authorization_version: 1, generation: 1,
   budget_seconds: 14400, used_seconds: 3600, reserved_seconds: 0, max_run_seconds: 3600,
   max_repairs: 2, max_retries: 2, repairs: 1, retries: 1, current_run_id: '', current_candidate_id: '', created_at: '',
 };
-const run: Run = {
+const run: Run = { goal_version: 0, goal_authorization_version: 0,
   id: 'run-1', version: 3, task_id: task.id, node_id: 'node-1', kind: 'implement', tool: 'codex', state: 'lost',
   generation: 1, authorization_version: 1, policy_version: 1, lease_until: '', deadline: '', grant_seconds: 3600,
   elapsed_seconds: 3600, base: '', head: '', candidate_id: '', session_id: '', detail: '连接中断', quiescent: false, started_at: '',
 };
-const initial: Snapshot = { api_version: 'v1', project: null, tasks: [task], requirements: null, runs: [run], candidates: null, nodes: null, events: null };
+const initial: Snapshot = { ...emptyPhaseB, api_version: 'v1', project: null, tasks: [task], requirements: null, runs: [run], candidates: null, nodes: null, events: null };
 
 describe('explicit recovery actions', () => {
   it('requires a paused project and binds its budget approval before polling', async () => {

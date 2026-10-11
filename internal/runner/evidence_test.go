@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"coordica/internal/agent"
+	"coordica/internal/domain"
 )
 
 func TestPrivateEvidenceLimitRetainsFinalResultAndMarksOmittedEvents(t *testing.T) {
@@ -42,5 +43,15 @@ func TestPrivateEvidenceLimitRetainsFinalResultAndMarksOmittedEvents(t *testing.
 	}
 	if stat, err := os.Stat(path); err != nil || (runtime.GOOS != "windows" && stat.Mode().Perm()&0077 != 0) {
 		t.Fatal("private evidence permissions", err)
+	}
+}
+
+func TestAssignmentPromptIncludesAuthorizedGoalConstraints(t *testing.T) {
+	a := domain.Assignment{Run: domain.Run{ID: "run", Kind: "implement"}, Task: domain.Task{Title: "Task", Description: "Build", Acceptance: "Task check", AllowedPaths: []string{"src/**"}}, GoalContext: &domain.GoalContext{Version: 2, AuthorizationVersion: 3, Objective: "Owner objective", NonGoals: "Keep storage local", Acceptance: "Owner acceptance", Architecture: "Go and SQLite", DirectoryOutline: "src/: implementation", AllowedRoots: []string{"src"}}}
+	prompt := assignmentPrompt(a, "runner")
+	for _, text := range []string{"Owner objective", "Keep storage local", "Owner acceptance", "Go and SQLite", "src/: implementation", "Every change must satisfy task scope and goal roots"} {
+		if !strings.Contains(prompt, text) {
+			t.Fatalf("assigned execution lost constraint %q", text)
+		}
 	}
 }

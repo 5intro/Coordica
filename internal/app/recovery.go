@@ -120,7 +120,11 @@ func (s *Service) RecoverCenter(ctx context.Context) error {
 			}
 			owns := t.CurrentRunID == r.ID && t.Generation == r.Generation
 			if owns {
+				before := r.ElapsedSeconds
 				s.settle(&p, &t, &r, r.GrantSeconds, true)
+				if e = settleGoal(tx, t, r.ElapsedSeconds-before, 0); e != nil {
+					return e
+				}
 			}
 			r.State = "lost"
 			r.Version++

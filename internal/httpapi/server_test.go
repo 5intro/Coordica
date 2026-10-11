@@ -384,3 +384,39 @@ func TestRunnerRuntimeRoutesKeepNodeIdentityAndRunOwnership(t *testing.T) {
 		t.Fatal("revoked node accepted", w.Code, w.Body.String())
 	}
 }
+
+func TestPhaseBOwnerRoutesNeverReachRunnerListener(t *testing.T) {
+	f := newBoundaryFixture(t)
+	routes := []string{"system/automation", "planning/save", "planning/authorize", "planning/messages", "planning/evaluate", "planning/cancel", "nodes/" + f.node.NodeID + "/configure", "decisions/unknown/resolve"}
+	for _, path := range routes {
+		for _, token := range []string{f.owner, f.node.Token} {
+			w := boundaryRequest(f.server.RunnerHandler(), "POST", "/api/v1/"+path, token, `{}`)
+			if w.Code != http.StatusNotFound {
+				t.Fatalf("Runner exposes %s: %d %s", path, w.Code, w.Body.String())
+			}
+		}
+		w := boundaryRequest(f.server.AdminHandler(), "POST", "/api/v1/"+path, f.node.Token, `{}`)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("node reached owner route %s: %d", path, w.Code)
+		}
+	}
+	w := boundaryRequest(f.server.AdminHandler(), "GET", "/api/v1/state", f.owner, "")
+	var snapshot domain.Snapshot
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &snapshot) != nil {
+		t.Fatal(w.Body.String())
+	}
+	if snapshot.Automation.Version != 1 || snapshot.Automation.Enabled || snapshot.Automation.DevelopmentModel != "gpt-6.1-sol" {
+		t.Fatal("real automation defaults not exposed")
+	}
+	settings := snapshot.Automation
+	settings.Enabled = true
+	body, _ := json.Marshal(domain.AutomationRequest{ExpectedVersion: settings.Version, Settings: settings})
+	w = boundaryRequest(f.server.AdminHandler(), "POST", "/api/v1/system/automation", f.owner, string(body))
+	if w.Code != 200 {
+		t.Fatal(w.Body.String())
+	}
+	w = boundaryRequest(f.server.RunnerHandler(), "GET", "/api/v1/runner/state", f.node.Token, "")
+	if strings.Contains(w.Body.String(), "automation") || strings.Contains(w.Body.String(), "planning_document") || strings.Contains(w.Body.String(), "decisions") {
+		t.Fatal("owner planning data leaked in node snapshot")
+	}
+}

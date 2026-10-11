@@ -32,13 +32,13 @@ export function BudgetEditor({ task, client, refresh, onClose }: { task: Task; c
   </form>;
 }
 
-export function StopConfirmationForm({ run, client, refresh, onClose }: { run: Run; client: ApiClient; refresh: () => void; onClose: () => void }) {
+export function StopConfirmationForm({ run, client, refresh, onClose, onRecorded }: { run: Run; client: ApiClient; refresh: () => void; onClose: () => void; onRecorded?: () => void }) {
   const action = useAction(refresh);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const request: StopConfirmation = { expected_version: run.version, evidence: String(data.get('evidence')).trim() };
-    if (await action.execute(() => client.write<Run>(`/runs/${encodeURIComponent(run.id)}/confirm-stopped`, request), '已记录静止证据，请在任务中显式恢复。')) onClose();
+    if (await action.execute(() => client.write<Run>(`/runs/${encodeURIComponent(run.id)}/confirm-stopped`, request), '已记录停止证据，恢复结果以中心状态为准。')) { onRecorded?.(); onClose(); }
   }
   return <form className="panel form-stack" onSubmit={submit}>
     <div className="subheading"><h2>确认失联进程已停止</h2><button type="button" className="text-button" onClick={onClose}>收起</button></div>

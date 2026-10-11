@@ -4,11 +4,11 @@ import { ApiClient } from '../api/client';
 import { Empty, Feedback, SectionTitle, Status, duration, short, time } from '../components/ui';
 import { useAction } from '../hooks/useAction';
 
-export function Candidates({ snapshot, client, refresh }: { snapshot: Snapshot; client: ApiClient; refresh: () => void }) {
+export function Candidates({ snapshot, client, refresh, initialId }: { snapshot: Snapshot; client: ApiClient; refresh: () => void; initialId?: string }) {
   const candidates = snapshot.candidates ?? [];
-  const [selected, setSelected] = useState(candidates[0]?.id ?? '');
-  const candidate = candidates.find((item) => item.id === selected) ?? candidates[0];
-  return <><SectionTitle eyebrow="05 / INTEGRATION" title="集成候选" description="固定 B / H / M / C，独立评审与可信门禁针对最终 C。" /><div className="task-layout"><section className="panel task-list" aria-label="候选列表">{candidates.length ? candidates.map((item) => <button className={`task-row ${item.id === candidate?.id ? 'selected' : ''}`} key={item.id} aria-pressed={item.id === candidate?.id} onClick={() => setSelected(item.id)}><div className="record-meta"><code>{short(item.id, 14)}</code><Status value={item.state} /></div><strong>{(snapshot.tasks ?? []).find((t) => t.id === item.task_id)?.title ?? item.task_id}</strong><small>C {short(item.commit)}{item.protected ? ' · 受保护变化' : ''}</small></button>) : <Empty title="集成队列为空">执行端提交固定材料后，由中心受理。</Empty>}</section>{candidate ? <CandidateDetail key={candidate.id} candidate={candidate} client={client} refresh={refresh} /> : <div className="panel"><Empty title="尚无候选证据">自测摘要不能代替评审与门禁事实。</Empty></div>}</div></>;
+  const [selected, setSelected] = useState(initialId ?? candidates[0]?.id ?? '');
+  const candidate = candidates.find((item) => item.id === selected);
+  return <><SectionTitle eyebrow="05 / INTEGRATION" title="集成候选" description="固定 B / H / M / C，独立评审与可信门禁针对最终 C。" /><div className="task-layout"><section className="panel task-list" aria-label="候选列表">{candidates.length ? candidates.map((item) => <button className={`task-row ${item.id === candidate?.id ? 'selected' : ''}`} key={item.id} aria-pressed={item.id === candidate?.id} onClick={() => setSelected(item.id)}><div className="record-meta"><code>{short(item.id, 14)}</code><Status value={item.state} /></div><strong>{(snapshot.tasks ?? []).find((t) => t.id === item.task_id)?.title ?? item.task_id}</strong><small>C {short(item.commit)}{item.protected ? ' · 受保护变化' : ''}</small></button>) : <Empty title="集成队列为空">执行端提交固定材料后，由中心受理。</Empty>}</section>{candidate ? <CandidateDetail key={candidate.id} candidate={candidate} client={client} refresh={refresh} /> : <div className="panel"><Empty title={selected ? "候选不存在" : "尚无候选证据"}>自测摘要不能代替评审与门禁事实。</Empty></div>}</div></>;
 }
 
 function CandidateDetail({ candidate, client, refresh }: { candidate: Candidate; client: ApiClient; refresh: () => void }) {

@@ -266,6 +266,11 @@ func (r *Runner) recoverRecords(ctx context.Context) error {
 		if err := readJSON(path, &record); err != nil {
 			return fmt.Errorf("cannot recover handoff %s: %w", entry.Name(), err)
 		}
+		if record.Intent != nil {
+			// This receipt already contains an actual stopped-tree observation.
+			// Replay it before Complete rather than replacing it with PID inference.
+			continue
+		}
 		if record.Request != nil {
 			if record.Acknowledged && record.Request.Quiescent {
 				// A durable local stop observation remains valid even if the
@@ -327,7 +332,7 @@ func (r *Runner) occupiedSlots() (int, error) {
 		if err := readJSON(filepath.Join(r.config.DataDir, "spool", entry.Name()), &record); err != nil {
 			return count, err
 		}
-		if !r.active[record.Assignment.Run.ID] && record.Request != nil && !record.Request.Quiescent {
+		if !r.active[record.Assignment.Run.ID] && ((record.Request != nil && !record.Request.Quiescent) || (record.Request == nil && record.Intent != nil && !record.Intent.Completion.Quiescent)) {
 			count++
 		}
 	}
@@ -350,7 +355,7 @@ func (r *Runner) flush(ctx context.Context) {
 			r.report("spool.invalid", entry.Name(), shortDetail(err))
 			continue
 		}
-		if record.Request == nil {
+		if record.Request == nil && record.Intent == nil {
 			continue
 		}
 		r.mu.Lock()
@@ -380,6 +385,18 @@ func (r *Runner) flush(ctx context.Context) {
 	}
 }
 func (r *Runner) deliver(ctx context.Context, record spool) error {
+	if record.Intent != nil && record.Request == nil {
+		if err := r.attemptIntent(ctx, &record); err != nil {
+			return err
+		}
+		if !record.Intent.Settled {
+			return errors.New("native intent receipt still pending")
+		}
+		record.Request = &record.Intent.Completion
+		if err := writePrivateJSON(r.spoolPath(record.Assignment.Run.ID), record); err != nil {
+			return err
+		}
+	}
 	if record.Request == nil {
 		return errors.New("handoff has no fixed completion request")
 	}

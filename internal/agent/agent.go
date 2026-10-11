@@ -16,6 +16,7 @@ var ErrProtocol = errors.New("invalid or incomplete agent protocol")
 
 type Request struct {
 	Tool, Executable, WorkDir, Prompt, ResumeSession, Role string
+	OutputSchemaPath                                       string
 	AllowedTools                                           []string
 }
 type Event struct {
@@ -61,6 +62,9 @@ func (r *Registry) Execute(ctx context.Context, req Request, onEvent func(Event)
 		return Result{ExitCode: -1}, errors.New("unregistered agent tool")
 	}
 	req.Tool = def.ID
+	if req.OutputSchemaPath != "" && def.Protocol != ProtocolCodex {
+		return Result{ExitCode: -1}, errors.New("registered protocol does not support output schemas")
+	}
 	if strings.TrimSpace(req.Prompt) == "" {
 		return Result{ExitCode: -1}, errors.New("prompt is required")
 	}
@@ -207,3 +211,20 @@ func emit(onEvent func(Event), kind string, data any) {
 }
 
 func rpcError(raw json.RawMessage) error { return fmt.Errorf("ACP request failed: %s", sanitize(raw)) }
+
+// Leader gets only CLI/platform essentials and official model authentication.
+// Arbitrarily named owner/publication tokens are not forwarded to planning.
+func executionEnv(req Request) []string {
+	if req.Role != "leader" {
+		return developmentEnv()
+	}
+	allowed := map[string]bool{"PATH": true, "HOME": true, "USER": true, "LOGNAME": true, "SYSTEMROOT": true, "WINDIR": true, "TMPDIR": true, "TMP": true, "TEMP": true, "LANG": true, "LC_ALL": true, "CODEX_HOME": true, "XDG_CONFIG_HOME": true, "OPENAI_API_KEY": true}
+	env := []string{}
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if allowed[strings.ToUpper(key)] {
+			env = append(env, entry)
+		}
+	}
+	return append(env, "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1", "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never")
+}

@@ -278,3 +278,185 @@ func TestRestoreRefusesExistingTargetAndCorruptBackup(t *testing.T) {
 		t.Fatal("failed restore left target", e)
 	}
 }
+
+func TestBackupIncludesPhaseBRecordsAndRemovesCredentials(t *testing.T) {
+	s, w, _, token := bkFixture(t)
+	owner := Actor{ID: "owner", Role: "owner"}
+	ctx := context.Background()
+	if e := s.DB.Update(ctx, func(tx *store.Tx) error {
+		settings := domain.DefaultAutomationSettings()
+		settings.Enabled = true
+		values := []struct {
+			kind, id string
+			value    any
+		}{
+			{"automation", "current", settings},
+			{"planning_document", "current", domain.PlanningDocument{Version: 3, AuthorizationVersion: 3, Objective: "Backed up goal", AllowedRoots: []string{"src"}, BudgetSeconds: 500, Status: "planning"}},
+			{"leader_message", "m", domain.LeaderMessage{ID: "m", DocumentVersion: 3, Role: "owner", Text: "Discuss the plan"}},
+			{"planning_run", "p", domain.PlanningRun{ID: "p", Version: 1, DocumentVersion: 3, Generation: 1, State: "queued"}},
+			{"decision", "d", domain.Decision{ID: "d", Version: 1, SourceKind: "planning_run", SourceID: "p", SourceVersion: 1, Kind: "architecture", Status: "open"}},
+		}
+		for _, v := range values {
+			if e := tx.Put(v.kind, v.id, v.value); e != nil {
+				return e
+			}
+		}
+		return nil
+	}); e != nil {
+		t.Fatal(e)
+	}
+	backup, e := w.Backup(ctx, owner)
+	if e != nil {
+		t.Fatal(e)
+	}
+	db, e := store.Open(filepath.Join(backup, "coordica.db"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer db.Close()
+	copyService := New(db, backup)
+	snap, e := copyService.Export(ctx, owner)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if !snap.Automation.Enabled || snap.PlanningDocument == nil || snap.PlanningDocument.Objective != "Backed up goal" || len(snap.LeaderMessages) != 1 || len(snap.PlanningRuns) != 1 || len(snap.Decisions) != 1 {
+		t.Fatal("Phase B records omitted from consistent backup")
+	}
+	if _, e := copyService.Authenticate(ctx, strings.TrimSpace(token)); e == nil {
+		t.Fatal("backup retained owner credential")
+	}
+}
+
+func planningReceiptBackup(t *testing.T) (*serviceFixture, domain.PlanningRun, string) {
+	t.Helper()
+	f, d, result := planningFixture(t, true)
+	scheduleTest(t, f, d, "receipt-backup")
+	w := &PlanningWorker{Service: f.s}
+	r, _, _, e := w.reserve(context.Background())
+	if e != nil {
+		t.Fatal(e)
+	}
+	output, _ := json.Marshal(result)
+	receipt := PlanningOutcome{Generation: r.Generation, DocumentVersion: r.DocumentVersion, FinishedAt: f.now.Add(time.Second), TreeStopped: true, ElapsedSeconds: 2, Output: string(output)}
+	b, _ := json.Marshal(receipt)
+	if e = os.MkdirAll(filepath.Dir(w.receipt(r.ID)), 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(w.receipt(r.ID), b, 0600); e != nil {
+		t.Fatal(e)
+	}
+	// Unreferenced receipts must never enter the closure.
+	if e = os.WriteFile(w.receipt("bogus"), []byte(`{}`), 0600); e != nil {
+		t.Fatal(e)
+	}
+	backup, e := f.s.Backup(context.Background(), f.owner)
+	if e != nil {
+		t.Fatal(e)
+	}
+	return f, r, backup
+}
+func TestBackupPlanningQuietReceiptReplaysDBRunningAfterRestore(t *testing.T) {
+	f, r, backup := planningReceiptBackup(t)
+	ctx := context.Background()
+	dest := filepath.Join(t.TempDir(), "restored")
+	if e := RestoreBackup(ctx, backup, dest); e != nil {
+		t.Fatal(e)
+	}
+	file := filepath.Join(dest, "planning-outcomes", r.ID+".json")
+	info, e := os.Stat(file)
+	if e != nil || info.Mode().Perm() != 0600 {
+		t.Fatal("receipt not restored privately", e)
+	}
+	if _, e = os.Stat(filepath.Join(dest, "planning-outcomes", "bogus.json")); !os.IsNotExist(e) {
+		t.Fatal("unreferenced receipt restored")
+	}
+	db, e := store.Open(filepath.Join(dest, "coordica.db"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer db.Close()
+	restored := New(db, dest)
+	restored.Now = func() time.Time { return f.now.Add(time.Hour) }
+	if e = (&PlanningWorker{Service: restored}).Recover(ctx); e != nil {
+		t.Fatal(e)
+	}
+	paused, e := restored.Snapshot(ctx, f.owner)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if paused.PlanningRuns[0].State != "pending_result" || len(paused.Tasks) != 1 {
+		t.Fatal("restore pause discarded timely receipt or derived tasks")
+	}
+	if e = db.Update(ctx, func(tx *store.Tx) error {
+		p, e := getProject(tx)
+		if e != nil {
+			return e
+		}
+		p.Paused = false
+		return tx.Put("project", p.ID, p)
+	}); e != nil {
+		t.Fatal(e)
+	}
+	if e = (&PlanningWorker{Service: restored}).Recover(ctx); e != nil {
+		t.Fatal(e)
+	}
+	snap, e := restored.Snapshot(ctx, f.owner)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if snap.PlanningRuns[0].State != "succeeded" || !snap.PlanningRuns[0].TreeStopped || snap.PlanningRuns[0].ElapsedSeconds != 2 || len(snap.Tasks) != 2 || snap.PlanningDocument.PlanningReservedSeconds != 0 {
+		t.Fatalf("authentic timely receipt did not replay: %+v", snap.PlanningRuns)
+	}
+}
+func TestBackupPlanningReceiptCorruptMissingAndBogusFailClosed(t *testing.T) {
+	for _, scenario := range []string{"corrupt", "missing", "bogus-source", "unreferenced"} {
+		t.Run(scenario, func(t *testing.T) {
+			_, r, backup := planningReceiptBackup(t)
+			file := filepath.Join(backup, "planning-outcomes", r.ID+".json")
+			if scenario == "missing" {
+				if e := os.Remove(file); e != nil {
+					t.Fatal(e)
+				}
+			} else {
+				b := []byte(`{}`)
+				if e := os.WriteFile(file, b, 0600); e != nil {
+					t.Fatal(e)
+				}
+			}
+			// Even a recomputed manifest must not accept receipts for other sources.
+			if scenario == "bogus-source" || scenario == "unreferenced" {
+				raw, e := os.ReadFile(filepath.Join(backup, "manifest.json"))
+				if e != nil {
+					t.Fatal(e)
+				}
+				var m backupManifest
+				if e = json.Unmarshal(raw, &m); e != nil {
+					t.Fatal(e)
+				}
+				if scenario == "unreferenced" {
+					newFile := filepath.Join(backup, "planning-outcomes", "invented.json")
+					if e = os.Rename(file, newFile); e != nil {
+						t.Fatal(e)
+					}
+					m.PlanningReceipts[0].Path = "planning-outcomes/invented.json"
+				}
+				actual, e := describeBackupFile(context.Background(), backup, m.PlanningReceipts[0].Path)
+				if e != nil {
+					t.Fatal(e)
+				}
+				m.PlanningReceipts[0] = actual
+				raw, _ = json.Marshal(m)
+				if e = os.WriteFile(filepath.Join(backup, "manifest.json"), raw, 0600); e != nil {
+					t.Fatal(e)
+				}
+			}
+			dest := filepath.Join(t.TempDir(), "restored")
+			if e := RestoreBackup(context.Background(), backup, dest); e == nil {
+				t.Fatal("invalid receipt restored")
+			}
+			if _, e := os.Stat(dest); !os.IsNotExist(e) {
+				t.Fatal("failed restore left runnable directory")
+			}
+		})
+	}
+}

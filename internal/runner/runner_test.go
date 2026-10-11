@@ -366,6 +366,9 @@ func TestWorkerRequiresAgentCommitAndPreservesDirtyWorkspace(t *testing.T) {
 	}))
 	defer server.Close()
 	r := testRunner(t, server)
+	if err := r.registry.Register(agent.Definition{ID: "agent-commit-fixture", Executables: []string{"fixture"}, Protocol: agent.ProtocolCodex, CommitMode: "agent"}); err != nil {
+		t.Fatal(err)
+	}
 	r.execute = func(ctx context.Context, req agent.Request, onEvent func(agent.Event)) (agent.Result, error) {
 		if err := os.WriteFile(filepath.Join(req.WorkDir, "code.txt"), []byte("uncommitted"), 0600); err != nil {
 			return agent.Result{}, err
@@ -373,7 +376,7 @@ func TestWorkerRequiresAgentCommitAndPreservesDirtyWorkspace(t *testing.T) {
 		return agent.Result{ExitCode: 0, TreeStopped: true, OutputText: "need scope test-node-token", SessionID: "fixture-session"}, nil
 	}
 	now := time.Now()
-	a := domain.Assignment{Run: domain.Run{ID: "run_test", NodeID: "node_test", Generation: 7, Kind: "implement", Tool: "codex", Base: base.String(), LeaseUntil: now.Add(time.Minute), Deadline: now.Add(time.Minute)}, Task: domain.Task{Title: "change", Description: "change code", Acceptance: "test", AllowedPaths: []string{"code.txt"}}, InputURL: "/api/v1/runs/run_test/input.bundle"}
+	a := domain.Assignment{Run: domain.Run{ID: "run_test", NodeID: "node_test", Generation: 7, Kind: "implement", Tool: "agent-commit-fixture", Base: base.String(), LeaseUntil: now.Add(time.Minute), Deadline: now.Add(time.Minute)}, Task: domain.Task{Title: "change", Description: "change code", Acceptance: "test", AllowedPaths: []string{"code.txt"}}, InputURL: "/api/v1/runs/run_test/input.bundle"}
 	record := spool{Assignment: a, Key: "worker-key", StartedAt: now, WorkDir: filepath.Join(r.config.DataDir, "runs", "空间 with spaces", "工作区")}
 	if err := writePrivateJSON(r.spoolPath(a.Run.ID), record); err != nil {
 		t.Fatal(err)

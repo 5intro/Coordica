@@ -247,6 +247,15 @@ func resolveExecutable(def Definition, executable string) (string, error) {
 
 func launchArgs(def Definition, req Request) []string {
 	args := append([]string(nil), def.StartArgs...)
+	if def.Protocol == ProtocolCodex {
+		args = append(args, "--ignore-user-config", "--model", "gpt-6.1-sol")
+		if req.OutputSchemaPath != "" {
+			args = append(args, "--output-schema", req.OutputSchemaPath)
+		}
+	}
+	if req.Role == "leader" && def.Protocol == ProtocolCodex {
+		args = append(args, "--skip-git-repo-check", "--ephemeral")
+	}
 	if isReview(req) {
 		args = append(args, def.ReviewArgs...)
 	} else {
@@ -271,13 +280,15 @@ func launchArgs(def Definition, req Request) []string {
 	return args
 }
 
-func isReview(req Request) bool { return req.Role == "review" || req.Role == "reviewer" }
+func isReview(req Request) bool {
+	return req.Role == "review" || req.Role == "reviewer" || req.Role == "leader"
+}
 
 // BuiltinDefinitions is the only built-in tool list. New compatible tools use
 // Register rather than changing discovery, task validation, or scheduling.
 func BuiltinDefinitions() []Definition {
 	return []Definition{
-		{ID: "codex", Executables: []string{"codex"}, Protocol: ProtocolCodex, StartArgs: []string{"--ask-for-approval", "never", "exec", "--json"}, DevelopmentArgs: []string{"--sandbox", "workspace-write"}, ReviewArgs: []string{"--sandbox", "read-only"}, ResumeArgs: []string{"resume", "{session}"}, PromptArgs: []string{"--", "-"}, Resume: true, Cancel: true, Review: true, ReadOnly: true, Approvals: "no interactive approval; sandbox-limited execution"},
+		{ID: "codex", CommitMode: "runner", Executables: []string{"codex"}, Protocol: ProtocolCodex, StartArgs: []string{"--ask-for-approval", "never", "exec", "--json"}, DevelopmentArgs: []string{"--sandbox", "workspace-write"}, ReviewArgs: []string{"--sandbox", "read-only"}, ResumeArgs: []string{"resume", "{session}"}, PromptArgs: []string{"--", "-"}, Resume: true, Cancel: true, Review: true, ReadOnly: true, Approvals: "no interactive approval; sandbox-limited execution"},
 		{ID: "claude", Aliases: []string{"claude-code"}, Executables: []string{"claude"}, Protocol: ProtocolClaude, StartArgs: []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "dontAsk"}, DevelopmentArgs: []string{"--allowedTools", "{allowed_tools}"}, ReviewArgs: []string{"--allowedTools", "Read,Glob,Grep", "--tools", "Read,Glob,Grep"}, ResumeArgs: []string{"--resume", "{session}"}, Resume: true, Cancel: true, Review: true, ReadOnly: true, Approvals: "dontAsk with explicit tool allow rules; native Windows has no built-in sandbox"},
 		{ID: "dsh", CommitMode: "runner", Aliases: []string{"deepseek-harness"}, Executables: []string{"dsh"}, Protocol: ProtocolACP, StartArgs: []string{"--profile", "acp"}, Resume: true, ResumeMethod: "session/resume", CloseMethod: "session/close", Cancel: true, Review: true, Approvals: "unverifiable ACP permission requests are rejected; no native read-only sandbox"},
 		{ID: "cursor", CommitMode: "runner", Aliases: []string{"cursor-agent"}, Executables: []string{"cursor-agent", "agent"}, Protocol: ProtocolACP, StartArgs: []string{"acp"}, Resume: true, ResumeMethod: "session/load", AuthMethod: "cursor_login", ReviewMode: "ask", Cancel: true, Review: true, ReadOnly: true, Approvals: "ACP permissions are denied unless independently verifiable; review requires advertised ask mode"},

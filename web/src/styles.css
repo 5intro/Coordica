@@ -342,3 +342,39 @@ pre { font: 11px/1.8 'SF Mono', 'Consolas', monospace; white-space: pre-wrap; ov
   .workbench-footer { margin-top: 32px; padding: 24px 0; font-size: 8px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+
+/* Dense management records share the existing panel and table language. */
+.management-layout { display: grid; gap: 24px; align-items: start; }
+.management-layout > * { min-width: 0; }
+.management-layout table { min-width: 660px; }
+.task-toolbar { flex-wrap: wrap; }
+.task-toolbar input { min-width: 180px; }
+.task-toolbar select { max-width: 100%; }
+.selected-record { background: #f0f2eb; }
+.table-scroll td { vertical-align: top; font-variant-numeric: tabular-nums; }
+.table-scroll td small { font-size: 12px; line-height: 1.6; color: var(--muted); }
+.table-scroll td code { display: block; overflow-wrap: anywhere; }
+.table-scroll td .text-button { text-align: left; white-space: normal; }
+.work-link { display: block; }
+.pool-links { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
+@media (max-width: 700px) {
+  .task-toolbar > input, .task-toolbar > label { flex: 1 1 100%; }
+  .task-toolbar > select { flex: 1 1 140px; }
+  .pool-links > button { flex: 1 1 140px; }
+  .management-layout { gap: 16px; }
+}
+.management-table { min-width: 820px; table-layout: fixed; }
+.management-table td { overflow-wrap: anywhere; }
+.management-table th, .management-layout th { font-size: 12px; }
+
+.phase-b-page { display: grid; gap: 20px; }
+.phase-b-page .section-title { margin-bottom: 0; }
+.phase-b-page article { border-top: 1px solid var(--border); padding: 16px 0; }
+.phase-b-page pre { overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.phase-b-page fieldset, .node-config fieldset { margin: 16px 0; border: 1px solid var(--border); padding: 16px; }
+.phase-b-page fieldset label { display: block; margin: 8px 0; }
+.phase-b-page input[type="checkbox"], .node-config input[type="checkbox"] { width: auto; margin-right: 8px; }
+.node-config { margin-top: 12px; min-width: 260px; }
+.decision-resolve { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+
+.scope-requests .code-list code { white-space: pre-wrap; overflow-wrap: anywhere; }

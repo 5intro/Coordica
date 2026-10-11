@@ -48,32 +48,34 @@ type RequirementProposal struct {
 	Body  string `json:"body"`
 }
 type Task struct {
-	ID                   string    `json:"id"`
-	Version              int64     `json:"version"`
-	Title                string    `json:"title"`
-	Description          string    `json:"description"`
-	Acceptance           string    `json:"acceptance"`
-	RequirementIDs       []string  `json:"requirement_ids"`
-	Dependencies         []string  `json:"dependencies"`
-	AllowedPaths         []string  `json:"allowed_paths"`
-	HotResources         []string  `json:"hot_resources"`
-	Tool                 string    `json:"tool"`
-	State                string    `json:"state"`
-	HoldReason           string    `json:"hold_reason"`
-	ApprovedVersion      int64     `json:"approved_version"`
-	AuthorizationVersion int64     `json:"authorization_version"`
-	Generation           int64     `json:"generation"`
-	BudgetSeconds        int64     `json:"budget_seconds"`
-	UsedSeconds          int64     `json:"used_seconds"`
-	ReservedSeconds      int64     `json:"reserved_seconds"`
-	MaxRunSeconds        int64     `json:"max_run_seconds"`
-	MaxRepairs           int       `json:"max_repairs"`
-	MaxRetries           int       `json:"max_retries"`
-	Repairs              int       `json:"repairs"`
-	Retries              int       `json:"retries"`
-	CurrentRunID         string    `json:"current_run_id"`
-	CurrentCandidateID   string    `json:"current_candidate_id"`
-	CreatedAt            time.Time `json:"created_at"`
+	GoalVersion              int64     `json:"goal_version"`
+	GoalAuthorizationVersion int64     `json:"goal_authorization_version"`
+	ID                       string    `json:"id"`
+	Version                  int64     `json:"version"`
+	Title                    string    `json:"title"`
+	Description              string    `json:"description"`
+	Acceptance               string    `json:"acceptance"`
+	RequirementIDs           []string  `json:"requirement_ids"`
+	Dependencies             []string  `json:"dependencies"`
+	AllowedPaths             []string  `json:"allowed_paths"`
+	HotResources             []string  `json:"hot_resources"`
+	Tool                     string    `json:"tool"`
+	State                    string    `json:"state"`
+	HoldReason               string    `json:"hold_reason"`
+	ApprovedVersion          int64     `json:"approved_version"`
+	AuthorizationVersion     int64     `json:"authorization_version"`
+	Generation               int64     `json:"generation"`
+	BudgetSeconds            int64     `json:"budget_seconds"`
+	UsedSeconds              int64     `json:"used_seconds"`
+	ReservedSeconds          int64     `json:"reserved_seconds"`
+	MaxRunSeconds            int64     `json:"max_run_seconds"`
+	MaxRepairs               int       `json:"max_repairs"`
+	MaxRetries               int       `json:"max_retries"`
+	Repairs                  int       `json:"repairs"`
+	Retries                  int       `json:"retries"`
+	CurrentRunID             string    `json:"current_run_id"`
+	CurrentCandidateID       string    `json:"current_candidate_id"`
+	CreatedAt                time.Time `json:"created_at"`
 }
 type Capability struct {
 	Tool       string `json:"tool"`
@@ -88,39 +90,45 @@ type Capability struct {
 	Detail     string `json:"detail"`
 }
 type Node struct {
-	ID           string       `json:"id"`
-	Version      int64        `json:"version"`
-	Name         string       `json:"name"`
-	Platform     string       `json:"platform"`
-	Capabilities []Capability `json:"capabilities"`
-	Capacity     int          `json:"capacity"`
-	Revoked      bool         `json:"revoked"`
-	LastSeen     time.Time    `json:"last_seen"`
-	TokenHash    string       `json:"-"`
+	Draining             bool             `json:"draining"`
+	DisabledNewWork      bool             `json:"disabled_new_work"`
+	SchedulingConfigured bool             `json:"scheduling_configured"`
+	Tools                []ToolScheduling `json:"tools"`
+	ID                   string           `json:"id"`
+	Version              int64            `json:"version"`
+	Name                 string           `json:"name"`
+	Platform             string           `json:"platform"`
+	Capabilities         []Capability     `json:"capabilities"`
+	Capacity             int              `json:"capacity"`
+	Revoked              bool             `json:"revoked"`
+	LastSeen             time.Time        `json:"last_seen"`
+	TokenHash            string           `json:"-"`
 }
 type Run struct {
-	ID                   string     `json:"id"`
-	Version              int64      `json:"version"`
-	TaskID               string     `json:"task_id"`
-	NodeID               string     `json:"node_id"`
-	Kind                 string     `json:"kind"`
-	Tool                 string     `json:"tool"`
-	State                string     `json:"state"`
-	Generation           int64      `json:"generation"`
-	AuthorizationVersion int64      `json:"authorization_version"`
-	PolicyVersion        int64      `json:"policy_version"`
-	LeaseUntil           time.Time  `json:"lease_until"`
-	Deadline             time.Time  `json:"deadline"`
-	GrantSeconds         int64      `json:"grant_seconds"`
-	ElapsedSeconds       int64      `json:"elapsed_seconds"`
-	Base                 string     `json:"base"`
-	Head                 string     `json:"head"`
-	CandidateID          string     `json:"candidate_id"`
-	SessionID            string     `json:"session_id"`
-	Detail               string     `json:"detail"`
-	Quiescent            bool       `json:"quiescent"`
-	StartedAt            time.Time  `json:"started_at"`
-	FinishedAt           *time.Time `json:"finished_at,omitempty"`
+	GoalVersion              int64      `json:"goal_version"`
+	GoalAuthorizationVersion int64      `json:"goal_authorization_version"`
+	ID                       string     `json:"id"`
+	Version                  int64      `json:"version"`
+	TaskID                   string     `json:"task_id"`
+	NodeID                   string     `json:"node_id"`
+	Kind                     string     `json:"kind"`
+	Tool                     string     `json:"tool"`
+	State                    string     `json:"state"`
+	Generation               int64      `json:"generation"`
+	AuthorizationVersion     int64      `json:"authorization_version"`
+	PolicyVersion            int64      `json:"policy_version"`
+	LeaseUntil               time.Time  `json:"lease_until"`
+	Deadline                 time.Time  `json:"deadline"`
+	GrantSeconds             int64      `json:"grant_seconds"`
+	ElapsedSeconds           int64      `json:"elapsed_seconds"`
+	Base                     string     `json:"base"`
+	Head                     string     `json:"head"`
+	CandidateID              string     `json:"candidate_id"`
+	SessionID                string     `json:"session_id"`
+	Detail                   string     `json:"detail"`
+	Quiescent                bool       `json:"quiescent"`
+	StartedAt                time.Time  `json:"started_at"`
+	FinishedAt               *time.Time `json:"finished_at,omitempty"`
 }
 type Review struct {
 	Candidate string   `json:"candidate"`
@@ -164,14 +172,21 @@ type Event struct {
 	Detail   string    `json:"detail"`
 }
 type Snapshot struct {
-	APIVersion   string        `json:"api_version"`
-	Project      *Project      `json:"project"`
-	Requirements []Requirement `json:"requirements"`
-	Tasks        []Task        `json:"tasks"`
-	Runs         []Run         `json:"runs"`
-	Candidates   []Candidate   `json:"candidates"`
-	Nodes        []Node        `json:"nodes"`
-	Events       []Event       `json:"events"`
+	Automation       AutomationSettings `json:"automation"`
+	PlanningDocument *PlanningDocument  `json:"planning_document"`
+	LeaderMessages   []LeaderMessage    `json:"leader_messages"`
+	PlanningRuns     []PlanningRun      `json:"planning_runs"`
+	Decisions        []Decision         `json:"decisions"`
+	ScopeRequests    []ScopeAssessment  `json:"scope_requests"`
+	Blocks           []BlockItem        `json:"blocks"`
+	APIVersion       string             `json:"api_version"`
+	Project          *Project           `json:"project"`
+	Requirements     []Requirement      `json:"requirements"`
+	Tasks            []Task             `json:"tasks"`
+	Runs             []Run              `json:"runs"`
+	Candidates       []Candidate        `json:"candidates"`
+	Nodes            []Node             `json:"nodes"`
+	Events           []Event            `json:"events"`
 }
 type NodeSnapshot struct {
 	APIVersion    string        `json:"api_version"`
@@ -239,12 +254,13 @@ type ClaimRequest struct {
 	Capabilities []Capability `json:"capabilities"`
 }
 type Assignment struct {
-	Run              Run        `json:"run"`
-	Task             Task       `json:"task"`
-	Project          Project    `json:"project"`
-	Candidate        *Candidate `json:"candidate,omitempty"`
-	InputURL         string     `json:"input_url"`
-	HeartbeatSeconds int        `json:"heartbeat_seconds"`
+	GoalContext      *GoalContext `json:"goal_context,omitempty"`
+	Run              Run          `json:"run"`
+	Task             Task         `json:"task"`
+	Project          Project      `json:"project"`
+	Candidate        *Candidate   `json:"candidate,omitempty"`
+	InputURL         string       `json:"input_url"`
+	HeartbeatSeconds int          `json:"heartbeat_seconds"`
 }
 type HeartbeatRequest struct {
 	Generation     int64  `json:"generation"`
@@ -257,15 +273,18 @@ type HeartbeatResponse struct {
 	LeaseUntil time.Time `json:"lease_until"`
 }
 type CompleteRequest struct {
-	Generation     int64   `json:"generation"`
-	ElapsedSeconds int64   `json:"elapsed_seconds"`
-	Status         string  `json:"status"`
-	Head           string  `json:"head"`
-	ArtifactID     string  `json:"artifact_id"`
-	SessionID      string  `json:"session_id"`
-	Detail         string  `json:"detail"`
-	Quiescent      bool    `json:"quiescent"`
-	Review         *Review `json:"review,omitempty"`
+	Generation     int64  `json:"generation"`
+	ElapsedSeconds int64  `json:"elapsed_seconds"`
+	Status         string `json:"status"`
+	Head           string `json:"head"`
+	ArtifactID     string `json:"artifact_id"`
+	SessionID      string `json:"session_id"`
+	Detail         string `json:"detail"`
+	Quiescent      bool   `json:"quiescent"`
+	// IntentStatus is a no-grant native stop disposition. It prevents an
+	// unavailable scope/block receipt from becoming an ordinary offline retry.
+	IntentStatus string  `json:"intent_status,omitempty"`
+	Review       *Review `json:"review,omitempty"`
 }
 type Problem struct {
 	Code    string `json:"code"`

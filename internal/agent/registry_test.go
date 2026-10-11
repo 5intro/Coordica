@@ -352,3 +352,47 @@ func TestPiResumeCannotRebindItsRecordedWorkingDirectory(t *testing.T) {
 		t.Fatalf("moved workdir resumed: %v started=%v", err, started)
 	}
 }
+
+func TestCodexDevelopmentAndLeaderPinAuthorizedModel(t *testing.T) {
+	def, _ := DefaultRegistry().Resolve("codex")
+	if def.CommitMode != "runner" {
+		t.Fatal("builtin Codex must use trusted Runner snapshot")
+	}
+	for _, role := range []string{"", "leader", "review"} {
+		args := launchArgs(def, Request{Role: role})
+		model := false
+		readOnly := false
+		isolated := false
+		for i, arg := range args {
+			if arg == "--ignore-user-config" {
+				isolated = true
+			}
+			if arg == "--model" && i+1 < len(args) && args[i+1] == "gpt-6.1-sol" {
+				model = true
+			}
+			if arg == "--sandbox" && i+1 < len(args) && args[i+1] == "read-only" {
+				readOnly = true
+			}
+		}
+		if !isolated || !model || role == "leader" && !readOnly {
+			t.Fatalf("unauthorized model or writable Leader: %v", args)
+		}
+	}
+}
+
+func TestLeaderEnvironmentDoesNotForwardOwnerOrPublicationAuthority(t *testing.T) {
+	t.Setenv("OWNER_TOKEN", "fixture-owner")
+	t.Setenv("GH_TOKEN", "fixture-publication")
+	t.Setenv("COORDICA_OWNER_TOKEN", "fixture-center")
+	t.Setenv("SSH_AUTH_SOCK", "fixture-agent")
+	t.Setenv("OPENAI_API_KEY", "fixture-model")
+	env := strings.Join(executionEnv(Request{Role: "leader"}), "\n")
+	for _, secret := range []string{"fixture-owner", "fixture-publication", "fixture-center", "fixture-agent"} {
+		if strings.Contains(env, secret) {
+			t.Fatal("Leader inherited authority")
+		}
+	}
+	if !strings.Contains(env, "OPENAI_API_KEY=fixture-model") {
+		t.Fatal("official model authentication missing")
+	}
+}
