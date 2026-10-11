@@ -433,3 +433,49 @@ func TestSupervisedCommandFailureDoesNotDiscloseOutput(t *testing.T) {
 		t.Fatalf("output=%q error=%v", out, err)
 	}
 }
+
+// A local registry is a fixed launcher parameter, including paths with spaces;
+// setup cannot accidentally drop it when switching MCP clients.
+func TestLauncherRetainsTrustedRegistry(t *testing.T) {
+	for _, client := range []string{"cursor", "dsh", "generic"} {
+		t.Run(client, func(t *testing.T) {
+			options, deps := fixture(t, client)
+			options.ToolsFile = filepath.Join(options.Home, "Local Tools 工具", "tools.json")
+			result := one(t, options, deps)
+			if result.Status != "preview" {
+				t.Fatal(result)
+			}
+			if client == "dsh" {
+				quoted, _ := json.Marshal(options.ToolsFile)
+				if !strings.Contains(result.Content, "--tools-file") || !strings.Contains(result.Content, string(quoted)) {
+					t.Fatal("registry dropped from overlay")
+				}
+			} else {
+				var entry map[string]any
+				if client == "generic" {
+					var root struct {
+						Servers map[string]map[string]any `json:"mcpServers"`
+					}
+					if json.Unmarshal([]byte(result.Content), &root) != nil {
+						t.Fatal("invalid launcher")
+					}
+					entry = root.Servers["coordica"]
+				} else {
+					if json.Unmarshal([]byte(result.Content), &entry) != nil {
+						t.Fatal("invalid launcher")
+					}
+				}
+				expected, _ := json.Marshal(arguments(options))
+				actual, _ := json.Marshal(entry["args"])
+				if !bytes.Equal(expected, actual) {
+					t.Fatal("registry dropped from launcher")
+				}
+			}
+		})
+	}
+	options, deps := fixture(t, "generic")
+	options.ToolsFile = "relative-tools.json"
+	if _, err := run(context.Background(), options, deps); err == nil {
+		t.Fatal("relative registry accepted")
+	}
+}

@@ -2,7 +2,7 @@
 
 多电脑、多 Agent 开发协调底座。采用 Go 中心与 Runner、SQLite、React/TypeScript 控制台；Web 产物嵌入中心二进制，无 Redis、消息队列或额外后台运行时。
 
-当前是 **0.1.0 开发版**。已实现固定 Git 候选、独立评审、程序检查和条件发布闭环；真实工具与各操作系统的验收情况见 [验证记录](docs/implementation-status.md)。没有把协议模拟测试或跨平台编译称为真实部署验收。
+当前是 **0.1.1 开发版**。已实现固定 Git 候选、独立评审、程序检查和条件发布闭环；真实工具与各操作系统的验收情况见 [验证记录](docs/implementation-status.md)。没有把协议模拟测试或跨平台编译称为真实部署验收。
 
 ## 许可与下载
 
@@ -47,7 +47,7 @@ Web 中建立项目、明确总预算和最低检查，录入需求与任务并�
 
 ## 统一 MCP 初始化（主要接入方式）
 
-安装到固定目录后，先运行 `coordica setup` 预览，再用 `coordica setup --apply` 为发现的客户端注册同一个 MCP。支持 Claude Code、Codex、Cursor、Kimi Code、pi 的已核验配置格式，并为 dsh 生成本机 overlay；有版本或配置冲突会明确报告。需要指定客户端时使用 `--client`。客户端注册与 Runner 执行适配器是独立能力，当前受管执行仍限 Codex、Claude Code、dsh，详见 [兼容边界](docs/mcp-clients.md)。
+安装到固定目录后，先运行 `coordica setup` 预览，再用 `coordica setup --apply` 为发现的客户端注册同一个 MCP。支持 Claude Code、Codex、Cursor、Kimi Code、pi 的已核验配置格式，并为 dsh 生成本机 overlay；有版本或配置冲突会明确报告。需要指定客户端时使用 `--client`。Runner 按本机工具注册表发现能力，内置 Codex、Claude Code、dsh、Cursor CLI、Kimi Code、pi 的执行定义；新工具可以复用已有协议驱动注册，详见 [工具注册](docs/tool-registry.md)。版本探测、协议测试与真实账号执行分别记录，见 [兼容边界](docs/mcp-clients.md)。
 
 macOS、Windows、Linux 都把对应平台的 `coordica` 可执行文件安装为 stdio MCP，参数为 `mcp --bootstrap`。在中心“运行与节点”创建一次性配对码，然后向客户端下达初始化指令，提供中心 URL、配对码和必要的公共 CA 路径。MCP 自动发现 Git 与工具路径，交给 Runner 配对，并安装/启动用户级后台服务。无需手工执行 `pair` 或 `runner`。每台电脑使用独立节点身份，容量为 1 或 2。
 
@@ -83,7 +83,7 @@ macOS、Windows、Linux 都把对应平台的 `coordica` 可执行文件安装�
 ./bin/coordica runner --data .coordica-runner
 ```
 
-配对码也可通过 stdin 输入；配对后删除临时码文件。`--codex`、`--claude`、`--dsh` 可指定工具路径。`coordica doctor` 只做版本探测，不会把已安装误报为已认证或已验收。
+配对码也可通过 stdin 输入；配对后删除临时码文件。`--tool-executable 工具ID=路径` 可重复指定注册工具的本机路径；旧三工具参数保留兼容。`--tools-file` 加载本机可信 JSON 注册表。`coordica doctor` 只做版本探测，不会把已安装误报为已认证或已验收。
 
 CLI 使用同一 HTTP API，所有写操作都需要幂等键。自动生成的键打印到 stderr，丢失响应后可用 `--key` 重试：
 
@@ -117,8 +117,10 @@ Web 或 CLI 创建一致备份，返回中心上的备份目录。备份包含�
 ./bin/coordica serve --data 新中心目录
 ```
 
-恢复后项目暂停，旧节点撤销，重新配对并核对 Git 外部事实后恢复。旧电脑未上传的私人修改不属于恢复保证。升级前先备份，停止旧进程再启动新二进制；代码合并不自动升级服务。
+恢复后项目暂停，旧节点撤销，重新配对并核对 Git 外部事实后恢复。旧电脑未上传的私人修改不属于恢复保证。升级前先备份，停止旧进程再启动新二进制；本次中心和 Runner 均升级为 0.1.1-dev 后重新报告能力。旧中心的严格解码不接受新能力字段，不能混用新 Runner；新中心会保守阻止缺少取消/评审声明的旧 Runner 领取新活动。在途旧 Run 按原租约核对。代码合并不自动升级服务。
 
 ## 维护
+
+Windows dsh 双机验收先使用安装包中的独立小项目，再做本项目的一项小改动；步骤和通过条件见 [双机验收计划](docs/two-machine-acceptance.md)。
 
 模块依赖、状态规则、故障处理与测试分工见 [架构说明](docs/architecture.md)。设计基线位于 [v0.2](docs/lightweight-multi-agent-design-baseline-v0.2.md)。没有开启后台自动升级、公开上传、自动计划生成或阶段 B 的全局自动批准。

@@ -1,0 +1,11 @@
+{
+  "title": "Normalize greeting names",
+  "description": "Improve greeting(name) in src/greeting.mjs. For a string, trim and collapse every consecutive Unicode whitespace run to one ASCII space. An empty normalized name and omitted argument use guest. Preserve Unicode letters. Non-string arguments, including null, must throw TypeError. Add regression tests in test/greeting.test.mjs. Do not modify tools, configuration, or documentation.",
+  "acceptance": "node --test test/greeting.test.mjs and the owner's immutable node tools/verify-acceptance.mjs both pass. The actual Git diff stays within src/** and test/**. A fresh independent reviewer evaluates the fixed candidate before integration.",
+  "allowed_paths": ["src/**", "test/**"],
+  "tool": "dsh",
+  "budget_seconds": 1200,
+  "max_run_seconds": 600,
+  "max_repairs": 1,
+  "max_retries": 1
+}

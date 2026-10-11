@@ -73,6 +73,10 @@ def common_entries():
         "third_party/licenses/manifest.json",
         "docs/windows-onboarding.md", "docs/implementation-status.md", "docs/mcp-clients.md",
         "internal/process/README.md", "examples/dsh/coordica.cordis.yml",
+        "examples/tools/custom-acp.json", "examples/acceptance/README.md",
+        "examples/acceptance/.gitignore", "examples/acceptance/src/greeting.mjs",
+        "examples/acceptance/test/greeting.test.mjs", "examples/acceptance/tools/verify-acceptance.mjs",
+        "examples/acceptance/task.json",
     ]
     required.extend(path.relative_to(ROOT).as_posix()
                     for path in sorted((ROOT / "docs").glob("*.md")))
@@ -138,6 +142,8 @@ def start_here(version, platform, binary):
 完整接入示例：docs/windows-onboarding.md（同时说明 macOS/Linux）
 客户端配置、版本条件与受管执行能力的区别：docs/mcp-clients.md
 中心首次启动及局域网证书：README.md
+工具注册与共享协议：docs/tool-registry.md
+双机 dsh 实测计划及独立小项目：docs/two-machine-acceptance.md / examples/acceptance
 已验证与待验收范围：docs/implementation-status.md
 Windows batch 路径限制：internal/process/README.md
 
@@ -210,7 +216,7 @@ def verify_archive(path, entries):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", default="0.1.0-dev", help="archive version (default: %(default)s)")
+    parser.add_argument("--version", default="0.1.1-dev", help="archive version (default: %(default)s)")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?", args.version):
         raise ValueError("version must be a numeric semantic version with an optional prerelease suffix")

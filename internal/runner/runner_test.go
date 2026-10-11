@@ -22,7 +22,11 @@ import (
 
 func testRunner(t *testing.T, server *httptest.Server) *Runner {
 	t.Helper()
-	r, err := New(Config{CenterURL: server.URL, DataDir: t.TempDir(), NodeID: "node_test", Token: "test-node-token", Executables: map[string]string{"codex": "/nonexistent/codex", "claude": "/nonexistent/claude", "dsh": "/nonexistent/dsh"}})
+	overrides := map[string]string{}
+	for _, definition := range agent.BuiltinDefinitions() {
+		overrides[definition.ID] = filepath.Join(t.TempDir(), "not-installed", definition.ID)
+	}
+	r, err := New(Config{CenterURL: server.URL, DataDir: t.TempDir(), NodeID: "node_test", Token: "test-node-token", Executables: overrides})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +281,7 @@ func TestRunnerSurfacesFailureAndUnavailableCapabilities(t *testing.T) {
 			failed = true
 		}
 	}
-	if capabilities != 3 || !failed {
+	if capabilities != len(r.registry.Definitions()) || !failed {
 		t.Fatalf("invisible errors: %+v", events)
 	}
 }

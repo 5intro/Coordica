@@ -17,9 +17,9 @@ import (
 )
 
 type Options struct {
-	Client, Executable, RunnerData string
-	Home, ConfigHome, OutputDir    string
-	Apply                          bool
+	Client, Executable, RunnerData, ToolsFile string
+	Home, ConfigHome, OutputDir               string
+	Apply                                     bool
 }
 
 type Result struct {
@@ -64,6 +64,9 @@ func run(ctx context.Context, options Options, deps dependencies) ([]Result, err
 	}
 	if options.RunnerData != "" && (!filepath.IsAbs(options.RunnerData) || strings.ContainsAny(options.RunnerData, "\x00\r\n")) {
 		return nil, errors.New("Runner data directory must be absolute")
+	}
+	if options.ToolsFile != "" && (!filepath.IsAbs(options.ToolsFile) || strings.ContainsAny(options.ToolsFile, "\x00\r\n")) {
+		return nil, errors.New("tool definitions file must be absolute")
 	}
 	if options.Client == "" {
 		options.Client = "auto"
@@ -160,6 +163,9 @@ func arguments(options Options) []string {
 	args := []string{"mcp", "--bootstrap"}
 	if options.RunnerData != "" {
 		args = append(args, "--runner-data", options.RunnerData)
+	}
+	if options.ToolsFile != "" {
+		args = append(args, "--tools-file", options.ToolsFile)
 	}
 	return args
 }

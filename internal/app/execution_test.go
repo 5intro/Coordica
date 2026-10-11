@@ -63,7 +63,7 @@ func newServiceFixture(t *testing.T) *serviceFixture {
 }
 func (f *serviceFixture) claim(t *testing.T, key string) *domain.Assignment {
 	t.Helper()
-	b, e := f.s.Claim(context.Background(), f.node, key, domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true}}}, strings.Repeat("a", 40))
+	b, e := f.s.Claim(context.Background(), f.node, key, domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}}}, strings.Repeat("a", 40))
 	return decodeTest[*domain.Assignment](t, b, e)
 }
 func (f *serviceFixture) snapshot(t *testing.T) domain.Snapshot {
@@ -83,7 +83,7 @@ func TestAtomicClaimAndReplay(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			b, e := f.s.Claim(context.Background(), f.node, ID("key"), domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true}}}, strings.Repeat("a", 40))
+			b, e := f.s.Claim(context.Background(), f.node, ID("key"), domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}}}, strings.Repeat("a", 40))
 			if e != nil {
 				t.Error(e)
 				return
@@ -275,7 +275,7 @@ func TestIdlePollingDoesNotRequireRemoteGit(t *testing.T) {
 		t.Fatal(e)
 	}
 	// A nil Git client makes any accidental remote fetch fail this test.
-	raw, e := (&Integrator{Service: f.s}).Claim(ctx, f.node, "idle", domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true}}})
+	raw, e := (&Integrator{Service: f.s}).Claim(ctx, f.node, "idle", domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}}})
 	if e != nil || string(raw) != "null" {
 		t.Fatal(string(raw), e)
 	}

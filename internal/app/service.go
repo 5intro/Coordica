@@ -520,6 +520,9 @@ func (s *Service) CreatePairing(ctx context.Context, a Actor, key, name string) 
 }
 func (s *Service) Register(ctx context.Context, req domain.RegisterRequest) (domain.RegisterResponse, error) {
 	var out domain.RegisterResponse
+	if err := domain.ValidateCapabilities(req.Capabilities); err != nil {
+		return out, err
+	}
 	if req.Name == "" || req.Capacity < 1 || req.Capacity > 2 {
 		return out, domain.Fail("invalid_input", "节点名称不能为空，并发容量须为1或2")
 	}

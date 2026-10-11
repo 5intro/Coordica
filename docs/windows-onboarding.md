@@ -4,7 +4,7 @@ Windows、macOS 和 Linux 使用同一流程：安装本机 Coordica MCP，在�
 
 ## 安装一次本机 MCP
 
-准备当前操作系统的 `coordica` 二进制，放在不会被临时清理的固定位置。执行电脑需要 Git；本机已有的 dsh、Codex 或 Claude Code 继续使用自己的安装和登录状态。Coordica 不收集模型账号密码，也不代为安装这些工具。
+准备当前操作系统的 `coordica` 二进制，放在不会被临时清理的固定位置。执行电脑需要 Git；本机已有的注册 Agent CLI 继续使用自己的安装和登录状态。Coordica 不收集模型账号密码，也不代为安装这些工具。
 
 先运行 `coordica setup` 预览，再运行 `coordica setup --apply`，自动为发现的客户端配置 MCP。Windows 解压到 `C:\Coordica` 时，对应命令为 `& C:\Coordica\coordica.exe setup --apply`。同一入口处理 Claude Code、Codex、Cursor、Kimi Code、pi 的配置差异，并为 dsh 生成本机 overlay；详细版本条件和配置冲突处理见 [统一客户端接入](mcp-clients.md)。
 
@@ -22,7 +22,7 @@ Runner 数据目录默认位于当前用户的系统配置目录下 `Coordica/ru
 
 ## Windows 上的 dsh 配置示例
 
-从 [GitHub Releases](https://github.com/5intro/Coordica/releases) 下载 `coordica-0.1.0-dev-windows-amd64.zip`，核对同一版本的 `SHA256SUMS` 后，解压到固定目录 `C:\Coordica`。包中已有 `coordica.cordis.yml`；确认 `coordica.exe` 与它都直接位于该目录。使用其他目录时，修改 YAML 中 `command` 的绝对路径。源码构建的同名本地测试包也可使用。
+从 [GitHub Releases](https://github.com/5intro/Coordica/releases) 下载 `coordica-0.1.1-dev-windows-amd64.zip`，核对同一版本的 `SHA256SUMS` 后，解压到固定目录 `C:\Coordica`。包中已有 `coordica.cordis.yml`；确认 `coordica.exe` 与它都直接位于该目录。使用其他目录时，修改 YAML 中 `command` 的绝对路径。源码构建的同名本地测试包也可使用。
 
 下载和使用受包内 [LICENSE](../LICENSE) 约束：仅个人非商业使用和本地修改免费；商业用途、团队或公司使用以及发布修改版须另获授权。模板只包含本机 MCP 启动配置，不包含中心地址、配对码、节点令牌或模型凭据。
 
@@ -94,7 +94,7 @@ macOS/Linux 推荐使用 `coordica setup --apply` 自动生成本机路径，免
 
 ## 诊断与实际验收
 
-`inspect_environment` 只读取 OS、架构、主机名，并对固定的 Git、Codex、Claude Code、dsh 执行 `--version`。认证状态始终为 `unknown`；找到版本不代表已登录，也不代表该系统上的取消、恢复和 ACP 执行已经验收。Git 不可用会阻止初始化。未发现的 Agent 明确显示不可用，不伪造能力。
+`inspect_environment` 只读取 OS、架构、主机名，并探测 Git，并对本机注册表中的工具执行固定版本命令（默认 `--version`）。认证状态始终为 `unknown`；找到版本不代表已登录，也不代表该系统上的取消、恢复和 ACP 执行已经验收。Git 不可用会阻止初始化。未发现的 Agent 明确显示不可用，不伪造能力。
 
 Windows 的 npm 工具入口可能是 `.cmd` / `.bat`。Coordica 支持带空格和中文的受限本机路径，但会拒绝 shell 元字符、括号等不安全路径；例如 `Program Files (x86)` 中的 batch 入口需要改用满足约束的安装位置。失败会返回明确的 preflight 原因，不能据此判断账号登录失效。具体约束见 [进程与 Windows batch 入口](../internal/process/README.md)。
 

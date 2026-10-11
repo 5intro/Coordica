@@ -16,9 +16,9 @@ import (
 func TestLiveAgentSmoke(t *testing.T) {
 	tool := os.Getenv("COORDICA_LIVE_AGENT")
 	if tool == "" {
-		t.Skip("set COORDICA_LIVE_AGENT=codex|claude|dsh to opt in to a real model call")
+		t.Skip("set COORDICA_LIVE_AGENT to a registered tool ID to opt in to a real model call")
 	}
-	if tool != "codex" && tool != "claude" && tool != "dsh" {
+	if _, known := DefaultRegistry().Resolve(tool); !known {
 		t.Fatal("unknown COORDICA_LIVE_AGENT")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

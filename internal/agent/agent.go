@@ -8,12 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
-
-	"coordica/internal/process"
 )
 
 var ErrProtocol = errors.New("invalid or incomplete agent protocol")
@@ -35,82 +31,36 @@ type Result struct {
 type Capability struct {
 	Tool       string `json:"tool"`
 	Version    string `json:"version"`
+	Executable string `json:"executable,omitempty"`
+	Protocol   string `json:"protocol"`
 	Available  bool   `json:"available"`
 	Structured bool   `json:"structured"`
 	Resume     bool   `json:"resume"`
 	Cancel     bool   `json:"cancel"`
+	Review     bool   `json:"review"`
+	ReadOnly   bool   `json:"read_only"`
 	Verified   bool   `json:"verified"`
 	Approvals  string `json:"approvals"`
 	Detail     string `json:"detail"`
 }
 
-func toolName(tool string) string {
-	switch strings.ToLower(tool) {
-	case "claude-code", "claude":
-		return "claude"
-	case "deepseek-harness", "dsh":
-		return "dsh"
-	case "codex":
-		return "codex"
-	}
-	return ""
-}
-func executableFor(tool, executable string) string {
-	if executable != "" {
-		return executable
-	}
-	return tool
-}
-
-// Probe invokes only --version. Structured/Resume describe the adapter's
-// documented interface, not certification of this particular tool version.
 func Probe(ctx context.Context, tool, executable string) Capability {
-	tool = toolName(tool)
-	c := Capability{Tool: tool}
-	if tool == "" {
-		c.Detail = "unsupported tool"
-		return c
-	}
-	executable = executableFor(tool, executable)
-	path, err := exec.LookPath(executable)
-	if err != nil {
-		c.Detail = "executable unavailable"
-		return c
-	}
-	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	out, result, err := process.Collect(probeCtx, process.Spec{Executable: path, Args: []string{"--version"}, Env: developmentEnv()}, 16<<10)
-	if errors.Is(err, process.ErrUnsafeBatchCommand) {
-		c.Detail = "Windows batch installation path is unsupported; use a path without shell metacharacters or a native .exe"
-		return c
-	}
-	if err != nil || result.ExitCode != 0 {
-		c.Detail = "version preflight failed"
-		return c
-	}
-	c.Version = strings.TrimSpace(string(out))
-	if c.Version == "" {
-		c.Detail = "version preflight returned no version"
-		return c
-	}
-	c.Available, c.Structured, c.Resume, c.Cancel = true, true, true, true
-	c.Detail = "version detected; documented interface; OS/tool compatibility and authentication not certified"
-	switch tool {
-	case "codex":
-		c.Approvals = "no interactive approval; sandbox-limited execution"
-	case "claude":
-		c.Approvals = "dontAsk with explicit tool allow rules; native Windows has no built-in sandbox"
-	case "dsh":
-		c.Approvals = "ACP requests without verifiable operation detail are rejected"
-	}
-	return c
+	return DefaultRegistry().Probe(ctx, tool, executable)
 }
 
 func Execute(ctx context.Context, req Request, onEvent func(Event)) (Result, error) {
-	req.Tool = toolName(req.Tool)
-	if req.Tool == "" {
-		return Result{ExitCode: -1}, errors.New("unsupported agent tool")
+	return DefaultRegistry().Execute(ctx, req, onEvent)
+}
+
+func (r *Registry) Execute(ctx context.Context, req Request, onEvent func(Event)) (Result, error) {
+	if err := ctx.Err(); err != nil {
+		return Result{ExitCode: -1}, err
 	}
+	def, found := r.Resolve(req.Tool)
+	if !found {
+		return Result{ExitCode: -1}, errors.New("unregistered agent tool")
+	}
+	req.Tool = def.ID
 	if strings.TrimSpace(req.Prompt) == "" {
 		return Result{ExitCode: -1}, errors.New("prompt is required")
 	}
@@ -120,131 +70,55 @@ func Execute(ctx context.Context, req Request, onEvent func(Event)) (Result, err
 	if req.WorkDir == "" {
 		return Result{ExitCode: -1}, errors.New("fixed working directory is required")
 	}
+	if req.ResumeSession != "" && !def.Resume {
+		return Result{ExitCode: -1}, errors.New("registered tool does not support resume")
+	}
+	if isReview(req) && !def.Review {
+		return Result{ExitCode: -1}, errors.New("registered tool does not support independent review")
+	}
 	dir, err := filepath.Abs(req.WorkDir)
 	if err != nil {
 		return Result{ExitCode: -1}, err
 	}
 	req.WorkDir = dir
-	req.Executable = executableFor(req.Tool, req.Executable)
-	if onEvent == nil {
-		onEvent = func(Event) {}
+	if def.Protocol == ProtocolPi && req.ResumeSession != "" {
+		if err := validatePiResume(req); err != nil {
+			return Result{ExitCode: -1}, err
+		}
 	}
-	if req.Tool == "dsh" {
-		return executeACP(ctx, req, onEvent)
-	}
-	args := commandArgs(req)
-	s, err := process.Start(ctx, process.Spec{Executable: req.Executable, Args: args, Dir: req.WorkDir, Env: developmentEnv()})
+	req.Executable, err = resolveExecutable(def, req.Executable)
 	if err != nil {
 		return Result{ExitCode: -1}, err
 	}
-	emit(onEvent, "process.started", map[string]int{"pid": s.PID()})
-	// Prompts use documented stdin interfaces, avoiding Windows command-line
-	// limits and exposing neither task text nor diffs in process arguments.
-	inputDone := make(chan error, 1)
-	go func() {
-		err := s.Write([]byte(req.Prompt))
-		closeErr := s.CloseInput()
-		inputDone <- errors.Join(err, closeErr)
-	}()
-	result := Result{ExitCode: -1}
-	complete := false
-	var protocolErr error
-	for output := range s.Output() {
-		if output.Stream != "stdout" {
-			continue
-		} // stderr is not a result protocol.
-		if len(strings.TrimSpace(string(output.Line))) == 0 {
-			continue
-		}
-		var envelope struct {
-			Type      string `json:"type"`
-			ThreadID  string `json:"thread_id"`
-			SessionID string `json:"session_id"`
-			Subtype   string `json:"subtype"`
-			IsError   bool   `json:"is_error"`
-			Result    string `json:"result"`
-			Item      struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			} `json:"item"`
-		}
-		if err := json.Unmarshal(output.Line, &envelope); err != nil || envelope.Type == "" {
-			protocolErr = ErrProtocol
-			s.Stop()
-			continue
-		}
-		onEvent(Event{Type: envelope.Type, Data: sanitize(output.Line)})
-		if req.Tool == "codex" {
-			switch envelope.Type {
-			case "thread.started":
-				result.SessionID = envelope.ThreadID
-			case "item.completed":
-				if envelope.Item.Type == "agent_message" {
-					result.OutputText = envelope.Item.Text
-				}
-			case "turn.completed":
-				complete = true
-			case "turn.failed":
-				protocolErr = errors.New("Codex reported failed execution")
-				complete = false
-			case "error":
-				// Codex also emits error diagnostics while reconnecting. A
-				// later completed turn is authoritative; a failed turn or
-				// missing terminal event remains a failure below.
+	if def.MinimumVersion != "" {
+		capability := r.Probe(ctx, def.ID, req.Executable)
+		if !capability.Available {
+			if err := ctx.Err(); err != nil {
+				return Result{ExitCode: -1}, err
 			}
-		} else {
-			if envelope.SessionID != "" {
-				result.SessionID = envelope.SessionID
-			}
-			if envelope.Type == "result" {
-				if envelope.IsError || envelope.Subtype != "success" {
-					protocolErr = errors.New("Claude reported a failed or unknown result")
-				} else {
-					complete = true
-					result.OutputText = envelope.Result
-				}
-			}
-		}
-		if len(result.OutputText) > 8<<20 {
-			protocolErr = errors.New("agent result exceeds size limit")
-			s.Stop()
+			return Result{ExitCode: -1}, errors.New(capability.Detail)
 		}
 	}
-	status, waitErr := s.Wait()
-	result.ExitCode, result.TreeStopped = status.ExitCode, status.TreeStopped
-	if !complete || result.SessionID == "" {
-		protocolErr = errors.Join(protocolErr, ErrProtocol)
+	if err := ctx.Err(); err != nil {
+		return Result{ExitCode: -1}, err
 	}
-	return result, errors.Join(waitErr, protocolErr, <-inputDone)
+	if onEvent == nil {
+		onEvent = func(Event) {}
+	}
+	switch def.Protocol {
+	case ProtocolACP:
+		return executeACP(ctx, def, req, onEvent)
+	case ProtocolPi:
+		return executePi(ctx, def, req, onEvent)
+	default:
+		return executeJSONL(ctx, def, req, onEvent)
+	}
 }
 
+// Kept for old local adapter tests. Execution itself resolves registrations.
 func commandArgs(req Request) []string {
-	if req.Tool == "codex" {
-		sandbox := "workspace-write"
-		if req.Role == "review" || req.Role == "reviewer" {
-			sandbox = "read-only"
-		}
-		args := []string{"--ask-for-approval", "never", "exec", "--json", "--sandbox", sandbox}
-		if req.ResumeSession != "" {
-			args = append(args, "resume", req.ResumeSession)
-		}
-		return append(args, "--", "-")
-	}
-	args := []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "dontAsk"}
-	tools := req.AllowedTools
-	if len(tools) == 0 {
-		tools = []string{"Read", "Glob", "Grep"}
-	}
-	// dontAsk denies everything that would otherwise ask, while these explicit
-	// rules cover the task's authorized tools. Never pass bypassPermissions.
-	args = append(args, "--allowedTools", strings.Join(tools, ","))
-	if req.Role == "review" || req.Role == "reviewer" {
-		args = append(args, "--tools", "Read,Glob,Grep")
-	}
-	if req.ResumeSession != "" {
-		args = append(args, "--resume", req.ResumeSession)
-	}
-	return args
+	def, _ := DefaultRegistry().Resolve(req.Tool)
+	return launchArgs(def, req)
 }
 
 func sanitize(raw []byte) json.RawMessage {

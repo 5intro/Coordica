@@ -24,30 +24,32 @@ import (
 )
 
 type Config struct {
-	CenterURL    string            `json:"center_url"`
-	DataDir      string            `json:"data_dir"`
-	Name         string            `json:"name"`
-	TLSCA        string            `json:"tls_ca"`
-	RuntimePath  string            `json:"runtime_path,omitempty"`
-	NodeID       string            `json:"node_id"`
-	Token        string            `json:"token"`
-	Capacity     int               `json:"capacity"`
-	Executables  map[string]string `json:"executables,omitempty"`
-	PollInterval time.Duration     `json:"poll_interval,omitempty"`
+	CenterURL    string             `json:"center_url"`
+	DataDir      string             `json:"data_dir"`
+	Name         string             `json:"name"`
+	TLSCA        string             `json:"tls_ca"`
+	RuntimePath  string             `json:"runtime_path,omitempty"`
+	NodeID       string             `json:"node_id"`
+	Token        string             `json:"token"`
+	Capacity     int                `json:"capacity"`
+	Executables  map[string]string  `json:"executables,omitempty"`
+	Tools        []agent.Definition `json:"tools,omitempty"`
+	PollInterval time.Duration      `json:"poll_interval,omitempty"`
 }
 type Runner struct {
 	// OnEvent may be set before Run to connect diagnostics to a local UI.
 	// The default emits concise local stderr logs; callbacks must return promptly.
-	OnEvent func(Event)
-	config  Config
-	http    *http.Client
-	base    *url.URL
-	git     *gitops.Client
-	execute func(context.Context, agent.Request, func(agent.Event)) (agent.Result, error)
-	mu      sync.Mutex
-	active  map[string]bool
-	logMu   sync.Mutex
-	lastLog map[string]string
+	OnEvent  func(Event)
+	config   Config
+	http     *http.Client
+	base     *url.URL
+	git      *gitops.Client
+	registry *agent.Registry
+	execute  func(context.Context, agent.Request, func(agent.Event)) (agent.Result, error)
+	mu       sync.Mutex
+	active   map[string]bool
+	logMu    sync.Mutex
+	lastLog  map[string]string
 }
 
 type Event struct {
@@ -98,6 +100,14 @@ func New(config Config) (*Runner, error) {
 	if config.Executables == nil {
 		config.Executables = map[string]string{}
 	}
+	registry, err := LocalRegistry(config.Tools)
+	if err != nil {
+		return nil, err
+	}
+	config.Executables, err = NormalizeExecutables(registry, config.Executables)
+	if err != nil {
+		return nil, err
+	}
 	client, base, err := newHTTPClient(config)
 	if err != nil {
 		return nil, err
@@ -111,15 +121,15 @@ func New(config Config) (*Runner, error) {
 	if err = localfile.Protect(filepath.Join(config.DataDir, "spool")); err != nil {
 		return nil, err
 	}
-	return &Runner{config: config, http: client, base: base, git: gitops.New("git"), execute: agent.Execute, active: map[string]bool{}, lastLog: map[string]string{}}, nil
+	return &Runner{config: config, http: client, base: base, git: gitops.New("git"), registry: registry, execute: registry.Execute, active: map[string]bool{}, lastLog: map[string]string{}}, nil
 }
 func (r *Runner) Config() Config { return r.config }
 func (r *Runner) capabilities(ctx context.Context) []domain.Capability {
 	var result []domain.Capability
-	for _, tool := range []string{"codex", "claude", "dsh"} {
-		cap := agent.Probe(ctx, tool, r.config.Executables[tool])
+	for _, cap := range r.registry.Discover(ctx, r.config.Executables) {
+		tool := cap.Tool
 		r.report("capability", tool, fmt.Sprintf("available=%t version=%s verified=%t %s; %s", cap.Available, cap.Version, cap.Verified, cap.Detail, cap.Approvals))
-		result = append(result, domain.Capability{Tool: cap.Tool, Version: cap.Version, Available: cap.Available, Structured: cap.Structured, Resume: cap.Resume, Cancel: cap.Cancel, Detail: cap.Detail + "; " + cap.Approvals})
+		result = append(result, domain.Capability{Tool: cap.Tool, Version: cap.Version, Available: cap.Available, Structured: cap.Structured, Protocol: cap.Protocol, Review: cap.Review, ReadOnly: cap.ReadOnly, Resume: cap.Resume, Cancel: cap.Cancel, Detail: cap.Detail + "; " + cap.Approvals})
 	}
 	return result
 }

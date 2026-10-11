@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 
+	"coordica/internal/agent"
 	"coordica/internal/mcp"
 )
 
@@ -30,6 +32,57 @@ func TestBootstrapProfileIsLocalConfigurationOnly(t *testing.T) {
 	} {
 		if _, err := decodeBootstrapProfile([]byte(raw)); err == nil {
 			t.Fatalf("accepted invalid profile %s", raw)
+		}
+	}
+}
+
+func TestCustomToolConfigurationAndGenericExecutableFlags(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "Agent Tools", "custom")
+	custom := agent.Definition{ID: "future-agent", Executables: []string{path}, Protocol: agent.ProtocolCodex, Cancel: true, Review: true}
+	profile := mcp.BootstrapProfile{Platform: runtime.GOOS + "/" + runtime.GOARCH, Tools: []agent.Definition{custom}, Executables: map[string]string{custom.ID: path}}
+	raw, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := decodeBootstrapProfile(raw)
+	if err != nil || len(decoded.Tools) != 1 || decoded.Executables[custom.ID] != path {
+		t.Fatalf("custom profile lost: %+v %v", decoded, err)
+	}
+	defsFile := filepath.Join(t.TempDir(), "tools.json")
+	raw, err = json.Marshal([]agent.Definition{custom})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(defsFile, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	definitions, err := loadToolDefinitions(defsFile)
+	if err != nil || len(definitions) != 1 || definitions[0].ID != custom.ID {
+		t.Fatal("custom definitions did not load", err)
+	}
+	if err := os.WriteFile(defsFile, []byte(`null`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadToolDefinitions(defsFile); err == nil {
+		t.Fatal("null definitions accepted")
+	}
+	duplicate := `[{"id":"future-agent","id":"other-agent","executables":["custom"],"protocol":"codex-jsonl"}]`
+	if err := os.WriteFile(defsFile, []byte(duplicate), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadToolDefinitions(defsFile); err == nil {
+		t.Fatal("duplicate definition fields accepted")
+	}
+	var flags executableFlags
+	if err := flags.Set(custom.ID + "=" + path); err != nil {
+		t.Fatal(err)
+	}
+	if flags[custom.ID] != path {
+		t.Fatal("generic flag lost executable")
+	}
+	for _, invalid := range []string{custom.ID + "=" + path, "../tool=" + path, "tool=", "tool"} {
+		if err := flags.Set(invalid); err == nil {
+			t.Fatal("accepted invalid/duplicate executable flag", invalid)
 		}
 	}
 }

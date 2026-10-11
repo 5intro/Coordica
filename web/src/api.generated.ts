@@ -60,6 +60,9 @@ export interface Capability {
   version: string;
   available: boolean;
   structured: boolean;
+  protocol?: string;
+  review: boolean;
+  read_only: boolean;
   resume: boolean;
   cancel: boolean;
   detail: string;

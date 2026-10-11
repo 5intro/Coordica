@@ -13,8 +13,10 @@ import (
 	"strings"
 	"testing"
 
+	"coordica/internal/agent"
 	"coordica/internal/nodeservice"
 	"coordica/internal/onboarding"
+	"coordica/internal/runner"
 )
 
 func TestMain(m *testing.M) {
@@ -140,7 +142,8 @@ func TestBootstrapInspectsOnlyVersionsAndSavesPrivateProfile(t *testing.T) {
 	if environment.OS != runtime.GOOS || environment.Arch != runtime.GOARCH || environment.Host == "" || !environment.Git.Available || environment.Git.Authentication != "unknown" || strings.Contains(environment.Git.Version, "fixture-sensitive-value") {
 		t.Fatalf("incorrect environment: %+v", environment)
 	}
-	for name, capability := range environment.Tools {
+	for _, name := range []string{"codex", "claude", "dsh"} {
+		capability := environment.Tools[name]
 		if !capability.Available || capability.Authentication != "unknown" || !strings.HasPrefix(capability.Path, tools) || strings.Contains(capability.Version, "fixture-sensitive-value") {
 			t.Fatalf("unsafe capability %s: %+v", name, capability)
 		}
@@ -283,5 +286,69 @@ func TestBootstrapInitializeRequiresGitAndCancellationNeverWrites(t *testing.T) 
 	var out bytes.Buffer
 	if err := b.Serve(ctx, strings.NewReader(bootstrapInitialize), &out); !errors.Is(err, context.Canceled) || out.Len() != 0 {
 		t.Fatalf("cancelled bootstrap continued: %q, %v", out.String(), err)
+	}
+}
+
+func TestBootstrapDiscoversTrustedCustomDefinitionsWithoutModelCommandInput(t *testing.T) {
+	bootstrapFixtures(t, "git", "local-custom")
+	custom := agent.Definition{ID: "local-custom", Executables: []string{"local-custom"}, Protocol: agent.ProtocolCodex, Cancel: true, Resume: true, ResumeArgs: []string{"resume", "{session}"}, Review: true, ReadOnly: true}
+	profilePath := filepath.Join(t.TempDir(), "profile.json")
+	replies := bootstrapReplies(t, Bootstrap{Tools: []agent.Definition{custom}, ProfilePath: profilePath}, bootstrapInitialize,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"inspect_environment","arguments":{}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"save_runner_profile","arguments":{}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"initialize_runner","arguments":{"center_url":"https://center.invalid","pairing_code":"unused","tools":[{"id":"injected","executables":["shell"]}]}}}`)
+	if replies[1].Result.IsError || replies[2].Result.IsError || !replies[3].Result.IsError {
+		t.Fatalf("unexpected custom bootstrap responses: %+v", replies)
+	}
+	var environment bootstrapEnvironment
+	if err := json.Unmarshal([]byte(replies[1].Result.Content[0].Text), &environment); err != nil {
+		t.Fatal(err)
+	}
+	capability := environment.Tools[custom.ID]
+	if !capability.Available || !capability.Structured || !capability.Cancel || !capability.Resume || !capability.Review || !capability.ReadOnly || capability.Protocol != custom.Protocol || environment.Profile.Executables[custom.ID] == "" {
+		t.Fatal("trusted custom tool not discovered")
+	}
+	raw, err := os.ReadFile(profilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var profile BootstrapProfile
+	if err := json.Unmarshal(raw, &profile); err != nil {
+		t.Fatal(err)
+	}
+	if len(profile.Tools) != 1 || profile.Tools[0].ID != custom.ID {
+		t.Fatal("custom local profile was not retained")
+	}
+}
+
+func TestBootstrapReuseKeepsCustomExecutableOutsidePath(t *testing.T) {
+	toolsDir := bootstrapFixtures(t, "local-custom")
+	executable := filepath.Join(toolsDir, "local-custom")
+	if runtime.GOOS == "windows" {
+		executable += ".exe"
+	}
+	custom := agent.Definition{ID: "local-custom", Executables: []string{"not-on-path"}, Protocol: agent.ProtocolCodex, Cancel: true, Review: true}
+	dataDir := t.TempDir()
+	config := runner.Config{CenterURL: "https://center.invalid", NodeID: "node_existing", Token: "fixture-existing-private-token", Tools: []agent.Definition{custom}, Executables: map[string]string{custom.ID: executable}}
+	raw, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dataDir, "runner.json"), raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", t.TempDir())
+	replies := bootstrapReplies(t, Bootstrap{DataDir: dataDir}, bootstrapInitialize,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"inspect_environment","arguments":{}}}`)
+	if replies[1].Result.IsError {
+		t.Fatal(replies[1])
+	}
+	var environment bootstrapEnvironment
+	text := replies[1].Result.Content[0].Text
+	if err := json.Unmarshal([]byte(text), &environment); err != nil {
+		t.Fatal(err)
+	}
+	if !environment.Tools[custom.ID].Available || environment.Profile.Executables[custom.ID] != executable || strings.Contains(text, config.Token) || strings.Contains(text, config.NodeID) {
+		t.Fatal("trusted persisted executable was lost or paired identity was disclosed")
 	}
 }

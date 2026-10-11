@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -16,7 +17,11 @@ import (
 func TestMain(m *testing.M) {
 	if len(os.Args) > 1 {
 		if os.Args[1] == "--version" {
-			fmt.Println("fixture 1.0")
+			version := os.Getenv("AGENT_TEST_VERSION")
+			if version == "" {
+				version = "fixture 1.1.0"
+			}
+			fmt.Println(version)
 			os.Exit(0)
 		}
 		if os.Args[1] == "--ask-for-approval" {
@@ -29,12 +34,27 @@ func TestMain(m *testing.M) {
 			fakeClaude(string(prompt))
 			os.Exit(0)
 		}
-		if os.Args[1] == "--profile" {
+		if os.Args[1] == "--mode" {
+			fakePi()
+			os.Exit(0)
+		}
+		if os.Args[1] == "--profile" || os.Args[1] == "acp" {
 			fakeACP()
 			os.Exit(0)
 		}
 	}
+	// Fixture subprocesses have no work after their protocol teardown. Avoid
+	// the race runtime's default one-second exit delay in each child; race
+	// detection remains enabled, including all adapter receive/write loops.
+	os.Setenv("GORACE", os.Getenv("GORACE")+" atexit_sleep_ms=0")
 	os.Exit(m.Run())
+}
+func recordForbiddenFixtureAction(action string) {
+	if action == os.Getenv("AGENT_TEST_FORBIDDEN_ACTION") {
+		if path := os.Getenv("AGENT_TEST_FORBIDDEN_FILE"); path != "" {
+			os.WriteFile(path, []byte(action), 0600)
+		}
+	}
 }
 func printJSON(v any) { data, _ := json.Marshal(v); fmt.Println(string(data)) }
 func fakeCodex(scenario string) {
@@ -96,6 +116,8 @@ func fakeClaude(scenario string) {
 func fakeACP() {
 	scanner := bufio.NewScanner(os.Stdin)
 	scenario := ""
+	sessionID := "dsh-session"
+	var promptID json.RawMessage
 	for scanner.Scan() {
 		var msg struct {
 			ID     json.RawMessage `json:"id"`
@@ -109,16 +131,41 @@ func fakeACP() {
 		respond := func(result any) { printJSON(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": result}) }
 		switch msg.Method {
 		case "initialize":
-			respond(map[string]any{"protocolVersion": 1, "agentCapabilities": map[string]any{"sessionCapabilities": map[string]any{"resume": map[string]any{}}}})
+			capabilities := map[string]any{"loadSession": true, "sessionCapabilities": map[string]any{"resume": map[string]any{}, "close": map[string]any{}}}
+			if os.Getenv("AGENT_TEST_ACP_CAPS") == "no-resume" {
+				capabilities["loadSession"] = false
+				capabilities["sessionCapabilities"] = map[string]any{}
+			}
+			if os.Getenv("AGENT_TEST_ACP_CAPS") == "no-close" {
+				capabilities["sessionCapabilities"] = map[string]any{"resume": map[string]any{}}
+			}
+			respond(map[string]any{"protocolVersion": 1, "authMethods": []map[string]string{{"id": "cursor_login"}}, "agentCapabilities": capabilities})
+		case "authenticate":
+			respond(map[string]any{})
+		case "session/set_mode":
+			respond(map[string]any{})
 		case "session/new":
-			respond(map[string]string{"sessionId": "dsh-session"})
+			recordForbiddenFixtureAction("new")
+			created := map[string]any{"sessionId": "dsh-session", "modes": map[string]any{"availableModes": []map[string]string{{"id": "ask"}}}}
+			if os.Getenv("AGENT_TEST_ACP_CAPS") == "no-mode" {
+				delete(created, "modes")
+			}
+			respond(created)
 			if os.Getenv("AGENT_TEST_STALL_STDIN") == "yes" {
 				time.Sleep(time.Minute)
 				return
 			}
-		case "session/resume":
-			respond(map[string]any{})
+		case "session/resume", "session/load":
+			var loaded struct {
+				SessionID string `json:"sessionId"`
+			}
+			json.Unmarshal(msg.Params, &loaded)
+			printJSON(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": loaded.SessionID, "update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "known-call", "kind": "execute", "locations": []map[string]string{{"path": os.TempDir()}}, "content": []any{}}}})
+			printJSON(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": loaded.SessionID, "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "old replay must be excluded"}}}})
+			respond(map[string]any{"modes": map[string]any{"availableModes": []map[string]string{{"id": "ask"}}}})
 		case "session/prompt":
+			recordForbiddenFixtureAction("prompt")
+			promptID = msg.ID
 			var params struct {
 				SessionID string `json:"sessionId"`
 				Prompt    []struct {
@@ -127,7 +174,33 @@ func fakeACP() {
 			}
 			json.Unmarshal(msg.Params, &params)
 			scenario = params.Prompt[0].Text
+			sessionID = params.SessionID
+			if scenario == "incomplete" {
+				return
+			}
+			if scenario == "malformed" {
+				fmt.Println("not json")
+				return
+			}
+			if scenario == "failed" {
+				respond(map[string]string{"stopReason": "refusal"})
+				continue
+			}
 			if scenario == "cancel" {
+				continue
+			}
+			if scenario == "permission-read" || scenario == "permission-edit" || scenario == "permission-outside" {
+				kind := "read"
+				if scenario != "permission-read" {
+					kind = "edit"
+				}
+				cwd, _ := os.Getwd()
+				location := cwd + string(os.PathSeparator) + "file.txt"
+				if scenario == "permission-outside" {
+					location = os.TempDir() + string(os.PathSeparator) + "outside.txt"
+				}
+				printJSON(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": params.SessionID, "update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "known-call", "kind": kind, "locations": []map[string]string{{"path": location}}, "content": []map[string]any{{"type": "content", "content": map[string]string{"type": "text", "text": "typed operation pending approval"}}}}}})
+				printJSON(map[string]any{"jsonrpc": "2.0", "id": "permission-1", "method": "session/request_permission", "params": map[string]any{"sessionId": params.SessionID, "toolCall": map[string]string{"toolCallId": "known-call", "title": "untrusted display"}, "options": []map[string]string{{"kind": "allow_once", "optionId": "dynamic-safe-option"}}}})
 				continue
 			}
 			if scenario == "permission" {
@@ -138,18 +211,25 @@ func fakeACP() {
 				printJSON(map[string]any{"jsonrpc": "2.0", "id": 900, "result": map[string]string{"stopReason": "end_turn"}})
 				continue
 			}
+			printJSON(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": params.SessionID, "update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "read-file", "kind": "read", "content": []map[string]any{{"type": "content", "content": map[string]string{"type": "text", "text": "file contents"}}}}}})
 			printJSON(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": params.SessionID, "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "done"}}}})
 			respond(map[string]string{"stopReason": "end_turn"})
 		case "session/cancel":
-			printJSON(map[string]any{"jsonrpc": "2.0", "id": 3, "result": map[string]string{"stopReason": "cancelled"}})
+			printJSON(map[string]any{"jsonrpc": "2.0", "id": promptID, "result": map[string]string{"stopReason": "cancelled"}})
 		case "session/close":
 			respond(map[string]any{})
 		case "":
 			if string(msg.ID) == `"permission-1"` {
 				if strings.Contains(string(msg.Result), "selected") {
-					os.Exit(9)
+					recordForbiddenFixtureAction("allow")
+					if scenario == "permission" {
+						os.Exit(9)
+					}
+					printJSON(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": sessionID, "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "done"}}}})
+					printJSON(map[string]any{"jsonrpc": "2.0", "id": promptID, "result": map[string]string{"stopReason": "end_turn"}})
+					continue
 				}
-				printJSON(map[string]any{"jsonrpc": "2.0", "id": 3, "result": map[string]string{"stopReason": "refusal"}})
+				printJSON(map[string]any{"jsonrpc": "2.0", "id": promptID, "result": map[string]string{"stopReason": "refusal"}})
 			}
 		}
 	}
@@ -164,7 +244,7 @@ func fixtureRequest(t *testing.T, tool, prompt string) Request {
 	return Request{Tool: tool, Executable: exe, WorkDir: t.TempDir(), Prompt: prompt}
 }
 func TestDocumentedJSONProtocols(t *testing.T) {
-	for _, tool := range []string{"codex", "claude", "dsh"} {
+	for _, tool := range []string{"codex", "claude", "dsh", "cursor", "kimi", "pi"} {
 		t.Run(tool, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -185,7 +265,7 @@ func TestDocumentedJSONProtocols(t *testing.T) {
 	}
 }
 func TestExitZeroWithoutVerifiedTerminalFails(t *testing.T) {
-	for _, tool := range []string{"codex", "claude"} {
+	for _, tool := range []string{"codex", "claude", "dsh", "cursor", "kimi", "pi"} {
 		for _, scenario := range []string{"incomplete", "malformed", "failed"} {
 			t.Run(tool+"/"+scenario, func(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -216,12 +296,18 @@ func TestCodexReconnectDiagnosticCanRecoverButCannotReplaceTerminal(t *testing.T
 	}
 }
 func TestCancellationAcrossProtocols(t *testing.T) {
-	for _, tool := range []string{"codex", "claude", "dsh"} {
+	for _, tool := range []string{"codex", "claude", "dsh", "cursor", "kimi", "pi"} {
 		t.Run(tool, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			result, err := Execute(ctx, fixtureRequest(t, tool, "cancel"), nil)
-			if !errors.Is(err, context.DeadlineExceeded) || !result.TreeStopped {
+			guard := time.AfterFunc(5*time.Second, cancel)
+			defer guard.Stop()
+			result, err := Execute(ctx, fixtureRequest(t, tool, "cancel"), func(e Event) {
+				if e.Type == "process.started" {
+					time.AfterFunc(100*time.Millisecond, cancel)
+				}
+			})
+			if !errors.Is(err, context.Canceled) || !result.TreeStopped {
 				t.Fatalf("result=%+v err=%v", result, err)
 			}
 		})
@@ -241,18 +327,25 @@ func TestACPRejectsOpaquePermissionAndUnexpectedReply(t *testing.T) {
 	}
 }
 func TestResumeUsesExactSession(t *testing.T) {
-	for _, tool := range []string{"codex", "claude", "dsh"} {
+	for _, tool := range []string{"codex", "claude", "dsh", "cursor", "kimi", "pi"} {
 		t.Run(tool, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			req := fixtureRequest(t, tool, "args")
 			req.ResumeSession = "exact-session"
+			if tool == "pi" {
+				req.ResumeSession = filepath.Join(t.TempDir(), "session.jsonl")
+				header, _ := json.Marshal(map[string]string{"type": "session", "cwd": req.WorkDir})
+				if err := os.WriteFile(req.ResumeSession, append(header, '\n'), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
 			result, err := Execute(ctx, req, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if tool == "dsh" {
-				if result.SessionID != "exact-session" {
+			if tool == "dsh" || tool == "cursor" || tool == "kimi" || tool == "pi" {
+				if result.SessionID != req.ResumeSession {
 					t.Fatal(result.SessionID)
 				}
 			} else if !strings.Contains(result.OutputText, "exact-session") {
@@ -288,7 +381,7 @@ func TestReadOnlyReviewerAndNoUnconditionalBypass(t *testing.T) {
 func TestProbeIsPreflightNotCertification(t *testing.T) {
 	req := fixtureRequest(t, "codex", "unused")
 	cap := Probe(context.Background(), req.Tool, req.Executable)
-	if !cap.Available || cap.Verified || cap.Version != "fixture 1.0" {
+	if !cap.Available || cap.Verified || cap.Version != "fixture 1.1.0" {
 		t.Fatalf("%+v", cap)
 	}
 }

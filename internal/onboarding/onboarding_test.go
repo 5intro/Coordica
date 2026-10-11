@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"coordica/internal/agent"
 	"coordica/internal/domain"
 	"coordica/internal/filelock"
 	"coordica/internal/localfile"
@@ -41,7 +42,11 @@ func initializationFixture(t *testing.T) (*httptest.Server, *atomic.Int32, Confi
 		}
 		json.NewEncoder(w).Encode(domain.RegisterResponse{NodeID: "node_fixture", Token: "fixture-node-secret"})
 	}))
-	return server, count, Config{CenterURL: server.URL, PairingCode: "one-time-secret", DataDir: filepath.Join(t.TempDir(), "节点 空间"), Capacity: 2, Executables: map[string]string{"codex": "/not-installed/codex", "claude": "/not-installed/claude", "dsh": "/not-installed/dsh"}}
+	overrides := map[string]string{}
+	for _, definition := range agent.BuiltinDefinitions() {
+		overrides[definition.ID] = filepath.Join(t.TempDir(), "not-installed", definition.ID)
+	}
+	return server, count, Config{CenterURL: server.URL, PairingCode: "one-time-secret", DataDir: filepath.Join(t.TempDir(), "节点 空间"), Capacity: 2, Executables: overrides}
 }
 
 func TestInitializationPairsAndStartsOnlyCurrentExecutable(t *testing.T) {
@@ -247,5 +252,25 @@ func TestInvalidReplacementCARetainsSavedConfiguration(t *testing.T) {
 	after, _ := os.ReadFile(filepath.Join(cfg.DataDir, "runner.json"))
 	if string(before) != string(after) {
 		t.Fatal("invalid CA changed saved configuration")
+	}
+}
+
+func TestRuntimeRefreshRetainsCustomDefinitionsAndExplicitRemoval(t *testing.T) {
+	custom := agent.Definition{ID: "local-custom", Executables: []string{"custom-cli"}, Protocol: agent.ProtocolCodex, Cancel: true, Review: true}
+	dir := t.TempDir()
+	current := runner.Config{CenterURL: "https://center.invalid", DataDir: dir, NodeID: "node_custom", Token: "private-token", Capacity: 1, Tools: []agent.Definition{custom}, Executables: map[string]string{custom.ID: "/not-installed/custom-cli"}}
+	refreshed, err := refreshRuntime(Config{}, current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refreshed.Tools) != 1 || refreshed.Tools[0].ID != custom.ID || refreshed.Executables[custom.ID] != current.Executables[custom.ID] || refreshed.NodeID != current.NodeID || refreshed.Token != current.Token {
+		t.Fatal("default bootstrap refresh lost local custom registration or identity")
+	}
+	removed, err := refreshRuntime(Config{Tools: []agent.Definition{}}, refreshed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(removed.Tools) != 0 || removed.Executables[custom.ID] != "" {
+		t.Fatal("explicit local registry removal retained removed driver")
 	}
 }

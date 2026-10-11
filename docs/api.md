@@ -30,3 +30,6 @@
 完整字段见 `api/v1.schema.json`。这是公开记录契约，创建请求允许省略由服务端分配的字段；应用会丢弃客户端提交的权威状态/计数字段并自行产生。ID 不接受作为本地文件路径使用。
 
 MCP 从节点凭据派生，限制于启动参数绑定的 Run；不能传入另一 Run ID、owner 令牌或任意 API 路径。`request_scope` 是阻塞报告，授权调整仍由 owner 的 scope 用例处理。代码提交由 Runner 的停止与材料校验流程统一完成。
+
+
+工具标识 `Task.tool` 必须使用节点 `capabilities[].tool` 报告的 canonical ID。中心只验证标识语法和节点能力，不保存品牌白名单。CLI/注册表别名是本机便利，不能替代任务中的 canonical ID。Capability 增加 protocol、review、read_only；未报告字段按 false 处理。实现调度要求 available + structured + cancel，独立评审另需 review。旧 Run 的 generation/lease 契约保持不变。

@@ -20,7 +20,7 @@ macOS/Linux：
 
 第一条预览本机发现的客户端和目标文件，第二条应用配置。自动发现依赖本机 CLI 和已存在的客户端配置目录；未安装或无法确认的客户端不会伪造成功。只安装指定客户端时使用 `--client cursor` 等参数；未知客户端可以用 `--client generic --apply` 导出标准 MCP JSON，再由该客户端导入。
 
-无需逐家填写二进制路径：默认使用当前运行的 Coordica 的绝对路径。不要从临时构建目录执行此命令。可用 `--binary` 明确指定固定绝对路径，用 `--runner-data` 固定 Runner 数据目录。`--json` 输出结构化结果；`--output` 指定 dsh overlay / 通用 JSON 的导出目录。
+无需逐家填写二进制路径：默认使用当前运行的 Coordica 的绝对路径。不要从临时构建目录执行此命令。可用 `--binary` 明确指定固定绝对路径，用 `--runner-data` 固定 Runner 数据目录。`--tools-file` 指定固定绝对路径的可信工具注册文件，让 bootstrap 与 Runner 继承它；`--json` 输出结构化结果；`--output` 指定 dsh overlay / 通用 JSON 的导出目录。
 
 ## 客户端差异由配置模块处理
 
@@ -47,10 +47,10 @@ pi 需要 0.99.0 或更新版本的原生 MCP 支持；无法确认版本时报�
 | 能力 | 本版范围 |
 | --- | --- |
 | 客户端调用 Coordica MCP | 提供上述客户端的配置入口；实际连接仍需在对应已安装版本上确认 |
-| Runner 启动 Agent 并处理结构化事件、取消、预算和恢复 | Codex、Claude Code、dsh 已有执行适配器，真实验收情况见验证记录 |
-| Runner 调度 Cursor、Kimi Code、pi 执行开发任务 | 本版尚无执行适配器；MCP 配置成功不代表支持该能力 |
+| Runner 启动 Agent 并处理结构化事件、取消、预算和恢复 | 内置六工具定义，由四种协议驱动执行；见 [注册与协议说明](tool-registry.md) |
+| 新的同协议工具 | 从本机可信文件注册；节点上报能力后即可参与调度，不修改中心名单 |
 
-配置完成后先在客户端调用 `inspect_environment`，检查 Git 和受管执行工具。它目前只探测 Codex、Claude Code、dsh，不会把用于发指令的客户端自动当作可调度工具。之后提供真实中心 HTTPS 地址、一次性配对码和公共 CA，调用 `initialize_runner`。同一电脑的各客户端共用固定 Runner 数据目录，不必分别配对。
+配置完成后先在客户端调用 `inspect_environment`，检查 Git 与本机注册工具的版本及声明能力。使用 Cursor 的是官方 CLI `agent` / `cursor-agent`，不能用 IDE 的 `cursor` 命令代替；pi Runner 驱动要求 1.1.0 或更新版本（高于仅配置 MCP 所需的版本）。版本成功不证明账号认证或一次真实执行成功。之后提供真实中心 HTTPS 地址、一次性配对码和公共 CA，调用 `initialize_runner`。同一电脑的各客户端共用固定 Runner 数据目录，不必分别配对。
 
 完整的配对、后台服务与故障处理见 [初始化指南](windows-onboarding.md)。客户端对 MCP 服务的信任/启用确认仍由客户端自己的界面管理，Coordica 不修改模型登录或绕过这些确认。
 

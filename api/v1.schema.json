@@ -196,7 +196,16 @@
         "detail": {
           "type": "string"
         },
+        "protocol": {
+          "type": "string"
+        },
+        "read_only": {
+          "type": "boolean"
+        },
         "resume": {
+          "type": "boolean"
+        },
+        "review": {
           "type": "boolean"
         },
         "structured": {
@@ -214,6 +223,8 @@
         "version",
         "available",
         "structured",
+        "review",
+        "read_only",
         "resume",
         "cancel",
         "detail"

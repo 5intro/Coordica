@@ -1,0 +1,15 @@
+[
+  {
+    "id": "local-acp",
+    "executables": ["my-acp-agent"],
+    "version_args": ["--version"],
+    "protocol": "acp",
+    "commit_mode": "runner",
+    "start_args": ["acp"],
+    "resume": false,
+    "cancel": true,
+    "review": true,
+    "read_only": false,
+    "approvals": "Typed ACP permissions are checked by the shared driver; unverifiable requests are rejected."
+  }
+]

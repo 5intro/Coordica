@@ -74,6 +74,9 @@ type Capability struct {
 	Version    string `json:"version"`
 	Available  bool   `json:"available"`
 	Structured bool   `json:"structured"`
+	Protocol   string `json:"protocol,omitempty"`
+	Review     bool   `json:"review"`
+	ReadOnly   bool   `json:"read_only"`
 	Resume     bool   `json:"resume"`
 	Cancel     bool   `json:"cancel"`
 	Detail     string `json:"detail"`
@@ -293,8 +296,8 @@ func ValidateTask(t Task) error {
 	if strings.TrimSpace(t.Title) == "" || strings.TrimSpace(t.Description) == "" || strings.TrimSpace(t.Acceptance) == "" || len(t.AllowedPaths) == 0 {
 		return Fail("invalid_input", "任务必须包含标题、目标、验收和允许路径")
 	}
-	if t.Tool != "codex" && t.Tool != "claude" && t.Tool != "dsh" {
-		return Fail("invalid_input", "不支持的工具")
+	if err := ValidateToolID(t.Tool); err != nil {
+		return err
 	}
 	if t.BudgetSeconds <= 0 || t.BudgetSeconds > 14400 || t.MaxRunSeconds <= 0 || t.MaxRunSeconds > 3600 || t.MaxRunSeconds > t.BudgetSeconds || t.MaxRepairs < 0 || t.MaxRepairs > 2 || t.MaxRetries < 0 || t.MaxRetries > 2 {
 		return Fail("invalid_input", "无效的任务预算或次数限制")
@@ -317,4 +320,46 @@ type BudgetRequest struct {
 	MaxRepairs      int    `json:"max_repairs"`
 	MaxRetries      int    `json:"max_retries"`
 	Reason          string `json:"reason"`
+}
+
+// ValidateToolID validates the protocol identifier, not a product whitelist.
+// Registration and availability are machine-local facts reported by a Runner.
+// Task.Tool uses the canonical capability ID; launch aliases are local metadata.
+func ValidateToolID(id string) error {
+	if len(id) == 0 || len(id) > 64 || id[0] < 'a' || id[0] > 'z' {
+		return Fail("invalid_input", "工具 ID 须以小写字母开头，最多 64 个 ASCII 字符")
+	}
+	for _, c := range id {
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-' && c != '_' {
+			return Fail("invalid_input", "工具 ID 仅支持小写字母、数字、连字符和下划线")
+		}
+	}
+	return nil
+}
+
+// ValidateCapabilities limits node-supplied metadata before it reaches state
+// or scheduling. False and omitted capabilities never grant execution powers.
+func ValidateCapabilities(caps []Capability) error {
+	if len(caps) > 64 {
+		return Fail("invalid_input", "节点最多可报告 64 个工具")
+	}
+	seen := make(map[string]bool, len(caps))
+	for _, c := range caps {
+		if err := ValidateToolID(c.Tool); err != nil {
+			return err
+		}
+		if seen[c.Tool] {
+			return Fail("invalid_input", "节点工具 ID 不可重复")
+		}
+		seen[c.Tool] = true
+		if len(c.Version) > 1024 || len(c.Detail) > 4096 || len(c.Protocol) > 64 {
+			return Fail("invalid_input", "节点能力元数据超过长度限制")
+		}
+		if c.Protocol != "" {
+			if err := ValidateToolID(c.Protocol); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

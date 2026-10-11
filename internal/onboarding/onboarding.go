@@ -24,6 +24,7 @@ type Config struct {
 	CenterURL, PairingCode, TLSCA, DataDir, Name string
 	Capacity                                     int
 	Executables                                  map[string]string
+	Tools                                        []agent.Definition
 }
 type Result struct {
 	NodeID     string             `json:"node_id"`
@@ -127,11 +128,11 @@ func InitializeWith(ctx context.Context, config Config, installer Installer) (re
 				return result, err
 			}
 		}
-		executables, err := resolveExecutables(config.Executables)
+		executables, err := resolveExecutables(config.Tools, config.Executables)
 		if err != nil {
 			return result, err
 		}
-		r, err := runner.New(runner.Config{CenterURL: config.CenterURL, DataDir: data, Name: config.Name, TLSCA: ca, RuntimePath: os.Getenv("PATH"), Capacity: config.Capacity, Executables: executables})
+		r, err := runner.New(runner.Config{CenterURL: config.CenterURL, DataDir: data, Name: config.Name, TLSCA: ca, RuntimePath: os.Getenv("PATH"), Capacity: config.Capacity, Executables: executables, Tools: config.Tools})
 		if err != nil {
 			return result, err
 		}
@@ -173,7 +174,25 @@ func refreshRuntime(config Config, current runner.Config) (runner.Config, error)
 	candidate := current
 	candidate.RuntimePath = os.Getenv("PATH")
 	var err error
-	candidate.Executables, err = resolveExecutables(config.Executables)
+	if config.Tools != nil {
+		candidate.Tools = config.Tools
+	}
+	// Re-entry through a default bootstrap must retain local custom drivers and
+	// their executable paths; only newly discovered or explicit paths replace them.
+	requested := make(map[string]string, len(current.Executables)+len(config.Executables))
+	registry, err := runner.LocalRegistry(candidate.Tools)
+	if err != nil {
+		return current, err
+	}
+	for id, path := range current.Executables {
+		if _, registered := registry.Resolve(id); registered {
+			requested[id] = path
+		}
+	}
+	for id, path := range config.Executables {
+		requested[id] = path
+	}
+	candidate.Executables, err = resolveExecutables(candidate.Tools, requested)
 	if err != nil {
 		return current, err
 	}
@@ -198,21 +217,29 @@ func refreshRuntime(config Config, current runner.Config) (runner.Config, error)
 	return candidate, nil
 }
 
-func resolveExecutables(requested map[string]string) (map[string]string, error) {
-	executables := map[string]string{}
-	for _, tool := range []string{"codex", "claude", "dsh"} {
-		path := requested[tool]
-		if path == "" {
-			path = tool
+func resolveExecutables(tools []agent.Definition, requested map[string]string) (map[string]string, error) {
+	registry, err := runner.LocalRegistry(tools)
+	if err != nil {
+		return nil, err
+	}
+	executables, err := runner.NormalizeExecutables(registry, requested)
+	if err != nil {
+		return nil, err
+	}
+	for _, definition := range registry.Definitions() {
+		choices := definition.Executables
+		if path := executables[definition.ID]; path != "" {
+			choices = []string{path}
 		}
-		if resolved, err := exec.LookPath(path); err == nil {
-			absolute, err := filepath.Abs(resolved)
-			if err != nil {
-				return nil, err
+		for _, path := range choices {
+			if resolved, lookupErr := exec.LookPath(path); lookupErr == nil {
+				absolute, err := filepath.Abs(resolved)
+				if err != nil {
+					return nil, err
+				}
+				executables[definition.ID] = absolute
+				break
 			}
-			executables[tool] = absolute
-		} else if requested[tool] != "" {
-			executables[tool] = requested[tool]
 		}
 	}
 	return executables, nil

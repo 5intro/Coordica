@@ -13,7 +13,8 @@ flowchart LR
   App --> Store[SQLite 事务存储]
   Worker --> Git[固定 Git 对象与 CAS]
   Worker --> Proc[跨平台进程监督]
-  Runner --> Agent[Codex / Claude / dsh 适配器]
+  Runner --> Registry[本机工具注册与能力发现]
+  Registry --> Agent[结构化协议驱动]
   Agent --> Proc
   Bootstrap[本机初始化 MCP] --> Onboarding[节点初始化用例]
   Onboarding --> Runner
@@ -32,7 +33,7 @@ flowchart LR
 | onboarding | 本机节点配对、重入初始化和启动协调 | 不做任务调度或 owner 授权 |
 | mcpconfig | 本机客户端发现、MCP 注册配置与冲突检查 | 不配对节点、不启动 Runner、不做任务执行适配 |
 | nodeservice | launchd / systemd / Task Scheduler 用户级服务 | 不持有中心业务规则或模型协议 |
-| agent | 官方结构化接口、能力差异 | 不做放行决定 |
+| agent | 工具注册、能力发现、共享结构化协议驱动 | 不做放行决定 |
 | runner | 本地许可监督、材料交接、持久重放 | 不更新受保护分支 |
 | web | 交互和状态展示 | 不成为授权或验收事实来源 |
 
@@ -68,7 +69,7 @@ Git、模型与验证子进程不放进数据库事务。执行器读取计划�
 
 ## 扩展方式
 
-- 接新 Agent：增加适配器及结构化协议测试，不改任务状态枚举。
+- 接新 Agent：先在本机注册 ID、可执行文件、固定参数和能力；已有协议直接复用驱动。只有新协议才新增驱动及协议测试。任务、调度、初始化和 Web 不维护工具品牌名单。
 - 接新 MCP 客户端：在 mcpconfig 中增加配置适配，继续启动同一个 bootstrap；这不授予 Runner 调度新 Agent 的能力。
 - 新入口：新增 API/MCP 映射，复用 app 用例。
 - 新门禁：扩展中心检查政策与固定 C 证据，不能靠前端布尔值放行。
@@ -76,3 +77,14 @@ Git、模型与验证子进程不放进数据库事务。执行器读取计划�
 - 新存储：围绕用例所需事务语义迁移；不让业务调用裸 SQL。
 
 `.github/workflows/ci.yml` 是三系统检查配置，本地创建该文件不代表远端 CI 已实际执行。真实 Agent 验收显式 opt-in，普通测试不隐式消费模型配额。
+
+## 工具注册与能力边界
+
+`agent.Definition` 只来自内置注册或 Runner 本机可信配置；中心任务只能选择工具 ID，不能携带任意 executable/argv。`agent.Registry` 管理身份唯一性、版本探测与协议选择；JSONL、ACP、pi RPC 驱动处理各自终态、会话和逆向请求。`runner` 只依据能力执行租约；`app` 只消费语言无关的 Capability，依赖方向不反转。
+
+实现任务要求节点报告 available、structured、cancel；评审另需 review，并在该节点候选中优先选择不同工具。read_only 表示注册的评审限制，不能自动解释为操作系统级隔离。旧记录中未报告的能力保持 false，升级 Runner 重新报告后才能领取新任务；在途 Run 仍按原租约核对。前端建议项来自节点报告，离线时可填写工具 ID 创建草稿，最终调度由中心决定。
+
+注册与协议测试见 [工具注册说明](tool-registry.md)；官方版本与账号实际行为必须在目标机器复核。注册文件本身具有执行权限，修改需由电脑使用者审阅；不得将其作为任务可编辑材料或接受模型通过 MCP 临时覆盖。
+
+
+文件编辑型工具的 `commit_mode=runner` 由本机注册显式选择。agent 驱动仍只处理协议；Runner 在结束和许可确认后调用 gitops 的 scoped snapshot，不通过协议层猜测或批准 git shell。gitops 只接受固定 HEAD、范围和受管工作区，不读取任务/SQL/HTTP。快照使用临时 index 做完整校验，成功后才更新该 Run 仓库，所有中心门禁照常执行。

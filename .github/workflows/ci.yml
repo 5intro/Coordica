@@ -25,6 +25,7 @@ jobs:
         working-directory: web
       - run: npm run build
         working-directory: web
+      - run: node --test examples/acceptance/test/greeting.test.mjs
       - run: go run ./cmd/contractgen
       - run: git diff --exit-code -- api/v1.schema.json web/src/api.generated.ts
       - run: go vet ./...

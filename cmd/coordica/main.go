@@ -33,7 +33,7 @@ import (
 	"coordica/web"
 )
 
-const version = "0.1.0-dev"
+const version = "0.1.1-dev"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -84,11 +84,7 @@ func run(ctx context.Context, args []string) error {
 	case "setup":
 		return setup(ctx, args[1:])
 	case "doctor":
-		caps := []agent.Capability{}
-		for _, tool := range []string{"codex", "claude", "dsh"} {
-			caps = append(caps, agent.Probe(ctx, tool, ""))
-		}
-		return printJSON(caps)
+		return doctor(ctx, args[1:])
 	case "tls":
 		return certificate(args[1:])
 	case "restore":
@@ -220,9 +216,12 @@ func pair(ctx context.Context, args []string) error {
 	codeFile := f.String("code-file", "", "File with one-time pairing code (or read stdin)")
 	name := f.String("name", "", "Node name")
 	capacity := f.Int("capacity", 2, "Parallel runs, 1 or 2")
-	codex := f.String("codex", "", "Codex executable")
-	claude := f.String("claude", "", "Claude executable")
-	dsh := f.String("dsh", "", "dsh executable")
+	codex := f.String("codex", "", "Codex executable (prefer --tool-executable)")
+	claude := f.String("claude", "", "Claude executable (prefer --tool-executable)")
+	dsh := f.String("dsh", "", "dsh executable (prefer --tool-executable)")
+	toolsFile := f.String("tools-file", "", "Trusted local JSON tool definitions file")
+	var toolExecutables executableFlags
+	f.Var(&toolExecutables, "tool-executable", "Tool executable override ID=PATH (repeatable)")
 	profilePath := f.String("profile", "", "Local bootstrap MCP profile")
 	if e := f.Parse(args); e != nil {
 		return e
@@ -237,7 +236,19 @@ func pair(ctx context.Context, args []string) error {
 	if e != nil {
 		return e
 	}
-	executables := map[string]string{"codex": *codex, "claude": *claude, "dsh": *dsh}
+	tools, e := loadToolDefinitions(*toolsFile)
+	if e != nil {
+		return e
+	}
+	executables := map[string]string{}
+	for id, path := range map[string]string{"codex": *codex, "claude": *claude, "dsh": *dsh} {
+		if path != "" {
+			executables[id] = path
+		}
+	}
+	for id, path := range toolExecutables {
+		executables[id] = path
+	}
 	if *profilePath != "" {
 		raw, e := os.ReadFile(*profilePath)
 		if e != nil {
@@ -246,6 +257,9 @@ func pair(ctx context.Context, args []string) error {
 		profile, e := decodeBootstrapProfile(raw)
 		if e != nil {
 			return e
+		}
+		if tools == nil {
+			tools = profile.Tools
 		}
 		if *name == "" {
 			*name = profile.Name
@@ -256,7 +270,7 @@ func pair(ctx context.Context, args []string) error {
 			}
 		}
 	}
-	r, e := runner.New(runner.Config{CenterURL: *center, DataDir: *dir, Name: *name, TLSCA: *ca, Capacity: *capacity, Executables: executables})
+	r, e := runner.New(runner.Config{CenterURL: *center, DataDir: *dir, Name: *name, TLSCA: *ca, Capacity: *capacity, Executables: executables, Tools: tools})
 	if e != nil {
 		return e
 	}
@@ -321,10 +335,17 @@ func serveMCP(ctx context.Context, args []string) error {
 	dir := f.String("runner-data", "", "Runner directory (bootstrap defaults to user config directory)")
 	id := f.String("run", "", "Assigned Run ID")
 	generation := f.Int64("generation", 0, "Run generation")
+	toolsFile := f.String("tools-file", "", "Trusted local JSON tool definitions file (bootstrap only)")
+	var toolExecutables executableFlags
+	f.Var(&toolExecutables, "tool-executable", "Tool executable override ID=PATH (bootstrap only, repeatable)")
 	if e := f.Parse(args); e != nil {
 		return e
 	}
 	if *bootstrap {
+		tools, e := loadToolDefinitions(*toolsFile)
+		if e != nil {
+			return e
+		}
 		if *dir == "" {
 			base, e := os.UserConfigDir()
 			if e != nil {
@@ -339,7 +360,10 @@ func serveMCP(ctx context.Context, args []string) error {
 		if *profile == "" {
 			*profile = filepath.Join(absolute, "discovery.json")
 		}
-		return (mcp.Bootstrap{ProfilePath: *profile, DataDir: absolute}).Serve(ctx, os.Stdin, os.Stdout)
+		return (mcp.Bootstrap{ProfilePath: *profile, DataDir: absolute, Tools: tools, Executables: toolExecutables}).Serve(ctx, os.Stdin, os.Stdout)
+	}
+	if *toolsFile != "" || len(toolExecutables) > 0 {
+		return errors.New("local tool configuration is supported only with --bootstrap")
 	}
 	if *dir == "" {
 		*dir = ".coordica-runner"
@@ -380,6 +404,9 @@ func decodeBootstrapProfile(raw []byte) (mcp.BootstrapProfile, error) {
 	if len(raw) > 64<<10 {
 		return profile, errors.New("bootstrap profile exceeds 64KiB")
 	}
+	if err := uniqueJSONKeys(json.NewDecoder(bytes.NewReader(raw))); err != nil {
+		return profile, err
+	}
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.DisallowUnknownFields()
 	if e := d.Decode(&profile); e != nil {
@@ -391,13 +418,136 @@ func decodeBootstrapProfile(raw []byte) (mcp.BootstrapProfile, error) {
 	if profile.Platform != runtime.GOOS+"/"+runtime.GOARCH {
 		return profile, errors.New("bootstrap profile belongs to a different platform")
 	}
-	for tool, path := range profile.Executables {
-		if tool != "codex" && tool != "claude" && tool != "dsh" {
-			return profile, errors.New("unknown tool in bootstrap profile")
-		}
+	registry, err := runner.LocalRegistry(profile.Tools)
+	if err != nil {
+		return profile, err
+	}
+	profile.Executables, err = runner.NormalizeExecutables(registry, profile.Executables)
+	if err != nil {
+		return profile, err
+	}
+	for _, path := range profile.Executables {
 		if path != "" && !filepath.IsAbs(path) {
 			return profile, errors.New("tool paths must be absolute")
 		}
 	}
 	return profile, nil
+}
+
+// Executable flags accept identifiers registered on this machine; registration
+// itself remains in a trusted local file, never in center or MCP arguments.
+type executableFlags map[string]string
+
+func (v *executableFlags) String() string { return "ID=PATH" }
+func (v *executableFlags) Set(raw string) error {
+	id, path, ok := strings.Cut(raw, "=")
+	if !ok || strings.TrimSpace(path) == "" {
+		return errors.New("tool executable must be ID=PATH")
+	}
+	if err := domain.ValidateToolID(id); err != nil {
+		return err
+	}
+	if *v == nil {
+		*v = executableFlags{}
+	}
+	if _, exists := (*v)[id]; exists {
+		return fmt.Errorf("duplicate executable override %q", id)
+	}
+	(*v)[id] = path
+	return nil
+}
+
+func loadToolDefinitions(path string) ([]agent.Definition, error) {
+	if path == "" {
+		return nil, nil
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	raw, err := io.ReadAll(io.LimitReader(file, 1<<20+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > 1<<20 {
+		return nil, errors.New("tool definitions file exceeds 1 MiB")
+	}
+	if err := uniqueJSONKeys(json.NewDecoder(bytes.NewReader(raw))); err != nil {
+		return nil, err
+	}
+	var definitions []agent.Definition
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.DisallowUnknownFields()
+	if err := d.Decode(&definitions); err != nil {
+		return nil, err
+	}
+	if d.Decode(new(any)) != io.EOF {
+		return nil, errors.New("invalid tool definitions suffix")
+	}
+	if definitions == nil {
+		return nil, errors.New("tool definitions must be a JSON array")
+	}
+	if _, err := runner.LocalRegistry(definitions); err != nil {
+		return nil, err
+	}
+	return definitions, nil
+}
+
+func doctor(ctx context.Context, args []string) error {
+	f := flag.NewFlagSet("doctor", flag.ContinueOnError)
+	toolsFile := f.String("tools-file", "", "Trusted local JSON tool definitions file")
+	var overrides executableFlags
+	f.Var(&overrides, "tool-executable", "Tool executable override ID=PATH (repeatable)")
+	if err := f.Parse(args); err != nil {
+		return err
+	}
+	definitions, err := loadToolDefinitions(*toolsFile)
+	if err != nil {
+		return err
+	}
+	registry, err := runner.LocalRegistry(definitions)
+	if err != nil {
+		return err
+	}
+	executableMap, err := runner.NormalizeExecutables(registry, overrides)
+	if err != nil {
+		return err
+	}
+	return printJSON(registry.Discover(ctx, executableMap))
+}
+
+// uniqueJSONKeys validates the trusted local input before typed decoding so
+// duplicate definition fields cannot silently replace earlier launch settings.
+func uniqueJSONKeys(decoder *json.Decoder) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	delimiter, nested := token.(json.Delim)
+	if !nested {
+		return nil
+	}
+	seen := map[string]bool{}
+	for decoder.More() {
+		if delimiter == '{' {
+			token, err := decoder.Token()
+			if err != nil {
+				return err
+			}
+			key, ok := token.(string)
+			if !ok {
+				return errors.New("JSON object key must be a string")
+			}
+			if seen[key] {
+				return fmt.Errorf("duplicate JSON field %q", key)
+			}
+			seen[key] = true
+		}
+		if err := uniqueJSONKeys(decoder); err != nil {
+			return err
+		}
+	}
+	_, err = decoder.Token()
+	return err
 }

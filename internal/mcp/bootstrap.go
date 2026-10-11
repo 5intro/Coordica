@@ -18,14 +18,16 @@ import (
 	"coordica/internal/localfile"
 	"coordica/internal/onboarding"
 	"coordica/internal/process"
+	"coordica/internal/runner"
 )
 
 // BootstrapProfile is local configuration, not a paired Runner identity.
 // Authentication and center/node credentials are intentionally absent.
 type BootstrapProfile struct {
-	Name        string            `json:"name"`
-	Platform    string            `json:"platform"`
-	Executables map[string]string `json:"executables"`
+	Name        string             `json:"name"`
+	Platform    string             `json:"platform"`
+	Executables map[string]string  `json:"executables"`
+	Tools       []agent.Definition `json:"tools,omitempty"`
 }
 
 // Bootstrap inspects the local machine without needing a center. Only the
@@ -33,6 +35,8 @@ type BootstrapProfile struct {
 type Bootstrap struct {
 	ProfilePath string
 	DataDir     string
+	Tools       []agent.Definition // selected only by trusted startup configuration
+	Executables map[string]string  // selected only by trusted startup configuration
 	initialize  func(context.Context, onboarding.Config) (onboarding.Result, error)
 }
 
@@ -42,6 +46,12 @@ type bootstrapExecutable struct {
 	Available      bool   `json:"available"`
 	Authentication string `json:"authentication"`
 	Detail         string `json:"detail"`
+	Structured     bool   `json:"structured,omitempty"`
+	Protocol       string `json:"protocol,omitempty"`
+	Cancel         bool   `json:"cancel,omitempty"`
+	Resume         bool   `json:"resume,omitempty"`
+	Review         bool   `json:"review,omitempty"`
+	ReadOnly       bool   `json:"read_only,omitempty"`
 }
 type bootstrapEnvironment struct {
 	OS      string                         `json:"os"`
@@ -53,6 +63,10 @@ type bootstrapEnvironment struct {
 }
 
 func (b Bootstrap) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
+	registry, tools, executables, err := b.localRegistry()
+	if err != nil {
+		return err
+	}
 	scan := bufio.NewScanner(in)
 	scan.Buffer(make([]byte, 4096), 1<<20)
 	enc := json.NewEncoder(out)
@@ -157,7 +171,7 @@ func (b Bootstrap) Serve(ctx context.Context, in io.Reader, out io.Writer) error
 					}
 					if err == nil {
 						inspected = nil
-						inspected, err = inspectBootstrap(ctx)
+						inspected, err = inspectRegistry(ctx, registry, tools, executables)
 					}
 					if err == nil && !inspected.Git.Available {
 						err = fmt.Errorf("Git version preflight failed; install Git in the MCP process environment before initializing")
@@ -171,14 +185,14 @@ func (b Bootstrap) Serve(ctx context.Context, in io.Reader, out io.Writer) error
 						if initialize == nil {
 							initialize = onboarding.Initialize
 						}
-						value, err = initialize(ctx, onboarding.Config{CenterURL: config.CenterURL, PairingCode: config.PairingCode, TLSCA: config.TLSCA, DataDir: b.DataDir, Name: name, Capacity: capacity, Executables: inspected.Profile.Executables})
+						value, err = initialize(ctx, onboarding.Config{CenterURL: config.CenterURL, PairingCode: config.PairingCode, TLSCA: config.TLSCA, DataDir: b.DataDir, Name: name, Capacity: capacity, Executables: inspected.Profile.Executables, Tools: inspected.Profile.Tools})
 					}
 				} else if err = bootstrapStrict(call.Arguments, &args); err == nil {
 					switch call.Name {
 					case "inspect_environment":
 						// A failed refresh cannot authorize saving stale findings.
 						inspected = nil
-						inspected, err = inspectBootstrap(ctx)
+						inspected, err = inspectRegistry(ctx, registry, tools, executables)
 						value = inspected
 					case "save_runner_profile":
 						switch {
@@ -234,52 +248,105 @@ func (b Bootstrap) Serve(ctx context.Context, in io.Reader, out io.Writer) error
 	return scan.Err()
 }
 
+// localRegistry reads only startup-selected or already-paired local state. No
+// MCP argument can add a command or change a protocol driver definition.
+func (b Bootstrap) localRegistry() (*agent.Registry, []agent.Definition, map[string]string, error) {
+	tools := b.Tools
+	executables := map[string]string{}
+	if b.DataDir != "" {
+		config, err := runner.Load(b.DataDir)
+		if err == nil {
+			if tools == nil {
+				tools = config.Tools
+			}
+			for id, path := range config.Executables {
+				executables[id] = path
+			}
+		} else if !os.IsNotExist(err) {
+			return nil, nil, nil, err
+		}
+	}
+	registry, err := runner.LocalRegistry(tools)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	// An explicit local registry change may remove old custom definitions.
+	for id := range executables {
+		if _, registered := registry.Resolve(id); !registered {
+			delete(executables, id)
+		}
+	}
+	startupOverrides, err := runner.NormalizeExecutables(registry, b.Executables)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	for id, path := range startupOverrides {
+		executables[id] = path
+	}
+	executables, err = runner.NormalizeExecutables(registry, executables)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return registry, tools, executables, nil
+}
+
 func inspectBootstrap(ctx context.Context) (*bootstrapEnvironment, error) {
+	return inspectRegistry(ctx, agent.DefaultRegistry(), nil, nil)
+}
+
+func inspectRegistry(ctx context.Context, registry *agent.Registry, tools []agent.Definition, overrides map[string]string) (*bootstrapEnvironment, error) {
+	overrides, err := runner.NormalizeExecutables(registry, overrides)
+	if err != nil {
+		return nil, err
+	}
 	host, err := os.Hostname()
 	if err != nil {
 		return nil, err
 	}
-	result := &bootstrapEnvironment{OS: runtime.GOOS, Arch: runtime.GOARCH, Host: host, Tools: map[string]bootstrapExecutable{}, Profile: BootstrapProfile{Name: host, Platform: runtime.GOOS + "/" + runtime.GOARCH, Executables: map[string]string{}}}
-	for _, name := range []string{"git", "codex", "claude", "dsh"} {
+	result := &bootstrapEnvironment{OS: runtime.GOOS, Arch: runtime.GOARCH, Host: host, Tools: map[string]bootstrapExecutable{}, Profile: BootstrapProfile{Name: host, Platform: runtime.GOOS + "/" + runtime.GOARCH, Executables: map[string]string{}, Tools: tools}}
+	result.Git.Authentication = "unknown"
+	path, lookupErr := exec.LookPath("git")
+	if lookupErr != nil {
+		result.Git.Detail = "executable unavailable"
+	} else {
+		path, err = filepath.Abs(path)
+		if err != nil {
+			return nil, err
+		}
+		probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		version, status, probeErr := process.Collect(probeCtx, process.Spec{Executable: path, Args: []string{"--version"}}, 16<<10)
+		cancel()
+		result.Git.Path, result.Git.Version = path, strings.TrimSpace(string(version))
+		result.Git.Available = probeErr == nil && status.ExitCode == 0 && result.Git.Version != ""
+		if !result.Git.Available {
+			result.Git.Detail = "version preflight failed"
+		}
+	}
+	for _, capability := range registry.Discover(ctx, overrides) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		found := bootstrapExecutable{Authentication: "unknown"}
-		path, lookupErr := exec.LookPath(name)
-		if lookupErr != nil {
-			found.Detail = "executable unavailable"
-		} else {
-			path, err = filepath.Abs(path)
+		if capability.Executable != "" {
+			capability.Executable, err = filepath.Abs(capability.Executable)
 			if err != nil {
 				return nil, err
 			}
-			found.Path = path
-			if name == "git" {
-				probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-				version, status, probeErr := process.Collect(probeCtx, process.Spec{Executable: path, Args: []string{"--version"}}, 16<<10)
-				cancel()
-				found.Version = strings.TrimSpace(string(version))
-				found.Available = probeErr == nil && status.ExitCode == 0 && found.Version != ""
-				if !found.Available {
-					found.Detail = "version preflight failed"
-				}
-			} else {
-				result.Profile.Executables[name] = path
-				capability := agent.Probe(ctx, name, path)
-				found.Version, found.Available, found.Detail = capability.Version, capability.Available, capability.Detail
-			}
 		}
-		// Version text comes from a local program, not an authentication probe.
+		found := bootstrapExecutable{Path: capability.Executable, Version: capability.Version, Available: capability.Available, Authentication: "unknown", Detail: capability.Detail, Structured: capability.Structured, Protocol: capability.Protocol, Cancel: capability.Cancel, Resume: capability.Resume, Review: capability.Review, ReadOnly: capability.ReadOnly}
+		if capability.Executable != "" {
+			result.Profile.Executables[capability.Tool] = capability.Executable
+		}
 		raw, _ := json.Marshal(found)
 		clean := agent.SanitizeEvent(agent.Event{Type: "bootstrap.version", Data: raw})
 		if err := json.Unmarshal(clean.Data, &found); err != nil {
 			return nil, err
 		}
-		if name == "git" {
-			result.Git = found
-		} else {
-			result.Tools[name] = found
-		}
+		result.Tools[capability.Tool] = found
+	}
+	raw, _ := json.Marshal(result.Git)
+	clean := agent.SanitizeEvent(agent.Event{Type: "bootstrap.version", Data: raw})
+	if err := json.Unmarshal(clean.Data, &result.Git); err != nil {
+		return nil, err
 	}
 	return result, ctx.Err()
 }

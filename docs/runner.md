@@ -16,11 +16,11 @@ macOS、Windows、Linux 的主要接入方式统一为：安装 `coordica mcp --
 ./bin/coordica runner --data .coordica-runner
 ```
 
-Windows 使用 `coordica.exe` 运行相同子命令。`pair` 可通过 `--codex`、`--claude`、`--dsh` 指定实际可执行文件路径；未指定时从 PATH 查找。只支持 `capacity=1` 或 `2`，实现者和评审者共同占用并发槽。一次性码也可从标准输入读取。配对后持久保存节点 ID、节点令牌、中心地址和 CA 配置；重新启动使用同一数据目录。HTTP 只允许 loopback 本机开发，LAN 地址不会降级为明文，也没有跳过证书验证选项。
+Windows 使用 `coordica.exe` 运行相同子命令。`doctor`、`pair` 和 `mcp --bootstrap` 可用可重复的 `--tool-executable ID=PATH` 指定已注册工具的实际可执行文件，用 `--tools-file` 加载可信本机定义；未指定时按注册候选从 PATH 查找。旧 `pair --codex/--claude/--dsh` 参数保留兼容。只支持 `capacity=1` 或 `2`，实现者和评审者共同占用并发槽。一次性码也可从标准输入读取。配对后持久保存节点 ID、节点令牌、中心地址和 CA 配置；重新启动使用同一数据目录。HTTP 只允许 loopback 本机开发，LAN 地址不会降级为明文，也没有跳过证书验证选项。
 
 每个数据目录只有一个 Runner 所有者。中心同样使用独占文件锁；运行中不要删除锁文件。模型工具必须在实际运行 Runner 的用户及环境中能够找到并完成登录；后台服务的 PATH/HOME 可能与交互式终端不同。
 
-初始化只保存 MCP 进程的 PATH 和探测到的三种工具路径，不整包导出环境变量或模型凭据。后台 Runner 在创建 Git/Agent 客户端之前恢复这个 PATH，使 Git 和 npm 工具的 Node shebang 使用同一查找路径。首次服务启动失败后，修好本机环境并再次初始化会复用同中心身份；Runner 未运行时刷新 PATH、工具路径及本次提供并校验的公共 CA，保留节点令牌、名称、容量和待回传 spool。Runner 数据目录仍被占用时，返回 `directory_in_use`，保持配置与服务不变，停止当前执行后再重试；不会由初始化偷偷重启正在工作的进程。
+初始化只保存 MCP 进程的 PATH 和探测到的注册工具路径，不整包导出环境变量或模型凭据。后台 Runner 在创建 Git/Agent 客户端之前恢复这个 PATH，使 Git 和 npm 工具的 Node shebang 使用同一查找路径。首次服务启动失败后，修好本机环境并再次初始化会复用同中心身份；Runner 未运行时刷新 PATH、工具路径及本次提供并校验的公共 CA，保留节点令牌、名称、容量和待回传 spool。Runner 数据目录仍被占用时，返回 `directory_in_use`，保持配置与服务不变，停止当前执行后再重试；不会由初始化偷偷重启正在工作的进程。
 
 用户级服务按 OS 生成固定配置，只运行当前 Coordica 可执行文件的 `runner --data`，不接受 MCP 提供的 shell 命令或其他程序。macOS 使用当前登录用户的 LaunchAgent；Windows 使用当前用户、最低权限、交互登录令牌的计划任务。二者面向已登录会话，不承诺注销后继续运行。Linux 使用 `systemd --user` 并尊重 `XDG_CONFIG_HOME`，要求可用的用户服务管理器及 user bus；无 systemd 或会话环境不可用时明确失败，首版不自动提权或开启 linger。Windows 的服务程序与数据目录路径若包含 `%` 会明确拒绝，因为计划任务会展开环境变量；空格和中文路径受支持。
 
@@ -28,13 +28,18 @@ Windows 使用 `coordica.exe` 运行相同子命令。`pair` 可通过 `--codex`
 
 ## 工具能力
 
-`doctor` 与注册/领取前的探测只运行 `--version`，不会调用模型或验证账号余额。`available=true` 代表找到工具并取得版本；`structured/resume/cancel` 描述适配器实现的接口，不能据此宣称该 OS × 工具版本已经完成真实任务验收。工具升级后需要重新运行真实验收。中心接收工具版本和能力详情，Runner 的本机日志会明确显示工具缺失、能力降级及请求错误。
+`doctor` 与注册/领取前的探测只运行 `--version`，不会调用模型或验证账号余额。`available=true` 代表找到工具并取得版本；`protocol/structured/resume/cancel/review/read_only` 描述本机注册与驱动能力，不能据此宣称该 OS × 工具版本已经完成真实任务验收。工具升级后需要重新运行真实验收。中心接收工具版本和能力详情，Runner 的本机日志会明确显示工具缺失、能力降级及请求错误。
 
 | 工具 | 结构化接口 | 审批/权限策略 | 恢复与取消边界 |
 |---|---|---|---|
 | Codex | `codex exec --json`，提示词经 stdin 输入 | `--ask-for-approval never`；实现使用 `workspace-write`、评审使用 `read-only` | 适配层支持精确 session 的 `exec resume`；通用进程监督负责取消，不假设存在可持久恢复的运行中进程 |
 | Claude Code | `claude -p --output-format stream-json --verbose`，提示词经 stdin 输入 | `dontAsk` + 显式工具列表；评审仅 `Read,Glob,Grep`；不使用无条件 bypass | 适配层支持精确 `--resume`；取消使用 OS 监督。原生 Windows 的 Claude 内置 sandbox 能力与 macOS/Linux 不相同 |
-| dsh | `dsh --profile acp` 的真实 JSON-RPC stdio | 无法验证具体操作的 `session/request_permission` 拒绝；不把 opaque toolCallId 或显示标题当授权 | initialize/new/prompt/update/close；服务器声明 resume 时使用 session/resume；先发 session/cancel，再有限等待并结束受管进程 |
+| dsh | `dsh --profile acp`，共享 ACP stdio 驱动 | typed read/search/edit 请求校验实际路径与工具许可；opaque / 无法验证的请求拒绝 | `session/resume` 仅在声明支持时使用；cancel 后有限等待并确认进程树；close 需能力声明 |
+| Cursor CLI | `agent acp` 或 `cursor-agent acp`，共享 ACP 驱动 | 验证已有 cursor_login；评审要求 advertised ask mode；可验证权限按固定目录约束 | load 需能力声明；没有 close 时用 EOF 和有限停止 |
+| Kimi Code | `kimi acp`，共享 ACP 驱动 | 新旧版本均不默认开启 yolo；不可验证权限拒绝，实际版本可能因此阻塞 | load/close 均按服务能力；协议 cancel 与受管进程监督结合 |
+| pi | `pi --mode rpc`，共享 JSONL 进程通道；要求 ≥1.1.0 | 评审移除写入/执行工具、extensions、skills、prompt templates 和 MCP | ACK、agent_end 不代表成功；settled 后核对 get_state idle/队列空、stopReason=stop；clear_queue + abort + 有限停止；resume 仅允许同一规范工作目录 |
+
+工具定义和扩展方式见 [工具注册](tool-registry.md)。Cursor、Kimi Code、pi 的协议实现及故障 fixture 可测试，但尚未完成各自真实模型和 OS 组合的验收。ACP 的路径验证是批准单次可验证操作的条件，私人开发环境允许修改已经发生；最终集成仍以真实 Git diff 判断范围。
 
 适配器只从 stdout 消费官方结构化协议。stderr 会被排空，不能成为结构化结果、评审结论或授权；终端显示文本不参与协议解析。退出码 0 仍必须具备有效会话及明确成功的协议终态。Codex 的 `error` 重连诊断本身不会否定随后成功的 `turn.completed`；`turn.failed` 或缺失成功终态仍失败。未知结果、错误终态、错误 JSON-RPC 回复 ID、协议输出超限均失败。
 
@@ -58,7 +63,7 @@ macOS/Linux 用独立进程组 TERM → 有限等待 → KILL，随后确认普�
 
 输入来自认证中心同源的完整 Git bundle；Runner 在独立目录 checkout 固定 `Run.Base`，不从本机其他项目复制工作树，不跟随任意下载重定向。bundle 最多 64MiB。每个 Run 目录支持空格及非 ASCII 路径。
 
-实现者必须自行提交有意修改。Runner 读取真实 HEAD 并验证工作区干净；不会替 Agent 自动 `git add`，也不会把未提交、未跟踪或忽略的文件悄悄纳入产物。产物是相对固定 base 的 bundle。Runner 不更新项目主线、不 push、不拥有中心发布授权。
+本机注册的 `commit_mode` 明确分工：空值或 `agent` 要求实现者自行提交有意修改，Runner 读取真实 HEAD 并验证干净；`runner`（内置 ACP 工具）由 Runner 在进程树已静止、许可仍有效后，将独立 Run 工作区的完整修改制成快照。后者先用临时 index 验证真实全部差异、任务范围、实体文件及对象类型，拒绝 ignored、symlink 和越界，才建立提交并 CAS 更新该受管工作区的 HEAD / index。前置验证失败保留私人文件且不改变原 HEAD / index；成功也不操作用户原项目的工作区。评审永不自动生成提交。两种模式最终产物都是相对固定 base 的 bundle；中心仍独立核验范围和门禁。Runner 不更新项目主线、不 push、不拥有中心发布授权。
 
 评审前通过受控 Git 获取精确 `Candidate.Main → Candidate.Commit` 的完整变化清单和 patch，注入评审提示词；因此只读 Claude 也能查看实际差异。评审输入累计超过 1MiB、固定对象缺失或无法取得完整差异时，返回明确的 `blocked` Review，不截断差异。评审后验证 HEAD 及工作区仍是固定候选。
 

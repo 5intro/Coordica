@@ -134,7 +134,7 @@ func (f *itFixture) claim(t *testing.T, kind string) domain.Assignment {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := f.s.Claim(context.Background(), f.node, ID("claim_"), domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true}, {Tool: "claude", Available: true, Structured: true}}}, base)
+	data, err := f.s.Claim(context.Background(), f.node, ID("claim_"), domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}, {Tool: "claude", Available: true, Structured: true, Cancel: true, Review: true}}}, base)
 	assignment := itDecode[*domain.Assignment](t, data, err)
 	if assignment == nil || assignment.Run.Kind != kind {
 		t.Fatalf("expected %s assignment: %+v", kind, assignment)

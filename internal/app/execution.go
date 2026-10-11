@@ -13,7 +13,7 @@ import (
 
 func available(caps []domain.Capability, tool string) bool {
 	for _, c := range caps {
-		if c.Tool == tool && c.Available && c.Structured {
+		if c.Tool == tool && c.Available && c.Structured && c.Cancel {
 			return true
 		}
 	}
@@ -22,6 +22,9 @@ func available(caps []domain.Capability, tool string) bool {
 func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.ClaimRequest, base string) (json.RawMessage, error) {
 	if a.Role != "node" {
 		return nil, domain.Fail("forbidden", "只有Runner可领取执行")
+	}
+	if err := domain.ValidateCapabilities(req.Capabilities); err != nil {
+		return nil, err
 	}
 	return s.mutate(ctx, a, key, "run.claim", req, func(tx *store.Tx) (any, error) {
 		p, e := getProject(tx)
@@ -83,14 +86,19 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 				runBase = c.Commit
 				candidate = &c
 				tool = ""
-				for _, v := range []string{"codex", "claude", "dsh"} {
-					if v != t.Tool && available(req.Capabilities, v) {
-						tool = v
+				for _, capability := range req.Capabilities {
+					if capability.Tool != t.Tool && capability.Review && available(req.Capabilities, capability.Tool) {
+						tool = capability.Tool
 						break
 					}
 				}
-				if tool == "" && available(req.Capabilities, t.Tool) {
-					tool = t.Tool
+				if tool == "" {
+					for _, capability := range req.Capabilities {
+						if capability.Tool == t.Tool && capability.Review && available(req.Capabilities, t.Tool) {
+							tool = t.Tool
+							break
+						}
+					}
 				}
 				if tool == "" {
 					continue

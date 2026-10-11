@@ -19,6 +19,7 @@ func setup(ctx context.Context, args []string) error {
 	apply := f.Bool("apply", false, "Apply the setup plan (default: preview only)")
 	binary := f.String("binary", "", "Fixed absolute Coordica executable path (default: this executable)")
 	data := f.String("runner-data", "", "Optional fixed absolute Runner data directory")
+	toolsFile := f.String("tools-file", "", "Fixed absolute trusted local tool definitions file")
 	output := f.String("output", "", "Directory for generated dsh overlay or generic MCP JSON")
 	asJSON := f.Bool("json", false, "Print structured setup results")
 	if err := f.Parse(args); err != nil {
@@ -41,6 +42,14 @@ func setup(ctx context.Context, args []string) error {
 		}
 		*binary = path
 	}
+	if *toolsFile != "" {
+		if !filepath.IsAbs(*toolsFile) {
+			return errors.New("tool definitions file must be absolute")
+		}
+		if _, err := loadToolDefinitions(*toolsFile); err != nil {
+			return err
+		}
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -50,7 +59,7 @@ func setup(ctx context.Context, args []string) error {
 		return err
 	}
 	results, err := mcpconfig.Run(ctx, mcpconfig.Options{
-		Client: *client, Executable: *binary, RunnerData: *data,
+		Client: *client, Executable: *binary, RunnerData: *data, ToolsFile: *toolsFile,
 		Home: home, ConfigHome: configHome, OutputDir: *output, Apply: *apply,
 	})
 	if err != nil {

@@ -13,6 +13,9 @@ func (w *Integrator) Claim(ctx context.Context, a Actor, key string, req domain.
 	if a.Role != "node" {
 		return nil, domain.Fail("forbidden", "只有Runner可领取执行")
 	}
+	if err := domain.ValidateCapabilities(req.Capabilities); err != nil {
+		return nil, err
+	}
 	needed := false
 	e := w.Service.DB.View(ctx, func(tx *store.Tx) error {
 		p, e := getProject(tx)
