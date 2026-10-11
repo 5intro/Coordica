@@ -96,7 +96,7 @@ macOS/Linux 同样注册 stdio 服务，只需替换二进制和数据目录的�
 
 Windows 的 npm 工具入口可能是 `.cmd` / `.bat`。Coordica 支持带空格和中文的受限本机路径，但会拒绝 shell 元字符、括号等不安全路径；例如 `Program Files (x86)` 中的 batch 入口需要改用满足约束的安装位置。失败会返回明确的 preflight 原因，不能据此判断账号登录失效。具体约束见 [进程与 Windows batch 入口](../internal/process/README.md)。
 
-Windows 上请保持中心和 Runner 的数据目录较短，例如 `C:\Coordica\runner-data`。受控 Git 已开启长文件路径支持，但 Windows 子进程的工作目录仍受系统长度限制：Coordica 在创建仓库或启动 Git 前拒绝超过 258 个 UTF-16 单位的绝对工作目录，并提示缩短数据目录。这不等于仓库中的文件或 Git 引用只能有 258 个字符；长文件及对象路径另有真实回归测试。需要自定义 Runner 数据目录时，在 MCP 配置的 `args` 中追加 `--runner-data` 和固定绝对路径。[Microsoft 对工作目录与进程启动限制的说明](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setcurrentdirectory)
+Windows 上请保持中心和 Runner 的数据目录较短，例如 `C:\Coordica\runner-data`。受控 Git 已开启长文件路径支持，但 Git 仓库目录与 Windows 子进程工作目录各有独立限制。Coordica 在创建仓库或启动 Git 前展开现有路径的短文件名和符号链接，要求实际仓库根路径不超过 215 个 UTF-8 字节，并同时满足 258 个 UTF-16 单位的进程工作目录上限；超限会明确提示缩短数据目录。215 字节为 Git 的独立目录上限预留了 `/.git` 空间，中文和其他非 ASCII 字符可能占多个字节。这不限制仓库内文件或 Git 引用的总路径为 215 字节；超过 260 字符的对象与引用路径另有真实回归测试。需要自定义 Runner 数据目录时，在 MCP 配置的 `args` 中追加 `--runner-data` 和固定绝对路径。[Microsoft 对工作目录与进程启动限制的说明](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-setcurrentdirectory)
 
 `save_runner_profile` 仅是诊断辅助：同一 MCP 会话先成功探测后，默认保存到固定 Runner 数据目录下的 `discovery.json`；可在 MCP 启动参数中用 `--profile` 指定其他固定位置。配置无 token，不会替换已配对的 `runner.json`，也不是主流程的必需步骤。
 

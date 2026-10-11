@@ -233,15 +233,26 @@ func TestCloneAndCandidateFetchBeyondWindowsPathLimit(t *testing.T) {
 		if _, err := os.Stat(workspace); !os.IsNotExist(err) {
 			t.Fatalf("rejected destination was created: %v", err)
 		}
-		workspace = t.TempDir()
-		for len(workspace) < 210 {
-			remaining := 210 - len(workspace) - 1
+		resolved, err := canonicalRepositoryPath(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace = resolved
+		for len(workspace) < 190 {
+			remaining := 190 - len(workspace) - 1
 			if remaining == 0 {
 				break
 			}
 			workspace = filepath.Join(workspace, strings.Repeat("p", min(40, remaining)))
 		}
 		workspace = filepath.Join(workspace, "candidate")
+		tooLong := filepath.Join(filepath.Dir(workspace), strings.Repeat("r", 29))
+		if err := g.Clone(ctx, source, tooLong); !errors.Is(err, ErrWorkingDirectoryTooLong) {
+			t.Fatalf("220-byte Git directory did not fail preflight: %v", err)
+		}
+		if _, err := os.Stat(tooLong); !os.IsNotExist(err) {
+			t.Fatalf("rejected Git directory was created: %v", err)
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(workspace), 0700); err != nil {
 		t.Fatal(err)
@@ -303,6 +314,33 @@ func TestWindowsWorkingDirectoryLimitCountsUTF16AndReservesTerminator(t *testing
 		if err := checkWindowsWorkingDirectory(path); !errors.Is(err, ErrWorkingDirectoryTooLong) || !strings.Contains(err.Error(), "shorter") {
 			t.Fatalf("oversize directory lacks actionable error: %v", err)
 		}
+	}
+}
+
+func TestWindowsRepositoryLimitCountsUTF8AndReservesGitDirectory(t *testing.T) {
+	for _, path := range []string{`C:\` + strings.Repeat("x", 212), `C:\` + strings.Repeat("界", 70) + "xx", `C:\` + strings.Repeat("😀", 53)} {
+		if err := checkWindowsRepositoryPath(path); err != nil {
+			t.Fatalf("215-byte repository root rejected: %v", err)
+		}
+		if err := checkWindowsRepositoryPath(path + "x"); !errors.Is(err, ErrWorkingDirectoryTooLong) || !strings.Contains(err.Error(), "UTF-8") {
+			t.Fatalf("Git UTF-8 directory limit not enforced: %v", err)
+		}
+	}
+}
+
+func TestCanonicalRepositoryPathPreservesMissingComponents(t *testing.T) {
+	root := t.TempDir()
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "not-created", "workspace")
+	got, err := canonicalRepositoryPath(path)
+	if err != nil || got != filepath.Join(canonicalRoot, "not-created", "workspace") {
+		t.Fatalf("uncreated repository root not resolved: %q %v", got, err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("canonicalization created destination: %v", err)
 	}
 }
 

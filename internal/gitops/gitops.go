@@ -261,6 +261,10 @@ func (g *Client) run(ctx context.Context, dir string, extra []string, args ...st
 // access longer object/reference paths with core.longpaths enabled.
 const windowsMaxWorkingDirectoryUnits = 258
 
+// Git for Windows also rejects GIT_DIR longer than PATH_MAX-40 UTF-8 bytes
+// before loading repository configuration. Reserve five bytes for "/.git".
+const windowsMaxRepositoryPathBytes = 260 - 40 - len("/.git")
+
 func checkWindowsWorkingDirectory(absolute string) error {
 	units := len(utf16.Encode([]rune(strings.TrimRight(absolute, `/\`))))
 	if units > windowsMaxWorkingDirectoryUnits {
@@ -277,7 +281,50 @@ func validateWorkingDirectory(dir string) error {
 	if err != nil {
 		return err
 	}
-	return checkWindowsWorkingDirectory(absolute)
+	if err := checkWindowsWorkingDirectory(absolute); err != nil {
+		return err
+	}
+	canonical, err := canonicalRepositoryPath(absolute)
+	if err != nil {
+		return err
+	}
+	return checkWindowsRepositoryPath(canonical)
+}
+
+func checkWindowsRepositoryPath(canonical string) error {
+	if err := checkWindowsWorkingDirectory(canonical); err != nil {
+		return err
+	}
+	bytes := len(strings.TrimRight(canonical, `/\`))
+	if bytes > windowsMaxRepositoryPathBytes {
+		return fault("preflight", ErrWorkingDirectoryTooLong, fmt.Sprintf("resolved repository directory uses %d UTF-8 bytes; maximum is %d because Git limits GIT_DIR independently of core.longpaths; choose a shorter center or Runner data directory", bytes, windowsMaxRepositoryPathBytes))
+	}
+	return nil
+}
+
+// Resolve the longest existing ancestor, including Windows 8.3 names and
+// symlinks, before adding not-yet-created directory components.
+func canonicalRepositoryPath(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	var missing []string
+	for {
+		canonical, err := filepath.EvalSymlinks(absolute)
+		if err == nil {
+			for i := len(missing) - 1; i >= 0; i-- {
+				canonical = filepath.Join(canonical, missing[i])
+			}
+			return canonical, nil
+		}
+		parent := filepath.Dir(absolute)
+		if !os.IsNotExist(err) || parent == absolute {
+			return "", err
+		}
+		missing = append(missing, filepath.Base(absolute))
+		absolute = parent
+	}
 }
 
 // guardRepo reads only config key names. Arbitrary external filters/drivers and
@@ -388,9 +435,9 @@ func (g *Client) Clone(ctx context.Context, source, dir string) error {
 		if err := os.MkdirAll(cloneDir, 0700); err != nil {
 			return err
 		}
-		// Clone passes its Git directory to index-pack. Keep that value
-		// relative to avoid Git's separate fixed-size GIT_DIR check, and
-		// persist longpaths for subsequent local transport subprocesses.
+		// Use a short destination argument and persist longpaths for local
+		// transport subprocesses. Git may canonicalize GIT_DIR internally,
+		// so the resolved repository root still needs the preflight bound.
 		args = append(args, "--config", "core.longpaths=true")
 	}
 	args = append(args, "--", src, destination)
