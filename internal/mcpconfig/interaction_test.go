@@ -10,6 +10,83 @@ import (
 	"testing"
 )
 
+func assertInteractionPaths(t *testing.T, client, content, runnerPath, profilePath string) {
+	t.Helper()
+	var entry struct {
+		Args []string `json:"args"`
+	}
+	switch client {
+	case "generic":
+		var root struct {
+			Servers map[string]json.RawMessage `json:"mcpServers"`
+		}
+		if err := json.Unmarshal([]byte(content), &root); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(root.Servers["coordica"], &entry); err != nil {
+			t.Fatal(err)
+		}
+	case "dsh":
+		// The generated YAML sequence uses JSON-compatible quoted scalars.
+		collecting := false
+		for _, line := range strings.Split(content, "\n") {
+			if line == "        args:" {
+				collecting = true
+				continue
+			}
+			if collecting && strings.HasPrefix(line, "          - ") {
+				var arg string
+				if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "          - ")), &arg); err != nil {
+					t.Fatal(err)
+				}
+				entry.Args = append(entry.Args, arg)
+			} else if collecting {
+				collecting = false
+			}
+		}
+	default:
+		if err := json.Unmarshal([]byte(content), &entry); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, parameter := range []struct{ flag, value string }{
+		{"--runner-data", runnerPath},
+		{"--chat-profile", profilePath},
+	} {
+		count := 0
+		for i, arg := range entry.Args {
+			if arg == parameter.flag {
+				count++
+				if i+1 >= len(entry.Args) || entry.Args[i+1] != parameter.value {
+					t.Fatalf("%s: want %q, got args %q", parameter.flag, parameter.value, entry.Args)
+				}
+			}
+		}
+		if count != 1 {
+			t.Fatalf("want exactly one %s, got args %q", parameter.flag, entry.Args)
+		}
+	}
+}
+
+func TestInteractionSerializedWindowsPaths(t *testing.T) {
+	// Exercise serialization only: these paths need not be absolute on the host OS.
+	o := Options{
+		Mode:        "interaction",
+		Executable:  `C:\Users\Owner\Agent Tools 工具\coordica.exe`,
+		RunnerData:  `C:\Users\Owner\Runner Data 数据`,
+		ChatProfile: `C:\Users\Owner\shared-private.json`,
+	}
+	for _, client := range []string{"claude", "cursor", "kimi", "pi", "generic", "dsh", "codex"} {
+		t.Run(client, func(t *testing.T) {
+			content := launcher(o, true)
+			if client == "generic" || client == "dsh" {
+				content = exportContent(o, client)
+			}
+			assertInteractionPaths(t, client, string(content), o.RunnerData, o.ChatProfile)
+		})
+	}
+}
+
 func legacyFixture(t *testing.T, client string) (Options, dependencies, Result) {
 	o, deps := fixture(t, client)
 	if client == "kimi" {
@@ -64,9 +141,10 @@ func TestDefaultInteractionMigratesOwnedLegacyJSONAndExportsPreservingPaths(t *t
 			o.RunnerData = ""
 			o.Apply = false
 			plan := one(t, o, deps)
-			if plan.Status != "preview" || !strings.Contains(plan.Message, "owned") || !strings.Contains(plan.Content, selectedRunner) || !strings.Contains(plan.Content, selectedProfile) || !bytes.Equal(read(t, first.Path), before) {
+			if plan.Status != "preview" || !strings.Contains(plan.Message, "owned") || !bytes.Equal(read(t, first.Path), before) {
 				t.Fatal(plan)
 			}
+			assertInteractionPaths(t, client, plan.Content, selectedRunner, selectedProfile)
 			o.Apply = true
 			result := one(t, o, deps)
 			if result.Status != "installed" {
@@ -206,9 +284,10 @@ func TestCodexMigrationPreservesRawOptionsDisabledAndCAS(t *testing.T) {
 		return list(bytes.Contains(read(t, path), []byte("--interaction"))), nil
 	}
 	plan := one(t, o, deps)
-	if plan.Status != "preview" || !strings.Contains(plan.Content, runnerPath) || !strings.Contains(plan.Content, profilePath) || !bytes.Equal(read(t, path), original) {
+	if plan.Status != "preview" || !bytes.Equal(read(t, path), original) {
 		t.Fatal(plan)
 	}
+	assertInteractionPaths(t, "codex", plan.Content, runnerPath, profilePath)
 	o.Apply = true
 	result := one(t, o, deps)
 	if result.Status != "installed" {
