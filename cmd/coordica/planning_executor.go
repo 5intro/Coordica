@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -17,6 +18,9 @@ type CodexPlanningExecutor struct{ Executable string }
 //go:embed leader.schema.json
 var leaderOutputSchema []byte
 
+//go:embed consult.schema.json
+var consultOutputSchema []byte
+
 func (e CodexPlanningExecutor) Execute(ctx context.Context, dir, prompt string, onStarted func(int) error) (app.PlanningOutcome, error) {
 	scratch, err := os.MkdirTemp("", "coordica-leader-schema-")
 	if err != nil {
@@ -24,7 +28,11 @@ func (e CodexPlanningExecutor) Execute(ctx context.Context, dir, prompt string, 
 	}
 	defer os.RemoveAll(scratch)
 	schemaPath := filepath.Join(scratch, "leader.schema.json")
-	if err = os.WriteFile(schemaPath, leaderOutputSchema, 0600); err != nil {
+	schema := leaderOutputSchema
+	if strings.HasPrefix(prompt, "COORDICA_ADVISORY_V1\n") {
+		schema = consultOutputSchema
+	}
+	if err = os.WriteFile(schemaPath, schema, 0600); err != nil {
 		return app.PlanningOutcome{TreeStopped: true, Error: planningError(err)}, err
 	}
 	execCtx, cancel := context.WithCancel(ctx)

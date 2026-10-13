@@ -381,18 +381,44 @@ func TestCodexDevelopmentAndLeaderPinAuthorizedModel(t *testing.T) {
 }
 
 func TestLeaderEnvironmentDoesNotForwardOwnerOrPublicationAuthority(t *testing.T) {
-	t.Setenv("OWNER_TOKEN", "fixture-owner")
-	t.Setenv("GH_TOKEN", "fixture-publication")
-	t.Setenv("COORDICA_OWNER_TOKEN", "fixture-center")
-	t.Setenv("SSH_AUTH_SOCK", "fixture-agent")
-	t.Setenv("OPENAI_API_KEY", "fixture-model")
-	env := strings.Join(executionEnv(Request{Role: "leader"}), "\n")
-	for _, secret := range []string{"fixture-owner", "fixture-publication", "fixture-center", "fixture-agent"} {
-		if strings.Contains(env, secret) {
-			t.Fatal("Leader inherited authority")
-		}
+	blocked := []string{"OWNER_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "GITLAB_TOKEN", "COORDICA_OWNER_TOKEN", "COORDICA_NODE_TOKEN", "SSH_AUTH_SOCK", "SSH_AGENT_PID", "OPENAI_BASE_URL", "OPENAI_MODEL", "CODEX_MODEL", "CUSTOM_PROXY"}
+	for _, key := range blocked {
+		t.Setenv(key, "fixture-"+key)
+		t.Setenv(strings.ToLower(key), "fixture-lower-"+key)
 	}
-	if !strings.Contains(env, "OPENAI_API_KEY=fixture-model") {
-		t.Fatal("official model authentication missing")
+	t.Setenv("OPENAI_API_KEY", "fixture-model")
+	for _, casing := range []string{"upper", "lower"} {
+		t.Run(casing, func(t *testing.T) {
+			proxies := map[string]string{"HTTPS_PROXY": "http://fixture-user:fixture-password@proxy.invalid:8080", "HTTP_PROXY": "http://proxy.invalid:8080", "ALL_PROXY": "socks5://proxy.invalid:1080", "NO_PROXY": "localhost,127.0.0.1,::1"}
+			for key, value := range proxies {
+				if casing == "lower" {
+					key = strings.ToLower(key)
+				}
+				t.Setenv(key, value)
+			}
+			env := map[string]string{}
+			for _, entry := range executionEnv(Request{Role: "leader"}) {
+				key, value, _ := strings.Cut(entry, "=")
+				env[key] = value
+			}
+			for _, key := range blocked {
+				for _, name := range []string{key, strings.ToLower(key)} {
+					if _, ok := env[name]; ok {
+						t.Fatalf("Leader inherited excluded environment variable %s", name)
+					}
+				}
+			}
+			if env["OPENAI_API_KEY"] != "fixture-model" {
+				t.Fatal("official model authentication missing")
+			}
+			for key, value := range proxies {
+				if casing == "lower" {
+					key = strings.ToLower(key)
+				}
+				if env[key] != value {
+					t.Fatalf("Leader did not preserve transport environment variable %s", key)
+				}
+			}
+		})
 	}
 }

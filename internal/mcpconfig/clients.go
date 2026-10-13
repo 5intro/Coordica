@@ -68,6 +68,9 @@ func piSupportsMCP(version string) bool {
 }
 
 func codexEntry(raw, expected []byte) (exists, matches, disabled bool, err error) {
+	return codexNamedEntry(raw, expected, "coordica")
+}
+func codexNamedEntry(raw, expected []byte, server string) (exists, matches, disabled bool, err error) {
 	var entries []json.RawMessage
 	if json.Unmarshal(raw, &entries) != nil || entries == nil {
 		return false, false, false, errors.New("Codex returned an unexpected MCP JSON list; configuration was not changed")
@@ -81,7 +84,7 @@ func codexEntry(raw, expected []byte) (exists, matches, disabled bool, err error
 		if json.Unmarshal(fields["name"], &name) != nil || name == "" {
 			return false, false, false, errors.New("Codex returned an unnamed MCP JSON entry; configuration was not changed")
 		}
-		if name != "coordica" {
+		if name != server {
 			continue
 		}
 		if exists {
@@ -144,7 +147,7 @@ func configureCodex(ctx context.Context, options Options, deps dependencies) Res
 		if err != nil {
 			return false, false, false, errors.New("Codex MCP query failed; no registration was attempted")
 		}
-		return codexEntry(raw, launcher(options, true))
+		return codexNamedEntry(raw, launcher(options, true), serverName(options))
 	}
 	existing := func(matches, disabled bool) Result {
 		if !matches {
@@ -209,7 +212,7 @@ func configureCodex(ctx context.Context, options Options, deps dependencies) Res
 			return result
 		}
 	}
-	args := append([]string{"mcp", "add", "coordica", "--", options.Executable}, arguments(options)...)
+	args := append([]string{"mcp", "add", serverName(options), "--", options.Executable}, arguments(options)...)
 	if _, err := deps.command(ctx, executable, args, neutral); err != nil {
 		result.Status, result.Message = "error", "Codex registration command failed. Its result is unconfirmed; inspect Codex and retry setup."
 		return result

@@ -50,10 +50,10 @@ describe('Phase B owner writes and authority fences', () => {
     render(<Planning snapshot={{ ...snapshot, planning_runs: [{ scope_request_id: '', id: 'leader-run', execution_adapter: 'codex_cli', process_id: 123, working_directory: '/work', task_mapping: [], version: 1, document_version: 7, authorization_version: 3, automation_version: 1, generation: 1, state: 'lost', attempt: 1, max_retries: 2, grant_seconds: 30, elapsed_seconds: 12, lease_until: '', deadline: '', started_at: '', tree_stopped: false, settled: false, session_id: '', detail: '', task_ids: [] }] }} client={client} refresh={refresh} />);
     fireEvent.click(screen.getByRole('button', { name: 'Owner 一次授权' }));
     await waitFor(() => expect(write).toHaveBeenCalledWith('/planning/authorize', { expected_version: 7 }));
-    fireEvent.click(screen.getByRole('button', { name: '发送消息' }));
+    fireEvent.click(screen.getByRole('button', { name: '发送并执行评估' }));
     expect(write).toHaveBeenCalledTimes(1);
     fireEvent.change(screen.getByLabelText('发送给 Leader'), { target: { value: 'Clarify' } });
-    fireEvent.click(screen.getByRole('button', { name: '发送消息' }));
+    fireEvent.click(screen.getByRole('button', { name: '发送并执行评估' }));
     await waitFor(() => expect(write).toHaveBeenCalledWith('/planning/messages', { expected_version: 7, text: 'Clarify' }));
     fireEvent.click(screen.getByRole('button', { name: '评估规划' }));
     await waitFor(() => expect(write).toHaveBeenCalledWith('/planning/evaluate', { expected_version: 7, text: 'Clarify' }));
@@ -254,8 +254,8 @@ describe('Phase B owner writes and authority fences', () => {
     }
   });
   it.each([
-    ['规划超时（秒）', '0'], ['规划超时（秒）', '3601'], ['规划超时（秒）', '1.5'],
-    ['规划累计预算（秒）', '1'], ['规划累计预算（秒）', '14401'], ['规划累计预算（秒）', '900.5'],
+    ['规划超时（秒）', '0'], ['规划超时（秒）', '604801'], ['规划超时（秒）', '1.5'],
+    ['规划累计预算（秒）', '1'], ['规划累计预算（秒）', '31536001'], ['规划累计预算（秒）', '900.5'],
     ['规划最大重试次数', '-1'], ['规划最大重试次数', '0.5'],
   ])('rejects out-of-contract automation %s=%s', (label, value) => {
     const { client, refresh, write } = controls();
@@ -263,7 +263,7 @@ describe('Phase B owner writes and authority fences', () => {
     fireEvent.change(screen.getByLabelText(label), { target: { value } });
     fireEvent.submit(screen.getByRole('button', { name: '保存系统自动化' }).closest('form')!);
     expect(write).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert').textContent).toContain('14400');
+    expect(screen.getByRole('alert').textContent).toContain('31536000');
   });
   it('never falls back to another candidate for an explicit missing deep link', () => {
     const { client, refresh } = controls();
@@ -302,4 +302,14 @@ describe('Phase B owner writes and authority fences', () => {
     fireEvent.click(screen.getByRole('button', { name: '来源 v9 →' }));
     expect(navigate).toHaveBeenCalledWith('planning', 'leader-run');
   });
+});
+
+it.each([[3601, 14401], [604800, 31536000]])('allows finite long planning timeout %i and cumulative budget %i', async (timeout, budget) => {
+  const client = new ApiClient('owner');
+  const write = vi.spyOn(client, 'write').mockResolvedValue({});
+  render(<Automation settings={centerSnapshot.automation} client={client} refresh={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText('规划超时（秒）'), { target: { value: String(timeout) } });
+  fireEvent.change(screen.getByLabelText('规划累计预算（秒）'), { target: { value: String(budget) } });
+  fireEvent.submit(screen.getByRole('button', { name: '保存系统自动化' }).closest('form')!);
+  await waitFor(() => expect(write).toHaveBeenCalledWith('/system/automation', expect.objectContaining({ settings: expect.objectContaining({ planning_timeout_seconds: timeout, planning_budget_seconds: budget }) })));
 });

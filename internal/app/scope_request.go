@@ -74,6 +74,13 @@ func (w *PlanningWorker) queueScopes(ctx context.Context) error {
 		if e != nil {
 			return e
 		}
+		// Advisory execution cannot incidentally drive scope assessment or
+		// create Owner decisions in the shared worker's preflight.
+		for _, r := range plans {
+			if r.Purpose == domain.ConsultationPurpose && (r.State == "queued" || r.State == "running" || r.State == "pending_result" || r.State == "unknown_live" || r.State == "cancel_requested") {
+				return nil
+			}
+		}
 		for _, v := range requests {
 			if v.State != "waiting_stop" {
 				continue
@@ -294,7 +301,7 @@ func (s *Service) deriveScope(tx *store.Tx, r *domain.PlanningRun, d domain.Plan
 	if protectedOverlap(q.Paths, p.ProtectedPaths) {
 		return domain.Fail("protected_scope", "ordinary scope intersects protected paths")
 	}
-	if t.UsedSeconds+t.ReservedSeconds >= t.BudgetSeconds || t.Retries >= t.MaxRetries || d.UsedSeconds+d.ReservedSeconds >= d.BudgetSeconds || p.UsedSeconds+p.ReservedSeconds >= p.TotalBudgetSeconds {
+	if t.UsedSeconds+t.ReservedSeconds >= t.BudgetSeconds || t.Retries >= t.MaxRetries || d.UsedSeconds+d.ReservedSeconds >= d.BudgetSeconds {
 		return domain.Fail("budget", "cumulative budget or retries exhausted")
 	}
 	for _, hot := range t.HotResources {

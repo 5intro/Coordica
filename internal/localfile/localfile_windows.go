@@ -65,3 +65,45 @@ func Replace(source, dest string) error {
 	}
 	return nil
 }
+
+// CheckPrivate validates the same user-only protected DACL as Protect. POSIX
+// mode bits on Windows do not describe who can read a credential file.
+func CheckPrivate(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return os.ErrPermission
+	}
+	user, err := windows.GetCurrentProcessToken().GetTokenUser()
+	if err != nil {
+		return err
+	}
+	sd, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		return err
+	}
+	owner, _, err := sd.Owner()
+	if err != nil || owner == nil || !owner.Equals(user.User.Sid) {
+		return os.ErrPermission
+	}
+	control, _, err := sd.Control()
+	if err != nil || control&windows.SE_DACL_PROTECTED == 0 {
+		return os.ErrPermission
+	}
+	dacl, _, err := sd.DACL()
+	if err != nil || dacl == nil || dacl.AceCount != 1 {
+		return os.ErrPermission
+	}
+	var ace *windows.ACCESS_ALLOWED_ACE
+	if err = windows.GetAce(dacl, 0, &ace); err != nil {
+		return err
+	}
+	sid := (*windows.SID)(unsafe.Pointer(&ace.SidStart))
+	const allAccess = windows.STANDARD_RIGHTS_REQUIRED | windows.SYNCHRONIZE | 0x1ff
+	if ace.Header.AceType != windows.ACCESS_ALLOWED_ACE_TYPE || !sid.Equals(user.User.Sid) || ace.Mask != allAccess || ace.Header.AceFlags&windows.INHERIT_ONLY_ACE != 0 {
+		return os.ErrPermission
+	}
+	return nil
+}

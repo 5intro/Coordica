@@ -49,10 +49,26 @@ func (s *Server) handler(runners, admin bool) http.Handler {
 	if runners {
 		mux.HandleFunc("POST /api/v1/runner/register", s.register)
 	}
+	chatAPI := s.auth("chat", func(w http.ResponseWriter, r *http.Request) {
+		a := r.Context().Value(actorKey{}).(app.Actor)
+		if !admin && a.ChatScope != domain.ChatScopeNode || !runners && a.ChatScope != domain.ChatScopeCenter {
+			respond(w, nil, domain.Fail("forbidden", "chat credential does not match listener audience"))
+			return
+		}
+		s.chatAPI(w, r)
+	})
 	ownerAPI, nodeAPI := s.auth("owner", s.api), s.auth("node", s.api)
 	mux.HandleFunc("/api/v1/", func(w http.ResponseWriter, r *http.Request) {
 		// Check the transport audience before authentication: the network
 		// listener has no owner API, even when a valid owner token is supplied.
+		if chatRoute(r) {
+			chatAPI(w, r)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/v1/chat/") {
+			http.NotFound(w, r)
+			return
+		}
 		if runnerRoute(r) {
 			if runners {
 				nodeAPI(w, r)
@@ -103,10 +119,13 @@ func runnerRoute(r *http.Request) bool {
 	if r.Method == http.MethodGet && (path == "runner/state" || path == "runner/local-entry") {
 		return true
 	}
-	if r.Method == http.MethodPost && (path == "runner/register" || path == "runner/claim" || path == "runner/requirements") {
+	if r.Method == http.MethodPost && (path == "runner/register" || path == "runner/claim" || path == "runner/requirements" || path == "runner/chat-credentials") {
 		return true
 	}
 	parts := strings.Split(path, "/")
+	if r.Method == http.MethodPost && len(parts) == 4 && parts[0] == "runner" && parts[1] == "chat-credentials" && parts[2] != "" && parts[3] == "revoke" {
+		return true
+	}
 	if len(parts) < 2 || parts[0] != "runs" || parts[1] == "" {
 		return false
 	}
@@ -191,6 +210,39 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case path == "runner/chat-credentials":
+		var in domain.ChatCredentialRequest
+		if err = decodeChat(r, &in); err == nil {
+			result, err = s.Service.CreateNodeChatCredential(ctx, a, key, in)
+		}
+	case len(parts) == 4 && parts[0] == "runner" && parts[1] == "chat-credentials" && parts[3] == "revoke":
+		result, err = s.Service.RevokeChatCredential(ctx, a, key, parts[2])
+	case path == "chat-credentials":
+		var in domain.ChatCredentialRequest
+		if err = decodeChat(r, &in); err == nil {
+			result, err = s.Service.CreateChatCredential(ctx, a, key, in)
+		}
+	case len(parts) == 3 && parts[0] == "chat-credentials" && parts[2] == "revoke":
+		result, err = s.Service.RevokeChatCredential(ctx, a, key, parts[1])
+	case path == "planning/consult" || path == "planning/propose":
+		var in domain.ConversationInput
+		if err = decodeChat(r, &in); err == nil {
+			kind := "consultation"
+			if path == "planning/propose" {
+				kind = "proposal"
+			}
+			result, err = s.Service.ConsultLeader(ctx, a, key, kind, in)
+		}
+	case path == "planning/consult-cancel":
+		var in domain.ChatCancelRequest
+		if err = decodeChat(r, &in); err == nil {
+			result, err = s.Service.CancelConversation(ctx, a, key, in)
+		}
+	case len(parts) == 3 && parts[0] == "consultation-runs" && parts[2] == "confirm-stopped":
+		var in domain.StopConfirmation
+		if err = decodeChat(r, &in); err == nil {
+			result, err = s.Service.ConfirmConsultationStopped(ctx, a, key, parts[1], in)
+		}
 	case path == "system/automation":
 		var in domain.AutomationRequest
 		if err = decode(r, &in); err == nil {

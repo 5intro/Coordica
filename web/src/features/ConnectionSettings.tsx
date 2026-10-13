@@ -4,7 +4,7 @@ import type { ConnectionInfo, Project } from '../api.generated';
 import { ApiClient, messageOf } from '../api/client';
 import { connectionInstruction, localConsoleURL, remoteRunnerURL } from '../api/connection';
 import type { GeneratedConnection, PairingReceipt } from '../api/connection';
-import { Budget, Empty, Feedback, Field, SectionTitle, time } from '../components/ui';
+import { duration, Empty, Feedback, Field, SectionTitle, time } from '../components/ui';
 
 interface Props {
   client: ApiClient;
@@ -100,7 +100,7 @@ export function ConnectionSettings({ client, info, error, loading, reload, proje
           <p className="muted">每份配置仅供一个节点使用一次；到期后请重新生成。配对码只保存在当前页面，刷新或离开页面后清除。</p>
           {generated && <div className="connection-generated"><p><strong>{generated.name}</strong> · {expired ? '已到期，请重新生成' : `有效至 ${time(generated.expiresAt)}`}</p><Field label="一次性接入指令"><textarea readOnly rows={14} value={generated.text} spellCheck={false} /></Field><div className="actions"><button className="secondary" disabled={busy || expired} onClick={() => void copyExisting()}>复制已有接入配置</button><small>复制失败时可手动复制上面的完整指令，不必再生成配对码。</small></div></div>}
         </section>
-        <section className="panel policy-panel"><div className="subheading"><h2>当前有效项目设置</h2>{project && <button className="text-button" onClick={openPolicies}>管理政策与恢复 →</button>}</div>{project ? <><dl className="facts"><dt>项目</dt><dd>{project.name}</dd><dt>目标分支</dt><dd><code>{project.target_branch}</code></dd><dt>有效政策</dt><dd>v{project.policy_version} · {project.paused ? '已暂停' : '允许调度'}</dd><dt>受保护路径</dt><dd className="code-list">{(project.protected_paths ?? []).map((path) => <code key={path}>{path}</code>)}{!(project.protected_paths ?? []).length && '未设置路径'}</dd></dl><Budget used={project.used_seconds} reserved={project.reserved_seconds} total={project.total_budget_seconds} /><h3>最低检查</h3><div className="policy-checks">{(project.checks ?? []).map((check, index) => <div key={`${check.name}-${index}`}><strong>{check.name}</strong><code>{check.command} {(check.args ?? []).join(' ')}</code><small>超时 {check.timeout_seconds} 秒</small></div>)}</div></> : <p className="muted">中心尚未创建项目。可以先配对节点，再从项目概览完成项目设置。</p>}</section>
+        <section className="panel policy-panel"><div className="subheading"><h2>当前有效项目设置</h2>{project && <button className="text-button" onClick={openPolicies}>管理政策与恢复 →</button>}</div>{project ? <><dl className="facts"><dt>项目</dt><dd>{project.name}</dd><dt>目标分支</dt><dd><code>{project.target_branch}</code></dd><dt>有效政策</dt><dd>v{project.policy_version} · {project.paused ? '已暂停' : '允许调度'}</dd><dt>受保护路径</dt><dd className="code-list">{(project.protected_paths ?? []).map((path) => <code key={path}>{path}</code>)}{!(project.protected_paths ?? []).length && '未设置路径'}</dd></dl><p>累计活动 {duration(project.used_seconds)} · 当前预留 {duration(project.reserved_seconds)}（统计，无项目总额度）</p><h3>最低检查</h3><div className="policy-checks">{(project.checks ?? []).map((check, index) => <div key={`${check.name}-${index}`}><strong>{check.name}</strong><code>{check.command} {(check.args ?? []).join(' ')}</code><small>超时 {check.timeout_seconds} 秒</small></div>)}</div></> : <p className="muted">中心尚未创建项目。可以先配对节点，再从项目概览完成项目设置。</p>}</section>
       </div>
     </>}
   </>;

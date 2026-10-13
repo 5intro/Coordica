@@ -106,3 +106,19 @@ func assertWindowsPrivateSecurity(t *testing.T, path string, directory, explicit
 		t.Fatalf("new empty object's private ACE did not inherit: %s", path)
 	}
 }
+
+func TestCheckPrivateRejectsUnprotectedWindowsCredential(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "credential.json")
+	if err := os.WriteFile(path, []byte("fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckPrivate(path); err == nil {
+		t.Fatal("unprotected credential accepted")
+	}
+	if err := Protect(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckPrivate(path); err != nil {
+		t.Fatal("protected credential refused", err)
+	}
+}

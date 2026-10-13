@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { LocalClient } from './api/localClient';
@@ -147,4 +147,37 @@ describe('local page selection', () => {
     fireEvent.click(screen.getByRole('button', { name: '重新连接' }));
     await screen.findByLabelText('Owner token');
   });
+});
+
+it.each([['same-page', 'consult'], ['away-and-back', 'consult'], ['same-page', 'propose'], ['away-and-back', 'propose']])('retains lost-ACK %s %s envelope across route remounts using real fetch', async (route, kind) => {
+  window.history.replaceState(null, '', '/#planning');
+  sessionStorage.setItem(TOKEN_KEY, 'owner-session');
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  vi.spyOn(LocalClient.prototype, 'info').mockResolvedValue({ mode: 'center' });
+  const snapshot = vi.spyOn(ApiClient.prototype, 'snapshot').mockResolvedValue(centerSnapshot);
+  vi.spyOn(ApiClient.prototype, 'read').mockResolvedValue(connectionInfo);
+  const accepted: { body: string; key: string }[] = [];
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, options) => {
+    accepted.push({ body: options!.body as string, key: (options!.headers as Record<string, string>)['Idempotency-Key'] });
+    if (accepted.length === 1) throw new TypeError('accepted; ACK lost');
+    return new Response(JSON.stringify({ id: 'one_durable_request', status: 'queued' }), { status: 200 });
+  });
+  render(<App />);
+  fireEvent.change(await screen.findByLabelText('纯咨询内容'), { target: { value: 'Keep this exact private question' } });
+  fireEvent.click(screen.getByRole('button', { name: kind === 'consult' ? '纯咨询 Leader（不派生任务）' : '提交架构 / 规则建议' }));
+  await screen.findByText(/无法连接中心/);
+  if (route === 'away-and-back') {
+    fireEvent.click(screen.getByRole('button', { name: /任务池/ }));
+    await screen.findByRole('heading', { name: '任务池' });
+  }
+  fireEvent.click(screen.getByRole('button', { name: /目标规划与 Leader/ }));
+  expect(await screen.findByLabelText('纯咨询内容')).toHaveProperty('value', 'Keep this exact private question');
+  expect(screen.getByLabelText('纯咨询内容')).toHaveProperty('disabled', true);
+  fireEvent.click(screen.getByRole('button', { name: '重试待确认咨询请求' }));
+  await waitFor(() => expect(accepted.length).toBe(2));
+  expect(accepted[1]).toEqual(accepted[0]);
+  await waitFor(() => expect(screen.queryByRole('button', { name: '重试待确认咨询请求' })).toBeNull());
+  expect(snapshot).toHaveBeenCalled();
+  expect(sessionStorage.getItem(TOKEN_KEY)).toBe('owner-session');
+  expect(Object.values(sessionStorage)).not.toContain('Keep this exact private question');
 });

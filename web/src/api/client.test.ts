@@ -43,3 +43,15 @@ describe('owner API client', () => {
     await result;
   });
 });
+it('isolates uncertain consultation envelopes by project and credential session', () => {
+  const session = new ApiClient('owner-first');
+  const pending = { kind: 'consult' as const, key: 'original-key', body: { expected_goal_version: 7, original_text: 'private original prose', source: { session_id: 'web', message_id: 'original-message' } } };
+  session.keepConsultation('project-first', pending);
+  expect(session.pendingConsultation('project-first')).toBe(pending);
+  expect(session.pendingConsultation('project-second')).toBeUndefined();
+  expect(new ApiClient('owner-second').pendingConsultation('project-first')).toBeUndefined();
+  session.confirmConsultation('project-first', 'unrelated-response');
+  expect(session.pendingConsultation('project-first')).toBe(pending);
+  session.confirmConsultation('project-first', pending.key);
+  expect(session.pendingConsultation('project-first')).toBeUndefined();
+});

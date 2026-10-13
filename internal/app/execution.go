@@ -43,6 +43,13 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 		if e = tx.Put("node", n.ID, n); e != nil {
 			return nil, e
 		}
+		blocked, e := unknownConsultation(tx)
+		if e != nil {
+			return nil, e
+		}
+		if blocked {
+			return nil, nil
+		}
 		if p.Paused || n.Draining || n.DisabledNewWork {
 			return nil, nil
 		}
@@ -156,7 +163,7 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			if !ready {
 				continue
 			}
-			grant := limit(t.MaxRunSeconds, t.BudgetSeconds-t.UsedSeconds-t.ReservedSeconds, p.TotalBudgetSeconds-p.UsedSeconds-p.ReservedSeconds)
+			grant := limit(t.MaxRunSeconds, t.BudgetSeconds-t.UsedSeconds-t.ReservedSeconds)
 			if t.GoalVersion != 0 {
 				var d domain.PlanningDocument
 				if e = tx.Get("planning_document", "current", &d); e != nil {
@@ -301,7 +308,7 @@ func (s *Service) Heartbeat(ctx context.Context, a Actor, id string, req domain.
 			if e = settleGoal(tx, t, r.ElapsedSeconds-before, 0); e != nil {
 				return e
 			}
-			if r.ElapsedSeconds >= r.GrantSeconds || t.UsedSeconds >= t.BudgetSeconds || p.UsedSeconds >= p.TotalBudgetSeconds {
+			if r.ElapsedSeconds >= r.GrantSeconds || t.UsedSeconds >= t.BudgetSeconds {
 				reason = "budget"
 			}
 		}
@@ -419,7 +426,7 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 			r.State = "lost"
 			valid = false
 		}
-		if t.UsedSeconds >= t.BudgetSeconds || p.UsedSeconds >= p.TotalBudgetSeconds {
+		if t.UsedSeconds >= t.BudgetSeconds {
 			if t.HoldReason == "" || t.HoldReason == "offline" {
 				t.HoldReason = "budget"
 			}

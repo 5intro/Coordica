@@ -32,3 +32,15 @@ func Replace(source, dest string) error {
 	defer dir.Close()
 	return dir.Sync()
 }
+
+// CheckPrivate verifies without changing existing file permissions.
+func CheckPrivate(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
+		return os.ErrPermission
+	}
+	return nil
+}

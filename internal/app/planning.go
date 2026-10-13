@@ -28,7 +28,7 @@ func (s *Service) ConfigureAutomation(ctx context.Context, a Actor, key string, 
 		return nil, e
 	}
 	v := req.Settings
-	if v.DevelopmentTool != "codex" || v.LeaderTool != "codex" || v.DevelopmentModel != "gpt-6.1-sol" || v.LeaderModel != "gpt-6.1-sol" || v.PlanningTimeoutSeconds < 1 || v.PlanningTimeoutSeconds > 3600 || v.PlanningBudgetSeconds < v.PlanningTimeoutSeconds || v.PlanningBudgetSeconds > 14400 || v.PlanningMaxRetries < 0 || v.PlanningMaxRetries > 2 {
+	if v.DevelopmentTool != "codex" || v.LeaderTool != "codex" || v.DevelopmentModel != "gpt-6.1-sol" || v.LeaderModel != "gpt-6.1-sol" || v.PlanningTimeoutSeconds < 1 || v.PlanningTimeoutSeconds > domain.MaxRunDurationSeconds || v.PlanningBudgetSeconds < v.PlanningTimeoutSeconds || v.PlanningBudgetSeconds > domain.MaxTaskBudgetSeconds || v.PlanningMaxRetries < 0 || v.PlanningMaxRetries > 2 {
 		return nil, domain.Fail("invalid_input", "finite Codex gpt-6.1-sol settings required")
 	}
 	return s.mutate(ctx, a, key, "automation.configure", req, func(tx *store.Tx) (any, error) {
@@ -194,11 +194,11 @@ func (s *Service) SavePlanning(ctx context.Context, a Actor, key string, req dom
 	if e := validateRoots(req.Document.AllowedRoots); e != nil {
 		return nil, e
 	}
-	if req.Document.BudgetSeconds <= 0 || req.Document.BudgetSeconds > 31536000 {
+	if req.Document.BudgetSeconds <= 0 || req.Document.BudgetSeconds > domain.MaxTaskBudgetSeconds {
 		return nil, domain.Fail("invalid_input", "finite goal budget required")
 	}
 	return s.mutate(ctx, a, key, "planning.save", req, func(tx *store.Tx) (any, error) {
-		p, e := getProject(tx)
+		_, e := getProject(tx)
 		if e != nil {
 			return nil, e
 		}
@@ -231,8 +231,8 @@ func (s *Service) SavePlanning(ctx context.Context, a Actor, key string, req dom
 		d.ReservedSeconds = old.ReservedSeconds
 		d.PlanningUsedSeconds = old.PlanningUsedSeconds
 		d.PlanningReservedSeconds = old.PlanningReservedSeconds
-		if d.BudgetSeconds < d.UsedSeconds+d.ReservedSeconds || d.BudgetSeconds > p.TotalBudgetSeconds {
-			return nil, domain.Fail("budget", "goal budget must cover cumulative accounting and fit project budget")
+		if d.BudgetSeconds < d.UsedSeconds+d.ReservedSeconds {
+			return nil, domain.Fail("budget", "goal budget must cover cumulative accounting")
 		}
 		tasks, e := store.List[domain.Task](tx, "task")
 		if e != nil {
@@ -302,6 +302,9 @@ func stopPlanning(tx *store.Tx) error {
 			}
 			r.Version++
 			if e = tx.Put("planning_run", r.ID, r); e != nil {
+				return e
+			}
+			if e = syncConversation(tx, r); e != nil {
 				return e
 			}
 		}

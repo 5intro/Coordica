@@ -13,3 +13,10 @@ web/node_modules/
 /docs/
 __pycache__/
 *.py[cod]
+
+# Shared limited interaction artifacts stay private and outside source/packages.
+*.init.pending
+*.init.lock
+*.write.lock
+coordica-chat*.json
+.chat-profile-pending-*

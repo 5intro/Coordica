@@ -229,6 +229,17 @@ func (f *itFixture) reviewAndValidate(t *testing.T) domain.Assignment {
 
 func TestIntegrationRealGitHandoffReviewCheckAndExactLanding(t *testing.T) {
 	f := newITFixture(t)
+	if e := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
+		p, e := getProject(tx)
+		if e != nil {
+			return e
+		}
+		p.TotalBudgetSeconds = 1
+		p.UsedSeconds = 1000000
+		return tx.Put("project", p.ID, p)
+	}); e != nil {
+		t.Fatal(e)
+	}
 	implementation := f.implement(t, "src/feature.txt")
 	review := f.reviewAndValidate(t)
 	candidate := f.candidate(t)
@@ -240,7 +251,7 @@ func TestIntegrationRealGitHandoffReviewCheckAndExactLanding(t *testing.T) {
 		t.Fatalf("remote did not receive original C: %s %v", remote, err)
 	}
 	snapshot := f.snapshot(t)
-	if snapshot.Candidates[0].State != "landed" || snapshot.Tasks[0].State != "integrated" || snapshot.Project.ReservedSeconds != 0 {
+	if snapshot.Candidates[0].State != "landed" || snapshot.Tasks[0].State != "integrated" || snapshot.Project.ReservedSeconds != 0 || snapshot.Project.UsedSeconds <= 1000000 {
 		t.Fatalf("integration not reconciled: %+v", snapshot)
 	}
 	parents := strings.Fields(itGit(t, f.g.GitPath, f.w.repo(), "rev-list", "--parents", "-n", "1", candidate.Commit))

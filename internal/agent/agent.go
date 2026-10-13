@@ -212,13 +212,14 @@ func emit(onEvent func(Event), kind string, data any) {
 
 func rpcError(raw json.RawMessage) error { return fmt.Errorf("ACP request failed: %s", sanitize(raw)) }
 
-// Leader gets only CLI/platform essentials and official model authentication.
+// Leader gets only CLI/platform essentials, standard proxy transport settings
+// and official model authentication.
 // Arbitrarily named owner/publication tokens are not forwarded to planning.
 func executionEnv(req Request) []string {
 	if req.Role != "leader" {
 		return developmentEnv()
 	}
-	allowed := map[string]bool{"PATH": true, "HOME": true, "USER": true, "LOGNAME": true, "SYSTEMROOT": true, "WINDIR": true, "TMPDIR": true, "TMP": true, "TEMP": true, "LANG": true, "LC_ALL": true, "CODEX_HOME": true, "XDG_CONFIG_HOME": true, "OPENAI_API_KEY": true}
+	allowed := map[string]bool{"PATH": true, "HOME": true, "USER": true, "LOGNAME": true, "SYSTEMROOT": true, "WINDIR": true, "TMPDIR": true, "TMP": true, "TEMP": true, "LANG": true, "LC_ALL": true, "CODEX_HOME": true, "XDG_CONFIG_HOME": true, "OPENAI_API_KEY": true, "HTTPS_PROXY": true, "HTTP_PROXY": true, "ALL_PROXY": true, "NO_PROXY": true}
 	env := []string{}
 	for _, entry := range os.Environ() {
 		key, _, _ := strings.Cut(entry, "=")

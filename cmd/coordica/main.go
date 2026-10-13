@@ -24,6 +24,7 @@ import (
 	"coordica/internal/agent"
 	"coordica/internal/apiclient"
 	"coordica/internal/app"
+	"coordica/internal/chatprofile"
 	"coordica/internal/domain"
 	"coordica/internal/filelock"
 	"coordica/internal/gitops"
@@ -34,7 +35,7 @@ import (
 	"coordica/web"
 )
 
-const version = "0.2.0-dev"
+const version = "0.2.1-dev"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -46,7 +47,7 @@ func main() {
 }
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: coordica serve|pair|runner|ctl|mcp|setup|doctor|tls|restore|version")
+		return errors.New("usage: coordica serve|pair|runner|ctl|mcp|chat-init|setup|doctor|tls|restore|version")
 	}
 	switch args[0] {
 	case "version":
@@ -62,6 +63,8 @@ func run(ctx context.Context, args []string) error {
 		return ctl(ctx, args[1:])
 	case "mcp":
 		return serveMCP(ctx, args[1:])
+	case "chat-init":
+		return chatInit(ctx, args[1:])
 	case "setup":
 		return setup(ctx, args[1:])
 	case "doctor":
@@ -348,6 +351,7 @@ func ctl(ctx context.Context, args []string) error {
 }
 func serveMCP(ctx context.Context, args []string) error {
 	f := flag.NewFlagSet("mcp", flag.ContinueOnError)
+	chatProfile := f.String("chat-profile", "", "Fixed absolute private limited chat profile")
 	bootstrap := f.Bool("bootstrap", false, "Local discovery and Runner initialization tools")
 	profile := f.String("profile", "", "Fixed output path for local Runner discovery profile")
 	dir := f.String("runner-data", "", "Runner directory (bootstrap defaults to user config directory)")
@@ -358,6 +362,23 @@ func serveMCP(ctx context.Context, args []string) error {
 	f.Var(&toolExecutables, "tool-executable", "Tool executable override ID=PATH (bootstrap only, repeatable)")
 	if e := f.Parse(args); e != nil {
 		return e
+	}
+	if f.NArg() != 0 {
+		return errors.New("mcp takes flags only")
+	}
+	if *chatProfile != "" {
+		if *bootstrap || *profile != "" || *dir != "" || *id != "" || *generation != 0 || *toolsFile != "" || len(toolExecutables) > 0 {
+			return errors.New("chat profile cannot be combined with bootstrap or Run options")
+		}
+		cfg, e := chatprofile.Load(*chatProfile)
+		if e != nil {
+			return e
+		}
+		client, e := apiclient.New(cfg.CenterURL, cfg.Token, cfg.TLSCA)
+		if e != nil {
+			return errors.New("cannot initialize fixed chat transport")
+		}
+		return (mcp.Chat{API: client}).Serve(ctx, os.Stdin, os.Stdout)
 	}
 	if *bootstrap {
 		tools, e := loadToolDefinitions(*toolsFile)

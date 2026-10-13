@@ -338,6 +338,7 @@ func planningReceiptBackup(t *testing.T) (*serviceFixture, domain.PlanningRun, s
 	}
 	output, _ := json.Marshal(result)
 	receipt := PlanningOutcome{Generation: r.Generation, DocumentVersion: r.DocumentVersion, FinishedAt: f.now.Add(time.Second), TreeStopped: true, ElapsedSeconds: 2, Output: string(output)}
+	bindPlanningOutcome(&receipt, r)
 	b, _ := json.Marshal(receipt)
 	if e = os.MkdirAll(filepath.Dir(w.receipt(r.ID)), 0700); e != nil {
 		t.Fatal(e)

@@ -20,7 +20,7 @@ import (
 	"coordica/internal/store"
 )
 
-type Actor struct{ ID, Role, NodeID string }
+type Actor struct{ ID, Role, NodeID, ChatScope string }
 type Service struct {
 	DB    *store.Store
 	Dir   string
@@ -144,13 +144,19 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Actor, error)
 		if err := tx.Get("credential", Hash(token), &c); err != nil {
 			return domain.Fail("unauthorized", "访问令牌无效")
 		}
-		if c.Role == "node" {
+		if c.Revoked {
+			return domain.Fail("unauthorized", "credential revoked")
+		}
+		if c.Role == "node" || c.Role == "chat" && c.ChatScope == domain.ChatScopeNode {
 			var n domain.Node
 			if err := tx.Get("node", c.NodeID, &n); err != nil || n.Revoked {
 				return domain.Fail("unauthorized", "节点已撤销")
 			}
 		}
-		a = Actor{ID: c.ID, Role: c.Role, NodeID: c.NodeID}
+		if c.Role == "chat" && c.ChatScope != domain.ChatScopeCenter && c.ChatScope != domain.ChatScopeNode {
+			return domain.Fail("unauthorized", "legacy unscoped chat credential requires explicit renewal")
+		}
+		a = Actor{ID: c.ID, Role: c.Role, NodeID: c.NodeID, ChatScope: c.ChatScope}
 		return nil
 	})
 	return a, err
@@ -249,21 +255,14 @@ func (s *Service) CreateRequirement(ctx context.Context, a Actor, key string, r 
 		return nil, err
 	}
 	r.SourceNodeID = ""
+	r.Source = nil
+	r.OriginalText = ""
+	r.AssistantSummary = ""
 	if strings.TrimSpace(r.Title) == "" || strings.TrimSpace(r.Body) == "" {
 		return nil, domain.Fail("invalid_input", "需求标题和内容不能为空")
 	}
 	return s.mutate(ctx, a, key, "requirement.create", r, func(tx *store.Tx) (any, error) {
-		var p domain.Project
-		if e := tx.Get("project", "project", &p); e != nil {
-			return nil, e
-		}
-		r.ID = ID("req_")
-		r.Version = 1
-		r.CreatedAt = s.Now()
-		if err := tx.Put("requirement", r.ID, r); err != nil {
-			return nil, err
-		}
-		return r, s.audit(tx, a, "requirement.created", r.ID, r.Title)
+		return s.createRequirement(tx, a, r)
 	})
 }
 func (s *Service) CreateTask(ctx context.Context, a Actor, key string, t domain.Task) (json.RawMessage, error) {
@@ -341,6 +340,9 @@ func (s *Service) TaskAction(ctx context.Context, a Actor, key, id, action strin
 				return nil, domain.Fail("conflict", "任务不可恢复")
 			}
 			if e := requireQuiescence(tx, t.ID); e != nil {
+				return nil, e
+			}
+			if e := verifyLegacyBudgetResume(tx, &t); e != nil {
 				return nil, e
 			}
 			if t.CurrentCandidateID == "" {

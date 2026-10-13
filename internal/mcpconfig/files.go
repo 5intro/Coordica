@@ -26,6 +26,9 @@ type snapshot struct {
 // Only the Coordica entry is returned to callers. Existing client configuration
 // can include credentials and must never appear in a setup result or error.
 func mergeJSON(raw, entry []byte) ([]byte, bool, error) {
+	return mergeNamedJSON(raw, entry, "coordica")
+}
+func mergeNamedJSON(raw, entry []byte, name string) ([]byte, bool, error) {
 	root := map[string]json.RawMessage{}
 	if len(raw) != 0 {
 		if err := object(raw, &root); err != nil {
@@ -38,13 +41,13 @@ func mergeJSON(raw, entry []byte) ([]byte, bool, error) {
 			return nil, false, errors.New("mcpServers is not a JSON object; left unchanged")
 		}
 	}
-	if existing, ok := servers["coordica"]; ok {
+	if existing, ok := servers[name]; ok {
 		if sameLauncher(existing, entry) {
 			return raw, true, nil
 		}
-		return nil, false, errors.New("a different coordica MCP entry already exists; left unchanged")
+		return nil, false, fmt.Errorf("a different %s MCP entry already exists; left unchanged", name)
 	}
-	servers["coordica"] = entry
+	servers[name] = entry
 	root["mcpServers"], _ = json.Marshal(servers)
 	merged, err := json.MarshalIndent(root, "", "  ")
 	return append(merged, '\n'), false, err

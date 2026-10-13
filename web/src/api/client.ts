@@ -1,4 +1,6 @@
-import type { Snapshot, Problem } from '../api.generated';
+import type { Snapshot, Problem, ConversationInput } from '../api.generated';
+
+export type PendingConsultation = { kind: 'consult' | 'propose'; body: ConversationInput; key: string };
 
 export class ApiError extends Error {
   constructor(public readonly code: string, message: string, public readonly status: number = 0) {
@@ -9,7 +11,27 @@ export class ApiError extends Error {
 
 export class ApiClient {
   private readonly uncertainWrites = new Map<string, string>();
+  // Private prose lives only in this credential/session's memory. Project IDs
+  // isolate envelopes; route remounts reuse the same ApiClient instance.
+  private readonly pendingConsultations = new Map<string, PendingConsultation>();
+  private readonly consultationListeners = new Set<() => void>();
   constructor(private readonly token: string) {}
+
+  pendingConsultation(projectID: string): PendingConsultation | undefined { return this.pendingConsultations.get(projectID); }
+  subscribeConsultations = (listener: () => void) => {
+    this.consultationListeners.add(listener);
+    return () => { this.consultationListeners.delete(listener); };
+  };
+  keepConsultation(projectID: string, pending: PendingConsultation) {
+    this.pendingConsultations.set(projectID, pending);
+    this.consultationListeners.forEach((listener) => listener());
+  }
+  confirmConsultation(projectID: string, key: string) {
+    if (this.pendingConsultations.get(projectID)?.key === key) {
+      this.pendingConsultations.delete(projectID);
+      this.consultationListeners.forEach((listener) => listener());
+    }
+  }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const controller = new AbortController();

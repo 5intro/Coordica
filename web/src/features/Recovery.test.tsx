@@ -22,19 +22,13 @@ const run: Run = { goal_version: 0, goal_authorization_version: 0,
 const initial: Snapshot = { ...emptyPhaseB, api_version: 'v1', project: null, tasks: [task], requirements: null, runs: [run], candidates: null, nodes: null, events: null };
 
 describe('explicit recovery actions', () => {
-  it('requires a paused project and binds its budget approval before polling', async () => {
-    const project: Project = { id: 'project', version: 3, name: 'Coordica', repository_url: '/tmp/repo', target_branch: 'main', paused: false, total_budget_seconds: 36000, used_seconds: 3600, reserved_seconds: 0, protected_paths: null, checks: null, policy_version: 1, created_at: '' };
+  it('shows cumulative project statistics without lifetime allowance controls', () => {
+    const project: Project = { id: 'project', version: 3, name: 'Coordica', repository_url: '/tmp/repo', target_branch: 'main', paused: false, total_budget_seconds: 1, used_seconds: 3600, reserved_seconds: 30, protected_paths: null, checks: null, policy_version: 1, created_at: '' };
     const client = new ApiClient('token');
-    const write = vi.spyOn(client, 'write').mockResolvedValue(project);
-    const view = render(<Settings project={project} client={client} refresh={() => undefined} />);
-    expect((screen.getByRole('button', { name: '调整项目预算' }) as HTMLButtonElement).disabled).toBe(true);
-    view.rerender(<Settings project={{ ...project, paused: true, version: 4 }} client={client} refresh={() => undefined} />);
-    fireEvent.click(screen.getByRole('button', { name: '调整项目预算' }));
-    fireEvent.change(screen.getByLabelText('项目累计预算（小时）'), { target: { value: '12' } });
-    fireEvent.change(screen.getByLabelText('项目预算调整理由'), { target: { value: '增加有限迭代时间' } });
-    view.rerender(<Settings project={{ ...project, paused: true, version: 5 }} client={client} refresh={() => undefined} />);
-    fireEvent.click(screen.getByRole('button', { name: '批准项目预算' }));
-    await waitFor(() => expect(write).toHaveBeenCalledWith('/project/budget', { expected_version: 4, budget_seconds: 43200, max_repairs: 0, max_retries: 0, reason: '增加有限迭代时间' }));
+    render(<Settings project={project} client={client} refresh={() => undefined} />);
+    expect(screen.getByText('项目累计活动统计')).toBeTruthy();
+    expect(screen.getByText(/无项目生命周期总额度/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '调整项目预算' })).toBeNull();
   });
 
   it('keeps the budget version originally reviewed when polling changes the task', async () => {

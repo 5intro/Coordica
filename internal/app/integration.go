@@ -56,6 +56,13 @@ func (w *Integrator) InputBundle(ctx context.Context, r domain.Run) (string, err
 }
 func (w *Integrator) Tick(ctx context.Context) error {
 	s := w.Service
+	var barrier bool
+	if e := s.DB.View(ctx, func(tx *store.Tx) error { var e error; barrier, e = unknownConsultation(tx); return e }); e != nil {
+		return e
+	}
+	if barrier {
+		return nil
+	}
 	var candidates []domain.Candidate
 	var intents []domain.Intent
 	e := s.DB.View(ctx, func(tx *store.Tx) error {
@@ -105,7 +112,7 @@ func (w *Integrator) eligible(ctx context.Context, c domain.Candidate) (bool, er
 		if e != nil {
 			return e
 		}
-		ok = candidateAuthority(tx, t, p, c) && t.UsedSeconds < t.BudgetSeconds && p.UsedSeconds < p.TotalBudgetSeconds
+		ok = candidateAuthority(tx, t, p, c) && t.UsedSeconds < t.BudgetSeconds
 		return nil
 	})
 	return ok, e
@@ -270,7 +277,7 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 		if c.Review == nil || c.Review.Verdict != "approve" || c.Review.Candidate != c.Commit {
 			return domain.Fail("conflict", "缺少固定候选独立评审")
 		}
-		grant := limit(t.MaxRunSeconds, t.BudgetSeconds-t.UsedSeconds-t.ReservedSeconds, p.TotalBudgetSeconds-p.UsedSeconds-p.ReservedSeconds)
+		grant := limit(t.MaxRunSeconds, t.BudgetSeconds-t.UsedSeconds-t.ReservedSeconds)
 		if t.GoalVersion != 0 {
 			var d domain.PlanningDocument
 			if e = tx.Get("planning_document", "current", &d); e != nil {
@@ -478,7 +485,7 @@ func (w *Integrator) finishValidation(ctx context.Context, r domain.Run, c domai
 				return err
 			}
 		}
-		if (t.UsedSeconds >= t.BudgetSeconds || project.UsedSeconds >= project.TotalBudgetSeconds) && (t.HoldReason == "" || t.HoldReason == "offline") && t.State != "cancelled" && t.State != "integrated" {
+		if (t.UsedSeconds >= t.BudgetSeconds) && (t.HoldReason == "" || t.HoldReason == "offline") && t.State != "cancelled" && t.State != "integrated" {
 			t.HoldReason = "budget"
 		}
 		t.Version++
@@ -590,7 +597,7 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 				return domain.Fail("version_conflict", "goal changed during final scope check")
 			}
 		}
-		if goalGate(tx, &t, false) != nil || current.State != "ready_to_land" || t.CurrentCandidateID != c.ID || project.Paused || t.HoldReason != "" || t.State != "awaiting_integration" || t.AuthorizationVersion != c.AuthorizationVersion || project.PolicyVersion != c.PolicyVersion || t.UsedSeconds >= t.BudgetSeconds || project.UsedSeconds >= project.TotalBudgetSeconds {
+		if goalGate(tx, &t, false) != nil || current.State != "ready_to_land" || t.CurrentCandidateID != c.ID || project.Paused || t.HoldReason != "" || t.State != "awaiting_integration" || t.AuthorizationVersion != c.AuthorizationVersion || project.PolicyVersion != c.PolicyVersion || t.UsedSeconds >= t.BudgetSeconds {
 			return domain.Fail("conflict", "放行条件已变化")
 		}
 		if current.Protected && current.ApprovedCommit != current.Commit {

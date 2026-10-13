@@ -260,6 +260,7 @@ func TestPlanningDurableReceiptAndPendingReplay(t *testing.T) {
 				if e = os.MkdirAll(filepath.Dir(w.receipt(r.ID)), 0700); e != nil {
 					t.Fatal(e)
 				}
+				bindPlanningOutcome(&out, r)
 				b, _ := json.Marshal(out)
 				if e = os.WriteFile(w.receipt(r.ID), b, 0600); e != nil {
 					t.Fatal(e)
@@ -503,6 +504,7 @@ func TestPlanningReceiptSurvivesLeaseElapsedAfterQuietFinish(t *testing.T) {
 	}
 	text, _ := json.Marshal(result)
 	out := PlanningOutcome{Generation: r.Generation, DocumentVersion: r.DocumentVersion, FinishedAt: f.now.Add(time.Second), Output: string(text), TreeStopped: true, ElapsedSeconds: 2}
+	bindPlanningOutcome(&out, r)
 	b, _ := json.Marshal(out)
 	if e = os.MkdirAll(filepath.Dir(w.receipt(r.ID)), 0700); e != nil {
 		t.Fatal(e)

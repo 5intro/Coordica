@@ -112,12 +112,19 @@
           "type": "string"
         },
         "planning_budget_seconds": {
+          "description": "Finite goal planning cumulative limit; must be \u003e= planning_timeout_seconds. Not a consultation lifetime cap.",
+          "maximum": 31536000,
+          "minimum": 1,
           "type": "integer"
         },
         "planning_max_retries": {
+          "maximum": 2,
+          "minimum": 0,
           "type": "integer"
         },
         "planning_timeout_seconds": {
+          "maximum": 604800,
+          "minimum": 1,
           "type": "integer"
         },
         "version": {
@@ -347,6 +354,637 @@
       ],
       "type": "object"
     },
+    "ChatAgentCapability": {
+      "additionalProperties": false,
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "cancel": {
+          "type": "boolean"
+        },
+        "protocol": {
+          "type": "string"
+        },
+        "read_only": {
+          "type": "boolean"
+        },
+        "resume": {
+          "type": "boolean"
+        },
+        "review": {
+          "type": "boolean"
+        },
+        "structured": {
+          "type": "boolean"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "structured",
+        "resume",
+        "cancel",
+        "tool",
+        "version",
+        "protocol",
+        "available",
+        "read_only",
+        "review"
+      ],
+      "type": "object"
+    },
+    "ChatCancelRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "expected_version"
+      ],
+      "type": "object"
+    },
+    "ChatCredentialGrant": {
+      "additionalProperties": false,
+      "properties": {
+        "credential": {
+          "$ref": "#/$defs/ChatCredentialInfo"
+        },
+        "token": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "credential",
+        "token"
+      ],
+      "type": "object"
+    },
+    "ChatCredentialInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "chat_scope": {
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "revoked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "chat_scope",
+        "id",
+        "name",
+        "revoked",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "ChatCredentialRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "ChatDetail": {
+      "additionalProperties": false,
+      "properties": {
+        "item": {
+          "$ref": "#/$defs/ChatItem"
+        },
+        "queried_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "queried_at",
+        "version",
+        "item"
+      ],
+      "type": "object"
+    },
+    "ChatItem": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "approved_version": {
+          "type": "integer"
+        },
+        "authorization_version": {
+          "type": "integer"
+        },
+        "budget_seconds": {
+          "type": "integer"
+        },
+        "capabilities": {
+          "items": {
+            "$ref": "#/$defs/ChatAgentCapability"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "capacity": {
+          "type": "integer"
+        },
+        "conversation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConversationRequest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dependencies": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "goal_version": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "observed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requirement_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "reserved_seconds": {
+          "type": "integer"
+        },
+        "run": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChatRun"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "runs": {
+          "items": {
+            "$ref": "#/$defs/ChatRun"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChatSource"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_node_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "used_seconds": {
+          "type": "integer"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "kind",
+        "title",
+        "text",
+        "summary",
+        "status",
+        "goal_version"
+      ],
+      "type": "object"
+    },
+    "ChatItemQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "requirements",
+            "tasks",
+            "blocks",
+            "agents",
+            "runs",
+            "consultations",
+            "proposals"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "type": "object"
+    },
+    "ChatListQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "requirements",
+            "tasks",
+            "blocks",
+            "agents",
+            "runs",
+            "consultations",
+            "proposals"
+          ],
+          "type": "string"
+        },
+        "limit": {
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "limit"
+      ],
+      "type": "object"
+    },
+    "ChatOverview": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "type": "string"
+        },
+        "allowed_roots": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "api_version": {
+          "type": "string"
+        },
+        "approved_goal_version": {
+          "type": "integer"
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "budget_seconds": {
+          "deprecated": true,
+          "description": "Ignored legacy project allowance field; cumulative telemetry only.",
+          "type": "integer"
+        },
+        "chat_scope": {
+          "type": "string"
+        },
+        "consultation_account": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConsultationAccount"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "directory_outline": {
+          "type": "string"
+        },
+        "goal_authorization_version": {
+          "type": "integer"
+        },
+        "goal_status": {
+          "type": "string"
+        },
+        "goal_version": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "non_goals": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "paused": {
+          "type": "boolean"
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "queried_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "requirement_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "reserved_seconds": {
+          "type": "integer"
+        },
+        "used_seconds": {
+          "type": "integer"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "chat_scope",
+        "approved_goal_version",
+        "goal_authorization_version",
+        "directory_outline",
+        "allowed_roots",
+        "requirement_ids",
+        "api_version",
+        "queried_at",
+        "project_id",
+        "version",
+        "name",
+        "paused",
+        "goal_version",
+        "goal_status",
+        "objective",
+        "architecture",
+        "non_goals",
+        "acceptance",
+        "budget_seconds",
+        "used_seconds",
+        "reserved_seconds"
+      ],
+      "type": "object"
+    },
+    "ChatPage": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ChatItem"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "next_cursor": {
+          "type": "string"
+        },
+        "queried_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "queried_at",
+        "version",
+        "items",
+        "next_cursor"
+      ],
+      "type": "object"
+    },
+    "ChatRequestQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "ChatRequirementInput": {
+      "additionalProperties": false,
+      "properties": {
+        "assistant_summary": {
+          "type": "string"
+        },
+        "original_text": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/ChatSource"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "original_text",
+        "source"
+      ],
+      "type": "object"
+    },
+    "ChatRun": {
+      "additionalProperties": false,
+      "properties": {
+        "deadline": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "elapsed_seconds": {
+          "type": "integer"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "grant_seconds": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "lease_until": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "quiet": {
+          "type": "boolean"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "task_text": {
+          "type": "string"
+        },
+        "task_title": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "state",
+        "tool",
+        "kind",
+        "node_id",
+        "started_at",
+        "deadline",
+        "lease_until",
+        "grant_seconds",
+        "elapsed_seconds",
+        "quiet"
+      ],
+      "type": "object"
+    },
+    "ChatSource": {
+      "additionalProperties": false,
+      "properties": {
+        "client_id": {
+          "type": "string"
+        },
+        "message_id": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "message_id"
+      ],
+      "type": "object"
+    },
     "Check": {
       "additionalProperties": false,
       "properties": {
@@ -521,6 +1159,145 @@
         "data_dir",
         "certificate_pem",
         "certificate_sha256"
+      ],
+      "type": "object"
+    },
+    "ConsultResult": {
+      "additionalProperties": false,
+      "properties": {
+        "reply": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reply"
+      ],
+      "type": "object"
+    },
+    "ConsultationAccount": {
+      "additionalProperties": false,
+      "properties": {
+        "budget_seconds": {
+          "deprecated": true,
+          "description": "Ignored legacy project allowance field; cumulative telemetry only.",
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "reserved_seconds": {
+          "type": "integer"
+        },
+        "used_seconds": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "budget_seconds",
+        "used_seconds",
+        "reserved_seconds"
+      ],
+      "type": "object"
+    },
+    "ConversationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "assistant_summary": {
+          "type": "string"
+        },
+        "expected_goal_version": {
+          "type": "integer"
+        },
+        "original_text": {
+          "type": "string"
+        },
+        "reply_to": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/ChatSource"
+        }
+      },
+      "required": [
+        "expected_goal_version",
+        "original_text",
+        "source"
+      ],
+      "type": "object"
+    },
+    "ConversationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "assistant_summary": {
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "goal_version": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "original_text": {
+          "type": "string"
+        },
+        "replied_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reply": {
+          "type": "string"
+        },
+        "reply_to": {
+          "type": "string"
+        },
+        "result_sha256": {
+          "type": "string"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/ChatSource"
+        },
+        "stale": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "kind",
+        "original_text",
+        "assistant_summary",
+        "source",
+        "goal_version",
+        "created_at",
+        "run_id",
+        "status",
+        "reply",
+        "stale",
+        "result_sha256"
       ],
       "type": "object"
     },
@@ -1100,6 +1877,8 @@
           "type": "integer"
         },
         "budget_seconds": {
+          "maximum": 31536000,
+          "minimum": 1,
           "type": "integer"
         },
         "directory_outline": {
@@ -1205,6 +1984,9 @@
     "PlanningRun": {
       "additionalProperties": false,
       "properties": {
+        "accounting_target": {
+          "type": "string"
+        },
         "attempt": {
           "type": "integer"
         },
@@ -1213,6 +1995,9 @@
         },
         "automation_version": {
           "type": "integer"
+        },
+        "conversation_id": {
+          "type": "string"
         },
         "deadline": {
           "format": "date-time",
@@ -1258,6 +2043,9 @@
         },
         "process_id": {
           "type": "integer"
+        },
+        "purpose": {
+          "type": "string"
         },
         "scope_request_id": {
           "type": "string"
@@ -1410,6 +2198,8 @@
           "type": "string"
         },
         "total_budget_seconds": {
+          "deprecated": true,
+          "description": "Ignored legacy field. Project used/reserved are cumulative statistics, never an allowance.",
           "type": "integer"
         },
         "used_seconds": {
@@ -1426,7 +2216,6 @@
         "repository_url",
         "target_branch",
         "paused",
-        "total_budget_seconds",
         "used_seconds",
         "reserved_seconds",
         "protected_paths",
@@ -1505,6 +2294,9 @@
     "Requirement": {
       "additionalProperties": false,
       "properties": {
+        "assistant_summary": {
+          "type": "string"
+        },
         "body": {
           "type": "string"
         },
@@ -1514,6 +2306,19 @@
         },
         "id": {
           "type": "string"
+        },
+        "original_text": {
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChatSource"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "source_node_id": {
           "type": "string"
@@ -1877,6 +2682,25 @@
             "null"
           ]
         },
+        "consultation_account": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConsultationAccount"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "conversations": {
+          "items": {
+            "$ref": "#/$defs/ConversationRequest"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "decisions": {
           "items": {
             "$ref": "#/$defs/Decision"
@@ -1980,6 +2804,7 @@
         }
       },
       "required": [
+        "conversations",
         "automation",
         "planning_document",
         "leader_messages",
@@ -2036,6 +2861,8 @@
           "type": "integer"
         },
         "budget_seconds": {
+          "maximum": 31536000,
+          "minimum": 1,
           "type": "integer"
         },
         "created_at": {
@@ -2091,6 +2918,9 @@
           "type": "integer"
         },
         "max_run_seconds": {
+          "description": "Finite single Run limit; must be \u003c= budget_seconds.",
+          "maximum": 604800,
+          "minimum": 1,
           "type": "integer"
         },
         "repairs": {
@@ -2166,6 +2996,8 @@
           "type": "string"
         },
         "budget_seconds": {
+          "maximum": 31536000,
+          "minimum": 1,
           "type": "integer"
         },
         "dependencies": {
@@ -2196,6 +3028,9 @@
           "type": "integer"
         },
         "max_run_seconds": {
+          "description": "Finite single Run limit; must be \u003c= budget_seconds.",
+          "maximum": 604800,
+          "minimum": 1,
           "type": "integer"
         },
         "objective": {

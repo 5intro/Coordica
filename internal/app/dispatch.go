@@ -22,6 +22,13 @@ func (w *Integrator) Claim(ctx context.Context, a Actor, key string, req domain.
 		if e != nil {
 			return e
 		}
+		blocked, e := unknownConsultation(tx)
+		if e != nil {
+			return e
+		}
+		if blocked {
+			return nil
+		}
 		if p.Paused {
 			return nil
 		}

@@ -242,7 +242,7 @@ func TestOldRunMessagesCannotChangeReplacementOrAcceptedCandidate(t *testing.T) 
 }
 
 func TestAutomaticRecoveryEnforcesCumulativeBudgetAndRetryLimits(t *testing.T) {
-	for _, limitCase := range []string{"task-budget", "project-budget", "no-retries", "last-retry"} {
+	for _, limitCase := range []string{"task-budget", "legacy-project-statistics", "no-retries", "last-retry"} {
 		t.Run(limitCase, func(t *testing.T) {
 			f := newServiceFixture(t)
 			ctx := context.Background()
@@ -264,7 +264,7 @@ func TestAutomaticRecoveryEnforcesCumulativeBudgetAndRetryLimits(t *testing.T) {
 				if err := tx.Put("task", task.ID, task); err != nil {
 					return err
 				}
-				if limitCase == "project-budget" {
+				if limitCase == "legacy-project-statistics" {
 					project, err := getProject(tx)
 					if err != nil {
 						return err
@@ -293,9 +293,20 @@ func TestAutomaticRecoveryEnforcesCumulativeBudgetAndRetryLimits(t *testing.T) {
 			}
 			snap := f.snapshot(t)
 			wantHold := "human_decision"
-			if strings.HasSuffix(limitCase, "budget") {
+			if limitCase == "task-budget" {
 				wantHold = "budget"
 			}
+			if limitCase == "legacy-project-statistics" {
+				if snap.Tasks[0].HoldReason != "" || snap.Tasks[0].UsedSeconds != spent || snap.Project.UsedSeconds != spent {
+					t.Fatal("project spending incorrectly gated recovery")
+				}
+				next := f.claim(t, "beyond-legacy-cap")
+				if next == nil || next.Task.Retries != 1 {
+					t.Fatal("legacy project cap blocked retry")
+				}
+				return
+			}
+
 			if got := snap.Tasks[0]; got.HoldReason != wantHold || got.CurrentRunID != "" || got.Retries != expectedRetries || got.UsedSeconds != spent || got.ReservedSeconds != 0 {
 				t.Fatalf("recovery crossed a finite limit: %+v", got)
 			}

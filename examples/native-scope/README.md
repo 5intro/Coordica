@@ -16,8 +16,8 @@ requests. The following steps describe reproduction by an authorized operator;
 reading this fixture grants no authority and starts no service.
 
 1. Use a dedicated project containing the baseline `src/`, `test/`, and `tools/`
-   files. Its `total_budget_seconds` must be at least 2400 to fit the goal's
-   2400-second budget; cumulative spending and reservations must still fit.
+   files. Project spending is cumulative telemetry with no lifetime allowance.
+   The goal's separate 2400-second budget still bounds its work.
    Include `tools/**` in project `protected_paths`, and configure both owner
    checks from `flow.json`. Keep the verifier immutable. Configure actual node
    capabilities and permissions so Codex implements and a separate, fresh

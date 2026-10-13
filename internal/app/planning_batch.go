@@ -10,6 +10,9 @@ import (
 // Validate the whole proposal before writing any task or scope. All dependency
 // references are local keys, and all tasks are derived in the same transaction.
 func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.PlanningDocument, result domain.LeaderResult) error {
+	if r.Purpose == domain.ConsultationPurpose {
+		return domain.Fail("forbidden", "advisory requests cannot derive plans")
+	}
 	settings, e := automation(tx)
 	if e != nil {
 		return e
@@ -100,8 +103,8 @@ func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.Plan
 			total += q.BudgetSeconds
 		}
 	}
-	if total > d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds || total > p.TotalBudgetSeconds-p.UsedSeconds-p.ReservedSeconds {
-		return domain.Fail("budget", "whole batch exceeds remaining goal or project budget")
+	if total > d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds {
+		return domain.Fail("budget", "whole batch exceeds remaining goal budget")
 	}
 	// Account for already admitted unspent task allowances as well as reservations.
 	existing, e := store.List[domain.Task](tx, "task")

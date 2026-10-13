@@ -101,6 +101,9 @@ type ProposalTaskMapping struct {
 	TaskID string `json:"task_id"`
 }
 type PlanningRun struct {
+	Purpose              string                `json:"purpose,omitempty"` // empty legacy purpose means evaluation
+	ConversationID       string                `json:"conversation_id,omitempty"`
+	AccountingTarget     string                `json:"accounting_target,omitempty"`
 	ScopeRequestID       string                `json:"scope_request_id"`
 	ExecutionAdapter     string                `json:"execution_adapter"`
 	ProcessID            int                   `json:"process_id"`

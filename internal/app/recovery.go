@@ -47,7 +47,7 @@ func (s *Service) recoverStopped(tx *store.Tx, p domain.Project, t *domain.Task,
 		t.HoldReason = "offline"
 		return changed, nil
 	}
-	if t.BudgetSeconds-t.UsedSeconds-t.ReservedSeconds <= 0 || p.TotalBudgetSeconds-p.UsedSeconds-p.ReservedSeconds <= 0 {
+	if t.BudgetSeconds-t.UsedSeconds-t.ReservedSeconds <= 0 {
 		return block("budget", "停止已确认，但累计剩余预算不足")
 	}
 	if r.Kind == "implement" && t.CurrentCandidateID != "" {
@@ -223,7 +223,7 @@ func (s *Service) TaskBudget(ctx context.Context, a Actor, key, id string, req d
 		if e := requireQuiescence(tx, t.ID); e != nil {
 			return nil, e
 		}
-		if t.State == "cancelled" || t.State == "integrated" || t.CurrentRunID != "" || req.BudgetSeconds < t.UsedSeconds+t.ReservedSeconds || req.BudgetSeconds <= 0 || req.BudgetSeconds > 31536000 || req.MaxRepairs < t.Repairs || req.MaxRetries < t.Retries || req.MaxRepairs > 100 || req.MaxRetries > 100 || strings.TrimSpace(req.Reason) == "" {
+		if t.State == "cancelled" || t.State == "integrated" || t.CurrentRunID != "" || req.BudgetSeconds < t.UsedSeconds+t.ReservedSeconds || req.BudgetSeconds <= 0 || req.BudgetSeconds > domain.MaxTaskBudgetSeconds || req.MaxRepairs < t.Repairs || req.MaxRetries < t.Retries || req.MaxRepairs > 100 || req.MaxRetries > 100 || strings.TrimSpace(req.Reason) == "" {
 			return nil, domain.Fail("invalid_input", "停止执行后才能批准新的有限预算，已使用额度不得减少")
 		}
 		t.BudgetSeconds = req.BudgetSeconds
@@ -241,24 +241,7 @@ func (s *Service) ProjectBudget(ctx context.Context, a Actor, key string, req do
 	if e := owner(a); e != nil {
 		return nil, e
 	}
-	return s.mutate(ctx, a, key, "project.budget", req, func(tx *store.Tx) (any, error) {
-		p, e := getProject(tx)
-		if e != nil {
-			return nil, e
-		}
-		if e = version(p.Version, req.ExpectedVersion); e != nil {
-			return nil, e
-		}
-		if !p.Paused || req.BudgetSeconds < p.UsedSeconds+p.ReservedSeconds || req.BudgetSeconds <= 0 || req.BudgetSeconds > 315360000 || req.MaxRepairs != 0 || req.MaxRetries != 0 || strings.TrimSpace(req.Reason) == "" {
-			return nil, domain.Fail("invalid_input", "暂停项目后批准新的有限总预算，已用与预留额度不能减少")
-		}
-		p.TotalBudgetSeconds = req.BudgetSeconds
-		p.Version++
-		if e = tx.Put("project", p.ID, p); e != nil {
-			return nil, e
-		}
-		return p, s.audit(tx, a, "project.budget", p.ID, req.Reason)
-	})
+	return nil, domain.Fail("deprecated", "project lifetime budget removed; used/reserved seconds are cumulative statistics")
 }
 
 func requireQuiescence(tx *store.Tx, taskID string) error {
@@ -270,6 +253,71 @@ func requireQuiescence(tx *store.Tx, taskID string) error {
 		if r.TaskID == taskID && !r.Quiescent && (active(r) || r.State == "lost") {
 			return domain.Fail("conflict", "旧执行尚未确认停止")
 		}
+	}
+	return nil
+}
+
+// Old budget holds did not record which allowance caused them. Do not infer an
+// automatic migration from exhausted project telemetry. An explicit versioned
+// Owner resume may retire such a hold only after the remaining fences pass.
+func verifyLegacyBudgetResume(tx *store.Tx, t *domain.Task) error {
+	if t.HoldReason != "budget" {
+		return nil
+	}
+	p, e := getProject(tx)
+	if e != nil {
+		return e
+	}
+	if p.TotalBudgetSeconds <= 0 || p.UsedSeconds+p.ReservedSeconds < p.TotalBudgetSeconds {
+		return nil
+	}
+	if t.CurrentCandidateID != "" {
+		var c domain.Candidate
+		if e = tx.Get("candidate", t.CurrentCandidateID, &c); e != nil {
+			return e
+		}
+		// Existing publication intents retain their independent reconciliation.
+		if c.State == "landing" || c.State == "reconciling" {
+			return nil
+		}
+	}
+	if p.Paused || t.ReservedSeconds != 0 || t.BudgetSeconds-t.UsedSeconds <= 0 || t.Retries >= t.MaxRetries {
+		return domain.Fail("budget", "legacy hold requires remaining task budget and bounded retries with settled execution")
+	}
+	if e = goalGate(tx, t, false); e != nil {
+		return e
+	}
+	runs, e := store.List[domain.Run](tx, "run")
+	if e != nil {
+		return e
+	}
+	retry := false
+	currentFound := t.CurrentRunID == ""
+	for _, r := range runs {
+		if r.TaskID != t.ID {
+			continue
+		}
+		if !r.Quiescent || active(r) || r.FinishedAt == nil {
+			return domain.Fail("conflict", "legacy hold requires authentic terminal stop and settlement evidence")
+		}
+		if r.ID == t.CurrentRunID {
+			currentFound = true
+			if r.Generation != t.Generation {
+				return domain.Fail("authorization_changed", "legacy execution generation changed")
+			}
+		}
+		if r.Generation == t.Generation {
+			if r.AuthorizationVersion != t.AuthorizationVersion || r.PolicyVersion != p.PolicyVersion || !grantedGoalAuthority(tx, t, r) {
+				return domain.Fail("authorization_changed", "legacy execution authority changed")
+			}
+			retry = r.State == "stopped" || r.State == "lost" || r.State == "failed"
+		}
+	}
+	if !currentFound {
+		return domain.Fail("conflict", "legacy hold requires the original Run stop evidence")
+	}
+	if retry {
+		t.Retries++
 	}
 	return nil
 }

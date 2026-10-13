@@ -13,8 +13,8 @@ class ReleaseTests(unittest.TestCase):
     def test_phase_b_start_here_for_every_platform(self):
         for platform, _, binary, _ in release.PLATFORMS:
             with self.subTest(platform=platform):
-                text = release.start_here('0.2.0-dev', platform, binary).decode()
-                for expected in ('Coordica v0.2.0-dev', '/releases/tag/v0.2.0-dev',
+                text = release.start_here('0.2.1-dev', platform, binary).decode()
+                for expected in ('Coordica v0.2.1-dev', '/releases/tag/v0.2.1-dev',
                                  'gpt-6.1-sol', '默认关闭', '测试不替代授权',
                                  'macOS 本机 Phase B 端到端验收已通过', '进程树停止证据',
                                  '原生 Leader 运行中取消验收也已通过',
@@ -26,7 +26,10 @@ class ReleaseTests(unittest.TestCase):
                                  '不代表完整 Phase B dsh 协作或多机部署已通过',
                                  '当前发布版本关联的 GitHub checks',
                                  '多机 Phase B 与 Linux 原生部署仍待验证',
-                                 '运行中取消的 Phase A 验收已通过', 'Claude / dsh'):
+                                 '运行中取消的 Phase A 验收已通过', 'Claude / dsh',
+                                 'coordica-chat', '--runner-data', '稳定绝对路径',
+                                 '重新加载或重启', '七天', '365 天', '旧 budget 阻断不自动迁移',
+                                 '忽略的弃用字段', '尚未实现', 'Owner 独立验证后部署与发布'):
                     self.assertIn(expected, text)
                 self.assertNotIn('端到端验证正在进行', text)
                 self.assertNotIn('取消与断线等故障场景仍待实测', text)
@@ -34,7 +37,7 @@ class ReleaseTests(unittest.TestCase):
     def test_public_execution_intent_boundary(self):
         documents = {'README.md': (release.ROOT / 'README.md').read_text()}
         for platform, _, binary, _ in release.PLATFORMS:
-            documents[platform] = release.start_here('0.2.0-dev', platform, binary).decode()
+            documents[platform] = release.start_here('0.2.1-dev', platform, binary).decode()
         for name, text in documents.items():
             with self.subTest(document=name):
                 for expected in ('native execution intent v1', 'requested_paths',
@@ -50,7 +53,10 @@ class ReleaseTests(unittest.TestCase):
         for name in ('docs/private.md', 'owner.token', '.aws/config',
                      '../README.md', 'center.key', 'node_modules/file',
                      'runner.json', 'discovery.json', 'state.sqlite3',
-                     '.env.local', '.ssh/id_ed25519', 'credentials.json'):
+                     '.env.local', '.ssh/id_ed25519', 'credentials.json',
+                     'host.json.init.pending', 'host.json.init.lock',
+                     'host.json.write.lock', 'coordica-chat.json',
+                     '.chat-profile-pending-private'):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 release.checked_name(name)
 

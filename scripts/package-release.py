@@ -34,7 +34,8 @@ FORBIDDEN_NAMES = (
     ".env", ".env.*", "*.key", "*.pem", "*.p12", "*.pfx", "*.token",
     "*.db", "*.db-*", "*.sqlite", "*.sqlite-*", "*.sqlite3", "*.sqlite3-*",
     "id_rsa*", "id_ed25519*", "runner.json", "discovery.json", "owner.token",
-    "credentials*", "secrets*",
+    "credentials*", "secrets*", "*.init.pending", "*.init.lock", "*.write.lock",
+    "coordica-chat*.json", ".chat-profile-pending-*",
 )
 FORBIDDEN_DIRS = {".git", ".cache", ".tools", ".ssh", ".aws", "node_modules"}
 
@@ -125,9 +126,11 @@ def common_entries():
 def start_here(version, platform, binary):
     instructions = f"""Coordica v{version} — {platform}
 
-这是 v0.2.0-dev Phase B 开发预发布包。
-发布说明：https://github.com/5intro/Coordica/releases/tag/v0.2.0-dev
-macOS 本机 Phase B 端到端验收已通过；多机 Phase B 与 Linux 原生部署仍待验证。
+这是 v{version} Phase B 开发预发布包。
+发布说明：https://github.com/5intro/Coordica/releases/tag/v{version}
+既有 v0.2.0-dev macOS 本机 Phase B 端到端验收已通过；多机 Phase B 与 Linux 原生部署仍待验证。
+v0.2.1-dev 本次仅准备源码与公开发布元数据；Owner 独立验证后部署与发布。
+源码回归不代表本版本真实模型验收或目标系统原生部署认证。
 中心、MCP 与 Runner 使用同一个可执行文件，无需单独安装 Runner 或构建源码。
 
 许可：仅个人非商业使用及私人本地修改免费。商业用途、团队或公司使用、
@@ -159,6 +162,20 @@ macOS 本机 Phase B 端到端验收已通过；多机 Phase B 与 Linux 原生�
 支持本机页面的 Runner 启动后，可在该电脑打开 http://127.0.0.1:8081，
 查看自己的运行并向中心提交需求提案；提案不会自行创建或批准任务。
 仅当中心也在本机且连接信息匹配时显示中心各池与配置入口，中心仍须 owner 登录。
+对话接入：每台物理主机复用一个有限的 coordica-chat profile；所有本机聊天客户端共享。
+中心本机：{binary} chat-init --data /绝对路径/中心数据 --url http://127.0.0.1:8080 --profile /绝对路径/coordica-chat.json --name "Shared center host"
+已配对节点：{binary} chat-init --runner-data /绝对路径/已有Runner数据 --profile /绝对路径/coordica-chat.json --name "Shared Runner host"
+然后预览 {binary} setup --mode chat --chat-profile /绝对路径/coordica-chat.json，核对后加 --apply。
+可执行文件、数据和私有 profile 使用稳定绝对路径；setup 后重新加载或重启对应客户端。
+中心凭据仅在中心回环地址允许 Leader 咨询；节点凭据仅允许安全公共事实、需求及本节点 Agent/Run。
+节点不能查询全局任务、阻断、Leader 对话或其他节点执行上下文。凭据范围由中心持久化记录决定。
+profile 不含 Owner/node token，不可放入源码或公开包；旧无范围凭据须显式 --renew。
+Leader 纯咨询/建议不创建任务或修改授权；页面切换保留未确认请求，重试使用原内容与同一键。
+项目 total_budget_seconds 与 ChatOverview budget_seconds 均为忽略的弃用字段，项目支出仅作统计。
+开发/评审/规划/咨询单 Run 最多七天；任务/目标内规划累计最多 365 天且不少于单 Run，重试仍有限。
+旧 budget 阻断不自动迁移；Owner 核对停止结算、剩余额度和当前授权后以当前任务版本恢复。
+恢复不清零支出，不绕过重试上限，不改变已有发布意图；具体兼容步骤见 README.md。
+需求版本化撤销/编辑与实时开发者邮箱尚未实现。
 工具注册示例：examples/tools/custom-acp.json
 独立验收小项目：examples/acceptance
 Windows batch 路径限制：internal/process/README.md
@@ -167,13 +184,13 @@ Windows batch 路径限制：internal/process/README.md
 只有调用 initialize_runner 时才配对及请求启动用户服务。
 已完成 Mac 中心与 Windows 节点连接、Windows dsh 实现及 Claude 独立评审的小项目闭环。
 运行中取消的 Phase A 验收已通过；该 Phase A 的实际 Agent 验收事实限于 Claude / dsh。
-macOS 本机 Phase B 实测：原生 Codex gpt-6.1-sol Leader 规划 → 自动授权一个任务 →
+既有 v0.2.0-dev macOS 本机 Phase B 实测：原生 Codex gpt-6.1-sol Leader 规划 → 自动授权一个任务 →
 原生 Codex scope_requested 且无编辑 → 实际进程停止 → Leader 在目标字面允许根目录内
 自动批准普通范围 → 同一任务以新授权恢复并保留累计支出 → 原生 Codex 开发 →
 独立本机 Claude 节点只读评审 → 中心对不可变固定候选执行 node:test 验证 →
 精确固定候选条件更新本地测试 Git 的 main。Owner 仅批准目标一次，没有手动批准范围
 或提交替代请求。结束时所有 Run 进程树均已停止，项目与目标预留预算均为零。
-原生 Leader 运行中取消验收也已通过：观察到结构化会话，取消前确认真实存活 PID，
+既有 v0.2.0-dev 原生 Leader 运行中取消验收也已通过：观察到结构化会话，取消前确认真实存活 PID，
 取消后确认进程消失、静止与结算，保留实际耗时支出。
 本机 Claude 与 dsh 原生协议冒烟测试已通过，不代表完整 Phase B dsh 协作或多机部署已通过。
 完整测试与各平台 CI 结果以当前发布版本关联的 GitHub checks 为准，本地局部检查不替代完整测试或平台 CI。
@@ -198,7 +215,8 @@ Runner 仍核对实际变化、范围、固定基线及进程树静止，独立�
 同一任务以新授权和新执行代次恢复并保留累计支出，不创建替代任务或清零预算。
 重大工作或其他阻断返回 blocked，保持工作区无变化；重大工作不会自动批准，须 Owner 决策。
 scope_requested 与 blocked 是停止交接，不是成功完成。
-请求投递、规划重试及累计预算有限；旧版本、无变化核对失败或未知停止状态不会放行，
+项目累计支出只作统计，无生命周期额度；目标/任务/Run 与规划重试仍有限。
+请求投递、规划重试及目标/任务累计预算有限；旧版本、无变化核对失败或未知停止状态不会放行，
 须保留阻断并核对进程树停止证据。
 节点能力按实际报告发现，由 Owner 管理实现/评审角色、排空、禁用及容量。
 详细池、来源导航、决策、规划与任务范围历史，以及真实 API/CLI 路径见 README.md。
@@ -268,7 +286,7 @@ def verify_archive(path, entries):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", default="0.2.0-dev", help="archive version (default: %(default)s)")
+    parser.add_argument("--version", default="0.2.1-dev", help="archive version (default: %(default)s)")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?", args.version):
         raise ValueError("version must be a numeric semantic version with an optional prerelease suffix")

@@ -9,6 +9,16 @@ import (
 
 func phaseBSnapshot(tx *store.Tx, v *domain.Snapshot) error {
 	var e error
+	v.Conversations, e = store.List[domain.ConversationRequest](tx, "conversation")
+	if e != nil {
+		return e
+	}
+	var account domain.ConsultationAccount
+	if e = tx.Get("consultation_account", "project", &account); e == nil {
+		v.ConsultationAccount = &account
+	} else if !errors.Is(e, domain.ErrNotFound) {
+		return e
+	}
 	v.Automation, e = automation(tx)
 	if e != nil {
 		return e
@@ -61,7 +71,11 @@ func phaseBSnapshot(tx *store.Tx, v *domain.Snapshot) error {
 	}
 	for _, r := range v.PlanningRuns {
 		if r.State == "unknown_live" || r.State == "blocked" {
-			v.Blocks = append(v.Blocks, domain.BlockItem{Kind: "planning_run", ObjectID: r.ID, Reason: r.State, Actions: []string{"inspect_decision"}})
+			actions := []string{"inspect_decision"}
+			if r.Purpose == domain.ConsultationPurpose {
+				actions = []string{"inspect_consultation"}
+			}
+			v.Blocks = append(v.Blocks, domain.BlockItem{Kind: "planning_run", ObjectID: r.ID, Reason: r.State, Actions: actions})
 		}
 	}
 	for _, d := range v.Decisions {

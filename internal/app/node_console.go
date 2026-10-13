@@ -98,13 +98,6 @@ func (s *Service) SubmitRequirement(ctx context.Context, a Actor, key string, pr
 		_, err := nodeConsoleActor(tx, a)
 		return err
 	}, func(tx *store.Tx) (any, error) {
-		if _, err := getProject(tx); err != nil {
-			return nil, err
-		}
-		requirement := domain.Requirement{ID: ID("req_"), Version: 1, Title: proposal.Title, Body: proposal.Body, SourceNodeID: a.NodeID, CreatedAt: s.Now()}
-		if err := tx.Put("requirement", requirement.ID, requirement); err != nil {
-			return nil, err
-		}
-		return requirement, s.audit(tx, a, "requirement.submitted", requirement.ID, requirement.Title)
+		return s.createRequirement(tx, a, domain.Requirement{Title: proposal.Title, Body: proposal.Body, SourceNodeID: a.NodeID})
 	})
 }

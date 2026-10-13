@@ -105,7 +105,7 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
         {page === 'connection' ? <ConnectionSettings client={client} {...connection} project={project} openPolicies={() => navigate('settings')} />
           : !snapshot ? <div className="panel connection-panel"><Empty title={loading ? '正在读取中心状态' : '尚未取得中心状态'}>{loading ? '仅显示服务端实际记录。' : '确认 owner token 与中心连接后重试。'}</Empty>{!loading && <div className="actions"><button className="primary" onClick={refresh}>重新连接</button><button className="secondary" onClick={logout}>更换凭据</button></div>}</div>
             : !project && !['agents', 'automation', 'planning'].includes(page) ? <ProjectSetup client={client} refresh={refresh} />
-              : <div className="page-enter" key={`${page}-${viewKey}`}>
+              : <div className="page-enter" key={`${project?.id ?? ''}-${page}-${viewKey}`}>
                 {page === 'planning' && <Planning snapshot={snapshot} client={client} refresh={refresh} initialId={focusId} />}
                 {page === 'automation' && <Automation settings={snapshot.automation} client={client} refresh={refresh} />}
                 {page === 'overview' && <Overview snapshot={snapshot} navigate={navigate} />}

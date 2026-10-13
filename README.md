@@ -2,7 +2,7 @@
 
 多电脑、多 Agent 开发协调底座。采用 Go 中心与 Runner、SQLite、React/TypeScript 控制台；Web 产物嵌入中心二进制，无 Redis、消息队列或额外后台运行时。
 
-当前是 **[v0.2.0-dev 开发预览版](https://github.com/5intro/Coordica/releases/tag/v0.2.0-dev)**。已实现固定 Git 候选、独立评审、程序检查和条件发布闭环；构建与测试结果见 [GitHub Actions](https://github.com/5intro/Coordica/actions)。协议模拟测试、跨平台编译和托管 CI 不代表用户电脑上的真实部署验收。
+当前源码版本是 **[v0.2.1-dev 开发预览版](https://github.com/5intro/Coordica/releases/tag/v0.2.1-dev)**。已实现固定 Git 候选、独立评审、程序检查和条件发布闭环；构建与测试结果见 [GitHub Actions](https://github.com/5intro/Coordica/actions)。协议模拟测试、跨平台编译和托管 CI 不代表用户电脑上的真实部署验收。
 
 ## 许可与下载
 
@@ -10,7 +10,7 @@
 
 第三方组件保留各自许可，见 [第三方声明](THIRD_PARTY_NOTICES.md)。本许可不会仅因使用 Coordica 就要求你公开独立开发的项目。
 
-预编译开发包通过 [v0.2.0-dev Release](https://github.com/5intro/Coordica/releases/tag/v0.2.0-dev) 提供。通过 `coordica setup --apply` 统一配置本机 Agent 的 MCP 接入，不必逐家手写配置；见下方初始化步骤。Windows amd64 包内还附 `coordica.exe` 和 dsh 配置模板 `coordica.cordis.yml`。发布包附 `SHA256SUMS`，当前仍为开发预览版；实际验收范围见下方“验证状态”。
+v0.2.1-dev 的公开发布入口预留为 [v0.2.1-dev Release](https://github.com/5intro/Coordica/releases/tag/v0.2.1-dev)；本次仅准备源码与发布元数据，预编译包由 Owner 独立验证后发布。通过 `coordica setup --apply` 统一配置本机 Agent 的 MCP 接入，不必逐家手写配置；见下方初始化步骤。Windows amd64 包内还附 `coordica.exe` 和 dsh 配置模板 `coordica.cordis.yml`。发布包附 `SHA256SUMS`，当前仍为开发预览版；实际验收范围见下方“验证状态”。
 
 ## 构建
 
@@ -41,7 +41,7 @@ go test -race ./...
 
 当前开发版没有稳定的 Developer ID 分发签名。构建产物变化会改变 ad hoc 签名的 `cdhash`，系统可能重新请求权限，不能保证一次授权跨版本有效；请按实际需要授权，不要为减少弹窗而授予全磁盘访问。[Apple 分发签名说明](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac/)、[DR 身份说明](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements)
 
-已有节点升级保持原数据目录和节点身份，不直接搬动已有数据；材料和仓库记录可能使用绝对路径。Phase B 使用 v0.2.0-dev 中心与 Runner；升级并重启由用户实施，代码合并不会更新运行中的服务。
+已有节点升级保持原数据目录和节点身份，不直接搬动已有数据；材料和仓库记录可能使用绝对路径。Phase B 使用 v0.2.1-dev 中心与 Runner；升级并重启由用户实施，代码合并不会更新运行中的服务。
 
 ## 本机启动
 
@@ -55,11 +55,11 @@ go test -race ./...
 
 为每个远端节点分别生成一次性接入指令，再发给那台电脑的 Agent；指令包含公共 CA 和配对码，不包含 owner/node 令牌、私钥或中心私有数据路径。复制失败时使用“复制已有接入配置”或手动复制文本，保留原配对码；到期后再重新生成。
 
-Web 中建立项目、明确有限累计总预算和最低检查，录入需求，再按下方 Phase B 流程保存、批准和评估目标。仓库地址支持不含凭据的 HTTPS URL，或中心本机 Git 仓库绝对路径。远端需要已有目标分支与至少一个提交。阶段 A 针对 Coordica 自举，中心强制保护授权、验证、集成、适配器与初始化服务模块；用户还可追加保护路径。路径模式按仓库根目录、大小写敏感的 `/` 路径匹配，支持 `*` 和完整路径段 `**`；符号链接、submodule 等当前不支持的变化会拒绝集成。
+Web 中建立项目、明确最低检查，录入需求，再按下方 Phase B 流程保存、批准和评估目标。仓库地址支持不含凭据的 HTTPS URL，或中心本机 Git 仓库绝对路径。远端需要已有目标分支与至少一个提交。阶段 A 针对 Coordica 自举，中心强制保护授权、验证、集成、适配器与初始化服务模块；用户还可追加保护路径。路径模式按仓库根目录、大小写敏感的 `/` 路径匹配，支持 `*` 和完整路径段 `**`；符号链接、submodule 等当前不支持的变化会拒绝集成。
 
 ## Phase B：目标授权、Leader 与有限自动执行
 
-在中心本机 Owner 控制台的“项目概览”建立项目，填写仓库、目标分支、有限累计项目预算、受保护路径和最低检查；在“需求池”录入需求。随后进入“目标规划与 Leader”，创建完整目标文档：objective（目标）、non_goals（非目标）、acceptance（验收标准）、关联 requirement_ids、architecture（架构）、directory_outline（目录大纲）、字面 allowed_roots（允许根目录）和正整数 budget_seconds（有限累计目标预算）。空架构或缺失边界仍属于规划，不表示可执行。
+在中心本机 Owner 控制台的“项目概览”建立项目，填写仓库、目标分支、受保护路径和最低检查；在“需求池”录入需求。随后进入“目标规划与 Leader”，创建完整目标文档：objective（目标）、non_goals（非目标）、acceptance（验收标准）、关联 requirement_ids、architecture（架构）、directory_outline（目录大纲）、字面 allowed_roots（允许根目录）和正整数 budget_seconds（有限累计目标预算）。空架构或缺失边界仍属于规划，不表示可执行。
 
 保存后由 Owner 点击“一次授权”，批准当前文档与授权版本。再向 Leader 输入说明并点击“评估规划”；“发送消息”与“评估规划”都提交版本化规划执行请求，最终以实际运行及中心准入记录为准。Leader 是中心配置的原生 Codex CLI 执行，固定显式使用 `gpt-6.1-sol`、只读规划材料；它与桌面聊天会话不同。规划请求、执行代次、租约、截止时间、进程树停止证据、结算、结构化结果和任务映射均持久化。模型文字中的 ready 或“完成”不能替代中心准入、授权或实际进程停止。所有受管 Codex 执行均显式指定 `gpt-6.1-sol`，不回退到其他模型。
 
@@ -75,7 +75,7 @@ Web 中建立项目、明确有限累计总预算和最低检查，录入需求�
 
 | UI 操作 | HTTP / CLI 路径 | 请求内容 |
 | --- | --- | --- |
-| 建立项目 | POST `project` | name、repository_url、target_branch、total_budget_seconds、protected_paths、checks |
+| 建立项目 | POST `project` | name、repository_url、target_branch、protected_paths、checks（total_budget_seconds 已弃用并忽略） |
 | 录入需求 | POST `requirements` | title、body |
 | 保存目标 | POST `planning/save` | expected_version、document |
 | Owner 一次授权 | POST `planning/authorize` | expected_version |
@@ -99,11 +99,13 @@ Web 中建立项目、明确有限累计总预算和最低检查，录入需求�
 
 ## 验证状态
 
+v0.2.1-dev 包含主机范围查询闭包、持久化节点签发校验、跨页面咨询重试信封、稳定阻断分页、延迟停止决策核销和有限长运行配置。2026-10-13 已通过 macOS 独立本机真实 stdio MCP 与原生 `gpt-6.1-sol` Leader 验收：两个逻辑节点分别使用受限凭据及实际中心/Runner 端口，核对共享 profile 复用、需求来源与去重、主机查询与监听入口权限，以及撤销后原连接拒绝重放；无目标和已批准准入目标两种场景下，自动化开启仍只产生咨询回复，目标、授权、范围、需求、任务、发布意图及 Git 主线保持不变，所有执行停止并结算。逻辑节点测试不代表真实跨机部署。需求版本化撤销/编辑与实时开发者邮箱尚未实现。
+
 既有 Phase A 已完成真实 Mac 中心与 Windows 节点连接、Windows dsh 实现、Claude 独立评审的小项目闭环，以及运行中取消验收。该 Phase A 的实际 Agent 验收事实限于 Claude / dsh，不把支持定义或版本探测说成其他工具已实测。
 
-**macOS 本机 Phase B 端到端验收已通过。** 实测流程为原生 Codex CLI `gpt-6.1-sol` Leader 规划 → 自动授权一个任务 → 原生 Codex 返回 `scope_requested` 且无编辑 → 实际进程停止 → Leader 在目标字面允许根目录内自动批准普通范围 → 同一任务以新授权恢复并保留累计支出 → 原生 Codex 开发 → 独立本机 Claude 节点只读评审 → 中心对不可变固定候选执行 `node:test` 验证 → 精确固定候选条件更新本地测试 Git 的 `main`。Owner 仅批准目标一次，没有手动批准范围或提交替代请求。结束时所有 Run 进程树均已停止，项目与目标预留预算均为零。
+**既有 v0.2.0-dev macOS 本机 Phase B 端到端验收已通过。** 实测流程为原生 Codex CLI `gpt-6.1-sol` Leader 规划 → 自动授权一个任务 → 原生 Codex 返回 `scope_requested` 且无编辑 → 实际进程停止 → Leader 在目标字面允许根目录内自动批准普通范围 → 同一任务以新授权恢复并保留累计支出 → 原生 Codex 开发 → 独立本机 Claude 节点只读评审 → 中心对不可变固定候选执行 `node:test` 验证 → 精确固定候选条件更新本地测试 Git 的 `main`。Owner 仅批准目标一次，没有手动批准范围或提交替代请求。结束时所有 Run 进程树均已停止，项目与目标预留预算均为零。
 
-**原生 Leader 运行中取消验收也已通过。** 已观察到结构化会话，取消前确认真实存活 PID，取消后确认进程消失、静止与结算，保留实际耗时支出。本机 Claude 与 dsh 原生协议冒烟测试已通过；这不代表完整 Phase B dsh 协作或多机部署已通过。
+**既有 v0.2.0-dev 原生 Leader 运行中取消验收也已通过。** 已观察到结构化会话，取消前确认真实存活 PID，取消后确认进程消失、静止与结算，保留实际耗时支出。本机 Claude 与 dsh 原生协议冒烟测试已通过；这不代表完整 Phase B dsh 协作或多机部署已通过。
 
 完整测试与各平台 CI 结果以当前发布版本关联的 GitHub checks 为准，本地局部检查不替代完整测试或平台 CI。多机 Phase B 与 Linux 原生部署仍待验证。既有普通局域网连通与任务测试不覆盖断线、重启、重复消息、旧租约及全部进程树停止语义；单元/协议模拟、CI 和跨平台编译分别记录，跨编译不等于目标系统原生认证。
 
@@ -114,6 +116,8 @@ Web 中建立项目、明确有限累计总预算和最低检查，录入需求�
 macOS、Windows、Linux 都把对应平台的 `coordica` 可执行文件安装为 stdio MCP，参数为 `mcp --bootstrap`。在中心“中心配置与接入”生成一次性接入指令，交给执行电脑的 Agent；也可在“运行与节点”创建配对码，另行提供中心 URL 和必要的公共 CA 路径。MCP 自动发现 Git 与工具路径，交给 Runner 配对，并安装/启动用户级后台服务。无需手工执行 `pair` 或 `runner`。每台电脑使用独立节点身份，容量为 1 或 2。
 
 本地探测不读取 Agent 认证文件；已有登录继续由各官方工具使用。用户级后台服务与聊天客户端分离；macOS 使用 launchd、Linux 使用 systemd --user、Windows 使用当前用户的计划任务。服务启动失败会明确报错并保留已配对状态，不伪装成已上线。
+
+原生 CLI 继承启动它的中心或 Runner 父进程中的标准代理环境变量 `HTTPS_PROXY`、`HTTP_PROXY`、`ALL_PROXY`、`NO_PROXY`（也支持小写名称）。可通过 `NO_PROXY` 排除本机地址，避免本地 URL 经过代理。
 
 ## 执行电脑的本机页面
 
@@ -204,3 +208,98 @@ Web 或 CLI 创建一致备份，返回中心上的备份目录。备份包含�
 真实 Agent 验收可使用安装包中的 [独立小项目](examples/acceptance/README.md)，在隔离仓库执行，不影响本项目或用户实际项目。
 
 没有开启后台自动升级或公开上传。Phase B 自动化默认关闭；启用也不提供全局无限授权。
+
+项目没有生命周期累计时间上限，中心持续运行；项目 used_seconds / reserved_seconds 是保留全部历史支出的统计与证据，不参与派单、评审、规划、咨询或恢复门禁。兼容记录中的 total_budget_seconds 已弃用并忽略，不要求在创建项目时填写；旧 POST project/budget（ConfigureProjectBudget）明确返回 deprecated。目标预算仍有限（最多 365 天），目标内规划累计额度仍由 PlanningBudgetSeconds（1–31536000 秒且不少于超时，默认十五分钟）约束，单次规划/咨询超时由 PlanningTimeoutSeconds（1–604800 秒，默认五分钟）约束、重试为 0–2。咨询账户仅统计及预留，不是另一个项目总额度。任务累计额度可配置至 365 天（默认四小时），单个执行 Run 可配置至七天（默认一小时）；新任务自动修复/重试各 0–2，Owner 版本化扩展仍最多 100 次，历史计数不清零。租约续期与有限执行截止时间独立；最低检查仍保留单次一小时超时政策。
+
+旧版本 `hold_reason=budget` 不会自动清除：记录没有保存原始耗尽原因。确认旧进程树已停止并已结算、目标/任务剩余额度为正、当前授权/政策/候选仍有效且重试可用后，Owner 可在任务恢复操作中提交当前任务版本，或调用 `POST /api/v1/tasks/{id}/resume`，正文为 `{ "expected_version": 当前版本 }`，带 Owner 凭据与新的 `Idempotency-Key`。此兼容恢复保留累计支出，失败执行的恢复消耗一次剩余重试；缺失停止证据、真实额度耗尽或过期授权仍拒绝。已有发布意图按原有核对路径处理，不因升级重建。
+
+## Conversational MCP (`coordica-chat`)
+
+Each physical host has one shared interaction MCP/profile reused by all its local managed developer agents and familiar chat clients. It is a separate, limited client identity. The default `coordica` MCP remains the local Runner bootstrap; an assigned Run MCP remains Run-scoped. Neither identity gains chat rights. Queries read central records and never invoke Leader. Only explicitly submitted text is stored; Coordica does not import the private chat history.
+
+On the **Owner's center machine**, choose an absolute shared private profile path and create a limited credential through the loopback Owner API:
+
+```sh
+coordica chat-init --data /absolute/private/center-data \
+  --url http://127.0.0.1:8080 \
+  --profile /absolute/private/coordica-chat.json --name "My familiar chat"
+```
+
+This reads `CENTER_DATA/owner.token` locally only to mint a limited **center-host** credential. It atomically publishes a private JSON profile and prints only the limited credential ID. The profile contains `center_url`, `credential_id`, a limited `chat_…` token and optionally fixed `tls_ca`; Owner and node tokens are never exported into it. Treat the profile as private and keep it outside product source, packages and Git. Unix mode privacy and Windows current-owner/protected user-only DACL privacy are checked independently; symlinks and non-regular profiles are rejected.
+
+On an **already paired Runner host**, reuse its existing registration, without pairing again:
+
+```sh
+coordica chat-init --runner-data /absolute/private/existing-runner-data \
+  --profile /absolute/private/coordica-chat.json --name "Shared Runner host"
+```
+
+Runner mode reads `runner.json` locally solely for authenticated issuance of a separate limited **node-host** credential; its node token never appears in the chat profile, setup export or output. The server binds scope and NodeID from that authenticated live registration. Source client/session/message identifiers identify a conversation, never host authority. A copied center profile does not grant remote Leader access. No per-agent installation or single-browser-session restriction exists.
+
+Both modes serialize initialization with a process lock, reuse an existing verified active shared profile, and persist a private pending grant identity/envelope before issuance. A lost grant ACK or process restart retries the same key/body rather than minting orphan credentials. An existing revoked/unverifiable profile requires explicit `--renew` after checking connectivity; a mismatched host/center requires a different path. Renewal revokes the existing own credential before replacing its profile. Failed new publication or pending cleanup revokes only the newly issued own credential through the issuing authority. A revoked pending grant requires explicit `--renew` to retire the inactive pending identity before retrying. Old unscoped credentials are rejected and require explicit renewal, with no inferred upgrade. Restore clears credentials, pairings and idempotency; scope metadata cannot reactivate old authority.
+
+Preview chat registration, then apply it when ready:
+
+```sh
+coordica setup --mode chat --chat-profile /absolute/private/coordica-chat.json --client codex
+coordica setup --mode chat --chat-profile /absolute/private/coordica-chat.json --client codex --apply
+# Export without changing another client's settings:
+coordica setup --mode chat --chat-profile /absolute/private/coordica-chat.json \
+  --client generic --output /absolute/private/mcp-export --apply
+coordica setup --mode chat --chat-profile /absolute/private/coordica-chat.json \
+  --client dsh --output /absolute/private/mcp-export --apply
+# Direct stdio launch, normally performed by the chat client:
+coordica mcp --chat-profile /absolute/private/coordica-chat.json
+```
+
+Chat mode uses the same client registry (`auto`, `claude`, `codex`, `cursor`, `kimi`, `pi`, `dsh`, `generic`), privacy checks, conflict policy, and idempotent setup behavior as bootstrap mode. Its server name is **`coordica-chat`**, distinct from **`coordica`**. Existing bootstrap entries and other client settings are preserved. Exports contain only the executable and fixed profile path, never the credential. Chat mode cannot be combined with Runner data, bootstrap profiles, Run IDs, or tool definitions. No chat client is installed automatically. After setup, reload/restart the affected client so it reloads its MCP configuration. Keep the executable and shared profile at stable absolute paths; `--runner-data` selects the existing Runner only during `chat-init` (or bootstrap setup).
+
+Tool discovery reads authenticated server scope, rather than a trusted profile flag. Shared tools are the four overview/list/item/requirement tools; the four Leader conversation tools below are **center-host only**:
+
+| Tool | Structured arguments / behavior |
+| --- | --- |
+| `get_project_overview` | `{}`; redacted project and goal facts, versions, cumulative used/reserved statistics, query time |
+| `list_project_items` | `kind`, `limit` (1–20), optional `cursor` (last returned item ID) |
+| `get_project_item` | `kind`, `id`; one redacted central record with version and query time |
+| `submit_requirement` | `title`, `original_text`, optional `assistant_summary`, `source`, `idempotency_key`; explicitly adds a requirement to the existing pool |
+| `consult_leader` | `expected_goal_version`, `original_text`, optional `assistant_summary`, `source`, optional `reply_to`, `idempotency_key`; queues pure advice |
+| `propose_change` | Same arguments as `consult_leader`; relays an architecture/rule suggestion as advisory content |
+| `get_consultation` | `id`; reads either a consultation or proposal, including durable status/reply/evidence |
+| `cancel_consultation` | `id`, `expected_version`, `idempotency_key`; requests cancellation of this client's own request |
+
+Pages stop at 20 items or a 1 MiB item payload; continue with `next_cursor`. Text is redacted and bounded, task path/reference arrays are limited to 128 entries, and oversized requirement/task text or arrays carry `truncated: true`. Detail uses the same safe projection.
+
+`kind` is the closed enum `requirements`, `tasks`, `blocks`, `agents`, `runs`, `consultations`, `proposals` (tasks, blocks, consultations and proposals are center-host only; node-host credentials allow requirements, own-node agents and own-node Runs). IDs/cursors/session/message identifiers are 1–128 ASCII letters, digits, `_` or `-`. `source` is `{ "session_id": "…", "message_id": "…" }`, with optional `client_id` that must match the authenticated credential. The application supplies the authoritative client ID. Original text is limited to 16 KiB of UTF-8 bytes, assistant summaries to 4 KiB of UTF-8 bytes, and chat titles to 512 bytes and the existing requirement rule of 200 characters. Write keys are required and bounded to 200 bytes; reuse a key when retrying the same operation. The authenticated client/session/message tuple also deduplicates each explicit tool intent even if a retry uses a new key; changed content for the same source is rejected. Use a new message identifier for a new explicit submission. Duplicate and unknown JSON fields are rejected. Requirements retain the original text, summary, and source separately; there is no approval, task creation, or goal rewrite.
+
+For example, an explicit consultation tool call can use:
+
+```json
+{
+  "expected_goal_version": 0,
+  "original_text": "Please advise on a simple module boundary before I draft the goal.",
+  "assistant_summary": "User wants advisory architecture discussion.",
+  "source": { "session_id": "chat_session_1", "message_id": "user_message_17" },
+  "idempotency_key": "consult_user_message_17"
+}
+```
+
+Use goal version **0 only when no goal exists**; otherwise use the current overview's goal version. Long Leader work returns a durable request ID/status immediately. A center-host interaction agent may query `get_consultation` whenever it chooses; a submission acknowledgment is not a reply or completion. Replies may be stale after goal edits. Conversations are private to the authenticated ClientID; reply_to must also match session and compatible goal version. The Owner Web console may view all. An advisory prompt preserves the current question first, then up to eight authorized ancestral questions/replies, then incremental shared project facts; the final encoded prompt is at most 256 KiB and reports omitted context. It never imports general/private planning messages. Periodic querying is an individual chat-agent capability; Coordica adds no chat timer, monitor or mandatory polling workflow. The Web Planning/Leader page displays the same central requests, original text, separate summaries, source identifiers, versions, statuses, replies, and result digests, and provides **纯咨询 Leader（不派生任务）** and a separate architecture/rule proposal action. Existing Evaluate and send-for-evaluation remain execution planning operations that can derive tasks.
+
+Consultations persist `PlanningRun.purpose = "consultation"`; an empty legacy purpose remains evaluation. Native execution stays explicit `codex --model gpt-6.1-sol`, read-only, isolated from Owner settings/credentials. The advisory schema accepts only `{ "reply": "…" }`; action fields are rejected. No completion, receipt replay, reconciliation, or recovery path adopts a consultation as a plan. Automation being enabled does not change this. Formal adoption still requires the existing Owner versioned save/authorization/decision flows. A proposal never saves a goal or holds/stops active development.
+
+Center-host consultation is available before admission and without a goal. The durable consultation account is a cumulative statistics/reservation target independent of goal edits; its legacy budget field is ignored and spending is never reset. Every consultation attempt has the finite planning timeout (default 300 seconds) and bounded retry count (default two). Project lifetime spending never prevents consulting. The supervised worker slot, leases, generations, process-start evidence, private durable receipts, cancellation, project pause, credential scope/revocation and restart fences apply. An unknown-live consultation consumes its full grant and blocks further process admission; prose is never stop evidence. A delayed exact same-Run/purpose/account/request/generation/document/authorization trusted TreeStopped receipt can release only that barrier, without adopting its late result or refunding historical charges; duplicate recovery changes nothing. The Owner can also resolve it after independently proving the process tree stopped:
+
+```sh
+# stop-proof.json: {"expected_version": CURRENT_RUN_VERSION, "evidence": "Actual operator stop evidence"}
+coordica ctl --center http://127.0.0.1:8080 --token-file /absolute/private/center-data/owner.token \
+  --method POST --path consultation-runs/PLAN_ID/confirm-stopped --body-file /absolute/private/stop-proof.json
+# Revoke a limited chat credential (also cancels its queued/running advisory work):
+coordica ctl --center http://127.0.0.1:8080 --token-file /absolute/private/center-data/owner.token \
+  --method POST --path chat-credentials/CLIENT_ID/revoke --key revoke-CLIENT_ID
+```
+
+HTTP chat routes are precisely GET `/api/v1/chat/{overview,identity}` and bounded JSON POST `/api/v1/chat/{items,item,requirements,consultations,proposals,consultation,cancel}`. The payloads match domain contracts (HTTP idempotency is a header). Owner-only additions are POST `/api/v1/chat-credentials`, POST `/api/v1/chat-credentials/{id}/revoke`, POST `/api/v1/planning/{consult,propose,consult-cancel}` and POST `/api/v1/consultation-runs/{id}/confirm-stopped`. AdminHandler accepts center-chat; shared loopback Handler supports both scopes. RunnerHandler on remote TLS accepts **only node-chat on every chat route**, including overview/items/item; a valid center-chat token is rejected there. The remote listener exposes no Owner console/API or direct Leader work. Its bounded paired-node POST `/api/v1/runner/chat-credentials` and POST `/api/v1/runner/chat-credentials/{id}/revoke` issue/revoke only credentials bound to that node; issuance replay also rechecks the cached granted credential is active and bound. Revocation/live node registration and persisted scope are rechecked transactionally before reads/writes/replay and by the Leader worker through start, watch, settlement and recovery.
+
+Node-chat can submit ordinary requirements into the shared pool and read safe shared project/requirement/task/block facts. The server stamps SourceNodeID alongside chat client/session/message provenance. Normal authorized planning may later adopt pool requirements; this is not direct Leader chat. Runtime Run/agent queries on a Runner host expose only its authenticated node's safe facts: Run ID/state/tool/timings/limits/quiet status and truthful observed capabilities/LastSeen. No command, machine path, SDK session, private output, candidate content or full Project object is exposed. A historical Run cannot reveal its task's later assignment on another node or updated goal; task title/text accompanies runtime facts only while that exact current Run and authority remain bound. There is **no live developer messaging or runtime mailbox** in this implementation. Redirects and remote plaintext HTTP are refused.
+
+Chat DTOs exclude repository/local paths, raw command lines, executable definitions, secrets, credentials, raw process outcomes, and Owner configuration. Task scopes contain only safe relative repository patterns. Natural-language fields receive token/path/command redaction; do not intentionally submit unrelated secrets as requirements or advisory context. Revocation is rechecked transactionally before reads and before idempotency replay. Backups retain advisory records/accounting and supervised receipts under the existing private backup policy while removing credentials and cached credential responses. Public JSON schema/TypeScript and the embedded advisory output schema are generated with `go run ./cmd/contractgen`.

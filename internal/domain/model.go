@@ -14,6 +14,10 @@ import (
 
 const APIVersion = "v1"
 
+// Explicit finite task and execution deadlines; project spending is telemetry.
+const MaxTaskBudgetSeconds int64 = 31536000 // 365 days, including manual extensions
+const MaxRunDurationSeconds int64 = 604800  // 7 days; leases renew independently
+
 type Check struct {
 	Name           string   `json:"name"`
 	Command        string   `json:"command"`
@@ -21,12 +25,13 @@ type Check struct {
 	TimeoutSeconds int64    `json:"timeout_seconds"`
 }
 type Project struct {
-	ID                 string    `json:"id"`
-	Version            int64     `json:"version"`
-	Name               string    `json:"name"`
-	RepositoryURL      string    `json:"repository_url"`
-	TargetBranch       string    `json:"target_branch"`
-	Paused             bool      `json:"paused"`
+	ID            string `json:"id"`
+	Version       int64  `json:"version"`
+	Name          string `json:"name"`
+	RepositoryURL string `json:"repository_url"`
+	TargetBranch  string `json:"target_branch"`
+	Paused        bool   `json:"paused"`
+	// Deprecated: retained for wire/storage compatibility; ignored by all gates.
 	TotalBudgetSeconds int64     `json:"total_budget_seconds"`
 	UsedSeconds        int64     `json:"used_seconds"`
 	ReservedSeconds    int64     `json:"reserved_seconds"`
@@ -36,12 +41,15 @@ type Project struct {
 	CreatedAt          time.Time `json:"created_at"`
 }
 type Requirement struct {
-	ID           string    `json:"id"`
-	Version      int64     `json:"version"`
-	Title        string    `json:"title"`
-	Body         string    `json:"body"`
-	SourceNodeID string    `json:"source_node_id,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
+	OriginalText     string      `json:"original_text,omitempty"`
+	AssistantSummary string      `json:"assistant_summary,omitempty"`
+	Source           *ChatSource `json:"source,omitempty"`
+	ID               string      `json:"id"`
+	Version          int64       `json:"version"`
+	Title            string      `json:"title"`
+	Body             string      `json:"body"`
+	SourceNodeID     string      `json:"source_node_id,omitempty"`
+	CreatedAt        time.Time   `json:"created_at"`
 }
 type RequirementProposal struct {
 	Title string `json:"title"`
@@ -172,21 +180,23 @@ type Event struct {
 	Detail   string    `json:"detail"`
 }
 type Snapshot struct {
-	Automation       AutomationSettings `json:"automation"`
-	PlanningDocument *PlanningDocument  `json:"planning_document"`
-	LeaderMessages   []LeaderMessage    `json:"leader_messages"`
-	PlanningRuns     []PlanningRun      `json:"planning_runs"`
-	Decisions        []Decision         `json:"decisions"`
-	ScopeRequests    []ScopeAssessment  `json:"scope_requests"`
-	Blocks           []BlockItem        `json:"blocks"`
-	APIVersion       string             `json:"api_version"`
-	Project          *Project           `json:"project"`
-	Requirements     []Requirement      `json:"requirements"`
-	Tasks            []Task             `json:"tasks"`
-	Runs             []Run              `json:"runs"`
-	Candidates       []Candidate        `json:"candidates"`
-	Nodes            []Node             `json:"nodes"`
-	Events           []Event            `json:"events"`
+	Conversations       []ConversationRequest `json:"conversations"`
+	ConsultationAccount *ConsultationAccount  `json:"consultation_account,omitempty"`
+	Automation          AutomationSettings    `json:"automation"`
+	PlanningDocument    *PlanningDocument     `json:"planning_document"`
+	LeaderMessages      []LeaderMessage       `json:"leader_messages"`
+	PlanningRuns        []PlanningRun         `json:"planning_runs"`
+	Decisions           []Decision            `json:"decisions"`
+	ScopeRequests       []ScopeAssessment     `json:"scope_requests"`
+	Blocks              []BlockItem           `json:"blocks"`
+	APIVersion          string                `json:"api_version"`
+	Project             *Project              `json:"project"`
+	Requirements        []Requirement         `json:"requirements"`
+	Tasks               []Task                `json:"tasks"`
+	Runs                []Run                 `json:"runs"`
+	Candidates          []Candidate           `json:"candidates"`
+	Nodes               []Node                `json:"nodes"`
+	Events              []Event               `json:"events"`
 }
 type NodeSnapshot struct {
 	APIVersion    string        `json:"api_version"`
@@ -205,10 +215,14 @@ type Pairing struct {
 	Used      bool      `json:"used"`
 }
 type Credential struct {
-	ID     string `json:"id"`
-	Hash   string `json:"hash"`
-	Role   string `json:"role"`
-	NodeID string `json:"node_id"`
+	ChatScope string    `json:"chat_scope,omitempty"`
+	Name      string    `json:"name,omitempty"`
+	Revoked   bool      `json:"revoked,omitempty"`
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	ID        string    `json:"id"`
+	Hash      string    `json:"hash"`
+	Role      string    `json:"role"`
+	NodeID    string    `json:"node_id"`
 }
 type Resource struct {
 	ID     string `json:"id"`
@@ -313,9 +327,6 @@ func ValidateProject(p Project) error {
 	if strings.TrimSpace(p.Name) == "" || strings.TrimSpace(p.RepositoryURL) == "" {
 		return Fail("invalid_input", "项目名称和仓库地址不能为空")
 	}
-	if p.TotalBudgetSeconds <= 0 {
-		return Fail("invalid_input", "必须设置有限的项目总预算")
-	}
 	if !filepath.IsAbs(p.RepositoryURL) {
 		u, e := url.Parse(p.RepositoryURL)
 		if e != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
@@ -342,7 +353,7 @@ func ValidateTask(t Task) error {
 	if err := ValidateToolID(t.Tool); err != nil {
 		return err
 	}
-	if t.BudgetSeconds <= 0 || t.BudgetSeconds > 14400 || t.MaxRunSeconds <= 0 || t.MaxRunSeconds > 3600 || t.MaxRunSeconds > t.BudgetSeconds || t.MaxRepairs < 0 || t.MaxRepairs > 2 || t.MaxRetries < 0 || t.MaxRetries > 2 {
+	if t.BudgetSeconds <= 0 || t.BudgetSeconds > MaxTaskBudgetSeconds || t.MaxRunSeconds <= 0 || t.MaxRunSeconds > MaxRunDurationSeconds || t.MaxRunSeconds > t.BudgetSeconds || t.MaxRepairs < 0 || t.MaxRepairs > 2 || t.MaxRetries < 0 || t.MaxRetries > 2 {
 		return Fail("invalid_input", "无效的任务预算或次数限制")
 	}
 	for _, p := range t.AllowedPaths {

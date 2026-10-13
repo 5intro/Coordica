@@ -100,6 +100,47 @@ func TestEmbeddedExecutionSchemaMatchesDomainContract(t *testing.T) {
 	}
 }
 
+func TestPublicFiniteLimitsAndIgnoredProjectAllowance(t *testing.T) {
+	raw, e := os.ReadFile("../../api/v1.schema.json")
+	if e != nil {
+		t.Fatal(e)
+	}
+	var schema struct {
+		Defs map[string]struct {
+			Properties map[string]struct {
+				Maximum    int64 `json:"maximum"`
+				Deprecated bool  `json:"deprecated"`
+			} `json:"properties"`
+			Required []string `json:"required"`
+		} `json:"$defs"`
+	}
+	if e = json.Unmarshal(raw, &schema); e != nil {
+		t.Fatal(e)
+	}
+	for _, name := range []string{"Task", "TaskProposal", "PlanningDocument"} {
+		if schema.Defs[name].Properties["budget_seconds"].Maximum != domain.MaxTaskBudgetSeconds {
+			t.Fatal("cumulative contract limit drift", name)
+		}
+	}
+	for _, name := range []string{"Task", "TaskProposal"} {
+		if schema.Defs[name].Properties["max_run_seconds"].Maximum != domain.MaxRunDurationSeconds {
+			t.Fatal("Run contract limit drift", name)
+		}
+	}
+	a := schema.Defs["AutomationSettings"].Properties
+	if a["planning_timeout_seconds"].Maximum != domain.MaxRunDurationSeconds || a["planning_budget_seconds"].Maximum != domain.MaxTaskBudgetSeconds || a["planning_max_retries"].Maximum != 2 {
+		t.Fatal("planning contract limits drift")
+	}
+	if !schema.Defs["Project"].Properties["total_budget_seconds"].Deprecated || !schema.Defs["ChatOverview"].Properties["budget_seconds"].Deprecated || !schema.Defs["ConsultationAccount"].Properties["budget_seconds"].Deprecated {
+		t.Fatal("legacy field not deprecated")
+	}
+	for _, name := range schema.Defs["Project"].Required {
+		if name == "total_budget_seconds" {
+			t.Fatal("ignored allowance still required on creation")
+		}
+	}
+}
+
 func TestNativeScopeFixtureMatchesVersionedContractAndInsufficientInitialScope(t *testing.T) {
 	root := "../../examples/native-scope/"
 	b, err := os.ReadFile(root + "expected-scope-intent.json")
@@ -132,5 +173,20 @@ func TestNativeScopeFixtureMatchesVersionedContractAndInsufficientInitialScope(t
 		if _, err := os.Stat(root + path); err != nil {
 			t.Fatal("source-only fixture missing", path, err)
 		}
+	}
+}
+
+func TestEmbeddedConsultContractCannotCarryActions(t *testing.T) {
+	artifact, err := os.ReadFile("../coordica/consult.schema.json")
+	if err != nil || !bytes.Equal(artifact, consultSchema()) {
+		t.Fatal("regenerate consult schema", err)
+	}
+	var schema map[string]any
+	if json.Unmarshal(artifact, &schema) != nil {
+		t.Fatal("invalid consult schema")
+	}
+	props := schema["properties"].(map[string]any)
+	if len(props) != 1 || props["reply"] == nil || schema["additionalProperties"] != false {
+		t.Fatal("consult schema accepts action fields")
 	}
 }
