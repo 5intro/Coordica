@@ -142,5 +142,5 @@ func assignedGoalContext(tx *store.Tx) (*domain.GoalContext, error) {
 }
 
 func candidateAuthority(tx *store.Tx, t domain.Task, p domain.Project, c domain.Candidate) bool {
-	return !p.Paused && t.State != "cancelled" && t.State != "integrated" && t.HoldReason == "" && t.ID == c.TaskID && t.CurrentCandidateID == c.ID && t.AuthorizationVersion == c.AuthorizationVersion && p.PolicyVersion == c.PolicyVersion && goalGate(tx, &t, false) == nil
+	return c.BaselineVersion == t.BaselineVersion && c.BaselineDigest == t.BaselineDigest && !p.Paused && t.State != "cancelled" && t.State != "integrated" && t.HoldReason == "" && t.ID == c.TaskID && t.CurrentCandidateID == c.ID && t.AuthorizationVersion == c.AuthorizationVersion && p.PolicyVersion == c.PolicyVersion && goalGate(tx, &t, false) == nil
 }

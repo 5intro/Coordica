@@ -325,3 +325,11 @@ func bootstrapArguments(raw []byte, value any) error {
 	}
 	return nil
 }
+
+func (b Bootstrap) Inspect(ctx context.Context) (any, error) {
+	registry, tools, exe, e := b.localRegistry()
+	if e != nil {
+		return nil, e
+	}
+	return inspectRegistry(ctx, registry, tools, exe)
+}

@@ -13,6 +13,16 @@ func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.Plan
 	if r.Purpose == domain.ConsultationPurpose {
 		return domain.Fail("forbidden", "advisory requests cannot derive plans")
 	}
+	baseline, e := initialization(tx)
+	if e != nil {
+		return e
+	}
+	if e = baselineGate(tx, nil, false); e != nil {
+		return e
+	}
+	if r.BaselineVersion != baseline.ApprovedVersion || r.BaselineDigest != baseline.ApprovedDigest {
+		return domain.Fail("baseline_changed", "planning result belongs to an older baseline")
+	}
 	settings, e := automation(tx)
 	if e != nil {
 		return e
@@ -237,6 +247,9 @@ func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.Plan
 		t.ID = ids[q.Key]
 		t.Version = 1
 		t.AuthorizationVersion = 1
+		if e := baselineGate(tx, &t, true); e != nil {
+			return e
+		}
 		t.GoalVersion = d.Version
 		t.GoalAuthorizationVersion = d.AuthorizationVersion
 		t.State = "draft"

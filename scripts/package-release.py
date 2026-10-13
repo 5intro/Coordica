@@ -126,10 +126,11 @@ def common_entries():
 def start_here(version, platform, binary):
     instructions = f"""Coordica v{version} — {platform}
 
-这是 v{version} Phase B 开发预发布包。
-发布说明：https://github.com/5intro/Coordica/releases/tag/v{version}
+这是 v{version} 开发预览版。
+Owner 独立验证并发布后的版本页：https://github.com/5intro/Coordica/releases/tag/v{version}
 既有 v0.2.0-dev macOS 本机 Phase B 端到端验收已通过；多机 Phase B 与 Linux 原生部署仍待验证。
-v{version} 本次准备源码与公开发布元数据；Owner 独立验证后部署与发布。
+实际可下载版本与对应验证记录见 Releases/Actions；Owner 独立验证后部署与发布。
+检出或更新源码不会自动安装、发布或部署。
 源码回归不代表本版本真实模型验收或目标系统原生部署认证。
 中心、MCP 与 Runner 使用同一个可执行文件，无需单独安装 Runner 或构建源码。
 
@@ -150,6 +151,15 @@ v{version} 本次准备源码与公开发布元数据；Owner 独立验证后部
    让 Agent 保存公共 CA、注册 MCP，再调用 initialize_runner 配对并启动用户级 Runner。
    也可自行提供真实中心 HTTPS 地址、配对码和必要的公共 CA 绝对路径。
 6. 在中心“运行与节点”核对后续心跳。关闭 MCP 会话不影响独立 Runner。
+
+0.2.3-dev 新增必需项目初始化：所有旧数据库与无 Goal 项目也需要 Leader 只读分析和 Owner 确认精确基线。
+中心主机先用 host-config 保存可信固定角色/路径，再 setup --host-role center --host-config 固定配置 --runner-data 独立固定Runner目录；initialize_center/start_center/get_host_status 均无路径参数。
+同一个中心 MCP 保留 initialize_runner，无第二个入口；中心 limited profile 保持原身份，不发送到提供的其它配对端点。
+checks-file 可省略，先建立暂停的空检查草案并访谈；Owner 保存真实非空检查政策后重新分析确认，空检查不能执行。
+初始化捕获 Owner 的 PlanningTimeoutSeconds 与 PlanningMaxRetries；默认300秒、两次重试，无需开启自动化。
+原始回答、覆盖和源 SHA 保留；new 访谈可以在首次提交前开始。分析不执行检查、不生成开发任务、不启用自动化。
+Owner token 不经 MCP 返回；受限 MCP 不隔离聊天的其它工具。
+源码版本不意味着已经发布或原生部署通过。
 
 安装与 MCP 初始化：README.md 的“统一 MCP 初始化（主要接入方式）”
 中心首次启动及局域网证书：README.md 的“本机启动”和“两台电脑通过局域网连接”
@@ -173,16 +183,17 @@ v{version} 本次准备源码与公开发布元数据；Owner 独立验证后部
 能力变化在客户端活动时通知；不支持动态刷新时手动重新发现或重连。
 dsh 只迁移安装器生成的文件；已加载旧 overlay 须自行从启动命令移除。
 固定 Run MCP 仍仅有 get_context/report_block/request_scope，无主机管理或对话权限。
-MCP 中心服务启动、项目接入访谈、开发者邮箱、索引集成、模型/effort/并发设置与资源扩展均属后续功能。
-本次统一 MCP 实现及评审修复已独立通过完整 macOS Go race 套件，包括全部监听测试。
-真实原生可执行文件 stdio 与隔离双监听中心验收通过：同一 MCP 进程从缺失 profile 获得十一项中心工具；
+开发者邮箱、索引集成、模型/effort/并发设置与资源扩展均属后续功能。
+既有 v0.2.2-dev 统一 MCP 实现及评审修复已独立通过完整 macOS Go race 套件，包括全部监听测试。
+v0.2.2-dev 真实原生可执行文件 stdio 与隔离双监听中心验收通过：同一 MCP 进程从缺失 profile 获得十一项中心工具；
 节点 profile 仅七项工具，不能访问 Leader/全局任务池；Run 仅三项范围内工具并拒绝跨角色调用。
 中心实际重启时 MCP 进程保持存活；凭据撤销后缓存读取与需求提交被拒绝。
 实际原生 Codex CLI 配置安装迁移为唯一 coordica，保留路径、启用/禁用状态、超时、无关设置、备份和幂等性。
 评审修复覆盖 TOML 末尾分隔/无关表、项目级 MCP 名称状态、隐式目录环境/文件别名和本机 Runner 保留中心 profile。
 开发侧离线 stdio 与五项 Python 打包测试通过；fixtures 不代表所有客户端或平台原生验收。
-本次验收没有运行模型，没有派发开发、规划 Run 或任务；节点注册为逻辑 fixture，没有激活用户服务。
-CLI 配置安装已测试；GUI 动态工具刷新取决于客户端支持。本次未新增 Windows/Linux 原生部署认证。
+v0.2.2-dev 验收没有运行模型，没有派发开发、规划 Run 或任务；节点注册为逻辑 fixture，没有激活用户服务。
+CLI 配置安装已测试；GUI 动态工具刷新取决于客户端支持。该 v0.2.2-dev 验收未新增 Windows/Linux 原生部署认证。
+v0.2.3-dev 的原生服务、统一 MCP 与只读 Leader 就绪验证记录以对应 Releases 的发布说明为准，由 Owner 独立验证后记录。
 可执行文件、数据和私有 profile 使用稳定绝对路径；setup 后重新加载或重启对应客户端。
 中心凭据仅在中心回环地址允许 Leader 咨询；节点凭据仅允许安全公共事实、需求及本节点 Agent/Run。
 节点不能查询全局任务、阻断、Leader 对话或其他节点执行上下文。凭据范围由中心持久化记录决定。
@@ -198,7 +209,7 @@ Leader 纯咨询/建议不创建任务或修改授权；页面切换保留未确
 Windows batch 路径限制：internal/process/README.md
 
 包内不含个人凭据、中心地址或配对信息。解压不会自动安装或启动系统服务；
-只有调用 initialize_runner 时才配对及请求启动用户服务。
+initialize_center 请求启动所选中心用户服务；initialize_runner 配对并请求启动 Runner 用户服务。
 已完成 Mac 中心与 Windows 节点连接、Windows dsh 实现及 Claude 独立评审的小项目闭环。
 运行中取消的 Phase A 验收已通过；该 Phase A 的实际 Agent 验收事实限于 Claude / dsh。
 既有 v0.2.0-dev macOS 本机 Phase B 实测：原生 Codex gpt-6.1-sol Leader 规划 → 自动授权一个任务 →
@@ -303,7 +314,7 @@ def verify_archive(path, entries):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", default="0.2.2-dev", help="archive version (default: %(default)s)")
+    parser.add_argument("--version", default="0.2.3-dev", help="archive version (default: %(default)s)")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?", args.version):
         raise ValueError("version must be a numeric semantic version with an optional prerelease suffix")

@@ -13,7 +13,7 @@ import type { Candidate, Snapshot } from '../api.generated';
 
 const client = new ApiClient('test-owner');
 const refresh = vi.fn();
-const candidate: Candidate = { id: 'candidate-fixed', version: 2, task_id: localTask.id, source_run_id: localRun.id, authorization_version: 1, policy_version: 1, base: 'B', head: 'H', main: 'M', commit: 'fixed-C', state: 'ready_to_land', detail: 'protected path', protected: true, approved_commit: '', checks: [], created_at: '' };
+const candidate: Candidate = { baseline_version: 1, baseline_digest: 'fixture', id: 'candidate-fixed', version: 2, task_id: localTask.id, source_run_id: localRun.id, authorization_version: 1, policy_version: 1, base: 'B', head: 'H', main: 'M', commit: 'fixed-C', state: 'ready_to_land', detail: 'protected path', protected: true, approved_commit: '', checks: [], created_at: '' };
 const snapshot: Snapshot = { ...centerSnapshot, tasks: [{ ...localTask, state: 'awaiting_integration', current_candidate_id: candidate.id, hold_reason: '' }, { ...localTask, id: 'held-task', hold_reason: 'budget' }], nodes: [nodeSnapshot.node], runs: [{ ...localRun, state: 'lost' }], candidates: [candidate] };
 
 describe('management records', () => {

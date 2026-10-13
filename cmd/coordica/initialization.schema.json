@@ -1,0 +1,250 @@
+{
+  "$defs": {
+    "AnalysisEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "fact": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "fact"
+      ],
+      "type": "object"
+    },
+    "Baseline": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "type": "string"
+        },
+        "allowed_roots": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/Check"
+          },
+          "type": "array"
+        },
+        "conventions": {
+          "type": "string"
+        },
+        "functionality": {
+          "type": "string"
+        },
+        "modules": {
+          "type": "string"
+        },
+        "protected_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "requirements": {
+          "type": "string"
+        },
+        "risks": {
+          "type": "string"
+        },
+        "testing": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirements",
+        "acceptance",
+        "architecture",
+        "modules",
+        "conventions",
+        "testing",
+        "functionality",
+        "risks",
+        "allowed_roots",
+        "protected_paths",
+        "checks"
+      ],
+      "type": "object"
+    },
+    "Check": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "command": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "command",
+        "args",
+        "timeout_seconds"
+      ],
+      "type": "object"
+    },
+    "InitializationQuestion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "prerequisites": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "prerequisites"
+      ],
+      "type": "object"
+    },
+    "InitializationResult": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline": {
+          "$ref": "#/$defs/Baseline"
+        },
+        "facts": {
+          "items": {
+            "$ref": "#/$defs/AnalysisEvidence"
+          },
+          "type": "array"
+        },
+        "generation": {
+          "type": "integer"
+        },
+        "initialization_version": {
+          "type": "integer"
+        },
+        "inspected_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "operation_id": {
+          "type": "string"
+        },
+        "questions": {
+          "items": {
+            "$ref": "#/$defs/InitializationQuestion"
+          },
+          "type": "array"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "source_sha": {
+          "type": "string"
+        },
+        "suggestions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "generation",
+        "initialization_version",
+        "operation_id",
+        "source_sha",
+        "ready",
+        "inspected_paths",
+        "facts",
+        "suggestions",
+        "questions",
+        "baseline"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "baseline": {
+      "$ref": "#/$defs/Baseline"
+    },
+    "facts": {
+      "items": {
+        "$ref": "#/$defs/AnalysisEvidence"
+      },
+      "type": "array"
+    },
+    "generation": {
+      "type": "integer"
+    },
+    "initialization_version": {
+      "type": "integer"
+    },
+    "inspected_paths": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "operation_id": {
+      "type": "string"
+    },
+    "questions": {
+      "items": {
+        "$ref": "#/$defs/InitializationQuestion"
+      },
+      "type": "array"
+    },
+    "ready": {
+      "type": "boolean"
+    },
+    "source_sha": {
+      "type": "string"
+    },
+    "suggestions": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "generation",
+    "initialization_version",
+    "operation_id",
+    "source_sha",
+    "ready",
+    "inspected_paths",
+    "facts",
+    "suggestions",
+    "questions",
+    "baseline"
+  ],
+  "type": "object"
+}

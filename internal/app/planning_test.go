@@ -156,6 +156,7 @@ func TestPlanningWholeBatchRollback(t *testing.T) {
 				}); e != nil {
 					t.Fatal(e)
 				}
+				seedCurrentPolicyBaseline(t, f.s)
 			case "budget":
 				result.Tasks[1].BudgetSeconds = 10000
 			case "major_invalid":
@@ -547,6 +548,7 @@ func TestPlanningScopeAutomationPreservesBoundaryAndSetting(t *testing.T) {
 				}); e != nil {
 					t.Fatal(e)
 				}
+				seedCurrentPolicyBaseline(t, f.s)
 			case "outside":
 				result.Scopes[0].Paths = []string{"elsewhere/**"}
 			case "disabled":

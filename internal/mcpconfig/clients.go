@@ -155,6 +155,7 @@ func configureCodex(ctx context.Context, options Options, deps dependencies) Res
 		if matches && options.Mode == "interaction" {
 			selected := interactionDefaults(options)
 			result.existingRunner, result.existingChat = selected.RunnerData, selected.ChatProfile
+			result.existingRole, result.existingHost = selected.HostRole, selected.HostConfig
 		}
 		if !matches {
 			result.Status, result.Message = "conflict", "A different Coordica MCP entry already exists in Codex; left unchanged."

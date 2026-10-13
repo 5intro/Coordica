@@ -133,6 +133,19 @@ func (s *Service) ChatOverview(ctx context.Context, a Actor) (domain.ChatOvervie
 			return e
 		}
 		out = domain.ChatOverview{ChatScope: binding.ChatScope, NodeID: binding.NodeID, ApprovedGoalVersion: d.ApprovedVersion, GoalAuthorizationVersion: d.AuthorizationVersion, DirectoryOutline: redacted(d.DirectoryOutline), AllowedRoots: safeRelativePaths(d.AllowedRoots), RequirementIDs: safeIdentifiers(d.RequirementIDs), APIVersion: domain.APIVersion, QueriedAt: s.Now(), ProjectID: p.ID, Version: p.Version, Name: redacted(p.Name), Paused: p.Paused, GoalVersion: d.Version, GoalStatus: d.Status, Objective: redacted(d.Objective), Architecture: redacted(d.Architecture), NonGoals: redacted(d.NonGoals), Acceptance: redacted(d.Acceptance), UsedSeconds: p.UsedSeconds, ReservedSeconds: p.ReservedSeconds}
+		init, e := initialization(tx)
+		if e != nil {
+			return e
+		}
+		out.InitializationStatus = init.Status
+		out.ApprovedBaselineVersion = init.ApprovedVersion
+		out.ApprovedBaselineDigest = init.ApprovedDigest
+		if d.Version == 0 && init.ApprovedBaseline != nil {
+			out.Architecture = redacted(init.ApprovedBaseline.Architecture)
+			out.DirectoryOutline = redacted(init.ApprovedBaseline.Modules)
+			out.AllowedRoots = safeRelativePaths(init.ApprovedBaseline.AllowedRoots)
+			out.Acceptance = redacted(init.ApprovedBaseline.Acceptance)
+		}
 		var account domain.ConsultationAccount
 		if e = tx.Get("consultation_account", "project", &account); e == nil {
 			out.ConsultationAccount = &account
@@ -242,4 +255,87 @@ func safeCapabilities(caps []domain.Capability) []domain.ChatAgentCapability {
 		out = append(out, domain.ChatAgentCapability{Structured: c.Structured, Resume: c.Resume, Cancel: c.Cancel, Tool: redacted(c.Tool), Version: redacted(c.Version), Protocol: redacted(c.Protocol), Available: c.Available, ReadOnly: c.ReadOnly, Review: c.Review})
 	}
 	return out
+}
+
+// All limited initialization replies, including durable replays, use this same
+// projection. Original evidence, answers and normative policy remain private.
+func safeInitialization(v domain.Initialization) domain.Initialization {
+	textList := func(values []string) []string {
+		out := []string{}
+		for _, value := range values {
+			out = append(out, redacted(value))
+		}
+		return out
+	}
+	baseline := func(b domain.Baseline) domain.Baseline {
+		b.Requirements = redacted(b.Requirements)
+		b.Acceptance = redacted(b.Acceptance)
+		b.Architecture = redacted(b.Architecture)
+		b.Modules = redacted(b.Modules)
+		b.Conventions = redacted(b.Conventions)
+		b.Testing = redacted(b.Testing)
+		b.Functionality = redacted(b.Functionality)
+		b.Risks = redacted(b.Risks)
+		b.AllowedRoots = safeRelativePaths(b.AllowedRoots)
+		b.ProtectedPaths = safeRelativePaths(b.ProtectedPaths)
+		checks := []domain.Check{}
+		for _, c := range b.Checks {
+			checks = append(checks, domain.Check{Name: redacted(c.Name), Command: "[command redacted]", Args: []string{}, TimeoutSeconds: c.TimeoutSeconds})
+		}
+		b.Checks = checks
+		return b
+	}
+	v.Detail = redacted(v.Detail)
+	v.AvailablePaths = safeRelativePaths(v.AvailablePaths)
+	v.CoveredPaths = safeRelativePaths(v.CoveredPaths)
+	v.Omissions = textList(v.Omissions)
+	feedback := []domain.InitializationFeedback{}
+	for _, f := range v.Feedback {
+		f.OriginalText = redacted(f.OriginalText)
+		f.ActorID = redacted(f.ActorID)
+		f.QuestionID = redacted(f.QuestionID)
+		f.Source.ClientID = redacted(f.Source.ClientID)
+		f.Source.SessionID = redacted(f.Source.SessionID)
+		f.Source.MessageID = redacted(f.Source.MessageID)
+		feedback = append(feedback, f)
+	}
+	v.Feedback = feedback
+	if v.Result != nil {
+		r := *v.Result
+		r.Baseline = baseline(r.Baseline)
+		r.Suggestions = textList(r.Suggestions)
+		r.InspectedPaths = safeRelativePaths(r.InspectedPaths)
+		facts := []domain.AnalysisEvidence{}
+		for _, f := range r.Facts {
+			if len(safeRelativePaths([]string{f.Path})) == 1 {
+				f.Fact = redacted(f.Fact)
+				facts = append(facts, f)
+			}
+		}
+		r.Facts = facts
+		questions := []domain.InitializationQuestion{}
+		for _, q := range r.Questions {
+			q.ID = redacted(q.ID)
+			q.Text = redacted(q.Text)
+			q.Prerequisites = textList(q.Prerequisites)
+			questions = append(questions, q)
+		}
+		r.Questions = questions
+		v.Result = &r
+	}
+	if v.ApprovedBaseline != nil {
+		b := baseline(*v.ApprovedBaseline)
+		v.ApprovedBaseline = &b
+	}
+	return v
+}
+func initializationResponse(a Actor, raw json.RawMessage, err error) (json.RawMessage, error) {
+	if err != nil || a.Role != "chat" {
+		return raw, err
+	}
+	var v domain.Initialization
+	if e := json.Unmarshal(raw, &v); e != nil {
+		return nil, e
+	}
+	return json.Marshal(safeInitialization(v))
 }

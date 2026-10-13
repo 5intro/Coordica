@@ -7,14 +7,14 @@ import { Tasks } from './Tasks';
 import { Runs } from './Runs';
 import { Settings } from './Settings';
 
-const task: Task = { goal_version: 0, goal_authorization_version: 0,
+const task: Task = { baseline_version: 1, baseline_digest: 'fixture', goal_version: 0, goal_authorization_version: 0,
   id: 'task-1', version: 7, title: '恢复测试', description: '目标', acceptance: '验收', requirement_ids: null,
   dependencies: null, allowed_paths: ['src/**'], hot_resources: null, tool: 'codex', state: 'ready',
   hold_reason: 'budget', approved_version: 2, authorization_version: 1, generation: 1,
   budget_seconds: 14400, used_seconds: 3600, reserved_seconds: 0, max_run_seconds: 3600,
   max_repairs: 2, max_retries: 2, repairs: 1, retries: 1, current_run_id: '', current_candidate_id: '', created_at: '',
 };
-const run: Run = { goal_version: 0, goal_authorization_version: 0,
+const run: Run = { baseline_version: 1, baseline_digest: 'fixture', goal_version: 0, goal_authorization_version: 0,
   id: 'run-1', version: 3, task_id: task.id, node_id: 'node-1', kind: 'implement', tool: 'codex', state: 'lost',
   generation: 1, authorization_version: 1, policy_version: 1, lease_until: '', deadline: '', grant_seconds: 3600,
   elapsed_seconds: 3600, base: '', head: '', candidate_id: '', session_id: '', detail: '连接中断', quiescent: false, started_at: '',

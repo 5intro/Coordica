@@ -37,7 +37,7 @@ func ownedLauncher(raw []byte, o Options) (Options, error) {
 		return o, errors.New("Coordica transport differs; left unchanged")
 	}
 	selected := o
-	selected.RunnerData, selected.ChatProfile, selected.ToolsFile = "", "", ""
+	selected.RunnerData, selected.ChatProfile, selected.ToolsFile, selected.HostRole, selected.HostConfig = "", "", "", "", ""
 	switch args[1] {
 	case "--bootstrap":
 		selected.Mode = "bootstrap"
@@ -51,11 +51,18 @@ func ownedLauncher(raw []byte, o Options) (Options, error) {
 	}
 	seen := map[string]bool{}
 	for i := 2; i < len(args); i += 2 {
-		if i+1 == len(args) || seen[args[i]] || !filepath.IsAbs(args[i+1]) || strings.ContainsAny(args[i+1], "\x00\r\n") {
+		if i+1 == len(args) || seen[args[i]] || args[i] != "--host-role" && !filepath.IsAbs(args[i+1]) || strings.ContainsAny(args[i+1], "\x00\r\n") {
 			return o, errors.New("unsafe or ambiguous Coordica paths; left unchanged")
 		}
 		seen[args[i]] = true
 		switch args[i] {
+		case "--host-role":
+			if args[i+1] != "center" && args[i+1] != "node" {
+				return o, errors.New("invalid owned host role; left unchanged")
+			}
+			selected.HostRole = args[i+1]
+		case "--host-config":
+			selected.HostConfig = args[i+1]
 		case "--runner-data":
 			selected.RunnerData = args[i+1]
 		case "--chat-profile":
@@ -66,7 +73,10 @@ func ownedLauncher(raw []byte, o Options) (Options, error) {
 			return o, errors.New("unowned Coordica launcher options; left unchanged")
 		}
 	}
-	if selected.Mode == "chat" && (selected.ChatProfile == "" || selected.RunnerData != "" || selected.ToolsFile != "") || selected.Mode == "bootstrap" && selected.ChatProfile != "" || selected.Mode == "interaction" && (selected.RunnerData == "" || selected.ChatProfile == "") {
+	if selected.HostRole == "center" && (selected.Mode != "interaction" || selected.HostConfig == "") || selected.HostRole != "center" && selected.HostConfig != "" {
+		return o, errors.New("ambiguous host role/configuration; left unchanged")
+	}
+	if selected.Mode == "chat" && (selected.ChatProfile == "" || selected.RunnerData != "" || selected.ToolsFile != "") || selected.Mode == "bootstrap" && selected.ChatProfile != "" || selected.Mode == "interaction" && (selected.HostRole != "center" && selected.RunnerData == "" || selected.ChatProfile == "") {
 		return o, errors.New("Coordica identity options differ; left unchanged")
 	}
 	if selected.Mode == "bootstrap" && selected.RunnerData == "" {
@@ -149,6 +159,17 @@ func mergeInteraction(servers map[string]json.RawMessage, o Options, withType bo
 		old, err := ownedLauncher(have, o)
 		if err != nil || old.Mode == "chat" {
 			return o, false, errors.New("coordica is not an owned local/interaction launcher; left unchanged")
+		}
+		if o.HostRole != "" && (old.HostRole != "" && o.HostRole != old.HostRole || old.HostRole == "" && o.HostRole == "center") {
+			return o, false, errors.New("selected host role conflicts with owned launcher; choose a separate client/export registration explicitly")
+		}
+		if old.HostRole != "" {
+			if err = preservePath(&o.HostRole, old.HostRole); err != nil {
+				return o, false, err
+			}
+		}
+		if err = preservePath(&o.HostConfig, old.HostConfig); err != nil {
+			return o, false, err
 		}
 		old = interactionDefaults(old)
 		if err = preservePath(&o.RunnerData, old.RunnerData); err != nil {

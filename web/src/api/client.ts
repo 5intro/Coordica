@@ -1,4 +1,5 @@
-import type { Snapshot, Problem, ConversationInput } from '../api.generated';
+import { validInitialization } from './initialization';
+import type { Snapshot, Problem, ConversationInput, Initialization } from '../api.generated';
 
 export type PendingConsultation = { kind: 'consult' | 'propose'; body: ConversationInput; key: string };
 
@@ -81,6 +82,7 @@ export class ApiClient {
         .every((key) => snapshot[key] === null || Array.isArray(snapshot[key]))) {
       throw new ApiError('incompatible_response', '中心契约不兼容，请更新工作台。');
     }
+    if (snapshot.initialization != null && !validInitialization(snapshot.initialization)) throw new ApiError('incompatible_response', '初始化契约不兼容，请更新中心与工作台。');
     return snapshot;
   }
 
@@ -105,6 +107,8 @@ export class ApiClient {
       throw error;
     }
   }
+
+  async initialization(signal?: AbortSignal): Promise<Initialization> { const value = await this.read<unknown>('/initialization', signal); if (!validInitialization(value)) throw new ApiError('incompatible_response', '初始化契约不兼容。'); return value; }
 
   export(): Promise<Snapshot> { return this.request<Snapshot>('/export'); }
 }

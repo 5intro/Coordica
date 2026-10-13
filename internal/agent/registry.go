@@ -247,8 +247,11 @@ func resolveExecutable(def Definition, executable string) (string, error) {
 
 func launchArgs(def Definition, req Request) []string {
 	args := append([]string(nil), def.StartArgs...)
+	if req.Role == "leader" && def.Protocol == ProtocolCodex && strings.HasPrefix(req.Prompt, "COORDICA_INITIALIZATION_V1\nPUBLIC_RESEARCH_NEW_PROJECT\n") {
+		args = append([]string{"--search"}, args...)
+	}
 	if def.Protocol == ProtocolCodex {
-		args = append(args, "--ignore-user-config", "--model", "gpt-6.1-sol")
+		args = append(args, "--ignore-user-config", "--disable", "multi_agent", "--model", "gpt-6.1-sol")
 		if req.OutputSchemaPath != "" {
 			args = append(args, "--output-schema", req.OutputSchemaPath)
 		}

@@ -135,6 +135,9 @@ func (w *Integrator) prepare(ctx context.Context, c domain.Candidate) error {
 		if e = goalGate(tx, &t, false); e != nil {
 			return e
 		}
+		if !candidateAuthority(tx, t, p, c) {
+			return domain.Fail("authorization_changed", "candidate baseline or authority changed")
+		}
 		goalScope, e = currentGoalScope(tx)
 		if e != nil {
 			return e
@@ -270,7 +273,7 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 		if e = tx.Get("candidate", c.ID, &latest); e != nil {
 			return e
 		}
-		if goalGate(tx, &t, false) != nil || latest.State != "validating" || latest.Commit != c.Commit || t.State != "awaiting_integration" || t.AuthorizationVersion != latest.AuthorizationVersion || p.PolicyVersion != latest.PolicyVersion || p.Paused || t.HoldReason != "" || t.CurrentRunID != "" || t.CurrentCandidateID != c.ID {
+		if latest.BaselineVersion != t.BaselineVersion || latest.BaselineDigest != t.BaselineDigest || goalGate(tx, &t, false) != nil || latest.State != "validating" || latest.Commit != c.Commit || t.State != "awaiting_integration" || t.AuthorizationVersion != latest.AuthorizationVersion || p.PolicyVersion != latest.PolicyVersion || p.Paused || t.HoldReason != "" || t.CurrentRunID != "" || t.CurrentCandidateID != c.ID {
 			return domain.Fail("conflict", "候选暂不可验证")
 		}
 		c = latest
@@ -290,7 +293,7 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 		}
 		now := s.Now()
 		t.Generation++
-		r = domain.Run{ID: ID("check_"), Version: 1, TaskID: t.ID, NodeID: "center", Kind: "validation", Tool: "program", State: "running", Generation: t.Generation, AuthorizationVersion: t.AuthorizationVersion, PolicyVersion: p.PolicyVersion, LeaseUntil: now.Add(time.Duration(grant) * time.Second), Deadline: now.Add(time.Duration(grant) * time.Second), GrantSeconds: grant, Base: c.Commit, CandidateID: c.ID, StartedAt: now}
+		r = domain.Run{BaselineVersion: t.BaselineVersion, BaselineDigest: t.BaselineDigest, ID: ID("check_"), Version: 1, TaskID: t.ID, NodeID: "center", Kind: "validation", Tool: "program", State: "running", Generation: t.Generation, AuthorizationVersion: t.AuthorizationVersion, PolicyVersion: p.PolicyVersion, LeaseUntil: now.Add(time.Duration(grant) * time.Second), Deadline: now.Add(time.Duration(grant) * time.Second), GrantSeconds: grant, Base: c.Commit, CandidateID: c.ID, StartedAt: now}
 		r.GoalVersion = t.GoalVersion
 		r.GoalAuthorizationVersion = t.GoalAuthorizationVersion
 		if e = reserveGoal(tx, t, grant); e != nil {
@@ -429,7 +432,7 @@ func (w *Integrator) finishValidation(ctx context.Context, r domain.Run, c domai
 			if err = tx.Get("candidate", c.ID, &cand); err != nil {
 				return err
 			}
-			valid = valid && quiescent && current.CandidateID == c.ID && c.Commit == current.Base && cand.State == "validating" && cand.Commit == current.Base && cand.AuthorizationVersion == t.AuthorizationVersion && cand.PolicyVersion == project.PolicyVersion
+			valid = valid && cand.BaselineVersion == current.BaselineVersion && cand.BaselineDigest == current.BaselineDigest && quiescent && current.CandidateID == c.ID && c.Commit == current.Base && cand.State == "validating" && cand.Commit == current.Base && cand.AuthorizationVersion == t.AuthorizationVersion && cand.PolicyVersion == project.PolicyVersion
 		}
 		if owns && active(current) {
 			elapsed := int64(0)
@@ -530,6 +533,21 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 	if e != nil {
 		return e
 	}
+	if e = s.DB.View(ctx, func(tx *store.Tx) error {
+		var task domain.Task
+		if e := tx.Get("task", c.TaskID, &task); e != nil {
+			return e
+		}
+		if e := goalGate(tx, &task, false); e != nil {
+			return e
+		}
+		if !candidateAuthority(tx, task, p, c) {
+			return domain.Fail("authorization_changed", "candidate baseline or authority changed")
+		}
+		return nil
+	}); e != nil {
+		return e
+	}
 	actual, e := w.Git.Query(ctx, p.RepositoryURL, "refs/heads/"+p.TargetBranch)
 	if e != nil {
 		return e
@@ -597,7 +615,7 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 				return domain.Fail("version_conflict", "goal changed during final scope check")
 			}
 		}
-		if goalGate(tx, &t, false) != nil || current.State != "ready_to_land" || t.CurrentCandidateID != c.ID || project.Paused || t.HoldReason != "" || t.State != "awaiting_integration" || t.AuthorizationVersion != c.AuthorizationVersion || project.PolicyVersion != c.PolicyVersion || t.UsedSeconds >= t.BudgetSeconds {
+		if c.BaselineVersion != t.BaselineVersion || c.BaselineDigest != t.BaselineDigest || goalGate(tx, &t, false) != nil || current.State != "ready_to_land" || t.CurrentCandidateID != c.ID || project.Paused || t.HoldReason != "" || t.State != "awaiting_integration" || t.AuthorizationVersion != c.AuthorizationVersion || project.PolicyVersion != c.PolicyVersion || t.UsedSeconds >= t.BudgetSeconds {
 			return domain.Fail("conflict", "放行条件已变化")
 		}
 		if current.Protected && current.ApprovedCommit != current.Commit {
@@ -736,13 +754,23 @@ func (s *Service) ApproveCandidate(ctx context.Context, a Actor, key, id string,
 	if e := owner(a); e != nil {
 		return nil, e
 	}
-	return s.mutate(ctx, a, key, "candidate.approve."+id, req, func(tx *store.Tx) (any, error) {
+	return s.mutateWithCheck(ctx, a, key, "candidate.approve."+id, req, func(tx *store.Tx) error { return baselineGate(tx, nil, false) }, func(tx *store.Tx) (any, error) {
 		var c domain.Candidate
 		if e := tx.Get("candidate", id, &c); e != nil {
 			return nil, e
 		}
 		if e := version(c.Version, req.ExpectedVersion); e != nil {
 			return nil, e
+		}
+		var task domain.Task
+		if e := tx.Get("task", c.TaskID, &task); e != nil {
+			return nil, e
+		}
+		if e := baselineGate(tx, &task, false); e != nil {
+			return nil, e
+		}
+		if c.BaselineVersion != task.BaselineVersion || c.BaselineDigest != task.BaselineDigest {
+			return nil, domain.Fail("baseline_changed", "候选基线已失效")
 		}
 		if c.State != "ready_to_land" || c.Commit == "" {
 			return nil, domain.Fail("conflict", "候选尚未完成评审与检查")

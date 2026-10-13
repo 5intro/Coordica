@@ -26,7 +26,7 @@ func TestSameRootGoalChangeHoldsEveryCandidateAndStopsItsRuns(t *testing.T) {
 					task = q
 				}
 			}
-			cand := domain.Candidate{ID: "fixed-candidate", Version: 1, TaskID: task.ID, Base: strings.Repeat("a", 40), Head: strings.Repeat("b", 40), Commit: strings.Repeat("c", 40), State: state, AuthorizationVersion: task.AuthorizationVersion, PolicyVersion: 1}
+			cand := domain.Candidate{BaselineVersion: task.BaselineVersion, BaselineDigest: task.BaselineDigest, ID: "fixed-candidate", Version: 1, TaskID: task.ID, Base: strings.Repeat("a", 40), Head: strings.Repeat("b", 40), Commit: strings.Repeat("c", 40), State: state, AuthorizationVersion: task.AuthorizationVersion, PolicyVersion: 1}
 			if e := f.s.DB.Update(ctx, func(tx *store.Tx) error {
 				task.State = "awaiting_integration"
 				task.CurrentCandidateID = cand.ID
@@ -38,7 +38,7 @@ func TestSameRootGoalChangeHoldsEveryCandidateAndStopsItsRuns(t *testing.T) {
 					task.CurrentRunID = "old-candidate-run"
 					task.Generation++
 					task.ReservedSeconds = 10
-					r := domain.Run{ID: task.CurrentRunID, Version: 1, TaskID: task.ID, NodeID: f.node.NodeID, Kind: kind, State: "running", Generation: task.Generation, GoalVersion: task.GoalVersion, GoalAuthorizationVersion: task.GoalAuthorizationVersion, AuthorizationVersion: task.AuthorizationVersion, PolicyVersion: 1, GrantSeconds: 10, LeaseUntil: f.now.Add(time.Minute), Deadline: f.now.Add(time.Minute), CandidateID: cand.ID, Base: cand.Commit}
+					r := domain.Run{BaselineVersion: task.BaselineVersion, BaselineDigest: task.BaselineDigest, ID: task.CurrentRunID, Version: 1, TaskID: task.ID, NodeID: f.node.NodeID, Kind: kind, State: "running", Generation: task.Generation, GoalVersion: task.GoalVersion, GoalAuthorizationVersion: task.GoalAuthorizationVersion, AuthorizationVersion: task.AuthorizationVersion, PolicyVersion: 1, GrantSeconds: 10, LeaseUntil: f.now.Add(time.Minute), Deadline: f.now.Add(time.Minute), CandidateID: cand.ID, Base: cand.Commit}
 					if e := tx.Put("run", r.ID, r); e != nil {
 						return e
 					}
@@ -133,7 +133,7 @@ func TestCandidateBlockDisplayUsesCurrentLiveAuthority(t *testing.T) {
 			return e
 		}
 		for _, c := range []domain.Candidate{
-			{ID: "current", TaskID: task.ID, State: "ready_to_land", Commit: strings.Repeat("b", 40), Protected: true, AuthorizationVersion: task.AuthorizationVersion, PolicyVersion: 1},
+			{BaselineVersion: task.BaselineVersion, BaselineDigest: task.BaselineDigest, ID: "current", TaskID: task.ID, State: "ready_to_land", Commit: strings.Repeat("b", 40), Protected: true, AuthorizationVersion: task.AuthorizationVersion, PolicyVersion: 1},
 			{ID: "superseded", TaskID: task.ID, State: "reviewing", Commit: strings.Repeat("c", 40), Protected: true, AuthorizationVersion: task.AuthorizationVersion, PolicyVersion: 1},
 			{ID: "landed", TaskID: task.ID, State: "landed", Commit: strings.Repeat("d", 40), Protected: true, AuthorizationVersion: task.AuthorizationVersion, PolicyVersion: 1},
 		} {

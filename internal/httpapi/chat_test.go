@@ -20,6 +20,7 @@ func TestChatRoutesIsolateOwnerNodeRunAndRemoteSurfaces(t *testing.T) {
 	if _, e = f.server.Service.CreateProject(context.Background(), owner, "project", domain.Project{Name: "Project", RepositoryURL: "https://example.com/repo", TargetBranch: "main", TotalBudgetSeconds: 10000, Checks: []domain.Check{{Name: "minimum", Command: "git", Args: []string{"status"}, TimeoutSeconds: 1}}}); e != nil {
 		t.Fatal(e)
 	}
+	seedHTTPBaseline(t, f.server.Service)
 	raw, e := f.server.Service.CreateChatCredential(context.Background(), owner, "client", domain.ChatCredentialRequest{Name: "Chat"})
 	if e != nil {
 		t.Fatal(e)
@@ -77,6 +78,7 @@ func TestChatHTTPStrictInputRedactionAndRevokedReplay(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	seedHTTPBaseline(t, f.server.Service)
 	raw, e := f.server.Service.CreateChatCredential(ctx, owner, "client", domain.ChatCredentialRequest{Name: "Chat"})
 	if e != nil {
 		t.Fatal(e)

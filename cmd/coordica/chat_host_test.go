@@ -488,7 +488,7 @@ func TestLocalRunnerRetainsCenterInteractionAndRejectsConflictingProfiles(t *tes
 						}
 					}
 					err := provisionInteraction(ctx, selectedRunner, path, verify)
-					if (err == nil) != (kind == "center") {
+					if (kind == "center") != (err == nil) {
 						t.Fatalf("%s reuse error = %v", kind, err)
 					}
 					if kind == "center" {

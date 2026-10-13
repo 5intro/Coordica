@@ -141,6 +141,7 @@ func (f *boundaryFixture) runningAssignment(t *testing.T) domain.Assignment {
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedHTTPBaseline(t, f.server.Service)
 	body, err := f.server.Service.CreateTask(ctx, owner, "task", domain.Task{Title: "Task", Description: "Change source", Acceptance: "Test", AllowedPaths: []string{"src/**"}, Tool: "codex", BudgetSeconds: 300, MaxRunSeconds: 60, MaxRetries: 1, MaxRepairs: 1})
 	if err != nil {
 		t.Fatal(err)

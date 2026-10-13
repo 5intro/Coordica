@@ -1,6 +1,6 @@
 import type { NodeSnapshot, Run, Task } from '../api.generated';
 
-export const localTask: Task = { goal_version: 0, goal_authorization_version: 0,
+export const localTask: Task = { baseline_version: 1, baseline_digest: 'fixture', goal_version: 0, goal_authorization_version: 0,
   id: 'task_local', version: 1, title: '规范化问候姓名', description: '处理空白', acceptance: '检查通过',
   requirement_ids: [], dependencies: [], allowed_paths: ['src/**'], hot_resources: [], tool: 'dsh',
   state: 'executing', hold_reason: '', approved_version: 1, authorization_version: 1, generation: 1,
@@ -9,7 +9,7 @@ export const localTask: Task = { goal_version: 0, goal_authorization_version: 0,
   current_candidate_id: '', created_at: '2026-10-11T05:00:00Z',
 };
 
-export const localRun: Run = { goal_version: 0, goal_authorization_version: 0,
+export const localRun: Run = { baseline_version: 1, baseline_digest: 'fixture', goal_version: 0, goal_authorization_version: 0,
   id: 'run_local', version: 1, task_id: localTask.id, node_id: 'node_local', kind: 'implement', tool: 'dsh',
   state: 'running', generation: 1, authorization_version: 1, policy_version: 1,
   lease_until: '2026-10-11T05:30:00Z', deadline: '2026-10-11T05:40:00Z',

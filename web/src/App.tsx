@@ -1,3 +1,4 @@
+import { SOURCE_VERSION } from './api.generated';
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClient, messageOf } from './api/client';
 import { LocalClient } from './api/localClient';
@@ -7,6 +8,7 @@ import { Empty, Feedback, time } from './components/ui';
 import { useSnapshot } from './hooks/useSnapshot';
 import { useConnectionInfo } from './hooks/useConnectionInfo';
 import { Login, TOKEN_KEY } from './features/Login';
+import { ProjectInitialization } from './features/ProjectInitialization';
 import { ProjectSetup } from './features/ProjectSetup';
 import { Planning } from './features/Planning';
 import { Automation } from './features/Automation';
@@ -23,8 +25,9 @@ import { Settings } from './features/Settings';
 import { ConnectionSettings } from './features/ConnectionSettings';
 import { RunnerWorkspace } from './features/RunnerWorkspace';
 
-export type Page = 'planning' | 'automation' | 'blocks' | 'agents' | 'overview' | 'requirements' | 'tasks' | 'runs' | 'candidates' | 'audit' | 'settings' | 'connection';
+export type Page = 'initialization' | 'planning' | 'automation' | 'blocks' | 'agents' | 'overview' | 'requirements' | 'tasks' | 'runs' | 'candidates' | 'audit' | 'settings' | 'connection';
 const pages: { id: Page; label: string; number: string }[] = [
+  { id: 'initialization', label: '项目初始化', number: '00' },
   { id: 'planning', label: '目标规划与 Leader', number: 'B1' }, { id: 'automation', label: '系统自动化', number: 'B2' },
   { id: 'overview', label: '项目概览', number: '01' }, { id: 'requirements', label: '需求池', number: '02' },
   { id: 'tasks', label: '任务池', number: '03' }, { id: 'runs', label: '运行与节点', number: '04' },
@@ -106,6 +109,7 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
           : !snapshot ? <div className="panel connection-panel"><Empty title={loading ? '正在读取中心状态' : '尚未取得中心状态'}>{loading ? '仅显示服务端实际记录。' : '确认 owner token 与中心连接后重试。'}</Empty>{!loading && <div className="actions"><button className="primary" onClick={refresh}>重新连接</button><button className="secondary" onClick={logout}>更换凭据</button></div>}</div>
             : !project && !['agents', 'automation', 'planning'].includes(page) ? <ProjectSetup client={client} refresh={refresh} />
               : <div className="page-enter" key={`${project?.id ?? ''}-${page}-${viewKey}`}>
+                {page === 'initialization' && <ProjectInitialization snapshot={snapshot} client={client} refresh={refresh} />}
                 {page === 'planning' && <Planning snapshot={snapshot} client={client} refresh={refresh} initialId={focusId} />}
                 {page === 'automation' && <Automation settings={snapshot.automation} client={client} refresh={refresh} />}
                 {page === 'overview' && <Overview snapshot={snapshot} navigate={navigate} />}
@@ -118,7 +122,7 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
                 {page === 'audit' && <Audit events={snapshot.events ?? []} />}
                 {page === 'settings' && project && <Settings project={project} client={client} refresh={refresh} />}
               </div>}
-        <footer className="workbench-footer"><span>COORDICA / CONTROLLED COLLABORATION</span><span>批准 · 运行 · 评审 · 验证 · 集成</span></footer>
+        <footer className="workbench-footer"><span>COORDICA {SOURCE_VERSION} / CONTROLLED COLLABORATION</span><span>批准 · 运行 · 评审 · 验证 · 集成</span></footer>
       </main>
     </div>
   </div>;

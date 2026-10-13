@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-// Phase B records are additive; absence of a goal preserves Phase A admission.
+// Goal authorization is independent of the mandatory shared project baseline.
 type AutomationSettings struct {
 	Version                int64  `json:"version"`
 	Enabled                bool   `json:"enabled"`
@@ -101,6 +101,8 @@ type ProposalTaskMapping struct {
 	TaskID string `json:"task_id"`
 }
 type PlanningRun struct {
+	BaselineVersion      int64                 `json:"baseline_version"`
+	BaselineDigest       string                `json:"baseline_digest"`
 	Purpose              string                `json:"purpose,omitempty"` // empty legacy purpose means evaluation
 	ConversationID       string                `json:"conversation_id,omitempty"`
 	AccountingTarget     string                `json:"accounting_target,omitempty"`

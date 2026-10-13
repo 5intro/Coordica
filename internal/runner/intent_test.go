@@ -94,6 +94,7 @@ func newIntentFixture(t *testing.T) *intentFixture {
 	if _, err = f.s.CreateProject(ctx, f.owner, "project", domain.Project{Name: "Native scope", RepositoryURL: source, TargetBranch: "main", TotalBudgetSeconds: 10000, Checks: []domain.Check{{Name: "test", Command: "git", Args: []string{"status"}, TimeoutSeconds: 10}}}); err != nil {
 		t.Fatal(err)
 	}
+	seedRunnerBaseline(t, f.s)
 	b, err := f.s.CreateRequirement(ctx, f.owner, "req", domain.Requirement{Title: "Greeting", Body: "Normalize names and add regression tests"})
 	var requirement domain.Requirement
 	decode(b, err, &requirement)

@@ -96,6 +96,7 @@ func TestHostChatAudienceIssuanceAndDirectBypasses(t *testing.T) {
 	if _, e = f.server.Service.CreateProject(ctx, owner, "project", domain.Project{Name: "Shared", RepositoryURL: "https://example.com/repo", TargetBranch: "main", Checks: []domain.Check{{Name: "minimum", Command: "git", TimeoutSeconds: 1}}}); e != nil {
 		t.Fatal("project cap still required", e)
 	}
+	seedHTTPBaseline(t, f.server.Service)
 	raw, e := f.server.Service.CreateChatCredential(ctx, owner, "center", domain.ChatCredentialRequest{Name: "Center host"})
 	if e != nil {
 		t.Fatal(e)

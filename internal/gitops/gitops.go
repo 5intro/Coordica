@@ -106,9 +106,10 @@ func identityEnv(id Identity) ([]string, error) {
 }
 
 type Client struct {
-	GitPath       string
-	authRemote    string
-	authorization string
+	GitPath              string
+	analysisPrivatePaths []string
+	authRemote           string
+	authorization        string
 }
 
 func New(gitPath string) *Client {

@@ -26,7 +26,12 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 	if err := domain.ValidateCapabilities(req.Capabilities); err != nil {
 		return nil, err
 	}
-	return s.mutate(ctx, a, key, "run.claim", req, func(tx *store.Tx) (any, error) {
+	return s.mutateWithCheck(ctx, a, key, "run.claim", req, func(tx *store.Tx) error {
+		if _, e := nodeConsoleActor(tx, a); e != nil {
+			return e
+		}
+		return baselineGate(tx, nil, false)
+	}, func(tx *store.Tx) (any, error) {
 		p, e := getProject(tx)
 		if e != nil {
 			return nil, e
@@ -186,7 +191,7 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			}
 			now := s.Now()
 			t.Generation++
-			r := domain.Run{ID: ID("run_"), Version: 1, TaskID: t.ID, NodeID: n.ID, Kind: kind, Tool: tool, State: "running", Generation: t.Generation, AuthorizationVersion: t.AuthorizationVersion, PolicyVersion: p.PolicyVersion, LeaseUntil: now.Add(s.Lease), Deadline: now.Add(time.Duration(grant) * time.Second), GrantSeconds: grant, Base: runBase, StartedAt: now}
+			r := domain.Run{BaselineVersion: t.BaselineVersion, BaselineDigest: t.BaselineDigest, ID: ID("run_"), Version: 1, TaskID: t.ID, NodeID: n.ID, Kind: kind, Tool: tool, State: "running", Generation: t.Generation, AuthorizationVersion: t.AuthorizationVersion, PolicyVersion: p.PolicyVersion, LeaseUntil: now.Add(s.Lease), Deadline: now.Add(time.Duration(grant) * time.Second), GrantSeconds: grant, Base: runBase, StartedAt: now}
 			if r.Deadline.Before(r.LeaseUntil) {
 				r.LeaseUntil = r.Deadline
 			}
@@ -222,7 +227,11 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			if e != nil {
 				return nil, e
 			}
-			return domain.Assignment{GoalContext: goalContext, Run: r, Task: t, Project: p, Candidate: candidate, InputURL: "/api/v1/runs/" + r.ID + "/input.bundle", HeartbeatSeconds: 10}, nil
+			v, e := initialization(tx)
+			if e != nil {
+				return nil, e
+			}
+			return domain.Assignment{Baseline: v.ApprovedBaseline, GoalContext: goalContext, Run: r, Task: t, Project: p, Candidate: candidate, InputURL: "/api/v1/runs/" + r.ID + "/input.bundle", HeartbeatSeconds: 10}, nil
 		}
 		return nil, nil
 	})
@@ -299,7 +308,7 @@ func (s *Service) Heartbeat(ctx context.Context, a Actor, id string, req domain.
 			reason = "stale_run"
 		} else if p.Paused || t.HoldReason != "" || t.State == "cancelled" || r.State == "cancel_requested" {
 			reason = "paused"
-		} else if t.AuthorizationVersion != r.AuthorizationVersion || p.PolicyVersion != r.PolicyVersion {
+		} else if baselineRun(tx, r) != nil || t.AuthorizationVersion != r.AuthorizationVersion || p.PolicyVersion != r.PolicyVersion {
 			reason = "authorization_changed"
 		}
 		if active(r) && owns {
@@ -469,7 +478,7 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 						base = prior.Main
 					}
 				}
-				c := domain.Candidate{ID: ID("cand_"), Version: 1, TaskID: t.ID, SourceRunID: r.ID, AuthorizationVersion: t.AuthorizationVersion, PolicyVersion: p.PolicyVersion, Base: base, Head: req.Head, State: "accepted", CreatedAt: now}
+				c := domain.Candidate{BaselineVersion: r.BaselineVersion, BaselineDigest: r.BaselineDigest, ID: ID("cand_"), Version: 1, TaskID: t.ID, SourceRunID: r.ID, AuthorizationVersion: t.AuthorizationVersion, PolicyVersion: p.PolicyVersion, Base: base, Head: req.Head, State: "accepted", CreatedAt: now}
 				if e = tx.Put("candidate", c.ID, c); e != nil {
 					return nil, e
 				}
@@ -666,6 +675,9 @@ func (s *Service) AssignmentRun(ctx context.Context, a Actor, id string) (domain
 		if e := tx.Get("run", id, &r); e != nil {
 			return e
 		}
+		if _, e := nodeConsoleActor(tx, a); e != nil {
+			return e
+		}
 		if a.Role != "node" || r.NodeID != a.NodeID {
 			return domain.Fail("forbidden", "无权读取此Run")
 		}
@@ -687,6 +699,14 @@ func (s *Service) RunContext(ctx context.Context, a Actor, id string) (domain.As
 			return e
 		}
 		var e error
+		if e = baselineRun(tx, r); e != nil {
+			return e
+		}
+		v, e := initialization(tx)
+		if e != nil {
+			return e
+		}
+		out.Baseline = v.ApprovedBaseline
 		out.GoalContext, e = assignedGoalContext(tx)
 		if e != nil {
 			return e

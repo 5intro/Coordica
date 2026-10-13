@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -36,6 +37,12 @@ func (f *serviceFixture) recoveryNode(t *testing.T, name string, capacity int) A
 func (f *serviceFixture) recoveryClaim(t *testing.T, node Actor, key string, caps []domain.Capability) *domain.Assignment {
 	t.Helper()
 	b, err := f.s.Claim(context.Background(), node, key, domain.ClaimRequest{Capabilities: caps}, strings.Repeat("a", 40))
+	if err != nil {
+		var problem *domain.Error
+		if errors.As(err, &problem) && problem.Code == "initialization_required" {
+			return nil
+		}
+	}
 	return decodeTest[*domain.Assignment](t, b, err)
 }
 
@@ -470,12 +477,12 @@ func TestAutomaticRecoveryRespectsNodeCapacityAndRevocation(t *testing.T) {
 	busyNode := f.recoveryNode(t, "busy", 1)
 	freeNode := f.recoveryNode(t, "free", 1)
 	old := f.claim(t, "initial")
-	b, err := f.s.CreateTask(ctx, f.owner, "other-task", domain.Task{Title: "other", Description: "occupy a node", Acceptance: "independent task", AllowedPaths: []string{"other/**"}, Tool: "other-tool", BudgetSeconds: 100, MaxRunSeconds: 100})
+	b, err := f.s.CreateTask(ctx, f.owner, "other-task", domain.Task{Title: "other", Description: "occupy a node", Acceptance: "independent task", AllowedPaths: []string{"other/**"}, Tool: "codex", BudgetSeconds: 100, MaxRunSeconds: 100})
 	busyTask := decodeTest[domain.Task](t, b, err)
 	if _, err = f.s.TaskAction(ctx, f.owner, "approve-other", busyTask.ID, "approve", domain.VersionRequest{ExpectedVersion: busyTask.Version}); err != nil {
 		t.Fatal(err)
 	}
-	busy := f.recoveryClaim(t, busyNode, "occupy", recoveryCapabilities("other-tool"))
+	busy := f.recoveryClaim(t, busyNode, "occupy", recoveryCapabilities("codex"))
 	if busy == nil {
 		t.Fatal("could not occupy the test node")
 	}
@@ -580,8 +587,8 @@ func TestConfirmedPendingRecoverySurvivesCenterRestart(t *testing.T) {
 
 func seedRecoveryValidation(t *testing.T, f *serviceFixture) (domain.Run, domain.Candidate) {
 	t.Helper()
-	candidate := domain.Candidate{ID: "fixed-validation-candidate", Version: 1, TaskID: f.task.ID, State: "validating", AuthorizationVersion: 1, PolicyVersion: 1, Base: strings.Repeat("a", 40), Head: strings.Repeat("b", 40), Main: strings.Repeat("a", 40), Commit: strings.Repeat("c", 40), CreatedAt: f.now, Review: &domain.Review{Candidate: strings.Repeat("c", 40), Verdict: "approve", Summary: "independent fixed candidate approved", Findings: []string{}}}
-	run := domain.Run{ID: "old-validation", Version: 1, TaskID: f.task.ID, NodeID: "center", Kind: "validation", Tool: "program", State: "running", Generation: 1, AuthorizationVersion: 1, PolicyVersion: 1, LeaseUntil: f.now.Add(time.Hour), Deadline: f.now.Add(time.Hour), GrantSeconds: 3600, Base: candidate.Commit, CandidateID: candidate.ID, StartedAt: f.now}
+	candidate := domain.Candidate{BaselineVersion: f.task.BaselineVersion, BaselineDigest: f.task.BaselineDigest, ID: "fixed-validation-candidate", Version: 1, TaskID: f.task.ID, State: "validating", AuthorizationVersion: 1, PolicyVersion: 1, Base: strings.Repeat("a", 40), Head: strings.Repeat("b", 40), Main: strings.Repeat("a", 40), Commit: strings.Repeat("c", 40), CreatedAt: f.now, Review: &domain.Review{Candidate: strings.Repeat("c", 40), Verdict: "approve", Summary: "independent fixed candidate approved", Findings: []string{}}}
+	run := domain.Run{BaselineVersion: f.task.BaselineVersion, BaselineDigest: f.task.BaselineDigest, ID: "old-validation", Version: 1, TaskID: f.task.ID, NodeID: "center", Kind: "validation", Tool: "program", State: "running", Generation: 1, AuthorizationVersion: 1, PolicyVersion: 1, LeaseUntil: f.now.Add(time.Hour), Deadline: f.now.Add(time.Hour), GrantSeconds: 3600, Base: candidate.Commit, CandidateID: candidate.ID, StartedAt: f.now}
 	if err := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
 		var task domain.Task
 		if err := tx.Get("task", f.task.ID, &task); err != nil {

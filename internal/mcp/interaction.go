@@ -9,6 +9,7 @@ import (
 // Interaction combines local onboarding with optional limited online chat.
 // Startup owns both providers; a Run server never constructs this dispatcher.
 type Interaction struct {
+	Center    *CenterLocal
 	Bootstrap Bootstrap
 	Chat      Chat
 }
@@ -17,6 +18,9 @@ func (s Interaction) Serve(ctx context.Context, in io.Reader, out io.Writer) err
 	local, err := s.Bootstrap.provider()
 	if err != nil {
 		return err
+	}
+	if s.Center != nil {
+		return serve(ctx, in, out, true, *s.Center, local, optionalChat{s.Chat})
 	}
 	return serve(ctx, in, out, true, local, optionalChat{s.Chat})
 }

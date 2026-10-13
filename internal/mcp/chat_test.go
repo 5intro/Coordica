@@ -42,7 +42,7 @@ func TestChatMCPClosedToolsAndMalformedCallsNeverReachAPI(t *testing.T) {
 			t.Fatal("tool missing", name)
 		}
 	}
-	if len(chatTools()) != 8 {
+	if len(chatTools()) != 11 {
 		t.Fatal("unexpected tools")
 	}
 }
@@ -102,7 +102,7 @@ func TestChatToolDiscoveryUsesAuthenticatedServerScope(t *testing.T) {
 			if e := json.Unmarshal(response["result"], &result); e != nil {
 				t.Fatal(e)
 			}
-			want := 8
+			want := 11
 			if scope == "node" {
 				want = 4
 			}

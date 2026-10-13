@@ -56,7 +56,7 @@ func (s *Service) UploadArtifact(ctx context.Context, a Actor, id string, body i
 		if e := tx.Get("run", id, &current); e != nil {
 			return e
 		}
-		if current.NodeID != a.NodeID || current.State != "running" || !s.Now().Before(current.LeaseUntil) {
+		if baselineRun(tx, current) != nil || current.NodeID != a.NodeID || current.State != "running" || !s.Now().Before(current.LeaseUntil) {
 			return domain.Fail("stale_run", "上传期间执行已失效")
 		}
 		var prior domain.Artifact
@@ -78,6 +78,9 @@ func (s *Service) InputRun(ctx context.Context, a Actor, id string) (domain.Run,
 	r, e := s.AssignmentRun(ctx, a, id)
 	if e == nil && (!s.Now().Before(r.LeaseUntil) || r.State != "running") {
 		e = domain.Fail("stale_run", "执行租约已失效")
+	}
+	if e == nil {
+		e = s.DB.View(ctx, func(tx *store.Tx) error { return baselineRun(tx, r) })
 	}
 	return r, e
 }

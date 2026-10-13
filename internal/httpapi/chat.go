@@ -14,13 +14,13 @@ import (
 // No owner operation is mounted in this namespace or on the remote listener.
 func chatRoute(r *http.Request) bool {
 	if r.Method == "GET" {
-		return r.URL.Path == "/api/v1/chat/overview" || r.URL.Path == "/api/v1/chat/identity"
+		return r.URL.Path == "/api/v1/chat/initialization" || r.URL.Path == "/api/v1/chat/overview" || r.URL.Path == "/api/v1/chat/identity"
 	}
 	if r.Method != "POST" {
 		return false
 	}
 	switch r.URL.Path {
-	case "/api/v1/chat/items", "/api/v1/chat/item", "/api/v1/chat/requirements", "/api/v1/chat/consultations", "/api/v1/chat/proposals", "/api/v1/chat/consultation", "/api/v1/chat/cancel":
+	case "/api/v1/chat/initialization/analyze", "/api/v1/chat/initialization/answer", "/api/v1/chat/items", "/api/v1/chat/item", "/api/v1/chat/requirements", "/api/v1/chat/consultations", "/api/v1/chat/proposals", "/api/v1/chat/consultation", "/api/v1/chat/cancel":
 		return true
 	}
 	return false
@@ -36,6 +36,15 @@ func decodeChat(r *http.Request, out any) error {
 			return domain.Fail("invalid_input", "required chat fields missing")
 		}
 	}
+	switch out.(type) {
+	case *domain.InitializationRequest:
+		e = jsoninput.Required(raw, "expected_version", "kind")
+	case *domain.InitializationAnswer:
+		e = jsoninput.Required(raw, "expected_version", "question_id", "original_text", "source")
+	}
+	if e != nil {
+		return domain.Fail("invalid_input", e.Error())
+	}
 	if e = jsoninput.Decode(raw, out, 32<<10); e != nil {
 		return domain.Fail("invalid_input", "invalid chat JSON object")
 	}
@@ -49,6 +58,18 @@ func (s *Server) chatAPI(w http.ResponseWriter, r *http.Request) {
 	var v any
 	var e error
 	switch path {
+	case "initialization":
+		v, e = s.Service.Initialization(ctx, a)
+	case "initialization/analyze":
+		var in domain.InitializationRequest
+		if e = decodeChat(r, &in); e == nil {
+			v, e = s.Service.RequestInitialization(ctx, a, key, in)
+		}
+	case "initialization/answer":
+		var in domain.InitializationAnswer
+		if e = decodeChat(r, &in); e == nil {
+			v, e = s.Service.AnswerInitialization(ctx, a, key, in)
+		}
 	case "identity":
 		v, e = s.Service.ChatIdentity(ctx, a)
 	case "overview":

@@ -456,6 +456,10 @@ func (r *Runner) reviewInput(ctx context.Context, a domain.Assignment, dir strin
 func assignmentPrompt(a domain.Assignment, commitMode string) string {
 	var text strings.Builder
 	fmt.Fprintf(&text, "Coordica Run %s; generation %d; authorization %d.\nTask: %s\nGoal: %s\nAcceptance: %s\nAllowed repository paths: %s\nProtected paths require a separate decision: %s\nFixed base: %s\n", a.Run.ID, a.Run.Generation, a.Run.AuthorizationVersion, a.Task.Title, a.Task.Description, a.Task.Acceptance, strings.Join(a.Task.AllowedPaths, ", "), strings.Join(a.Project.ProtectedPaths, ", "), a.Run.Base)
+	if a.Baseline != nil {
+		b := a.Baseline
+		fmt.Fprintf(&text, "Approved shared baseline v%d; digest %s.\nRequirements: %s\nBaseline acceptance: %s\nArchitecture: %s\nModules: %s\nConventions: %s\nTesting: %s\nPreserve this exact baseline; it grants no new task/scope permission.\n", a.Run.BaselineVersion, a.Run.BaselineDigest, b.Requirements, b.Acceptance, b.Architecture, b.Modules, b.Conventions, b.Testing)
+	}
 	if a.GoalContext != nil {
 		g := a.GoalContext
 		fmt.Fprintf(&text, "Current project goal v%d; authorization %d. Objective: %s\nNon-goals: %s\nGoal acceptance: %s\nArchitecture: %s\nDirectory outline: %s\nGoal directory roots: %s\nPreserve this architecture and these non-goals. Every change must satisfy task scope and goal roots. Major changes require an owner decision.\n", g.Version, g.AuthorizationVersion, g.Objective, g.NonGoals, g.Acceptance, g.Architecture, g.DirectoryOutline, strings.Join(g.AllowedRoots, ", "))

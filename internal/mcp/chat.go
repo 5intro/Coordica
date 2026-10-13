@@ -48,6 +48,40 @@ func (s Chat) call(ctx context.Context, name string, raw json.RawMessage) (json.
 	var path, key string
 	var input any
 	switch name {
+	case "get_project_initialization":
+		var v struct{}
+		if e := decode(&v); e != nil {
+			return nil, e
+		}
+		return s.API.Do(ctx, "GET", "/api/v1/chat/initialization", "", nil)
+	case "open_project":
+		var v struct {
+			domain.InitializationRequest
+			Key string `json:"idempotency_key"`
+		}
+		if e := decode(&v); e != nil {
+			return nil, e
+		}
+		if e := jsoninput.Required(raw, "expected_version", "kind", "idempotency_key"); e != nil {
+			return nil, e
+		}
+		path = "initialization/analyze"
+		key = v.Key
+		input = v.InitializationRequest
+	case "answer_project_initialization":
+		var v struct {
+			domain.InitializationAnswer
+			Key string `json:"idempotency_key"`
+		}
+		if e := decode(&v); e != nil {
+			return nil, e
+		}
+		if e := jsoninput.Required(raw, "expected_version", "question_id", "original_text", "source", "idempotency_key"); e != nil {
+			return nil, e
+		}
+		path = "initialization/answer"
+		key = v.Key
+		input = v.InitializationAnswer
 	case "get_project_overview":
 		var v struct{}
 		if e := decode(&v); e != nil {
@@ -137,7 +171,7 @@ func (s Chat) call(ctx context.Context, name string, raw json.RawMessage) (json.
 	}
 	// Validate closed query enums/identifiers before constructing the fixed call;
 	// the application repeats all domain validation under authentication.
-	if (path == "requirements" || path == "consultations" || path == "proposals" || path == "cancel") && (key == "" || len(key) > 200) {
+	if (path == "initialization/analyze" || path == "initialization/answer" || path == "requirements" || path == "consultations" || path == "proposals" || path == "cancel") && (key == "" || len(key) > 200) {
 		return nil, errors.New("idempotency key required")
 	}
 	return s.API.Do(ctx, "POST", "/api/v1/chat/"+path, key, input)
@@ -147,6 +181,9 @@ func chatTools() []any {
 	kind := map[string]any{"type": "string", "enum": []string{"requirements", "tasks", "blocks", "agents", "runs", "consultations", "proposals"}}
 	source := map[string]any{"type": "object", "properties": map[string]any{"client_id": str(128), "session_id": str(128), "message_id": str(128)}, "required": []string{"session_id", "message_id"}, "additionalProperties": false}
 	tools := []any{
+		tool("get_project_initialization", "Read shared baseline draft, pinned analysis input, coverage, questions and original feedback. No approval authority.", map[string]any{}, nil),
+		tool("open_project", "Request bounded read-only analysis/interview of the fixed registered project while paused and quiet. Never authorizes development.", map[string]any{"expected_version": map[string]any{"type": "integer", "minimum": 0}, "kind": map[string]any{"type": "string", "enum": []string{"existing", "new"}}, "idempotency_key": str(200)}, []string{"expected_version", "kind", "idempotency_key"}),
+		tool("answer_project_initialization", "Submit original answers/feedback to the exact draft. Only Owner can confirm the resulting version and digest.", map[string]any{"expected_version": map[string]any{"type": "integer", "minimum": 1}, "question_id": str(128), "original_text": str(16384), "source": source, "idempotency_key": str(200)}, []string{"expected_version", "question_id", "original_text", "source", "idempotency_key"}),
 		tool("get_project_overview", "Read redacted project and goal facts. Does not invoke Leader.", map[string]any{}, nil),
 		tool("list_project_items", "Read a bounded page of central records. Cursor is the last item ID.", map[string]any{"kind": kind, "cursor": str(128), "limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 20}}, []string{"kind", "limit"}),
 		tool("get_project_item", "Read one redacted central item with version and query time.", map[string]any{"kind": kind, "id": str(128)}, []string{"kind", "id"}),
@@ -168,7 +205,7 @@ func chatToolsForScope(scope string) []any {
 	for _, t := range tools {
 		v := t.(map[string]any)
 		name, _ := v["name"].(string)
-		if name == "get_consultation" || name == "consult_leader" || name == "propose_change" || name == "cancel_consultation" {
+		if name == "get_project_initialization" || name == "open_project" || name == "answer_project_initialization" || name == "get_consultation" || name == "consult_leader" || name == "propose_change" || name == "cancel_consultation" {
 			continue
 		}
 		if name == "list_project_items" || name == "get_project_item" {

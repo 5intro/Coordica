@@ -142,6 +142,7 @@ func exportInteraction(o Options, client string) Result {
 	result.Content = string(content)
 	if hadLocal {
 		result.existingRunner = selected.RunnerData
+		result.existingRole, result.existingHost = selected.HostRole, selected.HostConfig
 	}
 	if hadChat || wasInteraction {
 		result.existingChat = selected.ChatProfile

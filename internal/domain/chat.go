@@ -70,6 +70,9 @@ type ConsultationAccount struct {
 	ReservedSeconds int64  `json:"reserved_seconds"`
 }
 type ChatOverview struct {
+	InitializationStatus     string               `json:"initialization_status"`
+	ApprovedBaselineVersion  int64                `json:"approved_baseline_version"`
+	ApprovedBaselineDigest   string               `json:"approved_baseline_digest"`
 	ChatScope                string               `json:"chat_scope"`
 	NodeID                   string               `json:"node_id,omitempty"`
 	ApprovedGoalVersion      int64                `json:"approved_goal_version"`

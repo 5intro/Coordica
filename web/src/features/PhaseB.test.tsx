@@ -15,7 +15,7 @@ import { blockRecords } from './management';
 const goal = { ...emptyGoal, version: 7, authorization_version: 3, approved_version: 7, approved_authorization_version: 2, objective: 'Build', acceptance: 'Checks', allowed_roots: ['web/src'], budget_seconds: 100 };
 const snapshot: Snapshot = { ...centerSnapshot, automation: { ...centerSnapshot.automation, enabled: true }, planning_document: goal, requirements: [{ id: 'req', version: 1, title: 'Existing requirement', body: '', created_at: '' }] };
 const decision: Decision = { id: 'd', version: 4, source_kind: 'planning_run', source_id: 'leader-run', source_version: 9, document_version: 7, authorization_version: 3, kind: 'lost', evidence: 'lease expired', actions: ['confirm_stopped'], status: 'pending', resolution: '' };
-const candidate: Candidate = { id: 'current', version: 1, task_id: localTask.id, source_run_id: localRun.id, authorization_version: 1, policy_version: centerSnapshot.project!.policy_version, base: 'B', head: 'H', main: 'M', commit: 'C', state: 'ready_to_land', detail: '', protected: true, approved_commit: '', checks: [], created_at: '' };
+const candidate: Candidate = { baseline_version: 1, baseline_digest: 'fixture', id: 'current', version: 1, task_id: localTask.id, source_run_id: localRun.id, authorization_version: 1, policy_version: centerSnapshot.project!.policy_version, base: 'B', head: 'H', main: 'M', commit: 'C', state: 'ready_to_land', detail: '', protected: true, approved_commit: '', checks: [], created_at: '' };
 function controls() { const client = new ApiClient('owner'); return { client, refresh: vi.fn(), write: vi.spyOn(client, 'write').mockResolvedValue({}) }; }
 describe('Phase B owner writes and authority fences', () => {
   it('creates a goal from no document and preserves literal roots, empty architecture and selected requirement IDs', async () => {
@@ -47,7 +47,7 @@ describe('Phase B owner writes and authority fences', () => {
   });
   it('sends authorize, message, evaluate and cancel versions and never replaces run state with a receipt', async () => {
     const { client, refresh, write } = controls();
-    render(<Planning snapshot={{ ...snapshot, planning_runs: [{ scope_request_id: '', id: 'leader-run', execution_adapter: 'codex_cli', process_id: 123, working_directory: '/work', task_mapping: [], version: 1, document_version: 7, authorization_version: 3, automation_version: 1, generation: 1, state: 'lost', attempt: 1, max_retries: 2, grant_seconds: 30, elapsed_seconds: 12, lease_until: '', deadline: '', started_at: '', tree_stopped: false, settled: false, session_id: '', detail: '', task_ids: [] }] }} client={client} refresh={refresh} />);
+    render(<Planning snapshot={{ ...snapshot, planning_runs: [{ baseline_version: 1, baseline_digest: 'fixture', scope_request_id: '', id: 'leader-run', execution_adapter: 'codex_cli', process_id: 123, working_directory: '/work', task_mapping: [], version: 1, document_version: 7, authorization_version: 3, automation_version: 1, generation: 1, state: 'lost', attempt: 1, max_retries: 2, grant_seconds: 30, elapsed_seconds: 12, lease_until: '', deadline: '', started_at: '', tree_stopped: false, settled: false, session_id: '', detail: '', task_ids: [] }] }} client={client} refresh={refresh} />);
     fireEvent.click(screen.getByRole('button', { name: 'Owner 一次授权' }));
     await waitFor(() => expect(write).toHaveBeenCalledWith('/planning/authorize', { expected_version: 7 }));
     fireEvent.click(screen.getByRole('button', { name: '发送并执行评估' }));
@@ -95,14 +95,14 @@ describe('Phase B owner writes and authority fences', () => {
     const enabled = screen.getByLabelText('自动化开关');
     expect(enabled).toHaveProperty('checked', false);
     expect(screen.queryByText(/Astra/)).toBeNull();
-    fireEvent.change(screen.getByLabelText('规划最大重试次数'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('规划 / 初始化最大重试次数'), { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: '保存系统自动化' }));
     expect(write).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText('规划最大重试次数'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('规划 / 初始化最大重试次数'), { target: { value: '3' } });
     fireEvent.click(screen.getByRole('button', { name: '保存系统自动化' }));
     expect(write).not.toHaveBeenCalled();
     expect(screen.getByRole('alert').textContent).toContain('0–2');
-    fireEvent.change(screen.getByLabelText('规划最大重试次数'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('规划 / 初始化最大重试次数'), { target: { value: '2' } });
     fireEvent.click(enabled);
     fireEvent.click(screen.getByRole('button', { name: '保存系统自动化' }));
     await waitFor(() => expect(write).toHaveBeenCalledWith('/system/automation', { expected_version: 1, settings: { ...centerSnapshot.automation, enabled: true, planning_max_retries: 2 } }));
@@ -254,9 +254,9 @@ describe('Phase B owner writes and authority fences', () => {
     }
   });
   it.each([
-    ['规划超时（秒）', '0'], ['规划超时（秒）', '604801'], ['规划超时（秒）', '1.5'],
+    ['规划 / 初始化超时（秒）', '0'], ['规划 / 初始化超时（秒）', '604801'], ['规划 / 初始化超时（秒）', '1.5'],
     ['规划累计预算（秒）', '1'], ['规划累计预算（秒）', '31536001'], ['规划累计预算（秒）', '900.5'],
-    ['规划最大重试次数', '-1'], ['规划最大重试次数', '0.5'],
+    ['规划 / 初始化最大重试次数', '-1'], ['规划 / 初始化最大重试次数', '0.5'],
   ])('rejects out-of-contract automation %s=%s', (label, value) => {
     const { client, refresh, write } = controls();
     render(<Automation settings={centerSnapshot.automation} client={client} refresh={refresh} />);
@@ -308,7 +308,7 @@ it.each([[3601, 14401], [604800, 31536000]])('allows finite long planning timeou
   const client = new ApiClient('owner');
   const write = vi.spyOn(client, 'write').mockResolvedValue({});
   render(<Automation settings={centerSnapshot.automation} client={client} refresh={vi.fn()} />);
-  fireEvent.change(screen.getByLabelText('规划超时（秒）'), { target: { value: String(timeout) } });
+  fireEvent.change(screen.getByLabelText('规划 / 初始化超时（秒）'), { target: { value: String(timeout) } });
   fireEvent.change(screen.getByLabelText('规划累计预算（秒）'), { target: { value: String(budget) } });
   fireEvent.submit(screen.getByRole('button', { name: '保存系统自动化' }).closest('form')!);
   await waitFor(() => expect(write).toHaveBeenCalledWith('/system/automation', expect.objectContaining({ settings: expect.objectContaining({ planning_timeout_seconds: timeout, planning_budget_seconds: budget }) })));

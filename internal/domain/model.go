@@ -13,6 +13,7 @@ import (
 )
 
 const APIVersion = "v1"
+const SourceVersion = "0.2.3-dev"
 
 // Explicit finite task and execution deadlines; project spending is telemetry.
 const MaxTaskBudgetSeconds int64 = 31536000 // 365 days, including manual extensions
@@ -25,12 +26,13 @@ type Check struct {
 	TimeoutSeconds int64    `json:"timeout_seconds"`
 }
 type Project struct {
-	ID            string `json:"id"`
-	Version       int64  `json:"version"`
-	Name          string `json:"name"`
-	RepositoryURL string `json:"repository_url"`
-	TargetBranch  string `json:"target_branch"`
-	Paused        bool   `json:"paused"`
+	ID               string `json:"id"`
+	Version          int64  `json:"version"`
+	Name             string `json:"name"`
+	RepositoryURL    string `json:"repository_url"`
+	SourceRepository string `json:"source_repository,omitempty"`
+	TargetBranch     string `json:"target_branch"`
+	Paused           bool   `json:"paused"`
 	// Deprecated: retained for wire/storage compatibility; ignored by all gates.
 	TotalBudgetSeconds int64     `json:"total_budget_seconds"`
 	UsedSeconds        int64     `json:"used_seconds"`
@@ -56,6 +58,8 @@ type RequirementProposal struct {
 	Body  string `json:"body"`
 }
 type Task struct {
+	BaselineVersion          int64     `json:"baseline_version"`
+	BaselineDigest           string    `json:"baseline_digest"`
 	GoalVersion              int64     `json:"goal_version"`
 	GoalAuthorizationVersion int64     `json:"goal_authorization_version"`
 	ID                       string    `json:"id"`
@@ -113,6 +117,8 @@ type Node struct {
 	TokenHash            string           `json:"-"`
 }
 type Run struct {
+	BaselineVersion          int64      `json:"baseline_version"`
+	BaselineDigest           string     `json:"baseline_digest"`
 	GoalVersion              int64      `json:"goal_version"`
 	GoalAuthorizationVersion int64      `json:"goal_authorization_version"`
 	ID                       string     `json:"id"`
@@ -153,6 +159,8 @@ type CheckResult struct {
 	DurationSeconds int64  `json:"duration_seconds"`
 }
 type Candidate struct {
+	BaselineVersion      int64         `json:"baseline_version"`
+	BaselineDigest       string        `json:"baseline_digest"`
 	ID                   string        `json:"id"`
 	Version              int64         `json:"version"`
 	TaskID               string        `json:"task_id"`
@@ -180,6 +188,7 @@ type Event struct {
 	Detail   string    `json:"detail"`
 }
 type Snapshot struct {
+	Initialization      *Initialization       `json:"initialization,omitempty"`
 	Conversations       []ConversationRequest `json:"conversations"`
 	ConsultationAccount *ConsultationAccount  `json:"consultation_account,omitempty"`
 	Automation          AutomationSettings    `json:"automation"`
@@ -268,6 +277,7 @@ type ClaimRequest struct {
 	Capabilities []Capability `json:"capabilities"`
 }
 type Assignment struct {
+	Baseline         *Baseline    `json:"baseline,omitempty"`
 	GoalContext      *GoalContext `json:"goal_context,omitempty"`
 	Run              Run          `json:"run"`
 	Task             Task         `json:"task"`
@@ -326,6 +336,9 @@ func ValidateRequirementProposal(r RequirementProposal) error {
 func ValidateProject(p Project) error {
 	if strings.TrimSpace(p.Name) == "" || strings.TrimSpace(p.RepositoryURL) == "" {
 		return Fail("invalid_input", "项目名称和仓库地址不能为空")
+	}
+	if p.SourceRepository != "" && (!filepath.IsAbs(p.SourceRepository) || strings.ContainsAny(p.SourceRepository, "\x00\r\n")) {
+		return Fail("invalid_input", "analysis source must be a trusted fixed absolute local repository")
 	}
 	if !filepath.IsAbs(p.RepositoryURL) {
 		u, e := url.Parse(p.RepositoryURL)

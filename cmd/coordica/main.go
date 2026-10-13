@@ -24,6 +24,7 @@ import (
 	"coordica/internal/agent"
 	"coordica/internal/apiclient"
 	"coordica/internal/app"
+	"coordica/internal/centerhost"
 	"coordica/internal/chatprofile"
 	"coordica/internal/domain"
 	"coordica/internal/filelock"
@@ -35,7 +36,7 @@ import (
 	"coordica/web"
 )
 
-const version = "0.2.2-dev"
+const version = domain.SourceVersion
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -53,6 +54,12 @@ func run(ctx context.Context, args []string) error {
 	case "version":
 		fmt.Println(version)
 		return nil
+	case "host-config":
+		return hostConfig(args[1:])
+	case "host":
+		return host(ctx, args[1:])
+	case "center-serve":
+		return centerServe(ctx, args[1:])
 	case "serve":
 		return serve(ctx, args[1:])
 	case "pair":
@@ -77,9 +84,11 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("unknown command %q", args[0])
 	}
 }
-func serve(ctx context.Context, args []string) error {
+func serve(ctx context.Context, args []string) error { return serveFixed(ctx, args, nil, "") }
+func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hostPath string) error {
 	f := flag.NewFlagSet("serve", flag.ContinueOnError)
 	dir := f.String("data", ".coordica-center", "Center directory")
+	leaderExecutable := f.String("leader-executable", "", "Trusted native Codex executable (gpt-6.1-sol)")
 	addr := f.String("listen", "127.0.0.1:8080", "HTTP(S) listen address")
 	console := f.String("console-listen", "127.0.0.1:8080", "Machine-local HTTP console address")
 	runnerURL := f.String("runner-url", "", "Advertised HTTPS Runner URL (required for wildcard listeners to produce remote setup instructions)")
@@ -141,12 +150,25 @@ func serve(ctx context.Context, args []string) error {
 	if e = s.RecoverCenter(ctx); e != nil {
 		return e
 	}
-	planning := &app.PlanningWorker{Service: s, Executor: CodexPlanningExecutor{}, ExecutionAdapter: "codex"}
+	planning := &app.PlanningWorker{Service: s, Executor: CodexPlanningExecutor{Executable: *leaderExecutable}, ExecutionAdapter: "codex"}
 	if e = planning.Recover(ctx); e != nil {
+		return e
+	}
+	privatePaths := []string{absolute}
+	if host != nil {
+		privatePaths = append(privatePaths, host.ChatProfile, hostPath)
+	}
+	s.Source = g.WithAnalysisPrivatePaths(privatePaths)
+	initialization := &app.InitializationWorker{Service: s, Executor: CodexPlanningExecutor{Executable: *leaderExecutable}}
+	if e = initialization.Recover(ctx); e != nil {
 		return e
 	}
 	integration := &app.Integrator{Service: s, Git: g}
 	api := &httpapi.Server{Service: s, Integration: integration, UI: web.FS()}
+	if host != nil {
+		manager := centerManager(hostPath)
+		api.Host = manager
+	}
 	var endpoints []centerEndpoint
 	runnerHandler := api.RunnerHandler()
 	if shared {
@@ -198,7 +220,12 @@ func serve(ctx context.Context, args []string) error {
 	// Lease expiry must remain responsive while a long validation command runs.
 	start(time.Second, s.Expire)
 	start(time.Second, integration.Tick)
-	start(time.Second, planning.Tick)
+	start(time.Second, func(ctx context.Context) error {
+		if e := initialization.Tick(ctx); e != nil {
+			return e
+		}
+		return planning.Tick(ctx)
+	})
 	result := make(chan error, len(endpoints))
 	for _, endpoint := range endpoints {
 		go func() {
@@ -354,6 +381,8 @@ func serveMCP(ctx context.Context, args []string) error {
 	chatProfile := f.String("chat-profile", "", "Fixed absolute private limited chat profile")
 	bootstrap := f.Bool("bootstrap", false, "Deprecated local-only compatibility mode")
 	interaction := f.Bool("interaction", false, "Unified local onboarding and limited interaction")
+	hostRole := f.String("host-role", "node", "Trusted local host role: center or node")
+	hostConfigPath := f.String("host-config", "", "Trusted fixed center configuration path")
 	profile := f.String("profile", "", "Fixed output path for local Runner discovery profile")
 	dir := f.String("runner-data", "", "Runner directory (bootstrap defaults to user config directory)")
 	id := f.String("run", "", "Assigned Run ID")
@@ -367,14 +396,24 @@ func serveMCP(ctx context.Context, args []string) error {
 	if f.NArg() != 0 {
 		return errors.New("mcp takes flags only")
 	}
+	if *hostRole != "node" && *hostRole != "center" {
+		return errors.New("host-role must be center or node")
+	}
+	if *hostRole == "center" || *hostConfigPath != "" {
+		if !*interaction || *hostRole != "center" || *hostConfigPath == "" || *bootstrap || *id != "" || *generation != 0 {
+			return errors.New("center host requires --interaction --host-role center --host-config and no Run identity")
+		}
+		return serveCenterInteraction(ctx, *hostConfigPath, *chatProfile, *dir, *profile, *toolsFile, toolExecutables)
+	}
 	if *chatProfile != "" && !*interaction {
 		if *bootstrap || *profile != "" || *dir != "" || *id != "" || *generation != 0 || *toolsFile != "" || len(toolExecutables) > 0 {
 			return errors.New("chat profile cannot be combined with bootstrap or Run options")
 		}
-		if _, e := chatprofile.Load(*chatProfile); e != nil {
+		selected, e := chatprofile.Load(*chatProfile)
+		if e != nil {
 			return e
 		}
-		return (mcp.Chat{API: mcp.ProfileCaller{Path: *chatProfile}}).Serve(ctx, os.Stdin, os.Stdout)
+		return (mcp.Chat{API: mcp.ProfileCaller{Path: *chatProfile, CenterURL: selected.CenterURL, TLSCA: selected.TLSCA}}).Serve(ctx, os.Stdin, os.Stdout)
 	}
 	if *bootstrap || *interaction {
 		if *id != "" || *generation != 0 || *bootstrap && *interaction {
@@ -418,7 +457,7 @@ func serveMCP(ctx context.Context, args []string) error {
 			}
 			local.ChatProfile = *chatProfile
 			local.ProvisionChat = func(ctx context.Context) error { return provisionNodeInteraction(ctx, absolute, *chatProfile) }
-			return (mcp.Interaction{Bootstrap: local, Chat: mcp.Chat{API: mcp.ProfileCaller{Path: *chatProfile}}}).Serve(ctx, os.Stdin, os.Stdout)
+			return (mcp.Interaction{Bootstrap: local, Chat: mcp.Chat{API: mcp.ProfileCaller{Path: *chatProfile, ExpectedScope: domain.ChatScopeNode, RunnerData: absolute}}}).Serve(ctx, os.Stdin, os.Stdout)
 		}
 		if err := mcp.ValidateProfilePaths(*profile, absolute, ""); err != nil {
 			return err

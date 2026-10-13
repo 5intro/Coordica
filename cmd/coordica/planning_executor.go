@@ -18,6 +18,9 @@ type CodexPlanningExecutor struct{ Executable string }
 //go:embed leader.schema.json
 var leaderOutputSchema []byte
 
+//go:embed initialization.schema.json
+var initializationOutputSchema []byte
+
 //go:embed consult.schema.json
 var consultOutputSchema []byte
 
@@ -29,6 +32,9 @@ func (e CodexPlanningExecutor) Execute(ctx context.Context, dir, prompt string, 
 	defer os.RemoveAll(scratch)
 	schemaPath := filepath.Join(scratch, "leader.schema.json")
 	schema := leaderOutputSchema
+	if strings.HasPrefix(prompt, "COORDICA_INITIALIZATION_V1\n") {
+		schema = initializationOutputSchema
+	}
 	if strings.HasPrefix(prompt, "COORDICA_ADVISORY_V1\n") {
 		schema = consultOutputSchema
 	}

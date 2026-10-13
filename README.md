@@ -2,7 +2,7 @@
 
 多电脑、多 Agent 开发协调底座。采用 Go 中心与 Runner、SQLite、React/TypeScript 控制台；Web 产物嵌入中心二进制，无 Redis、消息队列或额外后台运行时。
 
-当前源码版本是 **[v0.2.2-dev 开发预览版](https://github.com/5intro/Coordica/releases/tag/v0.2.2-dev)**。已实现固定 Git 候选、独立评审、程序检查和条件发布闭环；构建与测试结果见 [GitHub Actions](https://github.com/5intro/Coordica/actions)。协议模拟测试、跨平台编译和托管 CI 不代表用户电脑上的真实部署验收。
+当前源码版本是 **0.2.3-dev 开发预览版**。已实现固定 Git 候选、独立评审、程序检查和条件发布闭环；实际可下载版本与对应验证记录见 [Releases](https://github.com/5intro/Coordica/releases) 和 [GitHub Actions](https://github.com/5intro/Coordica/actions)。协议模拟测试、跨平台编译和托管 CI 不代表用户电脑上的真实部署验收。
 
 ## 许可与下载
 
@@ -10,7 +10,7 @@
 
 第三方组件保留各自许可，见 [第三方声明](THIRD_PARTY_NOTICES.md)。本许可不会仅因使用 Coordica 就要求你公开独立开发的项目。
 
-v0.2.2-dev 的公开发布入口预留为 [v0.2.2-dev Release](https://github.com/5intro/Coordica/releases/tag/v0.2.2-dev)；本次仅准备源码与发布元数据，预编译包由 Owner 独立验证后发布。通过 `coordica setup --apply` 统一配置本机 Agent 的 MCP 接入，不必逐家手写配置；见下方初始化步骤。Windows amd64 包内还附 `coordica.exe` 和 dsh 配置模板 `coordica.cordis.yml`。发布包附 `SHA256SUMS`，当前仍为开发预览版；实际验收范围见下方“验证状态”。
+检出或更新源码不会自动安装、发布、部署或更新已安装服务。预编译包由 Owner 完成独立验证后另行发布；实际可下载版本以 Releases 为准。`coordica setup --apply` 注册本机唯一的 Coordica MCP；中心角色先保存可信主机配置，节点角色沿用所选 Runner 目录。Windows 分发包附 `coordica.exe` 与 dsh 模板；分发包附 `SHA256SUMS`。
 
 ## 构建
 
@@ -33,9 +33,87 @@ go test -race ./...
 
 `make generate` 从 Go 协议记录生成 `api/v1.schema.json` 与 Web 类型；不手改生成文件。网络输入仍由中心做严格 JSON 解码、领域校验和授权检查。
 
-构建后运行 `./bin/coordica version` 应输出 `0.2.2-dev`；各 MCP 角色的初始化元数据也使用同一发布版本。
+构建后运行 `./bin/coordica version` 应输出 `0.2.3-dev`；各 MCP 角色的初始化元数据也使用同一发布版本。
 
-维护者准备好 `bin/coordica`（macOS arm64）、`bin/coordica-windows-amd64.exe` 和 `bin/coordica-linux-amd64` 后，可运行 `make package`（默认版本 `0.2.2-dev`），或显式运行 `python3 scripts/package-release.py --version 0.2.2-dev`，用 Python 3 标准库生成三个分发包、各平台 `START-HERE.txt` 和 `SHA256SUMS`。脚本校验许可、包内文件及二进制字节；它不构建程序、不上传发布，普通下载用户无需安装 Python。
+维护者准备好 `bin/coordica`（macOS arm64）、`bin/coordica-windows-amd64.exe` 和 `bin/coordica-linux-amd64` 后，可运行 `make package`（默认版本 `0.2.3-dev`），或显式运行 `python3 scripts/package-release.py --version 0.2.3-dev`，用 Python 3 标准库生成三个分发包、各平台 `START-HERE.txt` 和 `SHA256SUMS`。脚本校验许可、包内文件及二进制字节；它不构建程序、不上传发布，普通下载用户无需安装 Python。
+
+## 可信中心设置与项目初始化（0.2.3-dev）
+
+一个中心仍只登记一个项目。已有验收项目的仓库身份与历史不能替换成 Coordica；自托管请显式选择新的中心数据实例和独立 profile。主机角色、可执行文件、配置、数据、profile 和监听端点只由本机人类或获授权终端设置，MCP 调用不能选择它们。
+
+已有明确检查政策时，可准备可信检查文件（分析期间不执行这些检查）：
+
+```json
+[{"name":"Go tests","command":"go","args":["test","./..."],"timeout_seconds":300}]
+```
+
+保存新中心的固定配置，再注册一个 MCP。下面的绝对路径由安装者替换为自己选择的路径；带空格的路径应加引号。
+
+```sh
+/installed/coordica host-config --host-role center \
+  --path /chosen/config/center.json --binary /installed/coordica \
+  --codex-executable /official/codex --data /chosen/runtime/center \
+  --chat-profile /chosen/profiles/interaction.json \
+  --repository /projects/Coordica --repository-url https://github.com/5intro/Coordica.git \
+  --branch main --name Coordica --checks-file /chosen/config/checks.json \
+  --console-listen 127.0.0.1:8080 --runner-listen 127.0.0.1:8080
+/installed/coordica setup --host-role center --host-config /chosen/config/center.json --runner-data /chosen/runtime/developer-runner --client generic --output /chosen/mcp --apply
+```
+
+`--checks-file` 可省略：新中心会登记 `checks=[]` 的暂停草案，允许无提交的新项目先访谈。空有效检查绝不能确认基线或执行任务。Owner 在控制台“项目初始化”的检查政策表单或 `POST project/policy` 保存非空真实检查后，重新分析并确认；不得使用空转命令作为代替。政策请求为 `{"expected_version":项目version,"checks":[真实检查],"protected_paths":[当前保护路径]}`，每项检查超时 1–3600 秒。
+
+`--repository` 是明确选定的本地源码输入；可选 `--repository-url` 是后续开发的固定目标 HTTPS 或 bare 仓库，省略时使用本地输入作为目标。已有 HTTPS 项目可登记 `source_repository` 为预先准备的本地 clone；初始化只读取该 clone 的选定分支，不自动联网 clone/fetch。发布到普通非 bare 本地仓库不是支持的集成目标。新项目访谈可使用尚无提交的明确新目录；首次开发前由 Owner 在固定目标与源码输入中建立对应基础提交，随后单独批准 Goal/任务。此处的目标 URL 不授予集成或外部发布权限。
+
+`--runtime-path` 固定用户服务的工具搜索路径；可用 `--https-proxy http://127.0.0.1:7890` 保存不含身份信息的标准代理。认证仍沿用原生 Codex 官方配置，版本发现不证明已登录。Leader 与开发始终为原生 `gpt-6.1-sol`，禁用嵌套 Agent；没有空闲模型终端。中心与 Runner 不需要 Redis、额外 daemon 或可选 AOCI。
+
+普通聊天使用统一 stdio：
+
+```sh
+/installed/coordica mcp --interaction --host-role center --host-config /chosen/config/center.json --chat-profile /chosen/profiles/interaction.json
+```
+
+离线可调用 `inspect_environment`、`initialize_center`、`start_center`、`get_host_status`，均接受 `{}`。初始化登记暂停的草案项目、保存本机 Owner 凭据、发行有限中心聊天 profile，再请求 macOS launchd、Linux `systemd --user` 或 Windows 当前用户 Task Scheduler 激活；Owner token 不经 MCP 返回。也可调用同一生命周期 CLI：`coordica host --host-config /chosen/config/center.json --action initialize|start|status`。Owner API 的 `GET system/host` 与 `POST system/host/initialize`、`system/host/start` 使用相同已绑定配置。
+
+用户服务激活请求、经过认证的数据实例健康、Runner 登记/心跳及模型版本发现分别报告。离线未知状态为 `null`，不能把管理器接受请求当作中心健康或项目已暂停。任一固定端口被其它实例占用、saved config 冲突或未知进程拥有数据锁时，拒绝替换/重启。重试保留身份、证书、profile、暂停与自动化状态。远端 Runner 可显式使用不同的 `--runner-listen` 与固定 `--runner-url https://中心地址:8443`；首次初始化生成对应 TLS，Owner 控制台始终只在 loopback HTTP 上。
+
+同一中心 MCP 同时保留 `initialize_runner`、`save_runner_profile` 和唯一的 `inspect_environment`，使用安装者选定的独立 `--runner-data`（省略时为用户配置目录的 `Coordica/runner`）。直接 stdio 启动：
+
+```sh
+coordica mcp --interaction --host-role center --host-config /chosen/config/center.json --runner-data /chosen/runtime/developer-runner --chat-profile /chosen/profiles/interaction.json
+```
+
+同一会话先 `initialize_center {}`，再由 Owner 创建配对码后调用 `initialize_runner {"center_url":"http://127.0.0.1:8080","pairing_code":"Owner签发的短期码"}`；无需第二个 MCP。初始化 Runner 保留中心 limited profile，仅在其自身保存的固定中心验证，不向调用提供的其它端点发送中心 token。
+
+节点安装使用 `setup --host-role node --runner-data /chosen/runner --chat-profile /chosen/node-profile.json`。保留 `initialize_runner` 的配对、工具注册和节点聊天发行。节点 profile 必须匹配所选 Runner 登记；拷贝中心 token 不能升级节点的 MCP 角色。旧 launcher 省略角色时保留其已有选择；明确的角色、配置或路径冲突不自动迁移。disabled、timeout 与其它客户端设置保留。遗留未限定或撤销凭据不能静默续发；明确检查后使用已有 `chat-init --renew`。要改变主机身份，请显式选择新的配置/data/profile 和客户端注册，而不是覆盖旧项目。
+
+服务启动后，中心普通聊天可调用：
+
+```json
+{"name":"open_project","arguments":{"expected_version":0,"kind":"existing","idempotency_key":"project-open-1"}}
+{"name":"get_project_initialization","arguments":{}}
+{"name":"answer_project_initialization","arguments":{"expected_version":1,"question_id":"purpose","original_text":"原始用户回答","source":{"session_id":"session-1","message_id":"answer-1"},"idempotency_key":"answer-1"}}
+```
+
+`kind=new` 只适用于服务端独立核验的无提交输入。分析从固定 SHA 的 tracked/public blobs 生成只读 scratch 与 manifest；忽略私有 docs、环境文件、凭据、运行目录、生成产物和大锁文件。相关源码单文件超过 512 KiB 或总计超过 16 MiB 时拒绝分析，不截断后声称完成。结果分别记录可用文件、报告检查的覆盖、未报告检查文件与省略原因；事实只能引用报告检查的文件，每个源码目录必须有检查证据才能进入待确认状态。分析不执行仓库检查/脚本、创建任务、改写 Goal、开自动化或解除暂停。新项目用已确定依赖的 frontier 轮次，自动研究已知事实，只问缺失决定，保留每次原始回答与来源。
+
+控制台“项目初始化”展示 `draft`、`analyzing` / `interview`、`awaiting_owner`、`initialized`、SHA、覆盖、建议、问题和反馈。只有 Owner 可确认审阅的精确版本与摘要：
+
+```sh
+coordica ctl --center http://127.0.0.1:8080 --token-file /chosen/runtime/center/owner.token --path initialization
+coordica ctl --center http://127.0.0.1:8080 --token-file /chosen/runtime/center/owner.token --method POST --path initialization/confirm --key confirm-reviewed-1 --body-file /chosen/reviewed-confirm.json
+```
+
+确认文件是 `{"expected_version":1,"digest":"读取并实际审阅的当前64位摘要"}`。`initialization/analyze`、`initialization/answer` 为相同 Owner API；普通聊天仅能在 `chat/initialization`、`chat/initialization/analyze`、`chat/initialization/answer` 使用有限对应方法，没有确认接口。检查与保护路径须与当前实际政策一致；Owner 可在暂停且安全静止时通过 `project/policy` 明确改变政策并重新分析，建议不会隐式改变有效检查。
+
+共享基线是所有任务、claim、上下文、Run、候选验证和 landing 的必需门禁；没有 Goal 也不能绕过。Goal 存在时仍要独立批准。普通代码提交不要求每次重新初始化，初始证据保持固定；重新初始化会使旧任务授权和结果失效，且拒绝活跃/未知存活进程、规划或候选。每个分析尝试使用请求登记时 Owner 保存的 `PlanningTimeoutSeconds`（默认 300 秒，1–604800 秒），重试使用 `PlanningMaxRetries`（默认两次，0–2），停止后输入核验另有 10 秒上限。Owner 可在 `system/automation` 设置较长有限分析超时（规划累计预算须不少于该超时），无需启用自动化；初始化不受项目生命周期额度限制。没有停止证据时保留未知存活与预留支出；重启不推断停止。Owner 实际核验后可使用 `initialization/confirm-stopped`，在线取消用 `initialization/cancel`。项目累计统计不是生命周期额度。
+
+0.2.3-dev 首次打开旧数据库执行一次版本化、原子审计的 authority policy migration v1，补齐 `internal/mcp/**`、`internal/mcpconfig/**`、`internal/chatprofile/**`、`internal/centerhost/**` 等必需平台保护。若有变化，暂停项目、请求旧活动停止、使旧任务/共享基线失效，保留项目身份、历史和实际支出；不自动批准旧库或复活旧授权。原生目标部署与真实模型验收由 Owner 另行完成；跨编译不是原生部署证明。
+
+有限聊天的初始化读、请求、原始回答及幂等重放统一使用脱敏应用投影：凭据、本机 workspace 路径、检查命令和参数不返回。原始回答与完整检查政策私有保留给 Owner 审阅；聊天不能用脱敏投影批准规范。profile 的固定端点与 CA 在发送 token 前与启动配置 / 已登记 Runner 核对，然后在相同加载 profile 上验证服务器持久化的身份与范围。兼容独立 chat launcher 在启动时固定既有 profile 端点与 CA，不借用 Owner/node 凭据。
+
+用户服务激活前查询对应固定 label/unit/task 的实际定义，核对固定可执行文件、参数及身份；不识别的登记、缺失的 owned 定义或不一致的动作一律拒绝，不 bootout 其它 label，不用 Task Scheduler `/Create /F` 覆盖。Windows 使用固定只读的本机 Task Scheduler 数值 HRESULT 探针，不依赖中文或英文错误文本；访问拒绝、未知错误或身份不符仍拒绝激活。macOS 管理域预检只查询 disabled 状态，不读取整域服务清单。
+
+受限 MCP 仅限制自己的工具、路由与 token，不隔离普通聊天其它终端/文件工具或本机权限。不得把 Owner token 交给普通聊天；Owner Web/CLI/API 已足够，无最高权限聊天通道。
 
 ## 运行目录与 macOS 权限
 
@@ -43,7 +121,7 @@ go test -race ./...
 
 当前开发版没有稳定的 Developer ID 分发签名。构建产物变化会改变 ad hoc 签名的 `cdhash`，系统可能重新请求权限，不能保证一次授权跨版本有效；请按实际需要授权，不要为减少弹窗而授予全磁盘访问。[Apple 分发签名说明](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac/)、[DR 身份说明](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements)
 
-已有节点升级保持原数据目录和节点身份，不直接搬动已有数据；材料和仓库记录可能使用绝对路径。本次升级使用 v0.2.2-dev 中心与 Runner；升级并重启由用户实施，代码合并不会更新运行中的服务。
+已有节点升级保持原数据目录和节点身份，不直接搬动已有数据；材料和仓库记录可能使用绝对路径。本次源码版本为 v0.2.3-dev，中心与 Runner 使用匹配版本；升级并重启由用户实施，代码合并不会更新运行中的服务。
 
 ## 本机启动
 
@@ -105,9 +183,11 @@ Web 中建立项目、明确最低检查，录入需求，再按下方 Phase B �
 
 v0.2.2-dev 的统一 MCP 实现及评审修复已由独立验收通过完整 macOS Go race 套件（包括全部监听测试）、真实原生可执行文件 stdio 与隔离双监听中心测试：缺失 profile 后，同一 MCP 进程获得十一项中心工具；节点受限 profile 仅获得七项工具，不能访问 Leader 或全局任务池；Run 仅有三项范围内工具并拒绝跨角色调用。中心实际重启期间 MCP 进程保持存活；撤销凭据后，缓存读取与需求提交均被拒绝。
 
-实际原生 Codex CLI 安装配置验收确认旧 chat-only 接入迁移为唯一 `coordica`，保留所选路径、启用/禁用状态、超时、无关设置、备份与幂等性。评审修复另覆盖 TOML 文件末尾分隔及无关表、项目级 MCP 名称状态、隐式目录环境与文件别名检查，以及本机 Runner 保留真实验证的中心 chat profile。开发侧离线 stdio 测试及五项 Python 打包测试通过。
+v0.2.2-dev 的原生 Codex CLI 安装配置验收确认旧 chat-only 接入迁移为唯一 `coordica`，保留所选路径、启用/禁用状态、超时、无关设置、备份与幂等性。评审修复另覆盖 TOML 文件末尾分隔及无关表、项目级 MCP 名称状态、隐式目录环境与文件别名检查，以及本机 Runner 保留真实验证的中心 chat profile。开发侧离线 stdio 测试及五项 Python 打包测试通过。
 
-本次统一接入验收没有运行模型，没有派发开发、规划 Run 或任务；节点注册是逻辑 fixture，没有激活用户服务。CLI 配置安装已测试；原生 GUI 客户端动态工具刷新仍取决于客户端支持，必要时重新发现或重连。本次未新增 Windows/Linux 原生部署或所有客户端 GUI 执行认证。MCP 中心服务启动、项目访谈、实时开发者邮箱、索引集成及模型/effort/并发设置仍属后续功能。
+v0.2.2-dev 的统一接入验收没有运行模型，没有派发开发、规划 Run 或任务；节点注册是逻辑 fixture，没有激活用户服务。CLI 配置安装已测试；原生 GUI 客户端动态工具刷新仍取决于客户端支持，必要时重新发现或重连。该 v0.2.2-dev 验收未新增 Windows/Linux 原生部署或所有客户端 GUI 执行认证。
+
+v0.2.3-dev 的原生服务、统一 MCP 与只读 Leader 就绪验证记录以对应 Releases 的发布说明为准，由 Owner 独立验证后记录。实时开发者邮箱、索引集成、模型/effort/并发设置与资源扩展仍属后续功能。
 
 既有 Phase A 已完成真实 Mac 中心与 Windows 节点连接、Windows dsh 实现、Claude 独立评审的小项目闭环，以及运行中取消验收。该 Phase A 的实际 Agent 验收事实限于 Claude / dsh，不把支持定义或版本探测说成其他工具已实测。
 
@@ -217,7 +297,7 @@ Web 或 CLI 创建一致备份，返回中心上的备份目录。备份包含�
 
 没有开启后台自动升级或公开上传。Phase B 自动化默认关闭；启用也不提供全局无限授权。
 
-项目没有生命周期累计时间上限，中心持续运行；项目 used_seconds / reserved_seconds 是保留全部历史支出的统计与证据，不参与派单、评审、规划、咨询或恢复门禁。兼容记录中的 total_budget_seconds 已弃用并忽略，不要求在创建项目时填写；旧 POST project/budget（ConfigureProjectBudget）明确返回 deprecated。目标预算仍有限（最多 365 天），目标内规划累计额度仍由 PlanningBudgetSeconds（1–31536000 秒且不少于超时，默认十五分钟）约束，单次规划/咨询超时由 PlanningTimeoutSeconds（1–604800 秒，默认五分钟）约束、重试为 0–2。咨询账户仅统计及预留，不是另一个项目总额度。任务累计额度可配置至 365 天（默认四小时），单个执行 Run 可配置至七天（默认一小时）；新任务自动修复/重试各 0–2，Owner 版本化扩展仍最多 100 次，历史计数不清零。租约续期与有限执行截止时间独立；最低检查仍保留单次一小时超时政策。
+项目没有生命周期累计时间上限，中心持续运行；项目 used_seconds / reserved_seconds 是保留全部历史支出的统计与证据，不参与派单、评审、规划、咨询或恢复门禁。兼容记录中的 total_budget_seconds 已弃用并忽略，不要求在创建项目时填写；旧 POST project/budget（ConfigureProjectBudget）明确返回 deprecated。目标预算仍有限（最多 365 天），目标内规划累计额度仍由 PlanningBudgetSeconds（1–31536000 秒且不少于超时，默认十五分钟）约束，单次规划/咨询/初始化超时由 PlanningTimeoutSeconds（1–604800 秒，默认五分钟）约束、重试为 0–2。咨询账户仅统计及预留，不是另一个项目总额度。任务累计额度可配置至 365 天（默认四小时），单个执行 Run 可配置至七天（默认一小时）；新任务自动修复/重试各 0–2，Owner 版本化扩展仍最多 100 次，历史计数不清零。租约续期与有限执行截止时间独立；最低检查仍保留单次一小时超时政策。
 
 旧版本 `hold_reason=budget` 不会自动清除：记录没有保存原始耗尽原因。确认旧进程树已停止并已结算、目标/任务剩余额度为正、当前授权/政策/候选仍有效且重试可用后，Owner 可在任务恢复操作中提交当前任务版本，或调用 `POST /api/v1/tasks/{id}/resume`，正文为 `{ "expected_version": 当前版本 }`，带 Owner 凭据与新的 `Idempotency-Key`。此兼容恢复保留累计支出，失败执行的恢复消耗一次剩余重试；缺失停止证据、真实额度耗尽或过期授权仍拒绝。已有发布意图按原有核对路径处理，不因升级重建。
 

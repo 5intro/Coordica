@@ -144,6 +144,9 @@ func goalGate(tx *store.Tx, t *domain.Task, bind bool) error {
 // Existing grants retain authority while their own reservation fills the goal.
 // Admission of new work additionally requires availability through goalGate.
 func goalAuthority(tx *store.Tx, t *domain.Task, bind bool) error {
+	if e := baselineGate(tx, t, bind); e != nil {
+		return e
+	}
 	var d domain.PlanningDocument
 	e := tx.Get("planning_document", "current", &d)
 	if errors.Is(e, domain.ErrNotFound) {
@@ -185,7 +188,7 @@ func goalAuthority(tx *store.Tx, t *domain.Task, bind bool) error {
 }
 
 func grantedGoalAuthority(tx *store.Tx, t *domain.Task, r domain.Run) bool {
-	return r.GoalVersion == t.GoalVersion && r.GoalAuthorizationVersion == t.GoalAuthorizationVersion && goalAuthority(tx, t, false) == nil
+	return r.BaselineVersion == t.BaselineVersion && r.BaselineDigest == t.BaselineDigest && r.GoalVersion == t.GoalVersion && r.GoalAuthorizationVersion == t.GoalAuthorizationVersion && goalAuthority(tx, t, false) == nil
 }
 func (s *Service) SavePlanning(ctx context.Context, a Actor, key string, req domain.PlanningSaveRequest) (json.RawMessage, error) {
 	if e := owner(a); e != nil {
@@ -268,7 +271,10 @@ func (s *Service) AuthorizePlanning(ctx context.Context, a Actor, key string, re
 	if e := owner(a); e != nil {
 		return nil, e
 	}
-	return s.mutate(ctx, a, key, "planning.authorize", req, func(tx *store.Tx) (any, error) {
+	return s.mutateWithCheck(ctx, a, key, "planning.authorize", req, func(tx *store.Tx) error { return baselineGate(tx, nil, false) }, func(tx *store.Tx) (any, error) {
+		if e := baselineGate(tx, nil, false); e != nil {
+			return nil, e
+		}
 		var d domain.PlanningDocument
 		if e := tx.Get("planning_document", "current", &d); e != nil {
 			return nil, e
@@ -318,7 +324,7 @@ func (s *Service) SchedulePlanning(ctx context.Context, a Actor, key string, req
 	if len(req.Text) > 64<<10 {
 		return nil, domain.Fail("invalid_input", "message too large")
 	}
-	return s.mutate(ctx, a, key, "planning.evaluate", req, func(tx *store.Tx) (any, error) {
+	return s.mutateWithCheck(ctx, a, key, "planning.evaluate", req, func(tx *store.Tx) error { return baselineGate(tx, nil, false) }, func(tx *store.Tx) (any, error) {
 		var d domain.PlanningDocument
 		if e := tx.Get("planning_document", "current", &d); e != nil {
 			return nil, e
@@ -345,7 +351,11 @@ func (s *Service) SchedulePlanning(ctx context.Context, a Actor, key string, req
 				return nil, e
 			}
 		}
-		r := domain.PlanningRun{ID: ID("plan_"), Version: 1, DocumentVersion: d.Version, AuthorizationVersion: d.AuthorizationVersion, AutomationVersion: settings.Version, Generation: 1, State: "queued", MaxRetries: settings.PlanningMaxRetries}
+		baseline, e := initialization(tx)
+		if e != nil {
+			return nil, e
+		}
+		r := domain.PlanningRun{BaselineVersion: baseline.ApprovedVersion, BaselineDigest: baseline.ApprovedDigest, ID: ID("plan_"), Version: 1, DocumentVersion: d.Version, AuthorizationVersion: d.AuthorizationVersion, AutomationVersion: settings.Version, Generation: 1, State: "queued", MaxRetries: settings.PlanningMaxRetries}
 		if e = tx.Put("planning_run", r.ID, r); e != nil {
 			return nil, e
 		}

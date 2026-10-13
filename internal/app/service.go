@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"coordica/internal/domain"
@@ -22,10 +23,13 @@ import (
 
 type Actor struct{ ID, Role, NodeID, ChatScope string }
 type Service struct {
-	DB    *store.Store
-	Dir   string
-	Now   func() time.Time
-	Lease time.Duration
+	Source      AnalysisSource
+	initMu      sync.Mutex
+	initCancels map[string]context.CancelFunc
+	DB          *store.Store
+	Dir         string
+	Now         func() time.Time
+	Lease       time.Duration
 }
 
 func New(db *store.Store, dir string) *Service {
@@ -91,6 +95,9 @@ func (s *Service) mutateWithCheck(ctx context.Context, a Actor, key, action stri
 		}
 		return tx.Remember(a.ID, key, digest, value)
 	})
+	if err == nil {
+		s.cancelInvalidInitializations(ctx)
+	}
 	return result, err
 }
 func (s *Service) Bootstrap(ctx context.Context) (string, error) {
@@ -132,6 +139,9 @@ func (s *Service) Bootstrap(ctx context.Context) (string, error) {
 		}
 		return tx.Put("credential", Hash(token), domain.Credential{ID: "owner", Hash: Hash(token), Role: "owner"})
 	})
+	if err == nil {
+		err = s.MigrateAuthorityPolicy(ctx)
+	}
 	return path, err
 }
 func (s *Service) Authenticate(ctx context.Context, token string) (Actor, error) {
@@ -195,6 +205,11 @@ func (s *Service) snapshot(ctx context.Context, a Actor, eventLimit int) (domain
 		if v.Nodes, err = store.List[domain.Node](tx, "node"); err != nil {
 			return err
 		}
+		init, initErr := initialization(tx)
+		if initErr != nil {
+			return initErr
+		}
+		v.Initialization = &init
 		if err = phaseBSnapshot(tx, &v); err != nil {
 			return err
 		}
@@ -204,6 +219,12 @@ func (s *Service) snapshot(ctx context.Context, a Actor, eventLimit int) (domain
 	return v, err
 }
 func (s *Service) CreateProject(ctx context.Context, a Actor, key string, p domain.Project) (json.RawMessage, error) {
+	return s.createProject(ctx, a, key, p, false)
+}
+func (s *Service) CreateDraftProject(ctx context.Context, a Actor, key string, p domain.Project) (json.RawMessage, error) {
+	return s.createProject(ctx, a, key, p, true)
+}
+func (s *Service) createProject(ctx context.Context, a Actor, key string, p domain.Project, draft bool) (json.RawMessage, error) {
 	if err := owner(a); err != nil {
 		return nil, err
 	}
@@ -212,7 +233,7 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, key string, p doma
 	}
 	// Phase A dogfoods Coordica. Its authorization and integration controls
 	// cannot accidentally become ordinary changes through an empty UI list.
-	for _, required := range []string{"AGENTS.md", ".github/**", "cmd/coordica/**", "internal/app/**", "internal/domain/**", "internal/httpapi/**", "internal/localhttp/**", "internal/nodeconsole/**", "internal/gitops/**", "internal/process/**", "internal/store/**", "internal/agent/**", "internal/runner/**", "internal/onboarding/**", "internal/nodeservice/**", "internal/localfile/**", "internal/filelock/**", "api/**"} {
+	for _, required := range authorityPaths {
 		found := false
 		for _, configured := range p.ProtectedPaths {
 			if configured == required {
@@ -224,7 +245,11 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, key string, p doma
 			p.ProtectedPaths = append(p.ProtectedPaths, required)
 		}
 	}
-	if err := domain.ValidateProject(p); err != nil {
+	validation := p
+	if draft && len(validation.Checks) == 0 {
+		validation.Checks = []domain.Check{{Name: "draft validation only", Command: "git", TimeoutSeconds: 1}}
+	}
+	if err := domain.ValidateProject(validation); err != nil {
 		return nil, err
 	}
 	if _, err := gitops.NewScope([]string{"**"}, p.ProtectedPaths); err != nil {
@@ -240,12 +265,17 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, key string, p doma
 		p.ID = "project"
 		p.Version = 1
 		p.PolicyVersion = 1
-		p.Paused = false
+		p.Paused = true
 		p.UsedSeconds = 0
 		p.ReservedSeconds = 0
 		p.CreatedAt = s.Now()
 		if err := tx.Put("project", p.ID, p); err != nil {
 			return nil, err
+		}
+		if e := tx.Put("authority_policy_migration", "current", struct {
+			Version int `json:"version"`
+		}{1}); e != nil {
+			return nil, e
 		}
 		return p, s.audit(tx, a, "project.created", p.ID, p.Name)
 	})
@@ -281,7 +311,7 @@ func (s *Service) CreateTask(ctx context.Context, a Actor, key string, t domain.
 	if _, err := gitops.NewScope(t.AllowedPaths, nil); err != nil {
 		return nil, domain.Fail("invalid_input", err.Error())
 	}
-	return s.mutate(ctx, a, key, "task.create", t, func(tx *store.Tx) (any, error) {
+	return s.mutateWithCheck(ctx, a, key, "task.create", t, func(tx *store.Tx) error { return baselineGate(tx, nil, false) }, func(tx *store.Tx) (any, error) {
 		var p domain.Project
 		if e := tx.Get("project", "project", &p); e != nil {
 			return nil, e
@@ -309,7 +339,12 @@ func (s *Service) TaskAction(ctx context.Context, a Actor, key, id, action strin
 	if err := owner(a); err != nil {
 		return nil, err
 	}
-	return s.mutate(ctx, a, key, "task."+id+"."+action, req, func(tx *store.Tx) (any, error) {
+	return s.mutateWithCheck(ctx, a, key, "task."+id+"."+action, req, func(tx *store.Tx) error {
+		if action == "approve" || action == "resume" {
+			return baselineGate(tx, nil, false)
+		}
+		return nil
+	}, func(tx *store.Tx) (any, error) {
 		var t domain.Task
 		if err := tx.Get("task", id, &t); err != nil {
 			return nil, err
@@ -482,6 +517,16 @@ func (s *Service) ProjectAction(ctx context.Context, a Actor, key, action string
 				return nil, e
 			}
 		case "resume":
+			busy, e := initializationBusy(tx)
+			if e != nil {
+				return nil, e
+			}
+			if busy {
+				return nil, domain.Fail("busy", "初始化进程尚未停止")
+			}
+			if e := baselineGate(tx, nil, false); e != nil {
+				return nil, e
+			}
 			p.Paused = false
 		default:
 			return nil, domain.Fail("invalid_input", "未知项目操作")
@@ -497,7 +542,7 @@ func (s *Service) Scope(ctx context.Context, a Actor, key, id string, req domain
 	if err := owner(a); err != nil {
 		return nil, err
 	}
-	return s.mutate(ctx, a, key, "task.scope."+id, req, func(tx *store.Tx) (any, error) {
+	return s.mutateWithCheck(ctx, a, key, "task.scope."+id, req, func(tx *store.Tx) error { return baselineGate(tx, nil, false) }, func(tx *store.Tx) (any, error) {
 		var t domain.Task
 		if e := tx.Get("task", id, &t); e != nil {
 			return nil, e

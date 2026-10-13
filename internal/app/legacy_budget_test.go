@@ -30,7 +30,7 @@ func TestLegacyProjectCapHoldRequiresExplicitSafeOwnerResume(t *testing.T) {
 			}
 			task.State, task.HoldReason, task.CurrentRunID, task.Generation = "executing", "budget", "run_legacy", 1
 			task.UsedSeconds, task.ReservedSeconds = 10, 0
-			r := domain.Run{ID: "run_legacy", Version: 2, TaskID: task.ID, State: "stopped", Kind: "implement", Quiescent: true, FinishedAt: &f.now, Generation: task.Generation, AuthorizationVersion: task.AuthorizationVersion, PolicyVersion: snap.Project.PolicyVersion, GoalVersion: task.GoalVersion, GoalAuthorizationVersion: task.GoalAuthorizationVersion, GrantSeconds: 10, ElapsedSeconds: 10}
+			r := domain.Run{BaselineVersion: task.BaselineVersion, BaselineDigest: task.BaselineDigest, ID: "run_legacy", Version: 2, TaskID: task.ID, State: "stopped", Kind: "implement", Quiescent: true, FinishedAt: &f.now, Generation: task.Generation, AuthorizationVersion: task.AuthorizationVersion, PolicyVersion: snap.Project.PolicyVersion, GoalVersion: task.GoalVersion, GoalAuthorizationVersion: task.GoalAuthorizationVersion, GrantSeconds: 10, ElapsedSeconds: 10}
 			if e := f.s.DB.Update(ctx, func(tx *store.Tx) error {
 				p, e := getProject(tx)
 				if e != nil {

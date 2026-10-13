@@ -18,6 +18,7 @@ import (
 type Options struct {
 	Client, Executable, RunnerData, ToolsFile string
 	Mode, ChatProfile                         string
+	HostRole, HostConfig                      string
 	Home, ConfigHome, OutputDir               string
 	Apply                                     bool
 }
@@ -30,7 +31,7 @@ type Result struct {
 	// Content contains only a newly generated launcher, never existing settings.
 	Content string `json:"content,omitempty"`
 	// Internal provenance for host-wide path agreement before auto apply.
-	existingRunner, existingChat string
+	existingRunner, existingChat, existingRole, existingHost string
 }
 
 type dependencies struct {
@@ -69,6 +70,15 @@ func run(ctx context.Context, options Options, deps dependencies) ([]Result, err
 	}
 	if options.ToolsFile != "" && (!filepath.IsAbs(options.ToolsFile) || strings.ContainsAny(options.ToolsFile, "\x00\r\n")) {
 		return nil, errors.New("tool definitions file must be absolute")
+	}
+	if options.HostRole != "" && options.HostRole != "center" && options.HostRole != "node" {
+		return nil, errors.New("host role must be center or node")
+	}
+	if options.HostConfig != "" && (!filepath.IsAbs(options.HostConfig) || strings.ContainsAny(options.HostConfig, "\x00\r\n")) {
+		return nil, errors.New("host configuration must be absolute")
+	}
+	if options.HostRole == "center" && (options.HostConfig == "") || options.HostRole != "center" && options.HostConfig != "" {
+		return nil, errors.New("center requires fixed host config; node cannot select center config")
 	}
 	if options.Mode == "" {
 		options.Mode = "interaction"
@@ -154,7 +164,7 @@ func run(ctx context.Context, options Options, deps dependencies) ([]Result, err
 			for _, pair := range []struct {
 				selected *string
 				existing string
-			}{{&options.RunnerData, result.existingRunner}, {&options.ChatProfile, result.existingChat}} {
+			}{{&options.RunnerData, result.existingRunner}, {&options.ChatProfile, result.existingChat}, {&options.HostRole, result.existingRole}, {&options.HostConfig, result.existingHost}} {
 				if pair.existing != "" {
 					if err := preservePath(pair.selected, pair.existing); err != nil {
 						return []Result{{Client: options.Client, Status: "conflict", Message: "Existing host interaction paths differ across selected clients; all configurations left unchanged. Select matching paths or resolve conflicting registrations explicitly."}}, nil
@@ -210,7 +220,16 @@ func arguments(options Options) []string {
 	}
 	if options.Mode == "" || options.Mode == "interaction" {
 		options = interactionDefaults(options)
-		args := []string{"mcp", "--interaction", "--runner-data", options.RunnerData, "--chat-profile", options.ChatProfile}
+		args := []string{"mcp", "--interaction"}
+		if options.HostRole == "center" {
+			args = append(args, "--host-role", "center", "--host-config", options.HostConfig, "--runner-data", options.RunnerData)
+		} else {
+			args = append(args, "--runner-data", options.RunnerData)
+			if options.HostRole == "node" {
+				args = append(args, "--host-role", "node")
+			}
+		}
+		args = append(args, "--chat-profile", options.ChatProfile)
 		if options.ToolsFile != "" {
 			args = append(args, "--tools-file", options.ToolsFile)
 		}
@@ -282,6 +301,7 @@ func configureJSON(options Options, client, base, path string) Result {
 		if object(before.data, &root) == nil && object(root["mcpServers"], &servers) == nil {
 			if servers["coordica"] != nil {
 				result.existingRunner = options.RunnerData
+				result.existingRole, result.existingHost = options.HostRole, options.HostConfig
 			}
 			if servers["coordica-chat"] != nil || servers["coordica"] != nil && isInteractionLauncher(servers["coordica"], options) {
 				result.existingChat = options.ChatProfile

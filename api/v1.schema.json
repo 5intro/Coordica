@@ -1,5 +1,21 @@
 {
   "$defs": {
+    "AnalysisEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "fact": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "fact"
+      ],
+      "type": "object"
+    },
     "Artifact": {
       "additionalProperties": false,
       "properties": {
@@ -32,6 +48,16 @@
     "Assignment": {
       "additionalProperties": false,
       "properties": {
+        "baseline": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Baseline"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "candidate": {
           "anyOf": [
             {
@@ -144,6 +170,76 @@
       ],
       "type": "object"
     },
+    "Baseline": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "type": "string"
+        },
+        "allowed_roots": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/Check"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "conventions": {
+          "type": "string"
+        },
+        "functionality": {
+          "type": "string"
+        },
+        "modules": {
+          "type": "string"
+        },
+        "protected_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "requirements": {
+          "type": "string"
+        },
+        "risks": {
+          "type": "string"
+        },
+        "testing": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirements",
+        "acceptance",
+        "architecture",
+        "modules",
+        "conventions",
+        "testing",
+        "functionality",
+        "risks",
+        "allowed_roots",
+        "protected_paths",
+        "checks"
+      ],
+      "type": "object"
+    },
     "BlockItem": {
       "additionalProperties": false,
       "properties": {
@@ -214,6 +310,12 @@
         "base": {
           "type": "string"
         },
+        "baseline_digest": {
+          "type": "string"
+        },
+        "baseline_version": {
+          "type": "integer"
+        },
         "checks": {
           "items": {
             "$ref": "#/$defs/CheckResult"
@@ -272,6 +374,8 @@
         }
       },
       "required": [
+        "baseline_version",
+        "baseline_digest",
         "id",
         "version",
         "task_id",
@@ -351,6 +455,84 @@
       "required": [
         "console_url",
         "runner_url"
+      ],
+      "type": "object"
+    },
+    "CenterHealth": {
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "type": "string"
+        },
+        "center_instance_id": {
+          "type": "string"
+        },
+        "config_digest": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "api_version"
+      ],
+      "type": "object"
+    },
+    "CenterIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "config_digest": {
+          "type": "string"
+        },
+        "data_dir": {
+          "type": "string"
+        },
+        "instance_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "instance_id",
+        "config_digest",
+        "data_dir"
+      ],
+      "type": "object"
+    },
+    "CenterRuntimeStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "automation_enabled": {
+          "type": "boolean"
+        },
+        "identity": {
+          "$ref": "#/$defs/CenterIdentity"
+        },
+        "last_runner_heartbeat": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "project_paused": {
+          "type": "boolean"
+        },
+        "registered_runners": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "identity",
+        "project_paused",
+        "automation_enabled",
+        "registered_runners",
+        "last_runner_heartbeat"
       ],
       "type": "object"
     },
@@ -722,6 +904,12 @@
         "api_version": {
           "type": "string"
         },
+        "approved_baseline_digest": {
+          "type": "string"
+        },
+        "approved_baseline_version": {
+          "type": "integer"
+        },
         "approved_goal_version": {
           "type": "integer"
         },
@@ -757,6 +945,9 @@
         },
         "goal_version": {
           "type": "integer"
+        },
+        "initialization_status": {
+          "type": "string"
         },
         "name": {
           "type": "string"
@@ -800,6 +991,9 @@
         }
       },
       "required": [
+        "initialization_status",
+        "approved_baseline_version",
+        "approved_baseline_digest",
         "chat_scope",
         "approved_goal_version",
         "goal_authorization_version",
@@ -1546,6 +1740,488 @@
       ],
       "type": "object"
     },
+    "HostLifecycleStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "automation_enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chat_ready": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "configured": {
+          "type": "boolean"
+        },
+        "console_url": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "host_role": {
+          "type": "string"
+        },
+        "initialized": {
+          "type": "boolean"
+        },
+        "last_runner_heartbeat": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "matching_center_healthy": {
+          "type": "boolean"
+        },
+        "project_paused": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "registered_runners": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "service": {
+          "$ref": "#/$defs/UserServiceStatus"
+        }
+      },
+      "required": [
+        "host_role",
+        "configured",
+        "initialized",
+        "service",
+        "matching_center_healthy",
+        "chat_ready",
+        "project_paused",
+        "automation_enabled",
+        "registered_runners",
+        "last_runner_heartbeat",
+        "console_url",
+        "detail"
+      ],
+      "type": "object"
+    },
+    "Initialization": {
+      "additionalProperties": false,
+      "properties": {
+        "approved_baseline": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Baseline"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "approved_digest": {
+          "type": "string"
+        },
+        "approved_version": {
+          "type": "integer"
+        },
+        "available_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "covered_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "detail": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "feedback": {
+          "items": {
+            "$ref": "#/$defs/InitializationFeedback"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "omissions": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "operation_generation": {
+          "type": "integer"
+        },
+        "operation_id": {
+          "type": "string"
+        },
+        "operation_state": {
+          "type": "string"
+        },
+        "operation_version": {
+          "type": "integer"
+        },
+        "policy_digest": {
+          "type": "string"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InitializationResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_sha": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "status",
+        "kind",
+        "source_sha",
+        "policy_digest",
+        "available_paths",
+        "covered_paths",
+        "omissions",
+        "result",
+        "feedback",
+        "digest",
+        "approved_version",
+        "approved_digest",
+        "approved_baseline",
+        "operation_id",
+        "operation_generation",
+        "operation_version",
+        "operation_state",
+        "detail"
+      ],
+      "type": "object"
+    },
+    "InitializationAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "type": "integer"
+        },
+        "original_text": {
+          "type": "string"
+        },
+        "question_id": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/ChatSource"
+        }
+      },
+      "required": [
+        "expected_version",
+        "question_id",
+        "original_text",
+        "source"
+      ],
+      "type": "object"
+    },
+    "InitializationConfirm": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "type": "string"
+        },
+        "expected_version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "expected_version",
+        "digest"
+      ],
+      "type": "object"
+    },
+    "InitializationFeedback": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "original_text": {
+          "type": "string"
+        },
+        "question_id": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/ChatSource"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "actor_id",
+        "question_id",
+        "original_text",
+        "source",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "InitializationOperation": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "type": "string"
+        },
+        "actor_role": {
+          "type": "string"
+        },
+        "attempt": {
+          "type": "integer"
+        },
+        "deadline": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "elapsed_seconds": {
+          "type": "integer"
+        },
+        "generation": {
+          "type": "integer"
+        },
+        "grant_seconds": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "initialization_version": {
+          "type": "integer"
+        },
+        "max_retries": {
+          "type": "integer"
+        },
+        "process_id": {
+          "type": "integer"
+        },
+        "settled": {
+          "type": "boolean"
+        },
+        "state": {
+          "type": "string"
+        },
+        "tree_stopped": {
+          "type": "boolean"
+        },
+        "used_seconds": {
+          "type": "integer"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "working_directory": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "actor_id",
+        "actor_role",
+        "version",
+        "initialization_version",
+        "generation",
+        "state",
+        "max_retries",
+        "attempt",
+        "process_id",
+        "working_directory",
+        "deadline",
+        "grant_seconds",
+        "used_seconds",
+        "elapsed_seconds",
+        "tree_stopped",
+        "settled"
+      ],
+      "type": "object"
+    },
+    "InitializationQuestion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "prerequisites": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "prerequisites"
+      ],
+      "type": "object"
+    },
+    "InitializationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "type": "integer"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected_version",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "InitializationResult": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline": {
+          "$ref": "#/$defs/Baseline"
+        },
+        "facts": {
+          "items": {
+            "$ref": "#/$defs/AnalysisEvidence"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "generation": {
+          "type": "integer"
+        },
+        "initialization_version": {
+          "type": "integer"
+        },
+        "inspected_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "operation_id": {
+          "type": "string"
+        },
+        "questions": {
+          "items": {
+            "$ref": "#/$defs/InitializationQuestion"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "source_sha": {
+          "type": "string"
+        },
+        "suggestions": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "generation",
+        "initialization_version",
+        "operation_id",
+        "source_sha",
+        "ready",
+        "inspected_paths",
+        "facts",
+        "suggestions",
+        "questions",
+        "baseline"
+      ],
+      "type": "object"
+    },
     "LeaderMessage": {
       "additionalProperties": false,
       "properties": {
@@ -1996,6 +2672,12 @@
         "automation_version": {
           "type": "integer"
         },
+        "baseline_digest": {
+          "type": "string"
+        },
+        "baseline_version": {
+          "type": "integer"
+        },
         "conversation_id": {
           "type": "string"
         },
@@ -2092,6 +2774,8 @@
         }
       },
       "required": [
+        "baseline_version",
+        "baseline_digest",
         "scope_request_id",
         "execution_adapter",
         "process_id",
@@ -2194,6 +2878,9 @@
         "reserved_seconds": {
           "type": "integer"
         },
+        "source_repository": {
+          "type": "string"
+        },
         "target_branch": {
           "type": "string"
         },
@@ -2222,6 +2909,38 @@
         "checks",
         "policy_version",
         "created_at"
+      ],
+      "type": "object"
+    },
+    "ProjectPolicyRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/Check"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "expected_version": {
+          "type": "integer"
+        },
+        "protected_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "expected_version",
+        "checks",
+        "protected_paths"
       ],
       "type": "object"
     },
@@ -2398,6 +3117,12 @@
         "base": {
           "type": "string"
         },
+        "baseline_digest": {
+          "type": "string"
+        },
+        "baseline_version": {
+          "type": "integer"
+        },
         "candidate_id": {
           "type": "string"
         },
@@ -2477,6 +3202,8 @@
         }
       },
       "required": [
+        "baseline_version",
+        "baseline_digest",
         "goal_version",
         "goal_authorization_version",
         "id",
@@ -2719,6 +3446,16 @@
             "null"
           ]
         },
+        "initialization": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Initialization"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "leader_messages": {
           "items": {
             "$ref": "#/$defs/LeaderMessage"
@@ -2860,6 +3597,12 @@
         "authorization_version": {
           "type": "integer"
         },
+        "baseline_digest": {
+          "type": "string"
+        },
+        "baseline_version": {
+          "type": "integer"
+        },
         "budget_seconds": {
           "maximum": 31536000,
           "minimum": 1,
@@ -2958,6 +3701,8 @@
         }
       },
       "required": [
+        "baseline_version",
+        "baseline_digest",
         "goal_version",
         "goal_authorization_version",
         "id",
@@ -3095,6 +3840,22 @@
         "enabled",
         "implement",
         "review"
+      ],
+      "type": "object"
+    },
+    "UserServiceStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "state"
       ],
       "type": "object"
     },

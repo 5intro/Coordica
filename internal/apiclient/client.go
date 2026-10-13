@@ -71,6 +71,23 @@ func (c *Client) Do(ctx context.Context, method, path, key string, input any) (j
 	if !strings.HasPrefix(path, "/api/v1/") || strings.Contains(path, "..") || strings.ContainsAny(path, "?#") {
 		return nil, errors.New("invalid API path")
 	}
+	return c.request(ctx, method, path, key, input, true)
+}
+
+// PublicHealth queries only the fixed public endpoint and never sends credentials.
+func (c *Client) PublicHealth(ctx context.Context) (domain.CenterHealth, error) {
+	var health domain.CenterHealth
+	raw, err := c.request(ctx, "GET", "/healthz", "", nil, false)
+	if err != nil {
+		return health, err
+	}
+	if err = json.Unmarshal(raw, &health); err != nil || health.Status != "ok" || health.APIVersion != domain.APIVersion {
+		return health, errors.New("invalid public center health")
+	}
+	return health, nil
+}
+
+func (c *Client) request(ctx context.Context, method, path, key string, input any, authenticated bool) (json.RawMessage, error) {
 	var body io.Reader
 	if input != nil {
 		b, e := json.Marshal(input)
@@ -83,7 +100,9 @@ func (c *Client) Do(ctx context.Context, method, path, key string, input any) (j
 	if e != nil {
 		return nil, e
 	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
+	if authenticated {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Idempotency-Key", key)
 	res, e := c.http.Do(req)

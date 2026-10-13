@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"coordica/internal/domain"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -85,7 +86,7 @@ func serve(ctx context.Context, in io.Reader, out io.Writer, refresh bool, provi
 				if refresh {
 					capabilities["listChanged"] = true
 				}
-				reply["result"] = map[string]any{"protocolVersion": "2025-11-25", "capabilities": map[string]any{"tools": capabilities}, "serverInfo": map[string]string{"name": "coordica", "version": "0.2.2-dev"}}
+				reply["result"] = map[string]any{"protocolVersion": "2025-11-25", "capabilities": map[string]any{"tools": capabilities}, "serverInfo": map[string]string{"name": "coordica", "version": domain.SourceVersion}}
 			case "ping", "tools/list":
 				if len(r.Params) > 0 {
 					var p struct {

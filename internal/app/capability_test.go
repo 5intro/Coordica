@@ -16,12 +16,15 @@ func TestRegisteredToolIdentitySchedulingAndIndependentReview(t *testing.T) {
 	b, err := f.s.CreateTask(ctx, f.owner, "custom-task", domain.Task{Title: "custom", Description: "custom protocol driver", Acceptance: "fixed candidate", AllowedPaths: []string{"src/**"}, Tool: "local-custom", BudgetSeconds: 7200, MaxRunSeconds: 3600})
 	task := decodeTest[domain.Task](t, b, err)
 	b, err = f.s.TaskAction(ctx, f.owner, "custom-approve", task.ID, "approve", domain.VersionRequest{ExpectedVersion: task.Version})
-	task = decodeTest[domain.Task](t, b, err)
-	caps := []domain.Capability{{Tool: "local-custom", Available: true, Structured: true, Cancel: true, Review: true}, {Tool: "independent-review", Available: true, Structured: true, Cancel: true, Review: true}}
+	if err == nil {
+		t.Fatal("custom tool received development authority")
+	}
+	task = f.task
+	caps := []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}, {Tool: "local-custom", Available: true, Structured: true, Cancel: true, Review: false}, {Tool: "independent-review", Available: true, Structured: true, Cancel: true, Review: true}}
 	b, err = f.s.Claim(ctx, f.node, "custom-claim", domain.ClaimRequest{Capabilities: caps}, strings.Repeat("a", 40))
 	first := decodeTest[*domain.Assignment](t, b, err)
-	if first == nil || first.Run.Tool != "local-custom" {
-		t.Fatalf("custom tool not scheduled: %+v", first)
+	if first == nil || first.Run.Tool != "codex" {
+		t.Fatalf("authorized native development not scheduled: %+v", first)
 	}
 	artifact, err := f.s.UploadArtifact(ctx, f.node, first.Run.ID, strings.NewReader("immutable fixture"))
 	if err != nil {

@@ -56,6 +56,7 @@ func TestMCPHTTPApplicationScopeTriggerAndReplay(t *testing.T) {
 	if _, e = s.CreateProject(ctx, owner, "transport-project", domain.Project{Name: "Scope", RepositoryURL: dir, TargetBranch: "main", TotalBudgetSeconds: 10000, Checks: []domain.Check{{Name: "check", Command: "git", Args: []string{"status"}, TimeoutSeconds: 10}}}); e != nil {
 		t.Fatal(e)
 	}
+	seedHTTPBaseline(t, s)
 	b, e := s.CreateRequirement(ctx, owner, "transport-req", domain.Requirement{Title: "Source", Body: "Reuse existing shared helper"})
 	if e != nil {
 		t.Fatal(e)

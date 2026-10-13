@@ -49,7 +49,7 @@ func TestExistingGrantCanFillRemainingGoalBudget(t *testing.T) {
 				}
 				var cand domain.Candidate
 				if kind == "validation" {
-					cand = domain.Candidate{ID: "fixed-goal-budget-candidate", Version: 1, TaskID: a.Task.ID, State: "validating", Commit: strings.Repeat("c", 40), AuthorizationVersion: a.Task.AuthorizationVersion, PolicyVersion: a.Project.PolicyVersion, Review: &domain.Review{Candidate: strings.Repeat("c", 40), Verdict: "approve", Summary: "Fixed candidate approved", Findings: []string{}}}
+					cand = domain.Candidate{BaselineVersion: a.Run.BaselineVersion, BaselineDigest: a.Run.BaselineDigest, ID: "fixed-goal-budget-candidate", Version: 1, TaskID: a.Task.ID, State: "validating", Commit: strings.Repeat("c", 40), AuthorizationVersion: a.Task.AuthorizationVersion, PolicyVersion: a.Project.PolicyVersion, Review: &domain.Review{Candidate: strings.Repeat("c", 40), Verdict: "approve", Summary: "Fixed candidate approved", Findings: []string{}}}
 					a.Run.Kind, a.Run.CandidateID, a.Run.Base = "validation", cand.ID, cand.Commit
 					if err := f.s.DB.Update(ctx, func(tx *store.Tx) error {
 						var task domain.Task
@@ -160,7 +160,7 @@ func TestOldCandidateResumeAndReviewClaimCannotRebindGoal(t *testing.T) {
 			task = q
 		}
 	}
-	cand := domain.Candidate{ID: "old-review-candidate", Version: 1, TaskID: task.ID, State: "reviewing", Commit: strings.Repeat("c", 40), AuthorizationVersion: task.AuthorizationVersion, PolicyVersion: 1}
+	cand := domain.Candidate{BaselineVersion: task.BaselineVersion, BaselineDigest: task.BaselineDigest, ID: "old-review-candidate", Version: 1, TaskID: task.ID, State: "reviewing", Commit: strings.Repeat("c", 40), AuthorizationVersion: task.AuthorizationVersion, PolicyVersion: 1}
 	if err := f.s.DB.Update(ctx, func(tx *store.Tx) error {
 		task.CurrentCandidateID, task.State = cand.ID, "awaiting_integration"
 		if err := tx.Put("candidate", cand.ID, cand); err != nil {

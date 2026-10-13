@@ -14,10 +14,16 @@ import (
 
 	"coordica/internal/app"
 	"coordica/internal/domain"
+	"coordica/internal/jsoninput"
 	"coordica/internal/localhttp"
 )
 
+type HostLifecycle interface {
+	Initialize(context.Context) (domain.HostLifecycleStatus, error)
+	Status(context.Context) (domain.HostLifecycleStatus, error)
+}
 type Server struct {
+	Host           HostLifecycle
 	Service        *app.Service
 	Integration    *app.Integrator
 	UI             fs.FS
@@ -39,7 +45,8 @@ func (s *Server) RunnerHandler() http.Handler { return s.handler(true, false) }
 func (s *Server) handler(runners, admin bool) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		respond(w, map[string]string{"status": "ok", "api_version": domain.APIVersion}, nil)
+		value, e := s.Service.PublicHealth(r.Context())
+		respond(w, value, e)
 	})
 	if admin {
 		mux.HandleFunc("GET /api/v1/local/info", func(w http.ResponseWriter, r *http.Request) {
@@ -172,6 +179,22 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if r.Method == http.MethodGet {
 		switch {
+		case path == "system/host":
+			if s.Host == nil {
+				err = domain.Fail("host_setup_required", "trusted center host configuration required")
+			} else {
+				result, err = s.Host.Status(ctx)
+			}
+		case path == "system/identity":
+			var status domain.CenterRuntimeStatus
+			status, err = s.Service.CenterStatus(ctx, a)
+			result = status.Identity
+		case path == "system/host-status":
+			result, err = s.Service.CenterStatus(ctx, a)
+		case path == "initialization/operation":
+			result, err = s.Service.InitializationOperation(ctx, a)
+		case path == "initialization":
+			result, err = s.Service.Initialization(ctx, a)
 		case path == "state":
 			result, err = s.Service.Snapshot(ctx, a)
 		case path == "export":
@@ -210,6 +233,40 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case path == "system/host/initialize" || path == "system/host/start":
+		var in struct{}
+		if err = decodeChat(r, &in); err == nil {
+			if s.Host == nil {
+				err = domain.Fail("host_setup_required", "trusted center host configuration required")
+			} else {
+				result, err = s.Host.Initialize(ctx)
+			}
+		}
+	case path == "initialization/cancel":
+		var in domain.VersionRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.CancelInitialization(ctx, a, key, in)
+		}
+	case path == "initialization/confirm-stopped":
+		var in domain.StopConfirmation
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.ConfirmInitializationStopped(ctx, a, key, in)
+		}
+	case path == "initialization/analyze":
+		var in domain.InitializationRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.RequestInitialization(ctx, a, key, in)
+		}
+	case path == "initialization/answer":
+		var in domain.InitializationAnswer
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.AnswerInitialization(ctx, a, key, in)
+		}
+	case path == "initialization/confirm":
+		var in domain.InitializationConfirm
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.ConfirmInitialization(ctx, a, key, in)
+		}
 	case path == "runner/chat-credentials":
 		var in domain.ChatCredentialRequest
 		if err = decodeChat(r, &in); err == nil {
@@ -277,6 +334,16 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		var in domain.DecisionResolveRequest
 		if err = decode(r, &in); err == nil {
 			result, err = s.Service.ResolveDecision(ctx, a, key, parts[1], in)
+		}
+	case path == "project/policy":
+		var in domain.ProjectPolicyRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.UpdateProjectPolicy(ctx, a, key, in)
+		}
+	case path == "project/open":
+		var in domain.Project
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.CreateDraftProject(ctx, a, key, in)
 		}
 	case path == "project":
 		var in domain.Project
@@ -390,6 +457,26 @@ func decode(r *http.Request, out any) error {
 	body, err := io.ReadAll(io.LimitReader(r.Body, (1<<20)+1))
 	if err != nil || len(body) > 1<<20 {
 		return domain.Fail("invalid_input", "JSON请求不能超过1MiB")
+	}
+	var required []string
+	switch out.(type) {
+	case *domain.InitializationRequest:
+		required = []string{"expected_version", "kind"}
+	case *domain.InitializationAnswer:
+		required = []string{"expected_version", "question_id", "original_text", "source"}
+	case *domain.InitializationConfirm:
+		required = []string{"expected_version", "digest"}
+	case *domain.ProjectPolicyRequest:
+		required = []string{"expected_version", "checks", "protected_paths"}
+	}
+	if required != nil {
+		if e := jsoninput.Required(body, required...); e != nil {
+			return domain.Fail("invalid_input", e.Error())
+		}
+		if e := jsoninput.Decode(body, out, 64<<10); e != nil {
+			return domain.Fail("invalid_input", e.Error())
+		}
+		return nil
 	}
 	d := json.NewDecoder(bytes.NewReader(body))
 	d.DisallowUnknownFields()

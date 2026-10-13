@@ -27,12 +27,15 @@ func TestProjectStatisticsBeyondLegacyCapAllowLongRunAtomicSettlement(t *testing
 	}); e != nil {
 		t.Fatal(e)
 	}
-	raw, e := f.s.CreateTask(ctx, f.owner, "long-task", domain.Task{Title: "Long task", Description: "Several hours of work", Acceptance: "bounded execution", AllowedPaths: []string{"src/**"}, Tool: "long-tool", BudgetSeconds: 48 * 3600, MaxRunSeconds: 12 * 3600, MaxRetries: 1})
+	if _, e := f.s.TaskAction(ctx, f.owner, "pause-fixture", f.task.ID, "pause", domain.VersionRequest{ExpectedVersion: f.task.Version}); e != nil {
+		t.Fatal(e)
+	}
+	raw, e := f.s.CreateTask(ctx, f.owner, "long-task", domain.Task{Title: "Long task", Description: "Several hours of work", Acceptance: "bounded execution", AllowedPaths: []string{"src/**"}, Tool: "codex", BudgetSeconds: 48 * 3600, MaxRunSeconds: 12 * 3600, MaxRetries: 1})
 	task := decodeTest[domain.Task](t, raw, e)
 	if _, e = f.s.TaskAction(ctx, f.owner, "approve-long", task.ID, "approve", domain.VersionRequest{ExpectedVersion: task.Version}); e != nil {
 		t.Fatal(e)
 	}
-	raw, e = f.s.Claim(ctx, f.node, "long", domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "long-tool", Available: true, Structured: true, Cancel: true}}}, strings.Repeat("a", 40))
+	raw, e = f.s.Claim(ctx, f.node, "long", domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true}}}, strings.Repeat("a", 40))
 	a := decodeTest[*domain.Assignment](t, raw, e)
 	if a == nil || a.Run.GrantSeconds != 12*3600 || a.Run.Deadline.Sub(a.Run.StartedAt) != 12*time.Hour {
 		t.Fatal("legacy project/hour ceiling", a)

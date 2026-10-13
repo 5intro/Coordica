@@ -49,6 +49,13 @@ func (w *PlanningWorker) reserve(ctx context.Context) (domain.PlanningRun, domai
 	var d domain.PlanningDocument
 	var messages []domain.LeaderMessage
 	e := s.DB.Update(ctx, func(tx *store.Tx) error {
+		busy, e := initializationBusy(tx)
+		if e != nil {
+			return e
+		}
+		if busy {
+			return nil
+		}
 		runs, e := store.List[domain.PlanningRun](tx, "planning_run")
 		if e != nil {
 			return e
@@ -95,7 +102,11 @@ func (w *PlanningWorker) reserve(ctx context.Context) (domain.PlanningRun, domai
 				}
 				return tx.Put("planning_run", r.ID, r)
 			}
-			if p.Paused {
+			baseline, e := initialization(tx)
+			if e != nil {
+				return e
+			}
+			if p.Paused || baselineGate(tx, nil, false) != nil || r.BaselineVersion != baseline.ApprovedVersion || r.BaselineDigest != baseline.ApprovedDigest {
 				return nil
 			}
 			grant := limit(settings.PlanningTimeoutSeconds, settings.PlanningBudgetSeconds-d.PlanningUsedSeconds-d.PlanningReservedSeconds, d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds)
@@ -328,6 +339,13 @@ func (w *PlanningWorker) Tick(ctx context.Context) error {
 					p, e := getProject(tx)
 					if e != nil {
 						return e
+					}
+					baseline, initErr := initialization(tx)
+					if initErr != nil {
+						return initErr
+					}
+					if current.Purpose != domain.ConsultationPurpose && (baselineGate(tx, nil, false) != nil || current.BaselineVersion != baseline.ApprovedVersion || current.BaselineDigest != baseline.ApprovedDigest) {
+						return context.Canceled
 					}
 					if current.State != "running" || current.Generation != r.Generation || doc.Version != r.DocumentVersion || p.Paused || !w.Service.Now().Before(current.LeaseUntil) {
 						return context.Canceled

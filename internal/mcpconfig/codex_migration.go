@@ -336,6 +336,7 @@ func configureCodexMigration(ctx context.Context, o Options, deps dependencies, 
 	wantDisabled := mainDisabled || chatDisabled
 	if original["coordica"] != nil {
 		result.existingRunner = selected.RunnerData
+		result.existingRole, result.existingHost = selected.HostRole, selected.HostConfig
 	}
 	if original["coordica-chat"] != nil || original["coordica"] != nil && isInteractionLauncher(original["coordica"], o) {
 		result.existingChat = selected.ChatProfile

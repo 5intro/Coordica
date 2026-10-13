@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"coordica/internal/centerhost"
 	"coordica/internal/mcpconfig"
 )
 
@@ -16,6 +17,8 @@ import (
 func setup(ctx context.Context, args []string) error {
 	f := flag.NewFlagSet("setup", flag.ContinueOnError)
 	mode := f.String("mode", "interaction", "MCP mode: interaction (default); bootstrap/chat compatibility")
+	hostRole := f.String("host-role", "", "Trusted role center or node (omitted preserves owned registration)")
+	hostConfig := f.String("host-config", "", "Fixed center host configuration saved by host-config")
 	chatProfile := f.String("chat-profile", "", "Fixed absolute shared limited interaction profile")
 	client := f.String("client", "auto", "MCP client: auto, claude, codex, cursor, kimi, pi, dsh, generic")
 	apply := f.Bool("apply", false, "Apply the setup plan (default: preview only)")
@@ -52,6 +55,16 @@ func setup(ctx context.Context, args []string) error {
 			return err
 		}
 	}
+	if *hostRole == "center" {
+		c, e := centerhost.Load(*hostConfig)
+		if e != nil {
+			return e
+		}
+		if *binary != c.Executable || *chatProfile != "" && *chatProfile != c.ChatProfile {
+			return errors.New("setup executable/profile conflicts with trusted host configuration")
+		}
+		*chatProfile = c.ChatProfile
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -61,7 +74,7 @@ func setup(ctx context.Context, args []string) error {
 		return err
 	}
 	results, err := mcpconfig.Run(ctx, mcpconfig.Options{
-		Mode: *mode, ChatProfile: *chatProfile, Client: *client, Executable: *binary, RunnerData: *data, ToolsFile: *toolsFile,
+		HostRole: *hostRole, HostConfig: *hostConfig, Mode: *mode, ChatProfile: *chatProfile, Client: *client, Executable: *binary, RunnerData: *data, ToolsFile: *toolsFile,
 		Home: home, ConfigHome: configHome, OutputDir: *output, Apply: *apply,
 	})
 	if err != nil {
