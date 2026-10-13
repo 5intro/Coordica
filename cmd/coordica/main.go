@@ -35,7 +35,7 @@ import (
 	"coordica/web"
 )
 
-const version = "0.2.1-dev"
+const version = "0.2.2-dev"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -352,35 +352,34 @@ func ctl(ctx context.Context, args []string) error {
 func serveMCP(ctx context.Context, args []string) error {
 	f := flag.NewFlagSet("mcp", flag.ContinueOnError)
 	chatProfile := f.String("chat-profile", "", "Fixed absolute private limited chat profile")
-	bootstrap := f.Bool("bootstrap", false, "Local discovery and Runner initialization tools")
+	bootstrap := f.Bool("bootstrap", false, "Deprecated local-only compatibility mode")
+	interaction := f.Bool("interaction", false, "Unified local onboarding and limited interaction")
 	profile := f.String("profile", "", "Fixed output path for local Runner discovery profile")
 	dir := f.String("runner-data", "", "Runner directory (bootstrap defaults to user config directory)")
 	id := f.String("run", "", "Assigned Run ID")
 	generation := f.Int64("generation", 0, "Run generation")
-	toolsFile := f.String("tools-file", "", "Trusted local JSON tool definitions file (bootstrap only)")
+	toolsFile := f.String("tools-file", "", "Trusted local JSON tool definitions file (local interaction/bootstrap only)")
 	var toolExecutables executableFlags
-	f.Var(&toolExecutables, "tool-executable", "Tool executable override ID=PATH (bootstrap only, repeatable)")
+	f.Var(&toolExecutables, "tool-executable", "Tool executable override ID=PATH (local interaction/bootstrap only, repeatable)")
 	if e := f.Parse(args); e != nil {
 		return e
 	}
 	if f.NArg() != 0 {
 		return errors.New("mcp takes flags only")
 	}
-	if *chatProfile != "" {
+	if *chatProfile != "" && !*interaction {
 		if *bootstrap || *profile != "" || *dir != "" || *id != "" || *generation != 0 || *toolsFile != "" || len(toolExecutables) > 0 {
 			return errors.New("chat profile cannot be combined with bootstrap or Run options")
 		}
-		cfg, e := chatprofile.Load(*chatProfile)
-		if e != nil {
+		if _, e := chatprofile.Load(*chatProfile); e != nil {
 			return e
 		}
-		client, e := apiclient.New(cfg.CenterURL, cfg.Token, cfg.TLSCA)
-		if e != nil {
-			return errors.New("cannot initialize fixed chat transport")
-		}
-		return (mcp.Chat{API: client}).Serve(ctx, os.Stdin, os.Stdout)
+		return (mcp.Chat{API: mcp.ProfileCaller{Path: *chatProfile}}).Serve(ctx, os.Stdin, os.Stdout)
 	}
-	if *bootstrap {
+	if *bootstrap || *interaction {
+		if *id != "" || *generation != 0 || *bootstrap && *interaction {
+			return errors.New("interaction/bootstrap cannot be combined with Run identity or each other")
+		}
 		tools, e := loadToolDefinitions(*toolsFile)
 		if e != nil {
 			return e
@@ -399,10 +398,35 @@ func serveMCP(ctx context.Context, args []string) error {
 		if *profile == "" {
 			*profile = filepath.Join(absolute, "discovery.json")
 		}
-		return (mcp.Bootstrap{ProfilePath: *profile, DataDir: absolute, Tools: tools, Executables: toolExecutables}).Serve(ctx, os.Stdin, os.Stdout)
+		local := mcp.Bootstrap{ProfilePath: *profile, DataDir: absolute, Tools: tools, Executables: toolExecutables}
+		if *interaction {
+			if !filepath.IsAbs(*dir) {
+				return errors.New("interaction Runner directory must be absolute")
+			}
+			if *chatProfile == "" {
+				base, err := os.UserConfigDir()
+				if err != nil {
+					return err
+				}
+				*chatProfile = filepath.Join(base, "Coordica", "interaction.json")
+			}
+			if !filepath.IsAbs(*chatProfile) || strings.ContainsAny(*chatProfile, "\x00\r\n") {
+				return errors.New("absolute interaction profile required")
+			}
+			if err := mcp.ValidateProfilePaths(*profile, absolute, *chatProfile); err != nil {
+				return err
+			}
+			local.ChatProfile = *chatProfile
+			local.ProvisionChat = func(ctx context.Context) error { return provisionNodeInteraction(ctx, absolute, *chatProfile) }
+			return (mcp.Interaction{Bootstrap: local, Chat: mcp.Chat{API: mcp.ProfileCaller{Path: *chatProfile}}}).Serve(ctx, os.Stdin, os.Stdout)
+		}
+		if err := mcp.ValidateProfilePaths(*profile, absolute, ""); err != nil {
+			return err
+		}
+		return local.Serve(ctx, os.Stdin, os.Stdout)
 	}
-	if *toolsFile != "" || len(toolExecutables) > 0 {
-		return errors.New("local tool configuration is supported only with --bootstrap")
+	if *profile != "" || *toolsFile != "" || len(toolExecutables) > 0 {
+		return errors.New("local tool configuration is supported only with --bootstrap or --interaction")
 	}
 	if *dir == "" {
 		*dir = ".coordica-runner"

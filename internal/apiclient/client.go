@@ -113,3 +113,7 @@ func (c *Client) Do(ctx context.Context, method, path, key string, input any) (j
 	}
 	return b, nil
 }
+
+// CloseIdleConnections releases transport resources when a short-lived caller
+// reloads its protected startup profile. It does not cancel an active request.
+func (c *Client) CloseIdleConnections() { c.http.CloseIdleConnections() }

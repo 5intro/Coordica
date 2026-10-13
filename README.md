@@ -2,7 +2,7 @@
 
 多电脑、多 Agent 开发协调底座。采用 Go 中心与 Runner、SQLite、React/TypeScript 控制台；Web 产物嵌入中心二进制，无 Redis、消息队列或额外后台运行时。
 
-当前源码版本是 **[v0.2.1-dev 开发预览版](https://github.com/5intro/Coordica/releases/tag/v0.2.1-dev)**。已实现固定 Git 候选、独立评审、程序检查和条件发布闭环；构建与测试结果见 [GitHub Actions](https://github.com/5intro/Coordica/actions)。协议模拟测试、跨平台编译和托管 CI 不代表用户电脑上的真实部署验收。
+当前源码版本是 **[v0.2.2-dev 开发预览版](https://github.com/5intro/Coordica/releases/tag/v0.2.2-dev)**。已实现固定 Git 候选、独立评审、程序检查和条件发布闭环；构建与测试结果见 [GitHub Actions](https://github.com/5intro/Coordica/actions)。协议模拟测试、跨平台编译和托管 CI 不代表用户电脑上的真实部署验收。
 
 ## 许可与下载
 
@@ -10,7 +10,7 @@
 
 第三方组件保留各自许可，见 [第三方声明](THIRD_PARTY_NOTICES.md)。本许可不会仅因使用 Coordica 就要求你公开独立开发的项目。
 
-v0.2.1-dev 的公开发布入口预留为 [v0.2.1-dev Release](https://github.com/5intro/Coordica/releases/tag/v0.2.1-dev)；本次仅准备源码与发布元数据，预编译包由 Owner 独立验证后发布。通过 `coordica setup --apply` 统一配置本机 Agent 的 MCP 接入，不必逐家手写配置；见下方初始化步骤。Windows amd64 包内还附 `coordica.exe` 和 dsh 配置模板 `coordica.cordis.yml`。发布包附 `SHA256SUMS`，当前仍为开发预览版；实际验收范围见下方“验证状态”。
+v0.2.2-dev 的公开发布入口预留为 [v0.2.2-dev Release](https://github.com/5intro/Coordica/releases/tag/v0.2.2-dev)；本次仅准备源码与发布元数据，预编译包由 Owner 独立验证后发布。通过 `coordica setup --apply` 统一配置本机 Agent 的 MCP 接入，不必逐家手写配置；见下方初始化步骤。Windows amd64 包内还附 `coordica.exe` 和 dsh 配置模板 `coordica.cordis.yml`。发布包附 `SHA256SUMS`，当前仍为开发预览版；实际验收范围见下方“验证状态”。
 
 ## 构建
 
@@ -33,7 +33,9 @@ go test -race ./...
 
 `make generate` 从 Go 协议记录生成 `api/v1.schema.json` 与 Web 类型；不手改生成文件。网络输入仍由中心做严格 JSON 解码、领域校验和授权检查。
 
-维护者准备好 `bin/coordica`（macOS arm64）、`bin/coordica-windows-amd64.exe` 和 `bin/coordica-linux-amd64` 后，可运行 `make package`，用 Python 3 标准库生成三个分发包和 `SHA256SUMS`。脚本校验许可、包内文件及二进制字节；它不构建程序、不上传发布，普通下载用户无需安装 Python。
+构建后运行 `./bin/coordica version` 应输出 `0.2.2-dev`；各 MCP 角色的初始化元数据也使用同一发布版本。
+
+维护者准备好 `bin/coordica`（macOS arm64）、`bin/coordica-windows-amd64.exe` 和 `bin/coordica-linux-amd64` 后，可运行 `make package`（默认版本 `0.2.2-dev`），或显式运行 `python3 scripts/package-release.py --version 0.2.2-dev`，用 Python 3 标准库生成三个分发包、各平台 `START-HERE.txt` 和 `SHA256SUMS`。脚本校验许可、包内文件及二进制字节；它不构建程序、不上传发布，普通下载用户无需安装 Python。
 
 ## 运行目录与 macOS 权限
 
@@ -41,7 +43,7 @@ go test -race ./...
 
 当前开发版没有稳定的 Developer ID 分发签名。构建产物变化会改变 ad hoc 签名的 `cdhash`，系统可能重新请求权限，不能保证一次授权跨版本有效；请按实际需要授权，不要为减少弹窗而授予全磁盘访问。[Apple 分发签名说明](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac/)、[DR 身份说明](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements)
 
-已有节点升级保持原数据目录和节点身份，不直接搬动已有数据；材料和仓库记录可能使用绝对路径。Phase B 使用 v0.2.1-dev 中心与 Runner；升级并重启由用户实施，代码合并不会更新运行中的服务。
+已有节点升级保持原数据目录和节点身份，不直接搬动已有数据；材料和仓库记录可能使用绝对路径。本次升级使用 v0.2.2-dev 中心与 Runner；升级并重启由用户实施，代码合并不会更新运行中的服务。
 
 ## 本机启动
 
@@ -99,7 +101,13 @@ Web 中建立项目、明确最低检查，录入需求，再按下方 Phase B �
 
 ## 验证状态
 
-v0.2.1-dev 包含主机范围查询闭包、持久化节点签发校验、跨页面咨询重试信封、稳定阻断分页、延迟停止决策核销和有限长运行配置。2026-10-13 已通过 macOS 独立本机真实 stdio MCP 与原生 `gpt-6.1-sol` Leader 验收：两个逻辑节点分别使用受限凭据及实际中心/Runner 端口，核对共享 profile 复用、需求来源与去重、主机查询与监听入口权限，以及撤销后原连接拒绝重放；无目标和已批准准入目标两种场景下，自动化开启仍只产生咨询回复，目标、授权、范围、需求、任务、发布意图及 Git 主线保持不变，所有执行停止并结算。逻辑节点测试不代表真实跨机部署。需求版本化撤销/编辑与实时开发者邮箱尚未实现。
+既有 v0.2.1-dev 包含主机范围查询闭包、持久化节点签发校验、跨页面咨询重试信封、稳定阻断分页、延迟停止决策核销和有限长运行配置。2026-10-13 已通过 macOS 独立本机真实 stdio MCP 与原生 `gpt-6.1-sol` Leader 验收：两个逻辑节点分别使用受限凭据及实际中心/Runner 端口，核对共享 profile 复用、需求来源与去重、主机查询与监听入口权限，以及撤销后原连接拒绝重放；无目标和已批准准入目标两种场景下，自动化开启仍只产生咨询回复，目标、授权、范围、需求、任务、发布意图及 Git 主线保持不变，所有执行停止并结算。逻辑节点测试不代表真实跨机部署。需求版本化撤销/编辑与实时开发者邮箱尚未实现。
+
+v0.2.2-dev 的统一 MCP 实现及评审修复已由独立验收通过完整 macOS Go race 套件（包括全部监听测试）、真实原生可执行文件 stdio 与隔离双监听中心测试：缺失 profile 后，同一 MCP 进程获得十一项中心工具；节点受限 profile 仅获得七项工具，不能访问 Leader 或全局任务池；Run 仅有三项范围内工具并拒绝跨角色调用。中心实际重启期间 MCP 进程保持存活；撤销凭据后，缓存读取与需求提交均被拒绝。
+
+实际原生 Codex CLI 安装配置验收确认旧 chat-only 接入迁移为唯一 `coordica`，保留所选路径、启用/禁用状态、超时、无关设置、备份与幂等性。评审修复另覆盖 TOML 文件末尾分隔及无关表、项目级 MCP 名称状态、隐式目录环境与文件别名检查，以及本机 Runner 保留真实验证的中心 chat profile。开发侧离线 stdio 测试及五项 Python 打包测试通过。
+
+本次统一接入验收没有运行模型，没有派发开发、规划 Run 或任务；节点注册是逻辑 fixture，没有激活用户服务。CLI 配置安装已测试；原生 GUI 客户端动态工具刷新仍取决于客户端支持，必要时重新发现或重连。本次未新增 Windows/Linux 原生部署或所有客户端 GUI 执行认证。MCP 中心服务启动、项目访谈、实时开发者邮箱、索引集成及模型/effort/并发设置仍属后续功能。
 
 既有 Phase A 已完成真实 Mac 中心与 Windows 节点连接、Windows dsh 实现、Claude 独立评审的小项目闭环，以及运行中取消验收。该 Phase A 的实际 Agent 验收事实限于 Claude / dsh，不把支持定义或版本探测说成其他工具已实测。
 
@@ -113,7 +121,7 @@ v0.2.1-dev 包含主机范围查询闭包、持久化节点签发校验、跨页
 
 安装到固定目录后，先运行 `coordica setup` 预览，再用 `coordica setup --apply` 为发现的客户端注册同一个 MCP。支持 Claude Code、Codex、Cursor、Kimi Code、pi 的已核验配置格式，并为 dsh 生成本机 overlay；有版本或配置冲突会明确报告。需要指定客户端时使用 `--client`。Runner 按本机工具注册表发现能力，内置 Codex、Claude Code、dsh、Cursor CLI、Kimi Code、pi 的执行定义；新工具可以复用已有协议驱动注册，本机注册示例见 [custom-acp.json](examples/tools/custom-acp.json)。版本探测不代表已登录或已经完成真实任务验收。
 
-macOS、Windows、Linux 都把对应平台的 `coordica` 可执行文件安装为 stdio MCP，参数为 `mcp --bootstrap`。在中心“中心配置与接入”生成一次性接入指令，交给执行电脑的 Agent；也可在“运行与节点”创建配对码，另行提供中心 URL 和必要的公共 CA 路径。MCP 自动发现 Git 与工具路径，交给 Runner 配对，并安装/启动用户级后台服务。无需手工执行 `pair` 或 `runner`。每台电脑使用独立节点身份，容量为 1 或 2。
+macOS、Windows、Linux 都把对应平台的 `coordica` 可执行文件安装为 stdio MCP，参数为 `mcp --interaction`（默认 setup 创建一个名为 `coordica` 的接入）。在中心“中心配置与接入”生成一次性接入指令，交给执行电脑的 Agent；也可在“运行与节点”创建配对码，另行提供中心 URL 和必要的公共 CA 路径。MCP 自动发现 Git 与工具路径，交给 Runner 配对，并安装/启动用户级后台服务。无需手工执行 `pair` 或 `runner`。每台电脑使用独立节点身份，容量为 1 或 2。
 
 本地探测不读取 Agent 认证文件；已有登录继续由各官方工具使用。用户级后台服务与聊天客户端分离；macOS 使用 launchd、Linux 使用 systemd --user、Windows 使用当前用户的计划任务。服务启动失败会明确报错并保留已配对状态，不伪装成已上线。
 
@@ -213,16 +221,20 @@ Web 或 CLI 创建一致备份，返回中心上的备份目录。备份包含�
 
 旧版本 `hold_reason=budget` 不会自动清除：记录没有保存原始耗尽原因。确认旧进程树已停止并已结算、目标/任务剩余额度为正、当前授权/政策/候选仍有效且重试可用后，Owner 可在任务恢复操作中提交当前任务版本，或调用 `POST /api/v1/tasks/{id}/resume`，正文为 `{ "expected_version": 当前版本 }`，带 Owner 凭据与新的 `Idempotency-Key`。此兼容恢复保留累计支出，失败执行的恢复消耗一次剩余重试；缺失停止证据、真实额度耗尽或过期授权仍拒绝。已有发布意图按原有核对路径处理，不因升级重建。
 
-## Conversational MCP (`coordica-chat`)
+## One interaction MCP (`coordica`)
 
-Each physical host has one shared interaction MCP/profile reused by all its local managed developer agents and familiar chat clients. It is a separate, limited client identity. The default `coordica` MCP remains the local Runner bootstrap; an assigned Run MCP remains Run-scoped. Neither identity gains chat rights. Queries read central records and never invoke Leader. Only explicitly submitted text is stored; Coordica does not import the private chat history.
+Default `coordica setup` previews one user-facing stdio entry named **coordica**; `--apply` writes it. Each physical host shares one startup-fixed Runner directory and one private limited interaction profile across its clients. Local `inspect_environment`, `save_runner_profile` and `initialize_runner` work before enrollment and without a live center. No center service startup, project onboarding interview, worker mailbox, AOCI initialization, model/effort/concurrency settings or resource expansion is provided by this change.
+
+Normal conversation is the interaction role: local bootstrap, redacted project queries, explicit requirement intake and center-host-only advisory Leader conversation. It has no developer Worker, Owner, task creation, approval, scope grant or publication authority. Managed developer Run sessions use the same stdio implementation/server name with a fixed Run/generation and expose **only** `get_context`, `report_block`, `request_scope`; they never inherit interaction tools. Queries never invoke Leader, and only explicitly submitted text is stored.
+
+Successful node registration provisions/reuses a separate node-bound LIMITED chat credential at the startup-fixed shared profile path. A saved registration is retained on partial service/chat failure; `initialize_runner` can retry with the saved center URL and without another pairing code. It does not pair again to finish chat provisioning. A conflicting center/other-node profile is retained, and inactive credentials require explicit human renewal. Bootstrap cannot mint center-host authority.
 
 On the **Owner's center machine**, choose an absolute shared private profile path and create a limited credential through the loopback Owner API:
 
 ```sh
 coordica chat-init --data /absolute/private/center-data \
   --url http://127.0.0.1:8080 \
-  --profile /absolute/private/coordica-chat.json --name "My familiar chat"
+  --profile /absolute/private/interaction.json --name "My familiar chat"
 ```
 
 This reads `CENTER_DATA/owner.token` locally only to mint a limited **center-host** credential. It atomically publishes a private JSON profile and prints only the limited credential ID. The profile contains `center_url`, `credential_id`, a limited `chat_…` token and optionally fixed `tls_ca`; Owner and node tokens are never exported into it. Treat the profile as private and keep it outside product source, packages and Git. Unix mode privacy and Windows current-owner/protected user-only DACL privacy are checked independently; symlinks and non-regular profiles are rejected.
@@ -231,28 +243,39 @@ On an **already paired Runner host**, reuse its existing registration, without p
 
 ```sh
 coordica chat-init --runner-data /absolute/private/existing-runner-data \
-  --profile /absolute/private/coordica-chat.json --name "Shared Runner host"
+  --profile /absolute/private/interaction.json --name "Shared Runner host"
 ```
 
 Runner mode reads `runner.json` locally solely for authenticated issuance of a separate limited **node-host** credential; its node token never appears in the chat profile, setup export or output. The server binds scope and NodeID from that authenticated live registration. Source client/session/message identifiers identify a conversation, never host authority. A copied center profile does not grant remote Leader access. No per-agent installation or single-browser-session restriction exists.
 
+When unified interaction initializes a local Runner on the center machine, an existing valid Owner-issued limited center profile is retained after identity validation at its own saved URL/TLS configuration. Its center authority remains separate from the local Runner registration; initialization reads no Owner credential and does not replace the profile with node-chat or send its token to the Runner URL. Invalid, revoked, unscoped or different-node profiles fail explicitly and remain unchanged. `interaction_chat_ready` means the limited chat identity was verified or provisioning completed; it does not prove Runner service activation or model authentication.
+
 Both modes serialize initialization with a process lock, reuse an existing verified active shared profile, and persist a private pending grant identity/envelope before issuance. A lost grant ACK or process restart retries the same key/body rather than minting orphan credentials. An existing revoked/unverifiable profile requires explicit `--renew` after checking connectivity; a mismatched host/center requires a different path. Renewal revokes the existing own credential before replacing its profile. Failed new publication or pending cleanup revokes only the newly issued own credential through the issuing authority. A revoked pending grant requires explicit `--renew` to retire the inactive pending identity before retrying. Old unscoped credentials are rejected and require explicit renewal, with no inferred upgrade. Restore clears credentials, pairings and idempotency; scope metadata cannot reactivate old authority.
 
-Preview chat registration, then apply it when ready:
+Preview the single interaction registration, then apply:
 
 ```sh
-coordica setup --mode chat --chat-profile /absolute/private/coordica-chat.json --client codex
-coordica setup --mode chat --chat-profile /absolute/private/coordica-chat.json --client codex --apply
-# Export without changing another client's settings:
-coordica setup --mode chat --chat-profile /absolute/private/coordica-chat.json \
-  --client generic --output /absolute/private/mcp-export --apply
-coordica setup --mode chat --chat-profile /absolute/private/coordica-chat.json \
-  --client dsh --output /absolute/private/mcp-export --apply
-# Direct stdio launch, normally performed by the chat client:
-coordica mcp --chat-profile /absolute/private/coordica-chat.json
+coordica setup --client codex
+coordica setup --client codex --apply
+# Explicit stable paths, shared by every client on this host:
+coordica setup --client generic --runner-data /absolute/private/runner \
+  --chat-profile /absolute/private/interaction.json \
+  --output /absolute/private/mcp-export --apply
+coordica setup --client dsh --runner-data /absolute/private/runner \
+  --chat-profile /absolute/private/interaction.json \
+  --output /absolute/private/mcp-export --apply
+# Direct stdio launch (normally done by the registered client):
+coordica mcp --interaction --runner-data /absolute/private/runner \
+  --chat-profile /absolute/private/interaction.json
 ```
 
-Chat mode uses the same client registry (`auto`, `claude`, `codex`, `cursor`, `kimi`, `pi`, `dsh`, `generic`), privacy checks, conflict policy, and idempotent setup behavior as bootstrap mode. Its server name is **`coordica-chat`**, distinct from **`coordica`**. Existing bootstrap entries and other client settings are preserved. Exports contain only the executable and fixed profile path, never the credential. Chat mode cannot be combined with Runner data, bootstrap profiles, Run IDs, or tool definitions. No chat client is installed automatically. After setup, reload/restart the affected client so it reloads its MCP configuration. Keep the executable and shared profile at stable absolute paths; `--runner-data` selects the existing Runner only during `chat-init` (or bootstrap setup).
+Default paths are `USER_CONFIG_DIR/Coordica/runner` and `USER_CONFIG_DIR/Coordica/interaction.json`. If paths were omitted, setup preserves compatible owned launchers' configured paths. Setup supports `auto`, `claude`, `codex`, `cursor`, `kimi`, `pi`, `dsh`, `generic`; client discovery/version constraints still apply. Preview concretely describes migration: owned legacy `coordica` becomes interaction, and owned matching `coordica-chat` is removed. Ownership requires the selected executable, exact supported launcher identity and matching paths; names alone do not establish ownership. Conflicts leave the configuration unchanged. Client options, trust/disabled state and unrelated entries are retained, with private backups and file comparison before writes. Codex migration edits supported named TOML tables after an official user-scope query; ambiguous/unsupported syntax requires explicit manual migration. Safe unrelated TOML array tables such as `[[skills.config]]` are preserved verbatim; owned or ambiguous array grammar is rejected. Implicit legacy bootstrap Runner paths honor known platform HOME/XDG_CONFIG_HOME/APPDATA semantics from launcher `env`; uncertain identities fail before mutation. Unrelated environment options such as CODEX_HOME remain intact. Claude's known root and per-project MCP name arrays follow the merged name without duplicate Coordica entries; explicit disabling wins over enabling, while unrelated trust/settings values remain intact. Auto setup completes all client preflights and path checks before applying; a failed preflight leaves all selected configs unchanged. Discovery output, the shared chat profile and paired `runner.json` must use distinct paths, including aliases. Configuration fixtures do not establish native host compatibility.
+
+Exports contain only executable and fixed paths, never credentials. Generic/dsh migration replaces only exact generated artifacts and backs up/removes the owned redundant export. For dsh, remove previously loaded legacy overlays from your own launch command; setup cannot remove overlays already loaded by another process or rewrite arbitrary profiles. Keep the executable and shared profile at stable absolute paths and reload/restart the client after setup.
+
+The explicit `setup --mode bootstrap`, `setup --mode chat --chat-profile ABS`, `mcp --bootstrap`, and chat-profile-only `mcp --chat-profile ABS` remain deprecated compatibility paths with their original restricted roles. Existing Run launchers are unchanged. Default setup is the recommended single-entry procedure. All startup modes report server name `coordica`; compatibility chat setup retains its old registration key `coordica-chat` until migration.
+
+Interaction construction and local tool discovery do not load online credentials. Missing profiles may appear later in the same process. Every discovery/call reloads the fixed protected profile and validates current identity, listener audience and application scope. Invalid, unsafe, revoked or unavailable profiles close online capabilities; no Owner or Runner credential substitutes for chat. Capability changes observed on client activity emit `notifications/tools/list_changed`, without a polling timer. Clients without dynamic refresh support must manually invoke `tools/list` or reconnect; automatic refresh is not supported by every host.
 
 Tool discovery reads authenticated server scope, rather than a trusted profile flag. Shared tools are the four overview/list/item/requirement tools; the four Leader conversation tools below are **center-host only**:
 

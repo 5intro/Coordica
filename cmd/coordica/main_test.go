@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"coordica/internal/agent"
@@ -84,5 +86,28 @@ func TestCustomToolConfigurationAndGenericExecutableFlags(t *testing.T) {
 		if err := flags.Set(invalid); err == nil {
 			t.Fatal("accepted invalid/duplicate executable flag", invalid)
 		}
+	}
+}
+
+func TestMCPStartupRejectsConflictingRoleAssetPathsBeforeServing(t *testing.T) {
+	dir := t.TempDir()
+	runnerDir := filepath.Join(dir, "runner")
+	chat := filepath.Join(dir, "shared-chat.json")
+	cases := [][]string{
+		{"--interaction", "--runner-data", runnerDir, "--chat-profile", chat, "--profile", chat},
+		{"--interaction", "--runner-data", runnerDir, "--chat-profile", filepath.Join(runnerDir, "runner.json")},
+		{"--interaction", "--runner-data", runnerDir, "--chat-profile", chat, "--profile", filepath.Join(runnerDir, "runner.json")},
+		{"--bootstrap", "--runner-data", runnerDir, "--profile", filepath.Join(runnerDir, "runner.json")},
+	}
+	for _, args := range cases {
+		if err := serveMCP(context.Background(), args); err == nil || !strings.Contains(err.Error(), "profile") && !strings.Contains(err.Error(), "role assets") {
+			t.Fatal("conflicting startup was not rejected", args, err)
+		}
+	}
+	if _, err := os.Stat(runnerDir); !os.IsNotExist(err) {
+		t.Fatal("startup preflight mutated Runner storage", err)
+	}
+	if _, err := os.Stat(chat); !os.IsNotExist(err) {
+		t.Fatal("startup preflight mutated chat profile", err)
 	}
 }

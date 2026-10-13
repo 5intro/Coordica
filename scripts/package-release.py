@@ -35,7 +35,7 @@ FORBIDDEN_NAMES = (
     "*.db", "*.db-*", "*.sqlite", "*.sqlite-*", "*.sqlite3", "*.sqlite3-*",
     "id_rsa*", "id_ed25519*", "runner.json", "discovery.json", "owner.token",
     "credentials*", "secrets*", "*.init.pending", "*.init.lock", "*.write.lock",
-    "coordica-chat*.json", ".chat-profile-pending-*",
+    "coordica-chat*.json", "interaction*.json", ".chat-profile-pending-*",
 )
 FORBIDDEN_DIRS = {".git", ".cache", ".tools", ".ssh", ".aws", "node_modules"}
 
@@ -129,7 +129,7 @@ def start_here(version, platform, binary):
 这是 v{version} Phase B 开发预发布包。
 发布说明：https://github.com/5intro/Coordica/releases/tag/v{version}
 既有 v0.2.0-dev macOS 本机 Phase B 端到端验收已通过；多机 Phase B 与 Linux 原生部署仍待验证。
-v0.2.1-dev 本次仅准备源码与公开发布元数据；Owner 独立验证后部署与发布。
+v{version} 本次准备源码与公开发布元数据；Owner 独立验证后部署与发布。
 源码回归不代表本版本真实模型验收或目标系统原生部署认证。
 中心、MCP 与 Runner 使用同一个可执行文件，无需单独安装 Runner 或构建源码。
 
@@ -162,10 +162,27 @@ v0.2.1-dev 本次仅准备源码与公开发布元数据；Owner 独立验证后
 支持本机页面的 Runner 启动后，可在该电脑打开 http://127.0.0.1:8081，
 查看自己的运行并向中心提交需求提案；提案不会自行创建或批准任务。
 仅当中心也在本机且连接信息匹配时显示中心各池与配置入口，中心仍须 owner 登录。
-对话接入：每台物理主机复用一个有限的 coordica-chat profile；所有本机聊天客户端共享。
-中心本机：{binary} chat-init --data /绝对路径/中心数据 --url http://127.0.0.1:8080 --profile /绝对路径/coordica-chat.json --name "Shared center host"
-已配对节点：{binary} chat-init --runner-data /绝对路径/已有Runner数据 --profile /绝对路径/coordica-chat.json --name "Shared Runner host"
-然后预览 {binary} setup --mode chat --chat-profile /绝对路径/coordica-chat.json，核对后加 --apply。
+统一接入：默认 setup 创建唯一的 coordica（mcp --interaction）；每台物理主机共享一个有限 interaction profile。
+中心本机：{binary} chat-init --data /绝对路径/中心数据 --url http://127.0.0.1:8080 --profile /绝对路径/interaction.json --name "Shared center host"
+节点 initialize_runner 自动复用/签发有限节点对话凭据；已保存注册的重试不会再次配对。
+也可显式签发：{binary} chat-init --runner-data /绝对路径/已有Runner数据 --profile /绝对路径/interaction.json --name "Shared Runner host"
+然后预览 {binary} setup --chat-profile /绝对路径/interaction.json，核对后加 --apply。
+只迁移可确认归属且路径匹配的旧 coordica/coordica-chat；冲突保留，客户端选项与禁用状态保留。
+旧显式 --mode bootstrap/chat 仅为兼容入口；默认统一接入，不安装多个角色。
+中心停机或缺失 profile 时本机工具可用；在线工具每次校验凭据和监听范围。
+能力变化在客户端活动时通知；不支持动态刷新时手动重新发现或重连。
+dsh 只迁移安装器生成的文件；已加载旧 overlay 须自行从启动命令移除。
+固定 Run MCP 仍仅有 get_context/report_block/request_scope，无主机管理或对话权限。
+MCP 中心服务启动、项目接入访谈、开发者邮箱、索引集成、模型/effort/并发设置与资源扩展均属后续功能。
+本次统一 MCP 实现及评审修复已独立通过完整 macOS Go race 套件，包括全部监听测试。
+真实原生可执行文件 stdio 与隔离双监听中心验收通过：同一 MCP 进程从缺失 profile 获得十一项中心工具；
+节点 profile 仅七项工具，不能访问 Leader/全局任务池；Run 仅三项范围内工具并拒绝跨角色调用。
+中心实际重启时 MCP 进程保持存活；凭据撤销后缓存读取与需求提交被拒绝。
+实际原生 Codex CLI 配置安装迁移为唯一 coordica，保留路径、启用/禁用状态、超时、无关设置、备份和幂等性。
+评审修复覆盖 TOML 末尾分隔/无关表、项目级 MCP 名称状态、隐式目录环境/文件别名和本机 Runner 保留中心 profile。
+开发侧离线 stdio 与五项 Python 打包测试通过；fixtures 不代表所有客户端或平台原生验收。
+本次验收没有运行模型，没有派发开发、规划 Run 或任务；节点注册为逻辑 fixture，没有激活用户服务。
+CLI 配置安装已测试；GUI 动态工具刷新取决于客户端支持。本次未新增 Windows/Linux 原生部署认证。
 可执行文件、数据和私有 profile 使用稳定绝对路径；setup 后重新加载或重启对应客户端。
 中心凭据仅在中心回环地址允许 Leader 咨询；节点凭据仅允许安全公共事实、需求及本节点 Agent/Run。
 节点不能查询全局任务、阻断、Leader 对话或其他节点执行上下文。凭据范围由中心持久化记录决定。
@@ -286,7 +303,7 @@ def verify_archive(path, entries):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", default="0.2.1-dev", help="archive version (default: %(default)s)")
+    parser.add_argument("--version", default="0.2.2-dev", help="archive version (default: %(default)s)")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?", args.version):
         raise ValueError("version must be a numeric semantic version with an optional prerelease suffix")

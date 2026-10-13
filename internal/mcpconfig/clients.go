@@ -142,14 +142,20 @@ func configureCodex(ctx context.Context, options Options, deps dependencies) Res
 			break
 		}
 	}
+	var queryRaw []byte
 	query := func() (exists, matches, disabled bool, err error) {
 		raw, err := deps.command(ctx, executable, []string{"mcp", "list", "--json"}, neutral)
 		if err != nil {
 			return false, false, false, errors.New("Codex MCP query failed; no registration was attempted")
 		}
+		queryRaw = raw
 		return codexNamedEntry(raw, launcher(options, true), serverName(options))
 	}
 	existing := func(matches, disabled bool) Result {
+		if matches && options.Mode == "interaction" {
+			selected := interactionDefaults(options)
+			result.existingRunner, result.existingChat = selected.RunnerData, selected.ChatProfile
+		}
 		if !matches {
 			result.Status, result.Message = "conflict", "A different Coordica MCP entry already exists in Codex; left unchanged."
 		} else {
@@ -171,6 +177,16 @@ func configureCodex(ctx context.Context, options Options, deps dependencies) Res
 	if err != nil {
 		result.Status, result.Message = "error", err.Error()
 		return result
+	}
+	if options.Mode == "interaction" {
+		entries, parseErr := codexTransports(queryRaw)
+		if parseErr != nil {
+			result.Status, result.Message = "error", parseErr.Error()
+			return result
+		}
+		if entries["coordica-chat"] != nil || exists && !matches {
+			return configureCodexMigration(ctx, options, deps, executable, neutral, base, boundary, before, queryRaw, result)
+		}
 	}
 	if exists {
 		return existing(matches, disabled)

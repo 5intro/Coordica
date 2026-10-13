@@ -58,7 +58,7 @@ func TestChatMCPHandshakeAndSafeErrors(t *testing.T) {
 	if e := (Chat{API: failingChatAPI{}}).Serve(context.Background(), strings.NewReader(input), &out); e != nil {
 		t.Fatal(e)
 	}
-	if strings.Contains(out.String(), "chat_credential") || strings.Contains(out.String(), "/Users/private") || !strings.Contains(out.String(), "coordica-chat") {
+	if strings.Contains(out.String(), "chat_credential") || strings.Contains(out.String(), "/Users/private") || !strings.Contains(out.String(), `"name":"coordica"`) {
 		t.Fatal(out.String())
 	}
 	if len(strings.Split(strings.TrimSpace(out.String()), "\n")) != 3 {

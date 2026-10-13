@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +29,8 @@ type Result struct {
 	Message string `json:"message,omitempty"`
 	// Content contains only a newly generated launcher, never existing settings.
 	Content string `json:"content,omitempty"`
+	// Internal provenance for host-wide path agreement before auto apply.
+	existingRunner, existingChat string
 }
 
 type dependencies struct {
@@ -70,17 +71,20 @@ func run(ctx context.Context, options Options, deps dependencies) ([]Result, err
 		return nil, errors.New("tool definitions file must be absolute")
 	}
 	if options.Mode == "" {
-		options.Mode = "bootstrap"
+		options.Mode = "interaction"
 	}
-	if options.Mode != "bootstrap" && options.Mode != "chat" {
-		return nil, errors.New("mode must be bootstrap or chat")
+	if options.Mode != "interaction" && options.Mode != "bootstrap" && options.Mode != "chat" {
+		return nil, errors.New("mode must be interaction, bootstrap or chat")
 	}
 	if options.Mode == "chat" {
 		if !filepath.IsAbs(options.ChatProfile) || strings.ContainsAny(options.ChatProfile, "\x00\r\n") || options.RunnerData != "" || options.ToolsFile != "" {
 			return nil, errors.New("chat mode requires an absolute profile and no Runner options")
 		}
-	} else if options.ChatProfile != "" {
+	} else if options.Mode == "bootstrap" && options.ChatProfile != "" {
 		return nil, errors.New("chat profile requires --mode chat")
+	}
+	if options.ChatProfile != "" && (!filepath.IsAbs(options.ChatProfile) || strings.ContainsAny(options.ChatProfile, "\x00\r\n")) {
+		return nil, errors.New("chat profile must be absolute")
 	}
 	if options.Client == "" {
 		options.Client = "auto"
@@ -133,7 +137,34 @@ func run(ctx context.Context, options Options, deps dependencies) ([]Result, err
 		if options.Client == "auto" && !discovered(options, client, deps) {
 			continue
 		}
-		results = append(results, configure(ctx, options, client, deps))
+		preview := options
+		if options.Mode == "interaction" && options.Client == "auto" {
+			preview.Apply = false
+		}
+		results = append(results, configure(ctx, preview, client, deps))
+	}
+	if options.Mode == "interaction" && options.Client == "auto" && len(results) > 0 {
+		// A failed preflight must not leave other clients partly migrated.
+		for _, result := range results {
+			if result.Status == "error" || result.Status == "conflict" || result.Status == "unsupported" {
+				return results, nil
+			}
+		}
+		for _, result := range results {
+			for _, pair := range []struct {
+				selected *string
+				existing string
+			}{{&options.RunnerData, result.existingRunner}, {&options.ChatProfile, result.existingChat}} {
+				if pair.existing != "" {
+					if err := preservePath(pair.selected, pair.existing); err != nil {
+						return []Result{{Client: options.Client, Status: "conflict", Message: "Existing host interaction paths differ across selected clients; all configurations left unchanged. Select matching paths or resolve conflicting registrations explicitly."}}, nil
+					}
+				}
+			}
+		}
+		for i, result := range results {
+			results[i] = configure(ctx, options, result.Client, deps)
+		}
 	}
 	if len(results) == 0 {
 		results = append(results, Result{Client: "auto", Status: "not_found", Message: "No supported client installation was detected. Select --client explicitly or export --client generic."})
@@ -176,6 +207,14 @@ func launcher(options Options, withType bool) []byte {
 func arguments(options Options) []string {
 	if options.Mode == "chat" {
 		return []string{"mcp", "--chat-profile", options.ChatProfile}
+	}
+	if options.Mode == "" || options.Mode == "interaction" {
+		options = interactionDefaults(options)
+		args := []string{"mcp", "--interaction", "--runner-data", options.RunnerData, "--chat-profile", options.ChatProfile}
+		if options.ToolsFile != "" {
+			args = append(args, "--tools-file", options.ToolsFile)
+		}
+		return args
 	}
 	args := []string{"mcp", "--bootstrap"}
 	if options.RunnerData != "" {
@@ -226,10 +265,28 @@ func configureJSON(options Options, client, base, path string) Result {
 		result.Status, result.Message = "error", "Existing configuration is empty; left unchanged."
 		return result
 	}
-	merged, same, err := mergeNamedJSON(before.data, entry, serverName(options))
+	var merged []byte
+	var same bool
+	if options.Mode == "interaction" {
+		merged, options, same, err = mergeInteractionJSON(before.data, options, client == "claude" || client == "cursor")
+		result.Content = string(launcher(options, client == "claude" || client == "cursor"))
+	} else {
+		merged, same, err = mergeNamedJSON(before.data, entry, serverName(options))
+	}
 	if err != nil {
 		result.Status, result.Message = "conflict", err.Error()
 		return result
+	}
+	if options.Mode == "interaction" {
+		var root, servers map[string]json.RawMessage
+		if object(before.data, &root) == nil && object(root["mcpServers"], &servers) == nil {
+			if servers["coordica"] != nil {
+				result.existingRunner = options.RunnerData
+			}
+			if servers["coordica-chat"] != nil || servers["coordica"] != nil && isInteractionLauncher(servers["coordica"], options) {
+				result.existingChat = options.ChatProfile
+			}
+		}
 	}
 	if same {
 		result.Status, result.Message = "unchanged", "The existing Coordica launcher matches. Other client options were retained; check that the service is enabled and trusted in the client."
@@ -237,6 +294,9 @@ func configureJSON(options Options, client, base, path string) Result {
 	}
 	if !options.Apply {
 		result.Status, result.Message = "preview", "Will merge mcpServers."+serverName(options)+" and preserve other settings; an existing file will be backed up."
+		if options.Mode == "interaction" {
+			result.Message = interactionPlan
+		}
 		return result
 	}
 	backup, err := writeConfig(base, path, before, merged)
@@ -252,21 +312,14 @@ func configureJSON(options Options, client, base, path string) Result {
 }
 
 func exportConfig(options Options, client string) Result {
+	if options.Mode == "interaction" {
+		return exportInteraction(options, client)
+	}
 	name := serverName(options) + ".mcp.json"
-	content, _, _ := mergeNamedJSON(nil, launcher(options, false), serverName(options))
+	content := exportContent(options, client)
 	message := "Import this JSON using the client's MCP configuration interface."
 	if client == "dsh" {
 		name = serverName(options) + ".cordis.yml"
-		quote := func(s string) string { raw, _ := json.Marshal(s); return string(raw) }
-		var args strings.Builder
-		for _, arg := range arguments(options) {
-			fmt.Fprintf(&args, "          - %s\n", quote(arg))
-		}
-		id := "coordica-bootstrap"
-		if options.Mode == "chat" {
-			id = "coordica-chat"
-		}
-		content = []byte("- insert:\n    - id: " + id + "\n      name: '@deepseek-ai/dsh-mcp-client'\n      config:\n        serverName: " + serverName(options) + "\n        transport: stdio\n        command: " + quote(options.Executable) + "\n        args:\n" + args.String() + "        env: {}\n        toolCallTimeoutMs: 180000\n")
 		message = "Load this overlay with dsh web --patch followed by this file's quoted absolute path. Existing dsh profiles were not modified."
 	}
 	path := filepath.Join(options.OutputDir, name)

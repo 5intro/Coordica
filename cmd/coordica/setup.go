@@ -15,8 +15,8 @@ import (
 // the responsibility of the existing bootstrap and onboarding use cases.
 func setup(ctx context.Context, args []string) error {
 	f := flag.NewFlagSet("setup", flag.ContinueOnError)
-	mode := f.String("mode", "bootstrap", "MCP mode: bootstrap or chat")
-	chatProfile := f.String("chat-profile", "", "Fixed absolute private chat profile (chat mode only)")
+	mode := f.String("mode", "interaction", "MCP mode: interaction (default); bootstrap/chat compatibility")
+	chatProfile := f.String("chat-profile", "", "Fixed absolute shared limited interaction profile")
 	client := f.String("client", "auto", "MCP client: auto, claude, codex, cursor, kimi, pi, dsh, generic")
 	apply := f.Bool("apply", false, "Apply the setup plan (default: preview only)")
 	binary := f.String("binary", "", "Fixed absolute Coordica executable path (default: this executable)")

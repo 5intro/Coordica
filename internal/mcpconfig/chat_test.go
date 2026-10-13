@@ -14,6 +14,7 @@ func TestChatSetupPreservesBootstrapAndDifferentChatConflict(t *testing.T) {
 		t.Run(client, func(t *testing.T) {
 			options, deps := fixture(t, client)
 			options.Apply = true
+			options.Mode = "bootstrap"
 			if client == "kimi" {
 				if e := os.Mkdir(filepath.Join(options.Home, ".kimi-code"), 0700); e != nil {
 					t.Fatal(e)

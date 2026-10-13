@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,93 +15,34 @@ import (
 type Chat struct{ API Caller }
 
 func (s Chat) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
-	scan := bufio.NewScanner(in)
-	scan.Buffer(make([]byte, 4096), 64<<10)
-	enc := json.NewEncoder(out)
-	initialized := false
-	for scan.Scan() {
-		if e := ctx.Err(); e != nil {
-			return e
-		}
-		var r request
-		reply := map[string]any{"jsonrpc": "2.0", "id": json.RawMessage("null")}
-		fail := func(code int, msg string) { reply["error"] = map[string]any{"code": code, "message": msg} }
-		if jsoninput.Decode(scan.Bytes(), &r, 64<<10) != nil || r.JSONRPC != "2.0" || r.Method == "" || len(r.ID) > 0 && !validRPCID(r.ID) {
-			fail(-32600, "Invalid request")
-		} else if len(r.ID) == 0 {
-			continue
-		} else {
-			reply["id"] = r.ID
-			switch r.Method {
-			case "initialize":
-				var p struct {
-					ProtocolVersion string                     `json:"protocolVersion"`
-					Capabilities    map[string]json.RawMessage `json:"capabilities"`
-					ClientInfo      map[string]json.RawMessage `json:"clientInfo,omitempty"`
-					Meta            map[string]json.RawMessage `json:"_meta,omitempty"`
-				}
-				if bootstrapStrict(r.Params, &p) != nil || p.ProtocolVersion == "" || p.ClientInfo != nil && !bootstrapClientInfo(p.ClientInfo) {
-					fail(-32602, "Invalid initialization parameters")
-					break
-				}
-				initialized = true
-				reply["result"] = map[string]any{"protocolVersion": "2025-11-25", "capabilities": map[string]any{"tools": map[string]any{}}, "serverInfo": map[string]string{"name": "coordica-chat", "version": "0.1.0"}}
-			case "ping", "tools/list":
-				if len(r.Params) > 0 {
-					var p struct {
-						Meta map[string]json.RawMessage `json:"_meta,omitempty"`
-					}
-					if bootstrapStrict(r.Params, &p) != nil {
-						fail(-32602, "Invalid parameters")
-						break
-					}
-				}
-				if r.Method == "ping" {
-					reply["result"] = map[string]any{}
-				} else if !initialized {
-					fail(-32000, "Initialize first")
-				} else {
-					raw, e := s.API.Do(ctx, "GET", "/api/v1/chat/identity", "", nil)
-					var identity domain.ChatCredentialInfo
-					if e != nil || json.Unmarshal(raw, &identity) != nil || identity.Revoked || identity.ChatScope != domain.ChatScopeCenter && identity.ChatScope != domain.ChatScopeNode {
-						fail(-32000, "Authenticated chat scope unavailable")
-					} else {
-						reply["result"] = map[string]any{"tools": chatToolsForScope(identity.ChatScope)}
-					}
-				}
-			case "tools/call":
-				if !initialized {
-					fail(-32000, "Initialize first")
-					break
-				}
-				var call struct {
-					Name      string                     `json:"name"`
-					Arguments json.RawMessage            `json:"arguments"`
-					Meta      map[string]json.RawMessage `json:"_meta,omitempty"`
-				}
-				if bootstrapStrict(r.Params, &call) != nil {
-					fail(-32602, "Invalid parameters")
-					break
-				}
-				if len(call.Arguments) == 0 {
-					call.Arguments = json.RawMessage(`{}`)
-				}
-				value, e := s.call(ctx, call.Name, call.Arguments)
-				text := string(value)
-				if e != nil {
-					text = "Chat request rejected; refresh versions, check input and credential, or contact the Owner."
-				}
-				reply["result"] = map[string]any{"content": []any{map[string]string{"type": "text", "text": text}}, "isError": e != nil}
-			default:
-				fail(-32601, "Method not found")
-			}
-		}
-		if e := enc.Encode(reply); e != nil {
-			return e
-		}
-	}
-	return scan.Err()
+	return serve(ctx, in, out, false, s)
 }
+func (s Chat) Tools(ctx context.Context) ([]any, error) {
+	if s.API == nil {
+		return nil, errors.New("Authenticated chat scope unavailable")
+	}
+	raw, err := s.API.Do(ctx, "GET", "/api/v1/chat/identity", "", nil)
+	var identity domain.ChatCredentialInfo
+	if err != nil || json.Unmarshal(raw, &identity) != nil || identity.Revoked || identity.ChatScope != domain.ChatScopeCenter && identity.ChatScope != domain.ChatScopeNode {
+		return nil, errors.New("Authenticated chat scope unavailable")
+	}
+	return chatToolsForScope(identity.ChatScope), nil
+}
+func (s Chat) Owns(name string) bool { return hasTool(chatTools(), name) }
+func (s Chat) Call(ctx context.Context, name string, args json.RawMessage) (string, bool) {
+	tools, err := s.Tools(ctx)
+	if err != nil || !hasTool(tools, name) {
+		return chatRejected, true
+	}
+	value, err := s.call(ctx, name, args)
+	if err != nil {
+		return chatRejected, true
+	}
+	return string(value), false
+}
+
+const chatRejected = "Chat request rejected; refresh versions, check input and credential, or contact the Owner."
+
 func (s Chat) call(ctx context.Context, name string, raw json.RawMessage) (json.RawMessage, error) {
 	decode := func(v any) error { return jsoninput.Decode(raw, v, 32<<10) }
 	var path, key string

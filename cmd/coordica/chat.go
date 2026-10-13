@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"coordica/internal/apiclient"
 	"coordica/internal/app"
@@ -77,7 +78,7 @@ func chatInit(ctx context.Context, args []string) error {
 	if e != nil {
 		return e
 	}
-	fmt.Printf("Shared coordica-chat credential ready: %s\n", id)
+	fmt.Printf("Shared coordica interaction credential ready: %s\n", id)
 	return nil
 }
 
@@ -95,6 +96,9 @@ func verifyChatProfile(ctx context.Context, p chatprofile.Profile) (domain.ChatC
 	if e != nil {
 		return identity, e
 	}
+	defer client.CloseIdleConnections()
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	raw, e := client.Do(ctx, "GET", "/api/v1/chat/identity", "", nil)
 	if e != nil {
 		return identity, e
@@ -245,4 +249,55 @@ func initializeHostChatProfile(ctx context.Context, client mcp.Caller, o chatIni
 		return "", errors.New("new credential revoked after pending cleanup failure")
 	}
 	return grant.Credential.ID, nil
+}
+
+// Issuance uses the saved paired node solely at the existing issuance endpoint.
+// Its token never enters the chat transport, launcher or MCP result.
+func provisionNodeInteraction(ctx context.Context, dir, path string) error {
+	return provisionInteraction(ctx, dir, path, verifyChatProfile)
+}
+
+func provisionInteraction(ctx context.Context, dir, path string, verify func(context.Context, chatprofile.Profile) (domain.ChatCredentialInfo, error)) error {
+	// Existing center authority is independent of a co-located Runner's
+	// registration. Authenticate only at the profile's own fixed transport;
+	// never send this limited token to the Runner's issuance endpoint.
+	release, err := chatprofile.LockInit(path)
+	if err != nil {
+		return err
+	}
+	if _, err = os.Lstat(path); err == nil {
+		p, loadErr := chatprofile.Load(path)
+		if loadErr != nil {
+			release()
+			return errors.New("existing interaction profile invalid; preserved")
+		}
+		identity, verifyErr := verify(ctx, p)
+		if verifyErr != nil || identity.ID != p.CredentialID || identity.Revoked {
+			release()
+			return errors.New("existing interaction profile inactive or unverifiable; preserved")
+		}
+		if identity.ChatScope == domain.ChatScopeCenter && identity.NodeID == "" {
+			release()
+			return nil
+		}
+		if identity.ChatScope != domain.ChatScopeNode || identity.NodeID == "" {
+			release()
+			return errors.New("existing interaction profile scope invalid; preserved")
+		}
+	} else if !os.IsNotExist(err) {
+		release()
+		return errors.New("cannot inspect existing interaction profile")
+	}
+	release()
+	cfg, err := runner.Load(dir)
+	if err != nil || cfg.NodeID == "" || cfg.Token == "" {
+		return errors.New("saved paired Runner required")
+	}
+	client, err := apiclient.New(cfg.CenterURL, cfg.Token, cfg.TLSCA)
+	if err != nil {
+		return errors.New("cannot connect for limited node issuance")
+	}
+	defer client.CloseIdleConnections()
+	_, err = initializeHostChatProfile(ctx, client, chatInitOptions{CenterURL: cfg.CenterURL, Path: path, Name: "Shared Runner host", TLSCA: cfg.TLSCA, ChatScope: domain.ChatScopeNode, NodeID: cfg.NodeID, Verify: verify})
+	return err
 }

@@ -2,7 +2,7 @@
 # This overlay contains no center, pairing code, node token, or model key.
 # Start with: dsh web --patch C:\Coordica\coordica.cordis.yml
 - insert:
-    - id: coordica-bootstrap
+    - id: coordica
       name: '@deepseek-ai/dsh-mcp-client'
       config:
         serverName: coordica
@@ -10,6 +10,6 @@
         command: 'C:\Coordica\coordica.exe'
         args:
           - mcp
-          - --bootstrap
+          - --interaction
         env: {}
         toolCallTimeoutMs: 180000

@@ -116,7 +116,7 @@ func TestMCPHTTPApplicationScopeTriggerAndReplay(t *testing.T) {
 	protocol := mcp.Server{API: caller, RunID: assignment.Run.ID, Generation: assignment.Run.Generation}
 	call := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"request_scope","arguments":{"reason":"Existing requirement needs shared helper","paths":["src/shared/**"],"idempotency_key":"transport-scope"}}}`
 	var out bytes.Buffer
-	if e = protocol.Serve(ctx, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize"}`+"\n"+call+"\n"+call), &out); e != nil {
+	if e = protocol.Serve(ctx, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{}}}`+"\n"+call+"\n"+call), &out); e != nil {
 		t.Fatal(e)
 	}
 	if strings.Contains(out.String(), `"isError":true`) {

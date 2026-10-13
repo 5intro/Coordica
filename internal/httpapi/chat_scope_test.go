@@ -29,6 +29,8 @@ func (c chatBoundaryCaller) Do(ctx context.Context, method, path, key string, bo
 		return nil, e
 	}
 	r := httptest.NewRequest(method, path, strings.NewReader(string(raw))).WithContext(ctx)
+	r.Host = "127.0.0.1:8080"
+	r.RemoteAddr = "127.0.0.1:12345"
 	r.Header.Set("Authorization", "Bearer "+c.token)
 	r.Header.Set("Idempotency-Key", key)
 	w := httptest.NewRecorder()
@@ -68,7 +70,7 @@ func TestNodeChatMCPDirectCallsCannotBypassQueryClosure(t *testing.T) {
 			if e := (mcp.Chat{API: chatBoundaryCaller{f.server.RunnerHandler(), grant.Token, &statuses}}).Serve(ctx, strings.NewReader(input), &output); e != nil {
 				t.Fatal(e)
 			}
-			if len(statuses) != 1 || statuses[0] != http.StatusForbidden {
+			if len(statuses) != 2 || statuses[0] != http.StatusOK || statuses[1] != http.StatusForbidden {
 				t.Fatal("did not reach application kind closure", kind, tool, statuses)
 			}
 			var reply struct {
