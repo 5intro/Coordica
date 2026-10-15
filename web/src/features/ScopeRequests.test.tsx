@@ -65,10 +65,10 @@ describe('read-only scope request facts', () => {
     expect(blockRecords(state)).toHaveLength(1);
     render(<Blocks snapshot={state} client={client} refresh={vi.fn()} navigate={vi.fn()} />);
     expect(screen.getByRole('region', { name: '范围请求历史' }).textContent).toContain('pending');
-    const choices = screen.getByLabelText('决策操作 scope-decision');
+    const choices = screen.getByLabelText('决策操作');
     expect(within(choices).getAllByRole('option').map((option) => option.textContent)).toEqual(['选择操作', 'cancel']);
     fireEvent.change(choices, { target: { value: 'cancel' } });
-    fireEvent.change(screen.getByLabelText('决策证据 scope-decision'), { target: { value: 'Owner reviewed the request' } });
+    fireEvent.change(screen.getByLabelText('决策证据'), { target: { value: 'Owner reviewed the request' } });
     fireEvent.click(screen.getByRole('button', { name: '提交决策处理' }));
     await waitFor(() => expect(write).toHaveBeenCalledWith('/decisions/scope-decision/resolve', { expected_version: 3, expected_source_version: 8, action: 'cancel', evidence: 'Owner reviewed the request' }));
     expect(screen.getByRole('region', { name: '范围请求历史' }).textContent).toContain('pending');
@@ -80,8 +80,8 @@ describe('read-only scope request facts', () => {
     const state: Snapshot = { ...snapshot, decisions: [{ ...waitStopDecision, status }], scope_requests: [{ ...request, id: 'another-request', run_id: 'another-run' }, request] };
     const { container } = render(<Blocks snapshot={state} client={client} refresh={vi.fn()} navigate={navigate} />);
     expect(container.querySelector('form')).toBeNull();
-    expect(screen.queryByLabelText('决策操作 wait-stop')).toBeNull();
-    expect(screen.queryByLabelText('决策证据 wait-stop')).toBeNull();
+    expect(screen.queryByLabelText('决策操作')).toBeNull();
+    expect(screen.queryByLabelText('决策证据')).toBeNull();
     expect(screen.queryByRole('button', { name: '提交决策处理' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '核对原始 Run / 记录停止证明' }));
     expect(navigate).toHaveBeenCalledExactlyOnceWith('runs', request.run_id);

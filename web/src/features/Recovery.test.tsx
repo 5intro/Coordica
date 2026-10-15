@@ -26,8 +26,8 @@ describe('explicit recovery actions', () => {
     const project: Project = { id: 'project', version: 3, name: 'Coordica', repository_url: '/tmp/repo', target_branch: 'main', paused: false, total_budget_seconds: 1, used_seconds: 3600, reserved_seconds: 30, protected_paths: null, checks: null, policy_version: 1, created_at: '' };
     const client = new ApiClient('token');
     render(<Settings project={project} client={client} refresh={() => undefined} />);
-    expect(screen.getByText('项目累计活动统计')).toBeTruthy();
-    expect(screen.getByText(/无项目生命周期总额度/)).toBeTruthy();
+    expect(screen.getByText('累计活动')).toBeTruthy();
+    expect(screen.getByText(/已使用 1 小时 · 预留 30 秒/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: '调整项目预算' })).toBeNull();
   });
 

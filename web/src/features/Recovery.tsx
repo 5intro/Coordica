@@ -42,7 +42,7 @@ export function StopConfirmationForm({ run, client, refresh, onClose, onRecorded
   }
   return <form className="panel form-stack" onSubmit={submit}>
     <div className="subheading"><h2>确认失联进程已停止</h2><button type="button" className="text-button" onClick={onClose}>收起</button></div>
-    <code>{run.id} · v{run.version}</code>
+    <details><summary>技术详情</summary><code>{run.id} · v{run.version}</code></details>
     <p className="muted">请先在执行电脑核对进程及其子进程。此确认只释放未知运行占用，已计入的预算会保留。</p>
     <Field label="实际检查证据" hint="记录在哪台电脑、如何确认进程已经静止。"><textarea name="evidence" required rows={3} /></Field>
     <Feedback {...action} />

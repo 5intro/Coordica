@@ -159,7 +159,7 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
                 {page === 'planning' && <Planning snapshot={snapshot} client={client} refresh={refresh} initialId={focusId} />}
                 {page === 'automation' && <Automation settings={snapshot.automation} client={client} refresh={refresh} />}
                 {page === 'overview' && <Overview snapshot={snapshot} navigate={navigate} />}
-                {visited.has('requirements') && <div hidden={page !== 'requirements'}><Requirements requirements={snapshot.requirements ?? []} tasks={snapshot.tasks ?? []} navigate={navigate} client={client} refresh={refresh} /></div>}
+                {visited.has('requirements') && <div hidden={page !== 'requirements'}><Requirements nodes={snapshot.nodes ?? []} requirements={snapshot.requirements ?? []} tasks={snapshot.tasks ?? []} navigate={navigate} client={client} refresh={refresh} /></div>}
                 {visited.has('tasks') && <div hidden={page !== 'tasks'}><Tasks snapshot={snapshot} client={client} refresh={refresh} /></div>}
                 {visited.has('blocks') && <div hidden={page !== 'blocks'}><Blocks snapshot={snapshot} client={client} refresh={refresh} navigate={navigate} /></div>}
                 {page === 'agents' && <Agents snapshot={snapshot} client={client} refresh={refresh} navigate={navigate} />}
