@@ -19,7 +19,7 @@ describe('Overview factual work lists', () => {
     expect(screen.getByRole('heading', { level: 1, name: '协作项目' })).toBeTruthy();
     expect(screen.getByText('交付真实工作列表')).toBeTruthy();
     expect(screen.getByText('已暂停')).toBeTruthy();
-    expect(screen.getByText('任务进度：1 / 2 已集成')).toBeTruthy();
+    expect(screen.getByText('任务进度：1 / 2 已完成（集成或验证）；取消 0 项不计入')).toBeTruthy();
     fireEvent.click(screen.getByRole('link', { name: '提交需求' }));
     expect(navigate).toHaveBeenCalledWith('requirements', undefined);
     expect(screen.queryByRole('region', { name: '人工待办' })).toBeNull();
@@ -81,7 +81,8 @@ describe('Overview factual work lists', () => {
   it('distinguishes prechecks from Agent review and only requests protected approval when ready', () => {
     const snapshot: Snapshot = { ...centerSnapshot, tasks: [{ ...localTask, state: 'awaiting_integration', current_candidate_id: candidate.id }], candidates: [{ ...candidate, protected: true, state: 'prechecking' }] };
     const view = render(<Overview snapshot={snapshot} navigate={vi.fn()} />);
-    expect(within(screen.getByRole('region', { name: '审查池' })).getByText('预检查 · 尚未进入 Agent 审查')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: '审查池' })).queryByRole('button')).toBeNull();
+    expect(within(screen.getByRole('region', { name: '审查池' })).getByLabelText('审查池活动总数').textContent).toBe('0');
     expect(screen.queryByRole('region', { name: '人工待办' })).toBeNull();
     view.rerender(<Overview snapshot={{ ...snapshot, candidates: [{ ...snapshot.candidates![0], state: 'reviewing' }] }} navigate={vi.fn()} />);
     expect(screen.getByText('待审 / 审中')).toBeTruthy();
@@ -98,7 +99,7 @@ describe('Overview factual work lists', () => {
     const active = within(hosts.getByRole('region', { name: nodeSnapshot.node.name }));
     expect(active.getAllByRole('button')).toHaveLength(2);
     expect(active.getByText('dsh · 独立审查 · 12 秒')).toBeTruthy();
-    fireEvent.click(active.getByRole('button', { name: /实例 review-run/ }));
+    fireEvent.click(active.getByRole('button', { name: /独立审查/ }));
     expect(navigate).toHaveBeenCalledWith('runs', 'review-run');
     const idle = within(hosts.getByRole('region', { name: '空闲主机' }));
     expect(idle.getByText('已撤销')).toBeTruthy();

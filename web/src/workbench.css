@@ -35,3 +35,25 @@ main#main-content { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
   .settings-switch { gap: 4px; }
 }
 @media (prefers-reduced-motion: reduce) { .workspace *, .workspace *::before, .workspace *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+/* Grid/flex children must shrink within a 390px document; tables scroll locally. */
+.workspace, .workspace main, .workspace section, .workspace article, .workspace aside,
+.workspace .task-toolbar > *, .workspace .data-row > *, .workspace .record-meta > * { min-width: 0; }
+.workspace { overflow-wrap: anywhere; }
+.workspace .table-scroll { max-width: 100%; overflow-x: auto; }
+.workspace input, .workspace textarea, .workspace select { min-width: 0; max-width: 100%; }
+.workspace .task-toolbar .search { max-width: 100%; }
+.workspace .workspace-status { margin-bottom: 12px; }
+.workspace .section-title { margin-bottom: 20px; }
+.workspace .agent-host { margin-top: 16px; }
+.workspace .agent-host details { margin-top: 12px; }
+.workspace .task-detail code, .workspace .candidate-detail code { overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .workspace .dock-item { min-width: 0; width: 50px; padding-inline: 4px; flex-shrink: 1; }
+  .workspace .task-toolbar { max-width: 100%; }
+  .workspace .panel { padding: 18px; }
+  .workspace .node-config { min-width: 0; width: 100%; }
+  .workspace .task-actions { flex-wrap: wrap; }
+}
+/* Legacy mobile nav margins extended 20px beyond the new 16px page inset. */
+.workspace .pool-switch, .workspace .settings-switch, .workspace .overview-tools { margin-inline: 0; }
+@media (min-width: 641px) { .workspace main#main-content { padding-top: 28px; } }

@@ -184,3 +184,19 @@ it.each([['same-page', 'consult'], ['away-and-back', 'consult'], ['same-page', '
   expect(sessionStorage.getItem(TOKEN_KEY)).toBe('owner-session');
   expect(Object.values(sessionStorage)).not.toContain('Keep this exact private question');
 });
+
+it('retains a Dock destination selected while the first project snapshot is pending', async () => {
+  window.history.replaceState(null, '', '/');
+  sessionStorage.setItem(TOKEN_KEY, 'owner-session');
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  vi.spyOn(LocalClient.prototype, 'info').mockResolvedValue({ mode: 'center' });
+  let finish!: (value: typeof centerSnapshot) => void;
+  vi.spyOn(ApiClient.prototype, 'snapshot').mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  vi.spyOn(ApiClient.prototype, 'read').mockResolvedValue(connectionInfo);
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Agent 管理' }));
+  expect(window.location.hash).toBe('#agents');
+  finish({ ...centerSnapshot, project: null });
+  await screen.findByRole('heading', { name: 'Agent 管理' });
+  expect(screen.getByRole('button', { name: '配对节点 ＋' })).toBeTruthy();
+});

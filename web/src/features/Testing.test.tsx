@@ -150,7 +150,6 @@ it.each([
   { ...missing, ready: true, required: [], missing: [], uncovered_requirement_ids: [] },
   { ...passed, failed: ['smoke@darwin'] },
   { ...passed, missing: ['smoke@darwin'] },
-  { ...passed, uncovered_requirement_ids: ['req_1'] },
   { ...passed, passed: [] },
   { ...passed, commit: 'b'.repeat(40) },
 ])('never greens incomplete or mismatched readiness %#', async (value) => {
@@ -186,7 +185,7 @@ it('preserves historical failures, full bounded output and fixed report identity
   setup({ ...snapshot, runs: [run], tasks: [{ ...task, state: 'verified' }] });
   expect(screen.getByText('检查失败摘要')).toBeTruthy();
   expect(screen.getByText(/退出码 7/)).toBeTruthy();
-  expect(screen.getByText('套件版本：v3 · 平台：darwin')).toBeTruthy();
+  expect(screen.getByText('套件版本：v3 · 平台：macOS')).toBeTruthy();
   const details = screen.getByText('展开完整有界输出').closest('details')!;
   expect(details.open).toBe(false);
   fireEvent.click(within(details).getByText('展开完整有界输出'));
@@ -241,4 +240,102 @@ it('blocks invalid retry counts before any write and supports the zero retry def
   fireEvent.click(screen.getByRole('button', { name: '创建验证任务' }));
   await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
   expect(body(fetcher).max_retries).toBe(0);
+});
+
+it('honors server ready with uncovered requirements as a separate warning', async () => {
+  const { fetcher } = setup(); response(fetcher, { ...passed, uncovered_requirement_ids: ['req_uncovered'] });
+  fireEvent.click(screen.getByRole('button', { name: '查询就绪状态' }));
+  await screen.findByText('当前提交的所需测试已通过');
+  expect(screen.getByText('req_uncovered')).toBeTruthy();
+  expect(screen.getByText(/测试就绪不代表完整行为覆盖/)).toBeTruthy();
+});
+it('preserves a fixed query across development versions and all ordinary heartbeats', async () => {
+  const state = { ...snapshot, tasks: [localTask, task], runs: [localRun, run] };
+  const { fetcher, client, refresh, rerender } = setup(state); response(fetcher, passed);
+  fireEvent.click(screen.getByRole('button', { name: '查询就绪状态' }));
+  await screen.findByText('当前提交的所需测试已通过');
+  rerender(<Testing snapshot={{ ...state, tasks: [{ ...localTask, version: 12, used_seconds: 48 }, { ...task, version: 17, used_seconds: 40 }], runs: [{ ...localRun, version: 19, lease_until: 'later', elapsed_seconds: 65 }, { ...run, version: 29, elapsed_seconds: 100, lease_until: 'later' }] }} client={client} refresh={refresh} />);
+  expect(screen.getByText('当前提交的所需测试已通过')).toBeTruthy();
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it.each(['suite-spec', 'generation', 'verification-state', 'report', 'requirements', 'task-links'])(
+  'invalidates old readiness on relevant %s changes', async (change) => {
+    const state: Snapshot = { ...snapshot, tasks: [task], runs: [run], requirements: [{ id: 'req_1', version: 1, title: '需求', body: '原文', created_at: '' }] };
+    const { fetcher, client, refresh, rerender } = setup(state); response(fetcher, passed);
+    fireEvent.click(screen.getByRole('button', { name: '查询就绪状态' }));
+    await screen.findByText('当前提交的所需测试已通过');
+    const updated: Snapshot = { ...state };
+    if (change === 'suite-spec') updated.test_suites = [{ ...suite, checks: [{ ...suite.checks![0], timeout_seconds: 59 }] }];
+    if (change === 'generation') updated.tasks = [{ ...task, generation: task.generation + 1 }];
+    if (change === 'verification-state') updated.tasks = [{ ...task, state: 'cancelled' }];
+    if (change === 'report') updated.runs = [{ ...run, test_report: { ...report, checks: [{ ...report.checks[0], passed: true, exit_code: 0 }] } }];
+    if (change === 'requirements') updated.requirements = [...state.requirements!, { ...state.requirements![0], id: 'new_req' }];
+    if (change === 'task-links') updated.tasks = [{ ...task, requirement_ids: ['different_requirement'] }];
+    rerender(<Testing snapshot={updated} client={client} refresh={refresh} />);
+    expect(screen.queryByText('当前提交的所需测试已通过')).toBeNull();
+    // Returning to previous input cannot resurrect an invalidated result.
+    rerender(<Testing snapshot={state} client={client} refresh={refresh} />);
+    expect(screen.queryByText('当前提交的所需测试已通过')).toBeNull();
+  },
+);
+it.each([40, 64])('normalizes a nonzero %s-digit OID for query and execution', async (length) => {
+  const pinned = 'ab'.repeat(length / 2);
+  const { fetcher } = setup();
+  fireEvent.change(screen.getByLabelText('完整提交 SHA'), { target: { value: ` ${pinned.toUpperCase()} ` } });
+  response(fetcher, { ...passed, commit: pinned });
+  fireEvent.click(screen.getByRole('button', { name: '查询就绪状态' }));
+  await screen.findByText('当前提交的所需测试已通过');
+  expect(fetcher.mock.calls[0][0]).toBe(`/api/v1/tests/readiness?commit=${pinned}`);
+  chooseSuite(); fireEvent.click(screen.getByRole('button', { name: '创建验证任务' }));
+  await screen.findByText('验证任务已创建，等待中心调度。');
+  expect(body(fetcher, 1).commit).toBe(pinned);
+});
+it.each(['0'.repeat(40), '0'.repeat(64), 'a'.repeat(39), 'a'.repeat(63), 'g'.repeat(64), 'main'])(
+  'rejects invalid OID %s for both operations', (value) => {
+    const { fetcher } = setup(); chooseSuite();
+    fireEvent.change(screen.getByLabelText('完整提交 SHA'), { target: { value } });
+    expect(screen.getByRole('button', { name: '查询就绪状态' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: '创建验证任务' })).toHaveProperty('disabled', true);
+    expect(fetcher).not.toHaveBeenCalled();
+  },
+);
+it('selects only real fixed candidate versions without claiming the current main', async () => {
+  const fixed = { baseline_version: 1, baseline_digest: '', id: 'actual-candidate', version: 1, task_id: localTask.id, source_run_id: localRun.id, authorization_version: 1, policy_version: 1, base: sha, head: sha, main: sha, commit: 'b'.repeat(64), state: 'landed', detail: '', protected: false, approved_commit: '', checks: [], created_at: '' };
+  const { fetcher } = setup({ ...snapshot, candidates: [fixed, { ...fixed, id: 'unfinished', commit: '' }] });
+  const chooser = screen.getByLabelText('从真实候选选择固定版本');
+  expect(within(chooser).getAllByRole('option')).toHaveLength(2);
+  expect(screen.getByText(/不代表当前主线/)).toBeTruthy();
+  fireEvent.change(chooser, { target: { value: fixed.commit } });
+  expect(screen.getByLabelText('完整提交 SHA')).toHaveProperty('value', fixed.commit);
+  response(fetcher, { ...passed, commit: fixed.commit });
+  fireEvent.click(screen.getByRole('button', { name: '查询就绪状态' }));
+  await screen.findByText('当前提交的所需测试已通过');
+  expect(fetcher.mock.calls[0][0]).toBe(`/api/v1/tests/readiness?commit=${fixed.commit}`);
+});
+it('discards a pending query when verification evidence changes', async () => {
+  const { fetcher, client, refresh, rerender } = setup();
+  let resolve!: (response: Response) => void;
+  fetcher.mockImplementationOnce(() => new Promise<Response>((done) => { resolve = done; }));
+  fireEvent.click(screen.getByRole('button', { name: '查询就绪状态' }));
+  rerender(<Testing snapshot={{ ...snapshot, tasks: [task] }} client={client} refresh={refresh} />);
+  resolve(new Response(JSON.stringify(passed)));
+  await waitFor(() => expect(screen.getByRole('button', { name: '查询就绪状态' })).toHaveProperty('disabled', false));
+  expect(screen.queryByText('当前提交的所需测试已通过')).toBeNull();
+});
+it('preserves unknown Owner stage and platform values when explicitly saving a suite', async () => {
+  const custom = { ...suite, stage: 'owner-stage', platforms: ['darwin', 'owner-platform'] };
+  const { fetcher } = setup({ ...snapshot, test_suites: [custom] });
+  expect(screen.getByText(/owner-stage · v3/)).toBeTruthy();
+  edit(); save();
+  await waitFor(() => expect(fetcher).toHaveBeenCalled());
+  expect(body(fetcher).suite).toMatchObject({ stage: custom.stage, platforms: custom.platforms, name: custom.name, checks: custom.checks });
+});
+it('retains a report deep link to the actual failed run', () => {
+  window.history.replaceState(null, '', `#testing?run=${run.id}`);
+  const { container } = setup({ ...snapshot, runs: [run] });
+  const report = screen.getByRole('article', { name: `测试报告 ${run.id}` });
+  expect(report.id).toBe(`test-report-${run.id}`);
+  expect(report.classList.contains('selected-record')).toBe(true);
+  expect(container.querySelector('a[href="#testing?run=verification-run"]')).toBeTruthy();
+  window.history.replaceState(null, '', '#');
 });

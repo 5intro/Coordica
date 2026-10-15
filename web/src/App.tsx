@@ -132,6 +132,13 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
     window.history.replaceState({ ...window.history.state, scroll: window.scrollY }, '');
     const hash = !id && locations.current[next] ? locations.current[next]! : `#${next}${id ? `?id=${encodeURIComponent(id)}` : ''}`;
     if (window.location.hash !== hash) window.history.pushState({ scroll: positions.current[next] ?? 0 }, '', hash);
+    // The dock can be clicked before the first passive route listener mounts.
+    // Apply local navigation immediately; the event still restores URL fields
+    // and scroll through the same shell path used by browser history.
+    currentPage.current = next;
+    locations.current[next] = hash;
+    setPage(next); setFocusId(hashFocus());
+    setVisited((previous) => new Set([...previous, next]));
     window.dispatchEvent(new Event(routeEvent));
   }
   const project = snapshot?.project;
@@ -163,7 +170,7 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
                 {page === 'settings' && project && <Settings project={project} client={client} refresh={refresh} />}
               </div>}
         <div className="workspace-account">{runnerURL && <a className="text-button" href={`${runnerURL}/`}>本机 Runner 默认入口 ↗</a>}<button className="text-button" onClick={logout}>断开工作台</button></div>
-        <footer className="workbench-footer"><span>COORDICA {SOURCE_VERSION} / CONTROLLED COLLABORATION</span><span>批准 · 运行 · 评审 · 验证 · 集成</span></footer>
+        <footer className="workbench-footer"><span>Coordica {SOURCE_VERSION}</span></footer>
       </main>
     </div>
     <nav className="workbench-dock" aria-label="工作台页面" onKeyDown={(event) => {

@@ -136,6 +136,7 @@ it.each([false, true])('能力探测与真实活动实例分开呈现（有运�
   dock('Agent 管理');
   await screen.findByRole('heading', { name: 'Agent 管理' });
   const instances = screen.getByRole('heading', { name: '实际运行实例' }).closest('section')!;
+  fireEvent.click(screen.getByText('工具能力与技术详情'));
   const capability = screen.getByRole('table');
   expect(within(capability).getByText('版本探测通过')).toBeTruthy();
   expect(within(capability).getByText('执行认证未提供')).toBeTruthy();
