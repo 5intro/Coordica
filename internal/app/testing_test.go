@@ -523,3 +523,49 @@ func TestCriticalTestFailureBlocksMergeUntilMatchingVersionPasses(t *testing.T) 
 		t.Fatal("matching successful verification did not release merge")
 	}
 }
+
+func TestCriticalFailuresKeepPlatformAndCandidateIdentity(t *testing.T) {
+	f := newServiceFixture(t)
+	suite := testSuite(t, f.s, f.owner, "project")
+	suite.BlockMergesOnFailure = true
+	b, e := f.s.SaveTestSuite(context.Background(), f.owner, "critical", domain.TestSuiteSave{ExpectedVersion: suite.Version, Suite: suite})
+	suite = decodeTest[domain.TestSuite](t, b, e)
+	main := strings.Repeat("a", 40)
+	if e = f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
+		records := []domain.Run{
+			{ID: "failed_windows", TaskID: "win", Kind: "verification", State: "failed", Base: main, Quiescent: true, TestReport: &domain.TestReport{SuiteID: suite.ID, Digest: suiteDigest(suite), Platform: "windows"}},
+			{ID: "passed_mac", TaskID: "mac", Kind: "verification", State: "succeeded", Base: main, Quiescent: true, TestReport: &domain.TestReport{SuiteID: suite.ID, Digest: suiteDigest(suite), Platform: "darwin", Checks: []domain.CheckResult{{Name: "clean", Passed: true, ExitCode: 0}}}},
+		}
+		for _, r := range records {
+			if e := tx.Put("run", r.ID, r); e != nil {
+				return e
+			}
+		}
+		if e := tx.Put("task", "mac", domain.Task{ID: "mac", State: "verified"}); e != nil {
+			return e
+		}
+		blocked, e := blockingTestFailures(tx, main)
+		if e != nil || len(blocked) != 1 || blocked[0].ID != "failed_windows" {
+			t.Fatal("mac green erased Windows failure", blocked, e)
+		}
+		pass := records[1]
+		pass.ID, pass.TaskID, pass.TestReport.Platform = "passed_windows", "win-fixed", "windows"
+		if e := tx.Put("run", pass.ID, pass); e != nil {
+			return e
+		}
+		if e := tx.Put("task", pass.TaskID, domain.Task{ID: pass.TaskID, State: "verified"}); e != nil {
+			return e
+		}
+		blocked, e = blockingTestFailures(tx, main)
+		if e != nil || len(blocked) != 0 {
+			t.Fatal("matching platform remained blocked", blocked, e)
+		}
+		blocked, e = blockingTestFailures(tx, strings.Repeat("b", 40))
+		if e != nil || len(blocked) != 1 {
+			t.Fatal("another candidate used unrelated green result", blocked, e)
+		}
+		return nil
+	}); e != nil {
+		t.Fatal(e)
+	}
+}

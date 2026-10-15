@@ -372,25 +372,29 @@ func blockingTestFailures(tx *store.Tx, commits ...string) ([]domain.Run, error)
 		if !suite.Enabled || !suite.BlockMergesOnFailure || suite.Stage == "merge" {
 			continue
 		}
-		var failure *domain.Run
+		failures := map[string]domain.Run{}
 		for _, run := range runs {
 			if run.Kind != "verification" || run.TestReport == nil || run.TestReport.SuiteID != suite.ID || run.TestReport.Digest != suiteDigest(suite) || !run.Quiescent {
 				continue
 			}
 			if run.State == "failed" {
-				copy := run
-				failure = &copy
+				failures[run.TestReport.Platform] = run
 			}
 			if run.State == "succeeded" && accepted[run.TaskID] && domain.ChecksPassed(suite.Checks, run.TestReport.Checks) {
 				for _, commit := range commits {
 					if run.Base == commit {
-						failure = nil
+						delete(failures, run.TestReport.Platform)
 					}
 				}
 			}
 		}
-		if failure != nil {
-			blocked = append(blocked, *failure)
+		platforms := []string{}
+		for platform := range failures {
+			platforms = append(platforms, platform)
+		}
+		sort.Strings(platforms)
+		for _, platform := range platforms {
+			blocked = append(blocked, failures[platform])
 		}
 	}
 	return blocked, nil

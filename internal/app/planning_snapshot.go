@@ -53,23 +53,6 @@ func phaseBSnapshot(tx *store.Tx, v *domain.Snapshot) error {
 			v.Blocks = append(v.Blocks, domain.BlockItem{Kind: "run", ObjectID: r.ID, Reason: "unknown_live", Actions: []string{"confirm_stopped"}})
 		}
 	}
-	// Publication independently checks exact M/C. Failed verification tasks
-	// remain visible separately with their pinned versions.
-	commits := []string{}
-	for _, candidate := range v.Candidates {
-		if candidate.State == "ready_to_land" {
-			commits = append(commits, candidate.Main, candidate.Commit)
-		}
-	}
-	if len(commits) != 0 {
-		blockedTests, e := blockingTestFailures(tx, commits...)
-		if e != nil {
-			return e
-		}
-		for _, run := range blockedTests {
-			v.Blocks = append(v.Blocks, domain.BlockItem{Kind: "run", ObjectID: run.ID, Reason: "critical_test_failure", Actions: []string{"inspect_test", "create_repair"}})
-		}
-	}
 	for _, c := range v.Candidates {
 		current := false
 		if v.Project != nil {
@@ -77,6 +60,15 @@ func phaseBSnapshot(tx *store.Tx, v *domain.Snapshot) error {
 				if candidateAuthority(tx, t, *v.Project, c) {
 					current = true
 				}
+			}
+		}
+		if current && c.State == "ready_to_land" {
+			blockedTests, e := blockingTestFailures(tx, c.Main, c.Commit)
+			if e != nil {
+				return e
+			}
+			if len(blockedTests) > 0 {
+				v.Blocks = append(v.Blocks, domain.BlockItem{Kind: "candidate", ObjectID: c.ID, Reason: "critical_test_failure", Actions: []string{"inspect_test", "create_repair"}})
 			}
 		}
 		if current && (c.State == "reviewing" || c.State == "validating" || c.State == "ready_to_land") && c.Protected && c.ApprovedCommit != c.Commit && c.Commit != "" && c.State != "integrated" && c.State != "rejected" && c.State != "invalidated" {
