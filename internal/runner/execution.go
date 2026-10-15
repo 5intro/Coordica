@@ -167,6 +167,14 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 	}
 	if assignment.Run.Kind == "review" {
 		request.AllowedTools = []string{"Read", "Glob", "Grep"}
+		if definition.Protocol == agent.ProtocolCodex || definition.Protocol == agent.ProtocolClaude {
+			schemaPath := filepath.Join(dir, "review.schema.json")
+			if err = os.WriteFile(schemaPath, reviewOutputSchema(assignment.Run.Base), 0600); err != nil {
+				finish(err)
+				return
+			}
+			request.OutputSchemaPath = schemaPath
+		}
 	}
 	started := false
 	var persistErr error

@@ -111,6 +111,33 @@ func fakeClaude(scenario string) {
 		raw, _ := json.Marshal(os.Args[1:])
 		text = string(raw)
 	}
+	if scenario == "args" {
+		for _, arg := range os.Args {
+			if arg == "--json-schema" {
+				printJSON(map[string]any{"type": "result", "subtype": "success", "result": "non-authoritative prose", "structured_output": map[string]any{"argv": os.Args[1:]}, "session_id": "claude-session"})
+				return
+			}
+		}
+	}
+	if strings.HasPrefix(scenario, "structured-") {
+		envelope := map[string]any{"type": "result", "subtype": "success", "result": "Prose contains {\"answer\":\"wrong\"}", "session_id": "claude-session"}
+		switch scenario {
+		case "structured-ok":
+			envelope["structured_output"] = map[string]string{"answer": "right"}
+		case "structured-null":
+			envelope["structured_output"] = nil
+		case "structured-string":
+			envelope["structured_output"] = `{"answer":"wrong"}`
+		case "structured-array":
+			envelope["structured_output"] = []string{"wrong"}
+		case "structured-failed":
+			envelope["is_error"] = true
+			envelope["subtype"] = "error_max_structured_output_retries"
+			envelope["structured_output"] = map[string]string{"answer": "wrong"}
+		}
+		printJSON(envelope)
+		return
+	}
 	printJSON(map[string]any{"type": "result", "subtype": subtype, "is_error": scenario == "failed", "result": text, "session_id": "claude-session"})
 }
 func fakeACP() {
@@ -448,8 +475,12 @@ func TestOptionalOutputSchemaProtocolBoundary(t *testing.T) {
 				t.Fatal("default schema changed launch", result, err)
 			}
 			req.OutputSchemaPath = filepath.Join(t.TempDir(), "trusted schema.json")
+			schema := `{"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"}}},"required":["argv"]}`
+			if err := os.WriteFile(req.OutputSchemaPath, []byte(schema), 0600); err != nil {
+				t.Fatal(err)
+			}
 			result, err = Execute(ctx, req, nil)
-			if tool != "codex" {
+			if tool != "codex" && tool != "claude" {
 				if err == nil || !strings.Contains(err.Error(), "does not support output schemas") {
 					t.Fatal("unsupported schema silently accepted", err)
 				}
@@ -459,13 +490,25 @@ func TestOptionalOutputSchemaProtocolBoundary(t *testing.T) {
 				t.Fatal(err)
 			}
 			var args []string
-			if err := json.Unmarshal([]byte(result.OutputText), &args); err != nil {
+			if tool == "claude" {
+				var envelope struct {
+					Argv []string `json:"argv"`
+				}
+				if err := json.Unmarshal([]byte(result.OutputText), &envelope); err != nil {
+					t.Fatal(err)
+				}
+				args = envelope.Argv
+			} else if err := json.Unmarshal([]byte(result.OutputText), &args); err != nil {
 				t.Fatal(err)
+			}
+			flag, want := "--output-schema", req.OutputSchemaPath
+			if tool == "claude" {
+				flag, want = "--json-schema", schema
 			}
 			found := false
 			for i, arg := range args {
-				if arg == "--output-schema" {
-					found = i+1 < len(args) && args[i+1] == req.OutputSchemaPath
+				if arg == flag {
+					found = i+1 < len(args) && args[i+1] == want
 				}
 			}
 			if !found {

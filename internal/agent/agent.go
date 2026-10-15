@@ -17,6 +17,7 @@ var ErrProtocol = errors.New("invalid or incomplete agent protocol")
 type Request struct {
 	Tool, Executable, WorkDir, Prompt, ResumeSession, Role string
 	OutputSchemaPath                                       string
+	outputSchema                                           string
 	AllowedTools                                           []string
 }
 type Event struct {
@@ -62,8 +63,15 @@ func (r *Registry) Execute(ctx context.Context, req Request, onEvent func(Event)
 		return Result{ExitCode: -1}, errors.New("unregistered agent tool")
 	}
 	req.Tool = def.ID
-	if req.OutputSchemaPath != "" && def.Protocol != ProtocolCodex {
+	if req.OutputSchemaPath != "" && def.Protocol != ProtocolCodex && def.Protocol != ProtocolClaude {
 		return Result{ExitCode: -1}, errors.New("registered protocol does not support output schemas")
+	}
+	if req.OutputSchemaPath != "" && def.Protocol == ProtocolClaude {
+		var err error
+		req.outputSchema, err = readClaudeSchema(req.OutputSchemaPath)
+		if err != nil {
+			return Result{ExitCode: -1}, err
+		}
 	}
 	if strings.TrimSpace(req.Prompt) == "" {
 		return Result{ExitCode: -1}, errors.New("prompt is required")

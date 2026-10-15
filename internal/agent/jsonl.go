@@ -1,9 +1,12 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"os"
 	"strings"
 
 	"coordica/internal/process"
@@ -27,13 +30,14 @@ func executeJSONL(ctx context.Context, def Definition, req Request, onEvent func
 			continue
 		}
 		var envelope struct {
-			Type      string                      `json:"type"`
-			ThreadID  string                      `json:"thread_id"`
-			SessionID string                      `json:"session_id"`
-			Subtype   string                      `json:"subtype"`
-			IsError   bool                        `json:"is_error"`
-			Result    string                      `json:"result"`
-			Item      struct{ Type, Text string } `json:"item"`
+			Type             string                      `json:"type"`
+			ThreadID         string                      `json:"thread_id"`
+			SessionID        string                      `json:"session_id"`
+			Subtype          string                      `json:"subtype"`
+			IsError          bool                        `json:"is_error"`
+			Result           string                      `json:"result"`
+			StructuredOutput json.RawMessage             `json:"structured_output"`
+			Item             struct{ Type, Text string } `json:"item"`
 		}
 		if json.Unmarshal(output.Line, &envelope) != nil || envelope.Type == "" {
 			protocolErr = ErrProtocol
@@ -65,8 +69,19 @@ func executeJSONL(ctx context.Context, def Definition, req Request, onEvent func
 				if envelope.IsError || envelope.Subtype != "success" {
 					protocolErr = errors.New("stream result failed or unknown")
 				} else {
-					complete = true
-					result.OutputText = envelope.Result
+					if req.OutputSchemaPath != "" {
+						structured := bytes.TrimSpace(envelope.StructuredOutput)
+						if len(structured) == 0 || structured[0] != '{' {
+							protocolErr = errors.New("Claude result omitted structured_output object")
+							complete = false
+						} else {
+							complete = true
+							result.OutputText = string(structured)
+						}
+					} else {
+						complete = true
+						result.OutputText = envelope.Result
+					}
 				}
 			}
 		}
@@ -81,4 +96,26 @@ func executeJSONL(ctx context.Context, def Definition, req Request, onEvent func
 		protocolErr = errors.Join(protocolErr, ErrProtocol)
 	}
 	return result, errors.Join(waitErr, protocolErr, <-inputDone)
+}
+
+// Claude accepts an inline schema argument. The trusted caller supplies a file
+// like Codex, but file I/O and protocol translation stay inside this adapter.
+func readClaudeSchema(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, (64<<10)+1))
+	if err != nil {
+		return "", err
+	}
+	if len(b) > 64<<10 {
+		return "", errors.New("bounded JSON object output schema required")
+	}
+	b = bytes.TrimSpace(b)
+	if len(b) == 0 || b[0] != '{' || !json.Valid(b) {
+		return "", errors.New("bounded JSON object output schema required")
+	}
+	return string(b), nil
 }

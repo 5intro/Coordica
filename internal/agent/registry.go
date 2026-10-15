@@ -256,6 +256,9 @@ func launchArgs(def Definition, req Request) []string {
 			args = append(args, "--output-schema", req.OutputSchemaPath)
 		}
 	}
+	if def.Protocol == ProtocolClaude && req.outputSchema != "" {
+		args = append(args, "--json-schema", req.outputSchema)
+	}
 	if req.Role == "leader" && def.Protocol == ProtocolCodex {
 		args = append(args, "--skip-git-repo-check", "--ephemeral")
 	}

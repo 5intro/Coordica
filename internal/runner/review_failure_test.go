@@ -38,12 +38,15 @@ func TestReviewInputFailurePreservesUnknownGitTreeAndCancellation(t *testing.T) 
 	}
 	for _, test := range []struct {
 		name, status    string
+		schemaTool      string
 		unquiet, cancel bool
 	}{
 		{name: "unknown tree", status: "failed", unquiet: true},
 		{name: "cancelled unknown tree", status: "stopped", unquiet: true, cancel: true},
 		{name: "ordinary unavailable diff", status: "succeeded"},
 		{name: "cancelled ordinary diff", status: "stopped", cancel: true},
+		{name: "native Claude review schema", status: "succeeded", schemaTool: "claude"},
+		{name: "native Codex review schema", status: "succeeded", schemaTool: "codex"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
@@ -72,6 +75,9 @@ func TestReviewInputFailurePreservesUnknownGitTreeAndCancellation(t *testing.T) 
 			r := testRunner(t, server)
 			r.OnEvent = func(Event) {}
 			r.readReviewInput = func(ctx context.Context, assignment domain.Assignment, dir string) (string, error) {
+				if test.schemaTool != "" {
+					return "Complete fixed review fixture", nil
+				}
 				if test.cancel {
 					cancel()
 				}
@@ -81,7 +87,15 @@ func TestReviewInputFailurePreservesUnknownGitTreeAndCancellation(t *testing.T) 
 				}
 				return "", &gitops.Error{Op: "diff", Kind: err, Detail: "review Git command failed"}
 			}
-			r.execute = func(context.Context, agent.Request, func(agent.Event)) (agent.Result, error) {
+			r.execute = func(_ context.Context, request agent.Request, _ func(agent.Event)) (agent.Result, error) {
+				if test.schemaTool != "" {
+					raw, err := os.ReadFile(request.OutputSchemaPath)
+					if err != nil || string(raw) != string(reviewOutputSchema(base.String())) || strings.Join(request.AllowedTools, ",") != "Read,Glob,Grep" || strings.Contains(request.Prompt, nativeIntentPrompt) {
+						t.Fatal("review schema or read-only restrictions lost", err)
+					}
+					review, _ := json.Marshal(domain.Review{Candidate: base.String(), Verdict: "approve", Summary: "Fixture independent review", Findings: []string{}})
+					return agent.Result{ExitCode: 0, TreeStopped: true, OutputText: string(review)}, nil
+				}
 				t.Error("review Agent ran without a complete fixed diff")
 				return agent.Result{}, errors.New("unexpected execution")
 			}
@@ -91,6 +105,9 @@ func TestReviewInputFailurePreservesUnknownGitTreeAndCancellation(t *testing.T) 
 				Task:      domain.Task{Title: "review", Description: "review candidate", Acceptance: "fixed diff", AllowedPaths: []string{"code.txt"}},
 				Candidate: &domain.Candidate{Main: base.String(), Commit: base.String()},
 				InputURL:  "/api/v1/runs/run_test/input.bundle",
+			}
+			if test.schemaTool != "" {
+				assignment.Run.Tool = test.schemaTool
 			}
 			record := spool{Assignment: assignment, Key: "review-input-key", StartedAt: now, WorkDir: filepath.Join(r.config.DataDir, "runs", "review", "workspace")}
 			if test.unquiet {
@@ -120,6 +137,10 @@ func TestReviewInputFailurePreservesUnknownGitTreeAndCancellation(t *testing.T) 
 				}
 				if count, err := r.occupiedSlots(); err != nil || count != 1 {
 					t.Fatalf("unknown Git execution freed local capacity: %d %v", count, err)
+				}
+			} else if test.schemaTool != "" {
+				if value.Review == nil || value.Review.Verdict != "approve" || !value.Quiescent {
+					t.Fatal("valid native review not delivered", value)
 				}
 			} else if !test.cancel && (value.Review == nil || value.Review.Verdict != "blocked") {
 				t.Fatal("ordinary diff failure did not preserve blocked-review behavior")
