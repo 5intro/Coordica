@@ -5,7 +5,7 @@ const stateLabels: Record<string, string> = {
   integrated: '已集成', cancelled: '已取消', starting: '启动中', running: '运行中',
   cancel_requested: '正在停止', stopped: '已停止', succeeded: '执行完成', failed: '失败',
   lost: '失联', accepted: '已受理', constructing: '构造中', reviewing: '评审中',
-  validating: '验证中', ready_to_land: '待放行', landing: '写入中', dispatching: '已派发',
+  prechecking: '预检查 · 尚未进入审查', validating: '验证中', ready_to_land: '审查通过 · 待集成', landing: '写入中', dispatching: '已派发',
   landed: '已进入主线', rejected: '已拒绝', invalidated: '已失效', reconciling: '对账中',
   paused: '已暂停', approve: '评审通过', changes_requested: '需要修改', blocked: '阻塞',
 };
