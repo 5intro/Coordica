@@ -107,7 +107,8 @@ func registeredMatches(spec Spec, info runtimeInfo, p plan, output string) bool 
 			if !ok {
 				return ""
 			}
-			return printedValue(`"` + v + `"`)
+			// systemctl show prints these fields literally, not as quoted strings.
+			return v
 		}
 		return extract("path=") == spec.Executable && extract("argv[]=") == strings.Join(fixedArgs(spec), " ")
 	case "windows":

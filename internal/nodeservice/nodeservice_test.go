@@ -209,11 +209,57 @@ func fixtureRegistration(spec Spec, r runtimeInfo, p plan) string {
 	case "darwin":
 		return "path = " + p.ConfigPath + "\nprogram = " + spec.Executable + "\narguments = {\n" + strings.Join(fixedArgs(spec), "\n") + "\n}\n"
 	case "linux":
+		// systemctl show prints path verbatim and joins argv with spaces;
+		// these fields are not shell-quoted or C/Go-escaped strings.
 		return "LoadState=loaded\nFragmentPath=" + p.ConfigPath + "\nDropInPaths=\nExecStart={ path=" + spec.Executable + " ; argv[]=" + strings.Join(fixedArgs(spec), " ") + " ; ignore_errors=no ; }\n"
 	case "windows":
 		return windowsXMLText(p.Content)
 	}
 	return ""
+}
+
+func TestLinuxRegistrationPreservesLiteralPaths(t *testing.T) {
+	for _, tc := range []struct {
+		name, executable, path string
+	}{
+		{"spaces", "/opt/Coordica App/coordica", "/home/user/Coordica Data"},
+		{"backslashes", `/opt/coordica\test`, `/home/user/data\runner`},
+		{"quotes", `/opt/Coordica "App"/coordica`, `/home/user/"data"`},
+		{"windows fixture", "/absolute/coordica", `C:\Users\runner\AppData\Local\Temp\data`},
+	} {
+		for _, center := range []bool{false, true} {
+			t.Run(tc.name+"/center="+strconv.FormatBool(center), func(t *testing.T) {
+				spec := Spec{Executable: tc.executable, DataDir: tc.path}
+				action := "runner --data "
+				if center {
+					spec.CenterConfig = tc.path + "/host.json"
+					action = "center-serve --host-config "
+				}
+				r := runtimeInfo{Platform: "linux", Home: t.TempDir(), Manager: "fixture"}
+				p := mustPlan(t, spec, r)
+				path := spec.DataDir
+				if center {
+					path = spec.CenterConfig
+				}
+				// Match systemctl-show.c: raw path, strv_join(argv, " ").
+				prefix := "LoadState=loaded\nFragmentPath=" + p.ConfigPath + "\nDropInPaths=\nExecStart={ path="
+				output := prefix + tc.executable + " ; argv[]=" + tc.executable + " " + action + path + " ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }\n"
+				if !registeredMatches(spec, r, p, output) {
+					t.Fatal("literal service registration refused")
+				}
+				for _, bad := range []string{
+					strings.Replace(output, "path="+tc.executable+" ; ", "path=/unrelated/coordica ; ", 1),
+					strings.Replace(output, action+path, action+path+" --unexpected", 1),
+					strings.Replace(output, action, "unrelated --run ", 1),
+					strings.Replace(output, action+path, action+strconv.Quote(path), 1),
+				} {
+					if registeredMatches(spec, r, p, bad) {
+						t.Fatal("different service registration admitted")
+					}
+				}
+			})
+		}
+	}
 }
 
 func TestRegisteredUnknownServicesNeverWriteReplaceOrActivate(t *testing.T) {
