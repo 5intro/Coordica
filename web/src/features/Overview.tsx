@@ -1,16 +1,66 @@
+import type { ReactNode } from 'react';
 import type { Snapshot } from '../api.generated';
-import {  Empty, SectionTitle, Status, duration, time } from '../components/ui';
-import { agentRows, protectedCandidate, blockRecords } from './management';
 import type { Page } from '../App';
+import { Status, duration, time } from '../components/ui';
+import { blockRecords, currentWork, protectedCandidate } from './management';
+import './overview.css';
+
+type Entry = { id: string; title: string; detail: string; status: ReactNode; page: Page; target: string };
+const terminalTasks = new Set(['integrated', 'cancelled']);
+const candidateLabels: Record<string, string> = {
+  constructing: '构造候选', prechecking: '预检查 · 尚未进入 Agent 审查',
+  reviewing: '待审 / 审中', validating: '集成验证中', ready_to_land: '审查通过 · 待集成', landing: '集成中',
+};
+const roles: Record<string, string> = { implement: '开发', review: '独立审查', repair: '修复', verification: '测试验证' };
 
 export function Overview({ snapshot, navigate }: { snapshot: Snapshot; navigate: (page: Page, id?: string) => void }) {
-  const project = snapshot.project!;
+  const project = snapshot.project;
+  if (!project) return <div className="overview"><h1>尚无项目</h1><p>等待中心提供项目快照。</p></div>;
   const tasks = snapshot.tasks ?? [];
   const runs = snapshot.runs ?? [];
-  const candidates = snapshot.candidates ?? [];
-  const pending = tasks.filter((task) => !['integrated', 'cancelled'].includes(task.state));
-  const live = runs.filter((run) => ['starting', 'running', 'cancel_requested'].includes(run.state));
-  const decisions = candidates.filter((candidate) => protectedCandidate(snapshot, candidate));
-  const events = [...(snapshot.events ?? [])].sort((a, b) => b.sequence - a.sequence).slice(0, 6);
-  return <><SectionTitle eyebrow="01 / PROJECT OVERVIEW" title={project.name} description="从获批任务到固定候选，每一步都保留事实与依据。" actions={snapshot.initialization?.status !== 'initialized' ? <button className="primary" onClick={() => navigate('initialization')}>完成项目初始化</button> : <button className="primary" onClick={() => navigate('tasks', 'new')}>新建任务 <span aria-hidden="true">＋</span></button>} /><nav className="pool-links" aria-label="管理入口">{([{ page: 'requirements', label: '需求池', count: snapshot.requirements?.length ?? 0 }, { page: 'tasks', label: '任务池', count: tasks.length }, { page: 'blocks', label: '阻断池', count: blockRecords(snapshot).length }, { page: 'agents', label: 'Agent 管理', count: agentRows(snapshot).length }, { page: 'runs', label: '运行与节点', count: runs.length }, { page: 'candidates', label: '集成候选', count: candidates.length }] as const).map((entry) => <a className="secondary" key={entry.page} href={`#${entry.page}`} onClick={(event) => { event.preventDefault(); navigate(entry.page); }}>{entry.label} <span className="count">{entry.count}</span> →</a>)}</nav><div className="metrics"><div><span>待推进任务</span><strong>{pending.length.toString().padStart(2, '0')}</strong><small>{tasks.filter((t) => t.state === 'integrated').length} 项已集成</small></div><div><span>当前运行</span><strong>{live.length.toString().padStart(2, '0')}</strong><small>{(snapshot.nodes ?? []).filter((n) => !n.revoked).length} 个已配对节点</small></div><div><span>特别批准</span><strong>{decisions.length.toString().padStart(2, '0')}</strong><small>仅批准固定候选</small></div><div><span>项目累计活动</span><strong className="metric-budget">{duration(project.used_seconds)}</strong><small>当前预留 {duration(project.reserved_seconds)} · 无项目总额度</small></div></div><div className="overview-grid"><section className="panel"><div className="subheading"><h2>工作队列</h2><button className="text-button" onClick={() => navigate('tasks')}>全部任务 →</button></div>{pending.length ? <div className="rows">{pending.slice(0, 6).map((task) => <button className="data-row" key={task.id} onClick={() => navigate('tasks', task.id)}><div><strong>{task.title}</strong><small>{task.tool} · {task.hold_reason || '无阻塞记录'}</small></div><Status value={task.state} /></button>)}</div> : <Empty title="没有待推进任务">建立清晰目标与验收后，再批准执行。</Empty>}</section><aside className="panel"><div className="subheading"><h2>项目边界</h2><Status value={project.paused ? 'paused' : 'ready'} /></div><dl className="facts"><dt>目标分支</dt><dd><code>{project.target_branch}</code></dd><dt>当前政策</dt><dd><code>v{project.policy_version}</code></dd><dt>仓库</dt><dd className="break-word">{project.repository_url}</dd><dt>最低检查</dt><dd>{(project.checks ?? []).map((c) => c.name).join('、')}</dd></dl><p>累计活动 {duration(project.used_seconds)} · 当前预留 {duration(project.reserved_seconds)}</p><button className="secondary full-width" onClick={() => navigate('settings')}>查看政策与控制</button></aside><section className="panel activity-panel"><div className="subheading"><h2>最近活动</h2><button className="text-button" onClick={() => navigate('audit')}>完整审计 →</button></div>{events.length ? <ol className="activity-list">{events.map((event) => <li key={event.sequence}><span className="activity-dot" /><div><strong>{event.kind}</strong><p>{event.detail || event.object_id}</p></div><time>{time(event.time)}</time></li>)}</ol> : <Empty title="尚无活动">中心的真实事件将在这里出现。</Empty>}</section></div></>;
+  const live = runs.filter(currentWork);
+  const candidates = (snapshot.candidates ?? []).filter((candidate) => candidate.state in candidateLabels);
+  const blocks = blockRecords(snapshot);
+  const taskTitle = (id: string) => tasks.find((task) => task.id === id)?.title ?? id;
+  const pending = tasks.filter((task) => !terminalTasks.has(task.state));
+  const requirements = (snapshot.requirements ?? []).filter((requirement) => {
+    const linked = tasks.filter((task) => task.requirement_ids?.includes(requirement.id));
+    return !linked.length || linked.some((task) => !terminalTasks.has(task.state));
+  });
+  const pools: { title: string; page: Page; entries: Entry[]; empty: string }[] = [
+    { title: '需求池', page: 'requirements', empty: '暂无活动需求', entries: requirements.map((requirement) => ({ id: requirement.id, title: requirement.title, detail: `来源：${requirement.source_node_id || (requirement.source ? '聊天' : '中心记录')}`, status: tasks.some((task) => task.requirement_ids?.includes(requirement.id)) ? '推进中' : '待规划', page: 'requirements', target: requirement.id })) },
+    { title: '任务池', page: 'tasks', empty: '暂无活动任务', entries: pending.map((task) => {
+      const run = live.find((item) => item.id === task.current_run_id);
+      const node = snapshot.nodes?.find((item) => item.id === run?.node_id);
+      return { id: task.id, title: task.title, detail: task.hold_reason || (run ? `执行主机：${node?.name ?? run.node_id}` : '尚未分配运行实例'), status: <Status value={task.state} />, page: 'tasks', target: task.id };
+    }) },
+    { title: '审查池', page: 'candidates', empty: '暂无活动候选', entries: candidates.map((candidate) => ({ id: candidate.id, title: taskTitle(candidate.task_id), detail: `${candidate.id} · 固定版本 ${candidate.commit || '尚未生成'}${candidate.detail ? ` · ${candidate.detail}` : ''}`, status: candidateLabels[candidate.state], page: 'candidates', target: candidate.id })) },
+    { title: '阻断池', page: 'blocks', empty: '暂无阻断', entries: blocks.map((block) => ({ id: block.id, title: block.task?.title || block.target, detail: block.reason, status: block.decision ? '待决策' : block.source, page: block.page, target: block.target })) },
+  ];
+  const todos: Entry[] = [];
+  if (snapshot.initialization && snapshot.initialization.status !== 'initialized') todos.push({ id: 'initialization', title: '完成项目初始化', detail: '核对基线与初始化状态', status: '待处理', page: 'initialization', target: '' });
+  for (const task of tasks.filter((task) => task.state === 'draft')) todos.push({ id: `approve:${task.id}`, title: task.title, detail: '核对任务契约后批准执行', status: '待批准', page: 'tasks', target: task.id });
+  // Block records already deduplicate server decisions and their source holds.
+  for (const block of blocks.filter((block) => !!block.decision || block.id.startsWith('run:') || block.id.startsWith('candidate:') && candidates.some((candidate) => candidate.id === block.target && candidate.state === 'ready_to_land' && protectedCandidate(snapshot, candidate)))) {
+    todos.push({ id: block.id, title: block.task?.title || block.target, detail: block.reason, status: block.decision ? '待决策' : '待人工核验', page: block.decision ? 'blocks' : block.page, target: block.decision ? block.decision.id : block.target });
+  }
+  const hosts = [...(snapshot.nodes ?? []).map((node) => ({ id: node.id, node })), ...[...new Set(live.map((run) => run.node_id))].filter((id) => !snapshot.nodes?.some((node) => node.id === id)).map((id) => ({ id, node: undefined }))];
+  function link(page: Page, label: string, id?: string) {
+    return <a href={`#${page}${id ? `?id=${encodeURIComponent(id)}` : ''}`} onClick={(event) => { event.preventDefault(); navigate(page, id); }}>{label}</a>;
+  }
+  function row(entry: Entry) {
+    return <li key={entry.id}><button className="overview-row" onClick={() => navigate(entry.page, entry.target)}><span className="overview-copy"><strong>{entry.title}</strong><small>{entry.detail}</small></span><span className="overview-state">{entry.status}</span></button></li>;
+  }
+  const integrated = tasks.filter((task) => task.state === 'integrated').length;
+  return <div className="overview">
+    <header className="overview-header"><div><h1>{project.name}</h1><p className="overview-objective">{snapshot.planning_document?.objective || '尚未记录目标'}</p><div className="overview-progress"><Status value={project.paused ? 'paused' : 'ready'} /><span>任务进度：{integrated} / {tasks.length} 已集成</span></div></div><div className="overview-header-actions">{link('requirements', '提交需求')}{link('planning', '查看目标')}</div></header>
+    {todos.length > 0 && <section className="overview-todos" aria-label="人工待办"><h2>需要你处理 <span>{todos.length}</span></h2><ul>{todos.map(row)}</ul></section>}
+    <div className="overview-workspace"><div className="overview-pools">{pools.map((pool) => <section className="overview-pool" key={pool.page} aria-label={pool.title}><header><h2>{pool.title} <span aria-label={`${pool.title}活动总数`}>{pool.entries.length}</span></h2>{link(pool.page, '查看全部')}</header>{pool.entries.length ? <ul>{pool.entries.slice(0, 5).map(row)}</ul> : <p className="overview-empty">{pool.empty}</p>}</section>)}</div>
+      <aside className="overview-hosts" aria-label="主机运行动态"><header><h2>主机运行动态</h2>{link('agents', '管理主机')}</header>{hosts.length ? hosts.map(({ id, node }) => {
+        const work = live.filter((run) => run.node_id === id);
+        return <section className="overview-host" key={id} aria-label={node?.name ?? id}><h3>{node?.name ?? id}</h3><p>{node?.revoked ? '已撤销' : work.some((run) => run.state === 'lost') ? '存在失联实例' : work.length ? '有活动运行记录' : '空闲 · 无活动运行记录'}</p><small>{node ? `${node.platform} · 最后上报 ${time(node.last_seen)} · 在线状态以实际连接为准` : '主机记录未包含在快照中'}</small>{work.length ? <ul>{work.map((run) => <li key={run.id}><button className="overview-run" onClick={() => navigate('runs', run.id)}><strong>{taskTitle(run.task_id)}</strong><span>{run.tool} · {roles[run.kind] ?? run.kind} · {duration(run.elapsed_seconds)}</span><span>{run.state === 'lost' ? '失联 · 未确认静止' : <Status value={run.state} />}</span><small>实例 {run.id}</small></button></li>)}</ul> : <p className="overview-empty">暂无运行实例</p>}</section>;
+      }) : <p className="overview-empty">尚无主机或运行记录</p>}</aside>
+    </div>
+    <nav className="overview-tools" aria-label="项目管理入口">{link('initialization', '初始化')}{link('planning', 'Leader 规划与咨询')}{link('automation', '自动化')}{link('runs', '运行与恢复')}{link('audit', '审计历史')}{link('settings', '项目设置')}</nav>
+  </div>;
 }
