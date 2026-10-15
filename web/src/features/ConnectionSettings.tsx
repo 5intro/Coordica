@@ -82,7 +82,7 @@ export function ConnectionSettings({ client, info, error, loading, reload, proje
 
   return <>
     <SectionTitle eyebrow="08 / CENTER & CONNECTION" title="中心配置与接入" description="在中心电脑管理项目，把一次性接入配置交给其他电脑的 Agent。" actions={<button className="secondary" onClick={reload} disabled={loading}>刷新部署信息</button>} />
-    <Feedback error={error} />
+    <p>接入权限：Owner 在中心管理；节点凭据仅管理所属节点；有限对话凭据不获得任务执行、项目授权或 Owner 权限。远端 TLS 接入不等于 Owner 登录。</p><Feedback error={error} />
     {!info ? <section className="panel"><Empty title={loading ? '正在读取中心部署' : '尚未取得中心部署信息'}>中心部署信息需要当前 owner 凭据。</Empty></section> : <>
       <div className="settings-grid connection-settings">
         <section className="panel"><h2>当前中心部署</h2><dl className="facts">
