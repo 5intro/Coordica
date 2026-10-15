@@ -25,6 +25,20 @@ describe('Overview factual work lists', () => {
     expect(screen.queryByRole('region', { name: '人工待办' })).toBeNull();
   });
 
+  it('keeps the complete goal available through a labelled disclosure', () => {
+    const objective = '完整目标：' + '保留可展开的需求上下文。'.repeat(30);
+    show({ ...centerSnapshot, planning_document: { ...emptyGoal, objective } });
+    const toggle = screen.getByRole('button', { name: '展开目标' });
+    const target = document.getElementById(toggle.getAttribute('aria-controls')!);
+    expect(target?.textContent).toBe(objective);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(toggle);
+    expect(screen.getByRole('button', { name: '收起目标' }).getAttribute('aria-expanded')).toBe('true');
+    expect(target?.textContent).toBe(objective);
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('collapses human work for ordinary holds and running work; shows actionable drafts and lost runs', () => {
     const view = render(<Overview snapshot={{ ...centerSnapshot, tasks: [{ ...localTask, hold_reason: '等待依赖' }], runs: [localRun] }} navigate={vi.fn()} />);
     expect(screen.queryByRole('region', { name: '人工待办' })).toBeNull();
