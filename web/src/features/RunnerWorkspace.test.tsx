@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalClient } from '../api/localClient';
 import { nodeSnapshot, localRun } from '../test/nodeSnapshot';
@@ -66,6 +66,88 @@ describe('local Runner workbench', () => {
     render(<RunnerWorkspace client={client} />);
     await screen.findByText('失联 · 未确认停止');
     expect(screen.queryByText('实现中')).toBeNull();
+  });
+
+  it('collapses all tool diagnostics while keeping executions, pause and connection errors visible', async () => {
+    const client = new LocalClient();
+    const capabilities = Array.from({ length: 6 }, (_, index) => ({
+      ...nodeSnapshot.node.capabilities![0], tool: `tool-${index}`, available: index < 2,
+      version: `version-${index}`, protocol: `protocol-${index}`,
+      structured: index % 2 === 0, cancel: index % 2 === 0, review: index % 2 === 0,
+      read_only: index % 2 !== 0, resume: index % 2 !== 0,
+      detail: `tool-${index}: version detected; protocol/capabilities declared; raw diagnostic`,
+    }));
+    vi.spyOn(client, 'snapshot').mockResolvedValueOnce({
+      ...nodeSnapshot, project_paused: true, node: { ...nodeSnapshot.node, capabilities },
+      runs: [localRun, { ...localRun, id: 'cancel-run', state: 'cancel_requested' },
+        { ...localRun, id: 'lost-run', state: 'lost' },
+        { ...localRun, id: 'failed-run', state: 'failed', quiescent: false }],
+    }).mockRejectedValueOnce(new Error('中心离线'));
+    const { container } = render(<RunnerWorkspace client={client} />);
+    const summary = await screen.findByText('工具能力与诊断 · 2 项可用');
+    const details = summary.closest('details')!;
+    expect(details.open).toBe(false);
+    // Model native details visibility: closed groups contribute only their summary text.
+    const visibleText = () => {
+      const copy = container.cloneNode(true) as HTMLElement;
+      copy.querySelectorAll('details:not([open])').forEach((group) => {
+        group.replaceChildren(group.querySelector('summary')!);
+      });
+      return copy.textContent!;
+    };
+    for (const capability of capabilities) {
+      expect(visibleText()).not.toContain(capability.detail);
+      expect(visibleText()).not.toContain(capability.version);
+    }
+    expect(screen.getAllByRole('row')).toHaveLength(5);
+    expect(visibleText()).toContain('规范化问候姓名');
+    expect(visibleText()).toContain('未确认静止');
+    expect(visibleText()).toContain('失联 · 未确认停止');
+    expect(visibleText()).toContain('中心项目已暂停');
+    expect(visibleText()).toContain('Coordica · 本机Runner');
+    fireEvent.click(screen.getByRole('button', { name: '刷新 ↻' }));
+    await screen.findByRole('alert');
+    expect(visibleText()).toContain('中心离线');
+    expect(visibleText()).toContain('上次成功取得的状态');
+    expect(screen.getAllByRole('row')).toHaveLength(5);
+    expect(details.open).toBe(false);
+    fireEvent.click(summary);
+    expect(details.open).toBe(true);
+    for (const capability of capabilities) {
+      expect(visibleText()).toContain(capability.detail);
+      expect(visibleText()).toContain(capability.version);
+      expect(visibleText()).toContain(`协议：${capability.protocol}`);
+    }
+    expect(within(details).getAllByText('探测可用')).toHaveLength(2);
+    expect(within(details).getAllByText('探测不可用')).toHaveLength(4);
+    expect(within(details).getAllByText('结构化输出：支持 · 取消：支持 · 独立评审：支持')).toHaveLength(3);
+    expect(within(details).getAllByText('结构化输出：未声明 · 取消：未声明 · 独立评审：未声明')).toHaveLength(3);
+    expect(within(details).getAllByText('只读：支持 · 恢复：支持')).toHaveLength(3);
+    expect(within(details).getAllByText('只读：未声明 · 恢复：未声明')).toHaveLength(3);
+  });
+
+  it('keeps empty and unavailable capability reports truthful without empty version placeholders', async () => {
+    const client = new LocalClient();
+    vi.spyOn(client, 'snapshot').mockResolvedValueOnce({
+      ...nodeSnapshot, node: { ...nodeSnapshot.node, capabilities: [] },
+    }).mockResolvedValueOnce({
+      ...nodeSnapshot, node: { ...nodeSnapshot.node, capabilities: [{
+        ...nodeSnapshot.node.capabilities![0], available: false, version: '', protocol: '',
+        detail: 'probe failed: executable missing',
+      }] },
+    });
+    render(<RunnerWorkspace client={client} />);
+    const summary = await screen.findByText('工具能力与诊断 · 0 项可用');
+    const details = summary.closest('details')!;
+    expect(details.open).toBe(false);
+    fireEvent.click(summary);
+    expect(within(details).getByText('尚未报告 Agent 工具能力。')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '刷新 ↻' }));
+    await screen.findByText('probe failed: executable missing');
+    expect(within(details).getByText('探测不可用')).toBeTruthy();
+    expect(within(details).queryByText('版本未知')).toBeNull();
+    expect(within(details).queryByText(/协议未报告/)).toBeNull();
+    expect(screen.getByText('规范化问候姓名')).toBeTruthy();
   });
 
   it('preserves a failed requirement draft for retry and clears it only after a receipt', async () => {

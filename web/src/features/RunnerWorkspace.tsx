@@ -56,15 +56,22 @@ export function RunnerWorkspace({ client: providedClient, centerConsoleURL }: { 
             <section className="panel runner-node-summary">
               <div className="subheading"><h2>{node?.name}</h2><span className={`status ${node?.revoked ? 'red' : 'neutral'}`}>{node?.revoked ? '已撤销' : node?.platform}</span></div>
               <p className="muted">并发容量 {node?.capacity} · 最后上报 {time(node?.last_seen)} · {error ? '显示上次上报状态' : activeRuns.length ? `${activeRuns.length} 项执行或待确认活动` : '当前空闲，等待自动领取任务'}</p>
-              <div className="capabilities">{(node?.capabilities ?? []).map((capability) => {
-                const activities = activeRuns.filter((run) => run.tool === capability.tool);
-                const activityLabel = activities.some((run) => run.state === 'lost') ? '失联 · 未确认停止' : activities.some((run) => run.state === 'cancel_requested') ? '正在停止' : activities.length ? `${activities.map(stage).join('、')}中` : capability.available ? '可用 · 空闲' : '不可用';
-                return <div key={capability.tool}><strong>{capability.tool}</strong><code>{capability.version || '版本未知'}</code><span className={activities.some((run) => run.state === 'lost') ? 'danger' : capability.available ? 'available' : 'muted'}>{activityLabel}</span><small>{capability.protocol || '协议未报告'} · {capability.structured && capability.cancel ? '可受管执行' : '执行能力不足'} · {capability.review ? '支持独立评审' : '未声明评审'}</small>{capability.detail && <small>{capability.detail}</small>}</div>;
-              })}</div>
-              {!(node?.capabilities ?? []).length && <p className="muted">尚未报告 Agent 工具能力。</p>}
+              <details>
+                <summary>工具能力与诊断 · {(node?.capabilities ?? []).filter((capability) => capability.available).length} 项可用</summary>
+                <div className="capabilities">{(node?.capabilities ?? []).map((capability) => <div key={capability.tool}>
+                  <strong>{capability.tool}</strong>
+                  <span className={capability.available ? 'available' : 'muted'}>{capability.available ? '探测可用' : '探测不可用'}</span>
+                  {capability.version && <code>{capability.version}</code>}
+                  {capability.protocol && <small>协议：{capability.protocol}</small>}
+                  <small>结构化输出：{capability.structured ? '支持' : '未声明'} · 取消：{capability.cancel ? '支持' : '未声明'} · 独立评审：{capability.review ? '支持' : '未声明'}</small>
+                  <small>只读：{capability.read_only ? '支持' : '未声明'} · 恢复：{capability.resume ? '支持' : '未声明'}</small>
+                  {capability.detail && <small>{capability.detail}</small>}
+                </div>)}</div>
+                {!(node?.capabilities ?? []).length && <p className="muted">尚未报告 Agent 工具能力。</p>}
+              </details>
             </section>
             <section className="panel run-history"><div className="subheading"><h2>执行活动</h2><span className="count">{runs.length} 个 Run</span></div>
-              {runs.length ? <div className="table-scroll"><table><thead><tr><th>任务 / Agent</th><th>阶段</th><th>状态</th><th>用量 / 授予</th><th>租约截止</th><th>进程</th></tr></thead><tbody>{runs.map((run) => <tr key={run.id}><td><strong>{(snapshot.tasks ?? []).find((task) => task.id === run.task_id)?.title ?? '未命名任务'}</strong><small>{run.tool}</small><details className="run-detail"><summary>技术详情</summary><code>{run.id}</code><p>{run.detail || '中心尚无补充记录。'}</p><code>B {run.base || '未记录'}<br />H {run.head || '未记录'}</code><p>开始 {time(run.started_at)}{run.finished_at ? ` · 结束 ${time(run.finished_at)}` : ''}</p></details></td><td>{stage(run)}</td><td><Status value={run.state} /></td><td>{duration(run.elapsed_seconds)}<small>/ {duration(run.grant_seconds)}</small></td><td>{time(run.lease_until)}</td><td><span className={`status ${run.quiescent ? 'green' : 'neutral'}`}>{run.quiescent ? '已确认静止' : '未确认静止'}</span></td></tr>)}</tbody></table></div> : <Empty title="本机尚无实际运行">Runner 会自动领取符合本机能力的获批任务。</Empty>}
+              {runs.length ? <div className="table-scroll"><table><thead><tr><th>任务 / Agent</th><th>阶段</th><th>状态</th><th>用量 / 授予</th><th>租约截止</th><th>进程</th></tr></thead><tbody>{runs.map((run) => <tr key={run.id}><td><strong>{(snapshot.tasks ?? []).find((task) => task.id === run.task_id)?.title ?? '未命名任务'}</strong><small>{run.tool}</small><details className="run-detail"><summary>技术详情</summary><code>{run.id}</code><p>{run.detail || '中心尚无补充记录。'}</p><code>B {run.base || '未记录'}<br />H {run.head || '未记录'}</code><p>开始 {time(run.started_at)}{run.finished_at ? ` · 结束 ${time(run.finished_at)}` : ''}</p></details></td><td>{stage(run)}{(run.state === 'starting' || run.state === 'running') && '中'}</td><td><Status value={run.state} />{run.state === 'lost' && !run.quiescent && <small className="danger">失联 · 未确认停止</small>}</td><td>{duration(run.elapsed_seconds)}<small>/ {duration(run.grant_seconds)}</small></td><td>{time(run.lease_until)}</td><td><span className={`status ${run.quiescent ? 'green' : 'neutral'}`}>{run.quiescent ? '已确认静止' : '未确认静止'}</span></td></tr>)}</tbody></table></div> : <Empty title="本机尚无实际运行">Runner 会自动领取符合本机能力的获批任务。</Empty>}
             </section>
           </> : <>
             <SectionTitle title="向中心提交需求" />
@@ -73,7 +80,7 @@ export function RunnerWorkspace({ client: providedClient, centerConsoleURL }: { 
             <section className="runner-submissions"><div className="subheading"><h2>本机提交记录</h2><span className="count">{requirements.length} 项</span></div>{requirements.length ? <div className="requirement-grid">{requirements.map((requirement) => <article className="panel" key={requirement.id}><div className="record-meta"><details><summary>技术详情</summary><code>{requirement.id}</code></details><span>已记录 · v{requirement.version}</span></div><h2>{requirement.title}</h2><p className="preserve-lines">{requirement.body}</p><small className="muted">提交于 {time(requirement.created_at)}</small></article>)}</div> : <div className="panel"><Empty title="尚未提交需求">本机提交的需求及中心回执会保存在这里。</Empty></div>}</section>
           </>}
         </>}
-        <footer className="workbench-footer"><span>COORDICA / LOCAL RUNNER</span><span>本机活动 · 自动领取 · 需求提交</span></footer>
+        <footer className="workbench-footer"><span>Coordica · 本机Runner</span></footer>
       </main>
     </div>
   </div>;
