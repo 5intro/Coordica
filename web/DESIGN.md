@@ -42,5 +42,10 @@ rounded:
 
 不在普通标题、按钮、选项或可访问名称中使用内部 UID。技术详情默认关闭，仍保留完整证据及关联值供排障。完整 SHA 在真正输入与技术详情显示，业务摘要使用短 SHA。警告随相应动作出现，权限、版本校验、取消、恢复和固定候选证据不因设计变化削弱。
 
-## I 实际验收修正
+## 日常操作与信息层次
 认证使用居中轻量面板，凭据帮助按需展开。健康连接、更新时间和唯一全局刷新在页脚；连接中、失败及旧快照提示保留在正文顶部。设置主分段仅项目、系统、接入，项目下以成组行进入初始化、Leader 规划与咨询、运行恢复和审计。测试套件采用白色内容组与细分隔，名称展开完整只读配置，执行和编辑短按钮保留完整无障碍名称。任务默认行仅标题状态、实际活动和前置数量，预算与完整依赖保留详情。主机显示实际活动和最后上报，不推断在线。Runner 共享样式与权限流程保留。
+
+
+工具能力与原始诊断在本机 Runner 的默认关闭展开区内，按真实探测结果计数；执行活动、失联未静止、暂停与连接错误保持可见。
+
+组件参考：[Apple macOS 设计指南](https://developer.apple.com/design/human-interface-guidelines/designing-for-macos/)、[列表与表格](https://developer.apple.com/design/human-interface-guidelines/lists-and-tables)、[分段控件](https://developer.apple.com/design/human-interface-guidelines/segmented-controls)。
