@@ -150,3 +150,25 @@ it('removes an already open scope or budget editor when a verification task comp
   expect(screen.queryByRole('button', { name: '批准预算调整' })).toBeNull();
   expect(screen.getByRole('region', { name: '范围请求历史' })).toBeTruthy();
 });
+
+it('groups task title and status without repeating technical identifiers or empty blocks in the list', () => {
+  render(<Tasks snapshot={{ ...centerSnapshot, tasks: [{ ...verified, current_candidate_id: 'candidate-raw' }] }} client={client} refresh={refresh} />);
+  const list = within(screen.getByRole('region', { name: '任务列表' }));
+  expect(list.queryByText(verified.id)).toBeNull();
+  expect(list.queryByText('candidate-raw')).toBeNull();
+  expect(list.queryByText(/无.*阻断/)).toBeNull();
+  expect(list.getByRole('link', { name: '查看当前候选 →' }).getAttribute('href')).toBe('#candidates?id=candidate-raw');
+  expect(list.getByRole('button', { name: verified.title }).parentElement?.textContent).toContain('验证完成');
+  expect(list.queryByText('技术详情')).toBeNull();
+  expect(screen.getByText('candidate-raw').closest('details')?.open).toBe(false);
+});
+
+it('translates known task blocks while preserving the raw reason and unknown values', () => {
+  const view = render(<Tasks snapshot={{ ...centerSnapshot, tasks: [{ ...verified, hold_reason: 'scope_requested' }] }} client={client} refresh={refresh} />);
+  expect(within(screen.getByRole('region', { name: '任务列表' })).getByText('阻断原因：请求调整范围')).toBeTruthy();
+  expect(screen.getByText('scope_requested').closest('details')?.open).toBe(false);
+  expect(view.container.querySelector('[class*="eyebrow"]')).toBeNull();
+  view.unmount();
+  render(<Overview snapshot={{ ...centerSnapshot, tasks: [{ ...localTask, hold_reason: 'owner-custom-reason' }] }} navigate={vi.fn()} />);
+  expect(within(screen.getByRole('region', { name: '任务池' })).getByText('阻断原因：owner-custom-reason')).toBeTruthy();
+});

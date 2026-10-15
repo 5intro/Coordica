@@ -90,7 +90,6 @@ input[type=checkbox] { width: 16px; height: 16px; padding: 0; accent-color: var(
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .wordmark { font-family: inherit; color: var(--ink); font-size: 32px; letter-spacing: -.025em; display: flex; align-items: center; gap: 6px; }
 .wordmark-dot { width: 6px; height: 6px; background: var(--subtle); display: inline-block; margin-top: 13px; }
-.eyebrow { display: none; font-size: var(--text-small); line-height: 1.7; letter-spacing: .1em; color: var(--muted); margin-bottom: 12px; }
 .workspace { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: 100vh; }
 .sidebar { background: var(--bone); border-right: 1px solid var(--border); position: sticky; top: 0; height: 100vh; padding: 28px 20px 24px; display: flex; flex-direction: column; }
 .brand-button { padding: 0 10px; margin: 0 0 36px; background: transparent; text-align: left; }
@@ -274,7 +273,6 @@ pre { font: 11px/1.8 'SF Mono', 'Consolas', monospace; white-space: pre-wrap; ov
 .runner-node-summary > p { font-size: 12px; }
 .runner-submissions { margin-top: 32px; }
 .local-center-navigation { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
-.local-center-navigation .eyebrow { margin: 0 10px 4px; }
 .local-center-navigation .nav-item { text-decoration: none; font-size: 12px; }
 .local-workspace-link { display: inline-block; text-decoration: none; margin-bottom: 8px; }
 .connection-settings .facts { margin-bottom: 20px; }
@@ -345,7 +343,6 @@ pre { font: 11px/1.8 'SF Mono', 'Consolas', monospace; white-space: pre-wrap; ov
   .mobile-logout { display: inline; }
   main#main-content { padding: 28px 20px 0; }
   .section-title { align-items: flex-start; flex-direction: column; gap: 18px; margin-bottom: 24px; }
-  .section-title .eyebrow { font-size: var(--text-small); }
   .section-title p { line-height: 1.8; }
   .metrics { margin-bottom: 24px; }
   .metrics > div { padding: 20px; }

@@ -7,18 +7,25 @@ const stateLabels: Record<string, string> = {
   lost: '失联', accepted: '已受理', constructing: '构造中', reviewing: '评审中',
   prechecking: '预检查 · 尚未进入审查', validating: '验证中', ready_to_land: '审查通过 · 待集成', landing: '写入中', dispatching: '已派发',
   landed: '已进入主线', rejected: '已拒绝', invalidated: '已失效', reconciling: '对账中',
-  paused: '已暂停', approve: '评审通过', changes_requested: '需要修改', blocked: '阻塞',
+  paused: '已暂停', approve: '评审通过', changes_requested: '需要修改', blocked: '阻断',
 };
 const green = new Set(['verified', 'integrated', 'succeeded', 'landed', 'approve']);
 const blue = new Set(['executing', 'starting', 'running', 'reviewing', 'validating', 'landing']);
 const red = new Set(['failed', 'lost', 'rejected', 'changes_requested']);
-const warning = new Set(['draft', 'paused', 'blocked', 'cancel_requested', 'changes_requested']);
+const warning = new Set(['draft', 'paused', 'blocked', 'cancel_requested']);
 export const stateLabel = (value: string) => stateLabels[value] ?? value;
 export const platformLabel = (value: string) => {
   const [os, ...architecture] = value.split('/');
   const label = ({ darwin: 'macOS', linux: 'Linux', windows: 'Windows' }[os] ?? os);
   return [label, ...architecture].join('/');
 };
+export const reasonLabel = (value: string) => ({
+  scope: '范围调整', scope_requested: '请求调整范围', scope_wait_stop: '范围调整等待停止核验',
+  human_decision: '等待人工决策', offline: '执行主机离线', baseline_changed: '基线已变化', budget: '预算限制', paused: '已暂停', owner: 'Owner 阻断',
+  task: '任务', run: '运行', candidate: '候选', decision: '决策', scope_request: '范围请求',
+  planning_document: '规划文档', planning_run: '规划运行', unknown_live: '运行状态未知，等待停止核验', critical_test_failure: '关键测试失败', protected_candidate: '受保护候选等待批准', planning_not_ready: '规划尚未就绪', planning_expired: '规划运行已过期', planning_failure: '规划执行失败', invalid_result: '规划结果无效', invalid_plan: '规划方案无效', goal: '目标调整', protected: '受保护变化',
+}[value] ?? value);
+export const categoryLabel = (value: string) => ({ smoke: '冒烟', regression: '回归', 'white-box': '白盒', 'black-box': '黑盒', e2e: '端到端', 'golden-journey': '黄金旅程', 'long-running': '长生命周期' }[value] ?? value);
 export const stageLabel = (value: string) => ({ merge: '合并检查', project: '项目验证', release: '发布回归' }[value] ?? value);
 export const roleLabel = (value: string) => ({ implement: '开发', review: '独立审查', repair: '修复', verification: '测试验证' }[value] ?? value);
 export function Status({ value }: { value: string }) {
@@ -31,8 +38,8 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
 export function Feedback({ error, notice }: { error?: string; notice?: string }) {
   return <>{error && <p className="feedback error" role="alert">{error}</p>}{notice && <p className="feedback notice" role="status">{notice}</p>}</>;
 }
-export function SectionTitle({ eyebrow, title, description, actions }: { eyebrow: string; title: string; description?: string; actions?: ReactNode }) {
-  return <header className="section-title"><div><span className="eyebrow">{eyebrow}</span><h1>{title}</h1>{description && <p>{description}</p>}</div>{actions && <div className="actions">{actions}</div>}</header>;
+export function SectionTitle({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
+  return <header className="section-title"><div><h1>{title}</h1>{description && <p>{description}</p>}</div>{actions && <div className="actions">{actions}</div>}</header>;
 }
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return <label className="field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;

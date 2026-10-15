@@ -148,7 +148,7 @@ it('restores a block history link and filters historical evidence without presen
   await screen.findByText('处理：process tree stopped');
   expect(screen.getByLabelText('阻断历史')).toHaveProperty('value', 'history');
   expect(screen.queryByRole('button', { name: '提交决策处理' })).toBeNull();
-  fireEvent.change(screen.getByLabelText('搜索阻塞'), { target: { value: 'missing' } });
+  fireEvent.change(screen.getByLabelText('搜索阻断'), { target: { value: 'missing' } });
   expect(screen.queryByText('处理：process tree stopped')).toBeNull();
   expect(screen.getByText('没有匹配的决策处理历史。')).toBeTruthy();
 });

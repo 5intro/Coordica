@@ -339,3 +339,16 @@ it('retains a report deep link to the actual failed run', () => {
   expect(container.querySelector('a[href="#testing?run=verification-run"]')).toBeTruthy();
   window.history.replaceState(null, '', '#');
 });
+
+it('shows suite meaning first and keeps exact Owner configuration behind technical details and unchanged on save', async () => {
+  const original = { ...suite, categories: ['smoke', 'regression', 'white-box', 'black-box', 'e2e', 'golden-journey', 'long-running', 'Owner-special'] };
+  const { fetcher } = setup({ ...snapshot, requirements: [{ id: 'req_1', version: 1, title: '真实需求标题', body: '原文', created_at: '' }], test_suites: [original] });
+  expect(screen.getByText(/分类：冒烟、回归、白盒、黑盒、端到端、黄金旅程、长生命周期、Owner-special/)).toBeTruthy();
+  expect(screen.getByRole('link', { name: '真实需求标题 →' }).getAttribute('href')).toBe('#requirements?id=req_1');
+  const output = screen.getByText('测试输出目录：web/node_modules/**、web/*.tsbuildinfo');
+  expect(output.closest('details')?.open).toBe(false);
+  expect(screen.getByText('完整匹配规则：web/**').closest('details')).toBe(output.closest('details'));
+  edit(); save();
+  await waitFor(() => expect(fetcher).toHaveBeenCalled());
+  expect(body(fetcher).suite).toEqual(original);
+});

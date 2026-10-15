@@ -22,7 +22,7 @@ describe('management records', () => {
     const list = within(screen.getByRole('region', { name: '任务列表' }));
     fireEvent.change(screen.getByLabelText('搜索任务'), { target: { value: 'Windows-dsh budget 前置验收' } });
     fireEvent.change(screen.getByLabelText('任务工具'), { target: { value: 'dsh' } });
-    fireEvent.change(screen.getByLabelText('任务阻塞'), { target: { value: 'held' } });
+    fireEvent.change(screen.getByLabelText('任务阻断'), { target: { value: 'held' } });
     expect(list.getByRole('button', { name: localTask.title })).toBeTruthy();
     fireEvent.click(list.getByRole('button', { name: '前置验收 →' }));
     expect(screen.getByRole('heading', { name: '前置验收' })).toBeTruthy();
@@ -48,15 +48,15 @@ describe('management records', () => {
     expect(blockRecords(snapshot).map((row) => row.id)).toEqual(['task:held-task', `run:${localRun.id}`, 'candidate:candidate-fixed']);
     expect(blockRecords({ ...snapshot, tasks: [localTask], runs: [{ ...localRun, state: 'lost', quiescent: true }], candidates: [{ ...candidate, approved_commit: candidate.commit }] })).toEqual([]);
     render(<Blocks client={client} refresh={refresh} snapshot={snapshot} navigate={navigate} />);
-    fireEvent.change(screen.getByLabelText('阻塞来源'), { target: { value: '失联 Run' } });
+    fireEvent.change(screen.getByLabelText('阻断来源'), { target: { value: '失联 Run' } });
     expect(screen.getByText('失联 · 未确认静止')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /核对进程/ }));
     expect(navigate).toHaveBeenCalledWith('runs', localRun.id);
-    fireEvent.change(screen.getByLabelText('阻塞来源'), { target: { value: '固定候选' } });
+    fireEvent.change(screen.getByLabelText('阻断来源'), { target: { value: '固定候选' } });
     fireEvent.click(screen.getByRole('button', { name: /特别批准此 C/ }));
     expect(navigate).toHaveBeenCalledWith('candidates', candidate.id);
-    fireEvent.change(screen.getByLabelText('搜索阻塞'), { target: { value: 'missing' } });
-    expect(screen.getByText('没有匹配阻塞')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('搜索阻断'), { target: { value: 'missing' } });
+    expect(screen.getByText('没有匹配阻断')).toBeTruthy();
   });
 
   it('uses dynamic tools and preserves lost work on revoked nodes with combined filters', () => {
@@ -124,7 +124,7 @@ describe('management records', () => {
 
   it('renders real empty pool states', () => {
     const view = render(<Blocks client={client} refresh={refresh} snapshot={centerSnapshot} navigate={vi.fn()} />);
-    expect(screen.getByText('暂无阻塞记录')).toBeTruthy();
+    expect(screen.getByText('暂无阻断记录')).toBeTruthy();
     view.unmount();
     render(<Agents snapshot={centerSnapshot} client={client} refresh={refresh} navigate={vi.fn()} />);
     expect(screen.getByText('尚无 Agent 节点')).toBeTruthy();

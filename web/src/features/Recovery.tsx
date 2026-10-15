@@ -20,7 +20,7 @@ export function BudgetEditor({ task, client, refresh, onClose }: { task: Task; c
   }
   return <form className="scope-form form-stack" onSubmit={submit}>
     <div className="subheading"><h3>调整预算 · 契约 v{task.version}</h3><button type="button" className="text-button" onClick={onClose}>收起</button></div>
-    <p className="muted">已使用 {duration(task.used_seconds)}、修复 {task.repairs} 轮、重试 {task.retries} 次会保留。完成后仍需显式恢复被阻塞的任务。</p>
+    <p className="muted">已使用 {duration(task.used_seconds)}、修复 {task.repairs} 轮、重试 {task.retries} 次会保留。完成后仍需显式恢复被阻断的任务。</p>
     <div className="form-grid">
       <Field label="任务累计预算（小时）"><input name="hours" type="number" required min={Math.max(task.used_seconds + task.reserved_seconds, 1) / 3600} max="8760" step="any" defaultValue={task.budget_seconds / 3600} /></Field>
       <Field label="修复轮数上限"><input name="repairs" type="number" required min={task.repairs} max="100" step="1" defaultValue={task.max_repairs} /></Field>

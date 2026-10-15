@@ -51,7 +51,7 @@ it.each([
   { page: '需求池', route: 'requirements', search: '搜索需求', query: '黄金', filter: '需求历史', value: 'active', item: '黄金旅程需求', link: '需求永久链接', id: 'journey-requirement' },
   { page: '任务池', route: 'tasks', search: '搜索任务', query: '黄金', filter: '任务筛选', value: 'active', item: task.title, link: '任务永久链接', id: task.id },
   { page: '审查池', route: 'candidates', search: '搜索审查', query: '黄金', filter: '审查筛选', value: 'all', item: /黄金旅程任务/, link: '审查永久链接', id: candidate.id },
-  { page: '阻断池', route: 'blocks', search: '搜索阻塞', query: '人工', filter: '阻断历史', value: 'active', item: '任务 hold', link: '阻断永久链接', id: `task:${task.id}` },
+  { page: '阻断池', route: 'blocks', search: '搜索阻断', query: '人工', filter: '阻断历史', value: 'active', item: '任务阻断', link: '阻断永久链接', id: `task:${task.id}` },
 ])('从 Dock 浏览$page，筛选后进入详情并通过历史与 Dock 返回', async ({ page, route, search, query, filter, value, item, link, id }) => {
   start();
   await screen.findByRole('heading', { name: centerSnapshot.project!.name });

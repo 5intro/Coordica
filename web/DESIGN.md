@@ -25,3 +25,12 @@ Dock 使用 #182236 底、#26344c hover、#dfe8f8 文字；当前项蓝底白字
 结论：实现与代码级检查完成；真实浏览器视觉验收待Root在固定候选上执行。当前工具未提供浏览器能力，不能证明1280×800、320/390px实际渲染、像素密度或键盘浏览器旅程。本地Vitest为jsdom组件测试，不是浏览器E2E；macOS执行不代表Windows/Linux实测。功能边界沿用E与D，不改API、授权或业务状态机。
 
 本轮实际执行：从指定tool-cache复制npm缓存后，npm --prefix web ci --offline --cache "$PWD/.cache/coordica-npm" --no-audit --no-fund 成功（104 packages）；最终 npm --prefix web test -- --maxWorkers=2 为22文件、223测试通过；npm --prefix web run build 成功（TypeScript与Vite），保留对应dist。基础文本token对比计算覆盖正文、辅助文本、蓝色操作、三类状态与Dock，最小5.46:1；这是色值计算，不代替浏览器逐元素检查。已清理本轮node_modules、tsbuildinfo和本地npm缓存。
+
+
+## G：最终验收修正
+
+沿用 Root 已在固定候选完成的桌面 1280×800、手机 390×844/320px 验收方向，不开启新视觉方案。HTML 源 theme-color 与 canvas #f4f6fa 一致，并重新构建 dist。SectionTitle 不再含装饰 eyebrow 参数与 DOM，遗留装饰节点及对应 CSS 已删除；必要凭据、角色与备份位置事实保留。changes_requested 维持红色，移除 warning 集合死项。
+
+任务列表以标题与状态成组，只在实际阻断时显示原因；原始任务、候选、运行标识和阻断值放任务技术详情。当前运行与候选、前置依赖仍可访问，任务已用/预留/上限保持独立有限预算语义。套件列表优先名称、阶段、版本、启用状态、中文分类、平台、失败阻断配置与需求标题深链接；完整匹配规则、输出目录、检查命令与原始分类、ID 按需展开。分类显示映射不改 Owner 值，未修改分类时保存保留原数组顺序。已知阻断与决策种类中文显示，未知值原样；不改变待办集合及后台状态。
+
+实际验证：按指定离线缓存执行 npm ci 成功；最终 `npm --prefix web test -- --maxWorkers=2` 为 22 文件、226 测试通过，包含新增任务信息分组、原始阻断值保留、需求标题链接和 Owner 套件完整载荷回归；`npm --prefix web run build` 成功并保留匹配 dist；Impeccable detect 返回 []。原有授权、恢复、取消、准备停止及咨询丢 ACK 断言保留，行为查询随中文术语同步。本轮未执行真实浏览器 E2E 或 Windows/Linux 实测；最终浏览器确认由 Root 完成。清理本次 node_modules、tsbuildinfo 与 npm 缓存。

@@ -48,7 +48,7 @@ describe('read-only scope request facts', () => {
     const navigate = vi.fn();
     render(<Blocks snapshot={state} client={client} refresh={vi.fn()} navigate={navigate} />);
     const history = screen.getByRole('region', { name: '范围请求历史' });
-    expect(history.textContent).toContain('阻塞');
+    expect(history.textContent).toContain('阻断');
     expect(history.textContent).toContain('Need the shared parser');
     expect(history.textContent).toContain('契约 v8');
     fireEvent.click(within(history).getByRole('link', { name: /原始 Run/ }));

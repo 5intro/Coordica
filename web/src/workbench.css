@@ -12,7 +12,6 @@ main#main-content { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
 .pool-switch, .settings-switch { flex-direction: row; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
 .pool-switch button, .settings-switch button { background: transparent; padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 13px; }
 .pool-switch [aria-current=page], .settings-switch [aria-current=page] { background: var(--selection); border-bottom-color: var(--accent); color: var(--accent-hover); }
-.workspace .section-title .eyebrow { display: none; }
 .workspace .section-title h1 { margin-top: 0; }
 [hidden] { display: none !important; }
 .workspace input::placeholder, .workspace textarea::placeholder { color: var(--muted); }
@@ -57,3 +56,6 @@ main#main-content { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
 /* Legacy mobile nav margins extended 20px beyond the new 16px page inset. */
 .workspace .pool-switch, .workspace .settings-switch, .workspace .overview-tools { margin-inline: 0; }
 @media (min-width: 641px) { .workspace main#main-content { padding-top: 28px; } }
+
+.task-row-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
+.task-row-heading .text-button { text-align: left; white-space: normal; }
