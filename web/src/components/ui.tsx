@@ -2,16 +2,24 @@ import type { ReactNode } from 'react';
 
 const stateLabels: Record<string, string> = {
   draft: '待批准', ready: '可执行', executing: '执行中', awaiting_integration: '待集成',
-  integrated: '已集成', cancelled: '已取消', starting: '启动中', running: '运行中',
+  verified: '验证完成', integrated: '已集成', cancelled: '已取消', starting: '启动中', running: '运行中',
   cancel_requested: '正在停止', stopped: '已停止', succeeded: '执行完成', failed: '失败',
   lost: '失联', accepted: '已受理', constructing: '构造中', reviewing: '评审中',
   prechecking: '预检查 · 尚未进入审查', validating: '验证中', ready_to_land: '审查通过 · 待集成', landing: '写入中', dispatching: '已派发',
   landed: '已进入主线', rejected: '已拒绝', invalidated: '已失效', reconciling: '对账中',
   paused: '已暂停', approve: '评审通过', changes_requested: '需要修改', blocked: '阻塞',
 };
-const green = new Set(['integrated', 'succeeded', 'landed', 'approve']);
+const green = new Set(['verified', 'integrated', 'succeeded', 'landed', 'approve']);
 const blue = new Set(['executing', 'starting', 'running', 'reviewing', 'validating', 'landing']);
 const red = new Set(['failed', 'lost', 'rejected', 'cancelled', 'changes_requested']);
+export const stateLabel = (value: string) => stateLabels[value] ?? value;
+export const platformLabel = (value: string) => {
+  const [os, ...architecture] = value.split('/');
+  const label = ({ darwin: 'macOS', linux: 'Linux', windows: 'Windows' }[os] ?? os);
+  return [label, ...architecture].join('/');
+};
+export const stageLabel = (value: string) => ({ merge: '合并检查', project: '项目验证', release: '发布回归' }[value] ?? value);
+export const roleLabel = (value: string) => ({ implement: '开发', review: '独立审查', repair: '修复', verification: '测试验证' }[value] ?? value);
 export function Status({ value }: { value: string }) {
   const tone = green.has(value) ? 'green' : blue.has(value) ? 'blue' : red.has(value) ? 'red' : 'neutral';
   return <span className={`status ${tone}`}>{stateLabels[value] ?? value}</span>;

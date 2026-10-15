@@ -1,5 +1,5 @@
-import type { FormEvent } from 'react';
-import type { BudgetRequest, Run, StopConfirmation, Task } from '../api.generated';
+import { useState, type FormEvent } from 'react';
+import type { BudgetRequest, Run, StopConfirmation, Task, Snapshot } from '../api.generated';
 import { ApiClient } from '../api/client';
 import { Feedback, Field, duration } from '../components/ui';
 import { useAction } from '../hooks/useAction';
@@ -47,5 +47,51 @@ export function StopConfirmationForm({ run, client, refresh, onClose, onRecorded
     <Field label="实际检查证据" hint="记录在哪台电脑、如何确认进程已经静止。"><textarea name="evidence" required rows={3} /></Field>
     <Feedback {...action} />
     <button className="primary align-end" disabled={action.busy}>记录已停止证据</button>
+  </form>;
+}
+
+// Owner observations and retries remain separate versioned mutations. A successful
+// observation never locally manufactures the center's preparation_stopped fact.
+export function PreparationRecovery({ task, snapshot, client, refresh }: { task: Task; snapshot: Snapshot; client: ApiClient; refresh: () => void }) {
+  const action = useAction(refresh);
+  const candidate = snapshot.candidates?.find((item) => item.id === task.current_candidate_id && item.task_id === task.id);
+  if (task.verification || task.state !== 'awaiting_integration' || !candidate || candidate.state !== 'rejected' || candidate.commit) return null;
+  const source = snapshot.runs?.find((run) => run.id === candidate.source_run_id);
+  const quiet = !(snapshot.runs ?? []).some((run) => run.task_id === task.id && !run.quiescent);
+  const original = source?.task_id === task.id && source.kind === 'implement' && source.state === 'succeeded' && source.quiescent
+    && !!candidate.base && !!candidate.head && source.base === candidate.base && source.head === candidate.head
+    && source.authorization_version === task.authorization_version && source.policy_version === snapshot.project?.policy_version
+    && source.goal_version === task.goal_version && source.goal_authorization_version === task.goal_authorization_version;
+  const authority = task.approved_version > 0 && task.authorization_version > 0 && candidate.authorization_version === task.authorization_version
+    && candidate.policy_version === snapshot.project?.policy_version && candidate.baseline_version === task.baseline_version && candidate.baseline_digest === task.baseline_digest;
+  const retryable = quiet && !task.current_run_id && original && authority && candidate.preparation_stopped === true
+    && task.retries < task.max_retries && task.used_seconds + task.reserved_seconds < task.budget_seconds
+    && ['', 'paused', 'human_decision'].includes(task.hold_reason);
+  return <details className="detail-section"><summary>高级恢复 · 候选准备失败</summary>
+    <p>仅 Owner 可操作。请在实际执行主机核验准备进程及子进程；此处不会自动判断进程已停止。固定候选的审查或测试拒绝不能通过准备重试处理。</p>
+    {candidate.preparation_stopped === true ? <p>中心已记录准备停止事实。</p> : <PreparationStopObservation key={candidate.id} task={task} quiet={quiet} client={client} refresh={refresh} />}
+
+    {!quiet && <p>仍有 Run 未确认静止，请先核验并使用原运行恢复入口。</p>}
+    <p>重试要求当前原始交付材料、授权与政策有效、Run 静止、准备停止有记录，且预算及重试未耗尽。中心仍将校验不可见的原材料与全部恢复规则。</p>
+    <button className="secondary" disabled={action.busy || !retryable} onClick={() => void action.execute(() => client.write(`/tasks/${encodeURIComponent(task.id)}/retry-integration`, { expected_version: task.version }), '已请求有限准备重试，以中心返回状态为准。')}>重试候选准备</button>
+    <Feedback {...action} />
+  </details>;
+}
+
+function PreparationStopObservation({ task, quiet, client, refresh }: { task: Task; quiet: boolean; client: ApiClient; refresh: () => void }) {
+  const action = useAction(refresh);
+  const [observedVersion, setObservedVersion] = useState(task.version);
+  const [evidence, setEvidence] = useState('');
+  async function record(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!quiet || !evidence.trim()) return;
+    await action.execute(() => client.write(`/tasks/${encodeURIComponent(task.id)}/confirm-preparation-stopped`, { expected_version: observedVersion, evidence: evidence.trim() }), '已记录准备进程停止观察；请刷新核对中心状态后再重试。');
+  }
+  return <form className="form-stack" onSubmit={record}>
+    <p>观察对应任务契约 v{observedVersion}</p>
+    {observedVersion !== task.version && <button type="button" className="text-button" onClick={() => { setObservedVersion(task.version); setEvidence(''); }}>重新核对当前任务版本</button>}
+    <Field label="准备进程停止的实际检查证据"><textarea name="evidence" required maxLength={16384} rows={3} value={evidence} onChange={(event) => setEvidence(event.target.value)} /></Field>
+    <button className="secondary" disabled={action.busy || !quiet || !evidence.trim()}>记录准备进程已停止观察</button>
+    <Feedback {...action} />
   </form>;
 }
