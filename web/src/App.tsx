@@ -39,8 +39,8 @@ const pages: { id: Page; label: string; number: string }[] = [
 ];
 const poolPages: { id: Page; label: string }[] = [{ id: 'requirements', label: '需求' }, { id: 'tasks', label: '任务' }, { id: 'candidates', label: '审查' }, { id: 'blocks', label: '阻断' }];
 const managementPages: { id: Page; label: string }[] = [
-  { id: 'settings', label: '项目 · 政策与恢复' }, { id: 'automation', label: '系统自动化' }, { id: 'connection', label: '中心配置与接入' },
-  { id: 'initialization', label: '项目初始化' }, { id: 'planning', label: '目标规划与 Leader' }, { id: 'runs', label: '运行与节点' }, { id: 'audit', label: '审计记录' },
+  { id: 'settings', label: '项目' }, { id: 'automation', label: '系统' }, { id: 'connection', label: '接入' },
+  { id: 'initialization', label: '项目初始化' }, { id: 'planning', label: 'Leader 规划与咨询' }, { id: 'runs', label: '运行与恢复' }, { id: 'audit', label: '审计记录' },
 ];
 const dockPages: { id: Page; label: string; short: string }[] = [
   { id: 'overview', label: '总览', short: '总览' }, { id: 'requirements', label: '需求池', short: '需求' },
@@ -147,9 +147,11 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
     <a href="#main-content" className="skip-link" onClick={(event) => { event.preventDefault(); document.getElementById('main-content')?.focus(); }}>跳转到主要内容</a>
     <div className="main-shell">
       <main id="main-content" tabIndex={-1}>
-        <div className="workspace-status"><span>{error ? '中心连接异常' : loading ? '正在连接中心' : '中心已连接'} · {updatedAt ? time(updatedAt) : '等待快照'}</span><button className="text-button" onClick={() => { refresh(); connection.reload(); }} aria-label="刷新中心状态">刷新状态</button></div>
+        {(error || loading) && <div className="workspace-status"><span>{error ? '中心连接异常' : loading ? '正在连接中心' : '中心已连接'} · {updatedAt ? time(updatedAt) : '等待快照'}</span></div>}
         {['requirements', 'tasks', 'candidates', 'blocks'].includes(page) && <nav className="pool-switch" aria-label="工作池切换">{poolPages.map((item) => <button key={item.id} aria-current={page === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}>{item.label}</button>)}</nav>}
-        {['settings', 'automation', 'connection', 'initialization', 'planning', 'audit', 'runs'].includes(page) && <nav className="settings-switch" aria-label="管理与设置">{managementPages.map((item) => <button key={item.id} aria-current={page === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}>{item.label}</button>)}</nav>}
+        {['settings', 'automation', 'connection', 'initialization', 'planning', 'audit', 'runs'].includes(page) && <nav className="settings-switch" aria-label="管理与设置">{managementPages.slice(0, 3).map((item) => <button key={item.id} aria-current={page === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}>{item.label}</button>)}</nav>}
+        {page === 'settings' && <nav className="settings-group settings-links" aria-label="更多项目设置">{managementPages.slice(3).map((item) => <button className="settings-row text-button" key={item.id} onClick={() => navigate(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}</nav>}
+        {managementPages.slice(3).some((item) => item.id === page) && <button className="text-button" onClick={() => navigate('settings')}>返回设置</button>}
         <Feedback error={error ? `${error}${snapshot ? ' 当前显示上次成功取得的状态。' : ''}` : ''} />
         {page === 'connection' ? <ConnectionSettings client={client} {...connection} project={project} openPolicies={() => navigate('settings')} />
           : !snapshot ? <div className="panel connection-panel"><Empty title={loading ? '正在读取中心状态' : '尚未取得中心状态'}>{loading ? '仅显示服务端实际记录。' : '确认 owner token 与中心连接后重试。'}</Empty>{!loading && <div className="actions"><button className="primary" onClick={refresh}>重新连接</button><button className="secondary" onClick={logout}>更换凭据</button></div>}</div>
@@ -169,8 +171,7 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
                 {page === 'audit' && <Audit events={snapshot.events ?? []} />}
                 {page === 'settings' && project && <Settings project={project} client={client} refresh={refresh} />}
               </div>}
-        <div className="workspace-account">{runnerURL && <a className="text-button" href={`${runnerURL}/`}>本机 Runner 默认入口 ↗</a>}<button className="text-button" onClick={logout}>断开工作台</button></div>
-        <footer className="workbench-footer"><span>Coordica {SOURCE_VERSION}</span></footer>
+        <footer className="workbench-footer"><span>Coordica {SOURCE_VERSION}</span>{!error && !loading && <span>中心已连接 · {updatedAt ? time(updatedAt) : '等待快照'}</span>}<button className="text-button" onClick={() => { refresh(); connection.reload(); }} aria-label="刷新中心状态">刷新状态</button>{runnerURL && <a className="text-button" href={`${runnerURL}/`}>本机 Runner ↗</a>}<button className="text-button" onClick={logout}>断开工作台</button></footer>
       </main>
     </div>
     <nav className="workbench-dock" aria-label="工作台页面" onKeyDown={(event) => {

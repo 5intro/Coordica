@@ -101,7 +101,7 @@ it.each(['missing', 'skipped', 'running'] as const)('测试中心不把 %s 当�
   expect(screen.queryByText('评审通过')).toBeNull();
   dock('测试中心');
   await screen.findByRole('heading', { name: '测试中心' });
-  expect(screen.getByText('尚无当前提交的有效就绪查询；未运行、跳过或取消均不算通过。')).toBeTruthy();
+  expect(screen.getByText('尚未查询此提交；未运行、跳过或取消均不算通过。')).toBeTruthy();
   if (state === 'missing') expect(screen.getByText('尚无验证执行记录。')).toBeTruthy();
   else expect(screen.getByText('未记录检查结果，不算通过。')).toBeTruthy();
   fireEvent.change(screen.getByLabelText('完整提交 SHA'), { target: { value: sha } });

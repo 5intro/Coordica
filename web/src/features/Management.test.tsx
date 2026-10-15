@@ -17,15 +17,16 @@ const candidate: Candidate = { baseline_version: 1, baseline_digest: 'fixture', 
 const snapshot: Snapshot = { ...centerSnapshot, tasks: [{ ...localTask, state: 'awaiting_integration', current_candidate_id: candidate.id, hold_reason: '' }, { ...localTask, id: 'held-task', hold_reason: 'budget' }], nodes: [nodeSnapshot.node], runs: [{ ...localRun, state: 'lost' }], candidates: [candidate] };
 
 describe('management records', () => {
-  it('combines task search, state, tool and hold filters and keeps dependencies selectable', () => {
+  it('combines task search, state, tool and hold filters and keeps dependencies selectable', async () => {
     render(<Tasks snapshot={{ ...snapshot, tasks: [{ ...snapshot.tasks![0], hold_reason: 'budget', dependencies: ['dep'] }, { ...localTask, id: 'dep', title: '前置验收', tool: 'new-tool', state: 'integrated', current_run_id: '', hold_reason: '' }] }} client={client} refresh={refresh} />);
     const list = within(screen.getByRole('region', { name: '任务列表' }));
     fireEvent.change(screen.getByLabelText('搜索任务'), { target: { value: 'Windows-dsh budget 前置验收' } });
     fireEvent.change(screen.getByLabelText('任务工具'), { target: { value: 'dsh' } });
     fireEvent.change(screen.getByLabelText('任务阻断'), { target: { value: 'held' } });
     expect(list.getByRole('button', { name: localTask.title })).toBeTruthy();
-    fireEvent.click(list.getByRole('button', { name: '前置验收 →' }));
-    expect(screen.getByRole('heading', { name: '前置验收' })).toBeTruthy();
+    fireEvent.click(list.getByRole('button', { name: '1 项前置 →' }));
+    fireEvent.click(screen.getByRole('link', { name: '前置验收 →' }));
+    await screen.findByRole('heading', { name: '前置验收' });
     fireEvent.change(screen.getByLabelText('任务筛选'), { target: { value: 'integrated' } });
     expect(list.getByText('没有匹配任务')).toBeTruthy();
   });

@@ -19,7 +19,7 @@ describe('Overview factual work lists', () => {
     expect(screen.getByRole('heading', { level: 1, name: '协作项目' })).toBeTruthy();
     expect(screen.getByText('交付真实工作列表')).toBeTruthy();
     expect(screen.getByText('已暂停')).toBeTruthy();
-    expect(screen.getByText('任务进度：1 / 2 已完成（集成或验证）；取消 0 项不计入')).toBeTruthy();
+    expect(screen.getByText('1/2 已完成')).toBeTruthy();
     fireEvent.click(screen.getByRole('link', { name: '提交需求' }));
     expect(navigate).toHaveBeenCalledWith('requirements', undefined);
     expect(screen.queryByRole('region', { name: '人工待办' })).toBeNull();

@@ -42,11 +42,11 @@ describe('local page selection', () => {
     window.history.replaceState(null, '', '/#requirements');
     fireEvent(window, new HashChangeEvent('hashchange'));
     await screen.findByRole('heading', { name: '需求池' });
-    if (!screen.queryByRole('button', { name: /中心配置与接入/ })) fireEvent.click(screen.getByRole('button', { name: '设置' }));
-    fireEvent.click(screen.getByRole('button', { name: /中心配置与接入/ }));
+    if (!screen.queryByRole('button', { name: '接入' })) fireEvent.click(screen.getByRole('button', { name: '设置' }));
+    fireEvent.click(screen.getByRole('button', { name: '接入' }));
     await screen.findByRole('heading', { name: '中心配置与接入' });
     expect(window.location.hash).toBe('#connection');
-    expect(screen.getAllByRole('link', { name: '本机 Runner 默认入口 ↗' })[0].getAttribute('href')).toBe('http://127.0.0.1:8081/');
+    expect(screen.getAllByRole('link', { name: '本机 Runner ↗' })[0].getAttribute('href')).toBe('http://127.0.0.1:8081/');
   });
 
   it('preserves Blocks login and task source selection through hash history', async () => {
@@ -91,8 +91,8 @@ describe('local page selection', () => {
     fireEvent.click(setup);
     await screen.findByRole('heading', { name: '建立第一个项目' });
     expect(window.location.hash).toBe('#overview');
-    if (!screen.queryByRole('button', { name: /系统自动化/ })) fireEvent.click(screen.getByRole('button', { name: '设置' }));
-    fireEvent.click(screen.getByRole('button', { name: /系统自动化/ }));
+    if (!screen.queryByRole('button', { name: '系统' })) fireEvent.click(screen.getByRole('button', { name: '设置' }));
+    fireEvent.click(screen.getByRole('button', { name: '系统' }));
     await screen.findByRole('button', { name: '保存系统自动化' });
     expect(screen.getByLabelText('自动化开关')).toHaveProperty('checked', false);
     fireEvent.click(screen.getByRole('button', { name: /Agent 管理/ }));
@@ -172,8 +172,8 @@ it.each([['same-page', 'consult'], ['away-and-back', 'consult'], ['same-page', '
     fireEvent.click(screen.getByRole('button', { name: /任务池/ }));
     await screen.findByRole('heading', { name: '任务池' });
   }
-  if (!screen.queryByRole('button', { name: /目标规划与 Leader/ })) fireEvent.click(screen.getByRole('button', { name: '设置' }));
-    fireEvent.click(screen.getByRole('button', { name: /目标规划与 Leader/ }));
+  if (!screen.queryByRole('button', { name: 'Leader 规划与咨询' })) fireEvent.click(screen.getByRole('button', { name: '设置' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Leader 规划与咨询' }));
   expect(await screen.findByLabelText('纯咨询内容')).toHaveProperty('value', 'Keep this exact private question');
   expect(screen.getByLabelText('纯咨询内容')).toHaveProperty('disabled', true);
   fireEvent.click(screen.getByRole('button', { name: '重试待确认咨询请求' }));

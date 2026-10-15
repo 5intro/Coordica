@@ -247,7 +247,7 @@ pre { font: 11px/1.8 'SF Mono', 'Consolas', monospace; white-space: pre-wrap; ov
 .policy-checks small { color: var(--muted); font-size: var(--text-small); }
 .backup-result { margin-top: 24px; }
 .backup-result > code { display: block; padding: 12px; background: var(--subtle); border-radius: 4px; }
-.workbench-footer { padding: 32px 0 24px; margin-top: 48px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; color: var(--muted); font-size: var(--text-small); letter-spacing: .07em; }
+.workbench-footer { padding: 32px 0 24px; margin-top: 48px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; color: var(--muted); font-size: var(--text-small); letter-spacing: normal; }
 .connection-panel { max-width: 750px; }
 .connection-panel .actions { justify-content: center; padding-bottom: 10px; }
 .local-entry { max-width: 600px; margin: 12vh auto; padding: 24px; }
@@ -273,18 +273,13 @@ pre { font: 11px/1.8 'SF Mono', 'Consolas', monospace; white-space: pre-wrap; ov
 .connection-generated .actions { margin-top: 16px; }
 .certificate-details { margin-top: 20px; font-size: 12px; }
 .certificate-details pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-small); line-height: 1.7; }
-.login-layout { min-height: 100vh; display: grid; grid-template-columns: 1.15fr 1fr; background: white; }
-.login-intro { padding: 50px 64px; background: var(--bone); border-right: 1px solid var(--border); display: flex; flex-direction: column; justify-content: space-between; }
-.login-intro > div { margin: 80px 0; }
-.login-intro h1 { font-family: inherit; font-size: var(--text-title); font-weight: 400; letter-spacing: -.025em; line-height: 1.4; }
-.login-intro p { color: var(--muted); line-height: 2; font-size: 13px; margin-top: 28px; }
-.login-intro > small { color: var(--muted); font-size: var(--text-small); }
-.login-form { width: 100%; max-width: 470px; margin: auto; padding: 40px; }
-.login-form h2 { font-size: 28px; margin-bottom: 12px; }
-.login-form > p { font-size: 12px; }
-.login-form form { display: flex; flex-direction: column; gap: 24px; margin-top: 32px; }
-.login-form .primary { margin-top: 4px; display: flex; justify-content: space-between; }
-.login-form .checkbox { font-size: var(--text-small); color: var(--muted); }
+.login-layout { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--bone); }
+.login-form { width: 100%; max-width: 400px; padding: 32px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.login-form h1 { font-size: 24px; margin: 24px 0; }
+.login-form form { display: flex; flex-direction: column; gap: 12px; }
+.login-form .checkbox { font-size: var(--text-small); }
+.login-form details { margin-top: 24px; font-size: var(--text-small); }
+
 .skip-link { position: fixed; top: -80px; left: 15px; z-index: 100; background: var(--ink); color: white; padding: 12px; }
 .skip-link:focus { top: 10px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
@@ -313,7 +308,6 @@ pre { font: 11px/1.8 'SF Mono', 'Consolas', monospace; white-space: pre-wrap; ov
   .requirement-grid, .node-grid, .settings-grid { grid-template-columns: 1fr; }
   .policy-panel { grid-column: auto; }
   .policy-checks { grid-template-columns: 1fr; }
-  .login-intro { padding: 40px; }
   .login-form { padding: 32px; }
 }
 @media (max-width: 680px) {
@@ -341,12 +335,7 @@ pre { font: 11px/1.8 'SF Mono', 'Consolas', monospace; white-space: pre-wrap; ov
   .capabilities > div > small { grid-row: 3; }
   .commit-grid > div { grid-template-columns: 80px minmax(0, 1fr); gap: 10px; }
   .commit-grid dt span { display: block; margin-left: 0; margin-top: 4px; }
-  .login-layout { display: block; }
-  .login-intro { min-height: 380px; padding: 28px; border-right: 0; border-bottom: 1px solid var(--border); }
-  .login-intro > div { margin: 40px 0; }
-  .login-intro h1 { font-size: var(--text-title); }
-  .login-intro > small { display: none; }
-  .login-intro p { margin-top: 20px; margin-bottom: 0; font-size: 12px; }
+  .login-layout { display: grid; }
   .login-form { padding: 32px 28px 40px; }
   .workbench-footer { margin-top: 32px; padding: 24px 0; font-size: var(--text-small); }
 }

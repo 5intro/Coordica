@@ -42,8 +42,20 @@
   .testing-center dd { margin-bottom: 10px; }
 }
 
-.testing-columns { display: flex; justify-content: space-between; padding: 8px 12px; background: var(--subtle); border-block: 1px solid var(--border); font-size: 12px; color: var(--muted); }
-.suite-list > li { padding-inline: 12px; }
-.suite-list .actions { flex-shrink: 0; }
-.suite-list > li > div:first-child > p { display: inline; margin-right: 12px; font-size: 13px; color: var(--muted); }
+.suite-group { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.testing-columns, .testing-center .suite-list > li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, .5fr) auto; gap: 16px; padding: 10px 16px; align-items: center; }
+.testing-columns { background: var(--subtle); font-size: 12px; color: var(--muted); }
+.testing-center .suite-list > li { min-height: 72px; background: var(--surface); }
+.testing-center .suite-list > li:last-child { border-bottom: 0; }
+.testing-center .suite-detail { margin: 0; }
+.testing-center .suite-detail summary { min-height: 0; }
+.suite-detail summary small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.suite-detail small, .suite-state small { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.suite-list .actions { flex-wrap: nowrap; gap: 8px; }
+.suite-list .actions button { padding: 6px 10px; min-height: 32px; }
 .testing-run > details > summary { padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
+@media (max-width: 680px) {
+  .testing-columns { display: none; }
+  .testing-center .suite-list > li { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 12px; min-height: 112px; }
+  .suite-detail { grid-column: 1 / -1; }
+}
