@@ -148,6 +148,14 @@ func runRunner(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	if err = runner.ValidateHTTPSProxy(cfg.HTTPSProxy); err != nil {
+		return err
+	}
+	if cfg.HTTPSProxy != "" {
+		if err = os.Setenv("HTTPS_PROXY", cfg.HTTPSProxy); err != nil {
+			return err
+		}
+	}
 	// Restore only the initialization-time PATH, not arbitrary model credentials.
 	if cfg.RuntimePath != "" {
 		if err = os.Setenv("PATH", cfg.RuntimePath); err != nil {

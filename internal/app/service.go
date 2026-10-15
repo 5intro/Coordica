@@ -202,6 +202,9 @@ func (s *Service) snapshot(ctx context.Context, a Actor, eventLimit int) (domain
 		if v.Candidates, err = store.List[domain.Candidate](tx, "candidate"); err != nil {
 			return err
 		}
+		if v.TestSuites, err = store.List[domain.TestSuite](tx, "test_suite"); err != nil {
+			return err
+		}
 		if v.Nodes, err = store.List[domain.Node](tx, "node"); err != nil {
 			return err
 		}
@@ -299,6 +302,9 @@ func (s *Service) CreateTask(ctx context.Context, a Actor, key string, t domain.
 	if err := owner(a); err != nil {
 		return nil, err
 	}
+	if t.Verification != nil {
+		return nil, domain.Fail("invalid_input", "use the versioned test-suite operation to create verification tasks")
+	}
 	if t.BudgetSeconds == 0 {
 		t.BudgetSeconds = 14400
 	}
@@ -328,7 +334,10 @@ func (s *Service) CreateTask(ctx context.Context, a Actor, key string, t domain.
 				return nil, domain.Fail("invalid_input", "关联需求不存在")
 			}
 		}
-		clean := domain.Task{ID: ID("task_"), Version: 1, Title: t.Title, Description: t.Description, Acceptance: t.Acceptance, RequirementIDs: t.RequirementIDs, Dependencies: t.Dependencies, AllowedPaths: t.AllowedPaths, HotResources: t.HotResources, Tool: t.Tool, State: "draft", AuthorizationVersion: 1, BudgetSeconds: t.BudgetSeconds, MaxRunSeconds: t.MaxRunSeconds, MaxRepairs: t.MaxRepairs, MaxRetries: t.MaxRetries, CreatedAt: s.Now()}
+		if e := validateTestRunLink(tx, t.TestRunID); e != nil {
+			return nil, e
+		}
+		clean := domain.Task{ID: ID("task_"), Version: 1, Title: t.Title, Description: t.Description, Acceptance: t.Acceptance, RequirementIDs: t.RequirementIDs, Dependencies: t.Dependencies, AllowedPaths: t.AllowedPaths, HotResources: t.HotResources, Tool: t.Tool, State: "draft", AuthorizationVersion: 1, BudgetSeconds: t.BudgetSeconds, MaxRunSeconds: t.MaxRunSeconds, MaxRepairs: t.MaxRepairs, MaxRetries: t.MaxRetries, CreatedAt: s.Now(), TestRunID: t.TestRunID}
 		if err := tx.Put("task", clean.ID, clean); err != nil {
 			return nil, err
 		}
@@ -363,7 +372,7 @@ func (s *Service) TaskAction(ctx context.Context, a Actor, key, id, action strin
 			t.State = "ready"
 			t.ApprovedVersion = t.Version + 1
 		case "pause":
-			if t.State == "integrated" || t.State == "cancelled" {
+			if domain.TaskFinished(t) {
 				return nil, domain.Fail("conflict", "任务已结束")
 			}
 			t.HoldReason = "paused"
@@ -371,7 +380,7 @@ func (s *Service) TaskAction(ctx context.Context, a Actor, key, id, action strin
 				return nil, err
 			}
 		case "resume":
-			if t.State == "integrated" || t.State == "cancelled" || t.ApprovedVersion == 0 {
+			if domain.TaskFinished(t) || t.ApprovedVersion == 0 {
 				return nil, domain.Fail("conflict", "任务不可恢复")
 			}
 			if e := requireQuiescence(tx, t.ID); e != nil {
@@ -432,7 +441,7 @@ func (s *Service) TaskAction(ctx context.Context, a Actor, key, id, action strin
 				}
 			}
 		case "cancel":
-			if t.State == "integrated" {
+			if t.State == "integrated" || t.State == "verified" {
 				return nil, domain.Fail("conflict", "已集成任务不能以取消回滚代码")
 			}
 			t.State = "cancelled"

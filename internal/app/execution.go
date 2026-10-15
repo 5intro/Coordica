@@ -76,6 +76,9 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			return nil, e
 		}
 		for _, t := range tasks {
+			if t.Verification != nil {
+				continue
+			} // program verification is claimed by the center verifier
 			if t.ApprovedVersion == 0 || t.State == "cancelled" || t.State == "integrated" || t.CurrentRunID != "" || t.HoldReason != "" {
 				continue
 			}
@@ -146,7 +149,7 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 				if e = tx.Get("task", id, &dep); e != nil {
 					return nil, e
 				}
-				if dep.State != "integrated" {
+				if dep.State != "integrated" && dep.State != "verified" {
 					ready = false
 					break
 				}
@@ -508,6 +511,9 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 				c.Version++
 				if review.Verdict == "approve" {
 					c.State = "validating"
+					if c.CheckPlan != nil && c.CheckPlan.PolicyVersion == p.TestPolicyVersion && domain.ChecksPassed(candidateChecks(p, c), c.Checks) && c.CheckRunID != "" {
+						c.State = "ready_to_land"
+					}
 				} else {
 					c.State = "rejected"
 					c.Detail = review.Summary

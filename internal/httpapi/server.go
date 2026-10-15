@@ -179,6 +179,8 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if r.Method == http.MethodGet {
 		switch {
+		case path == "tests/readiness":
+			result, err = s.Service.TestReadiness(ctx, a, r.URL.Query().Get("commit"))
 		case path == "system/host":
 			if s.Host == nil {
 				err = domain.Fail("host_setup_required", "trusted center host configuration required")
@@ -233,6 +235,21 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case path == "tests/suites":
+		var in domain.TestSuiteSave
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.SaveTestSuite(ctx, a, key, in)
+		}
+	case path == "tests/run":
+		var in domain.VerificationRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.StartVerification(ctx, a, key, in)
+		}
+	case len(parts) == 3 && parts[0] == "requirements" && parts[2] == "link":
+		var in domain.RequirementLinkRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.LinkRequirements(ctx, a, key, parts[1], in)
+		}
 	case path == "system/host/initialize" || path == "system/host/start":
 		var in struct{}
 		if err = decodeChat(r, &in); err == nil {

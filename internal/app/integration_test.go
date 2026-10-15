@@ -188,6 +188,11 @@ func (f *itFixture) implement(t *testing.T, path string) domain.Assignment {
 	if err = f.w.Tick(ctx); err != nil {
 		t.Fatal(err)
 	}
+	if f.candidate(t).State == "prechecking" {
+		if err = f.w.Tick(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return assignment
 }
 
@@ -216,9 +221,6 @@ func (f *itFixture) reviewAndValidate(t *testing.T) domain.Assignment {
 	}
 	_, err = f.s.Complete(ctx, f.node, ID("review_"), assignment.Run.ID, domain.CompleteRequest{Generation: assignment.Run.Generation, Status: "succeeded", SessionID: ID("review-session_"), Quiescent: true, Review: &domain.Review{Candidate: candidate.Commit, Verdict: "approve", Summary: "Fixed candidate accepted", Findings: []string{}}})
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err = f.w.Tick(ctx); err != nil {
 		t.Fatal(err)
 	}
 	validated := f.candidate(t)
@@ -298,8 +300,11 @@ func TestIntegrationMainMoveInvalidatesEvidenceAndRebuildsCandidate(t *testing.T
 		t.Fatal(err)
 	}
 	rebuilt := f.candidate(t)
-	if rebuilt.State != "reviewing" || rebuilt.Main != string(d) || rebuilt.Commit == original.Commit || rebuilt.Review != nil || len(rebuilt.Checks) != 0 {
+	if rebuilt.State != "prechecking" || rebuilt.Main != string(d) || rebuilt.Commit == original.Commit || rebuilt.Review != nil || len(rebuilt.Checks) != 0 || rebuilt.CheckRunID != "" {
 		t.Fatalf("new candidate incorrectly reused evidence: %+v", rebuilt)
+	}
+	if err = f.w.Tick(ctx); err != nil {
+		t.Fatal(err)
 	}
 	f.reviewAndValidate(t)
 	if err = f.w.Tick(ctx); err != nil {

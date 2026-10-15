@@ -41,6 +41,7 @@ type backupManifest struct {
 	Git              []backupGit  `json:"git"`
 }
 type backupRecords struct {
+	Tasks              []domain.Task
 	Artifacts          map[string]domain.Artifact
 	CandidateArtifacts map[string]domain.Artifact
 	Candidates         []domain.Candidate
@@ -238,7 +239,7 @@ func readBackupRecords(ctx context.Context, file string, sanitize bool) (backupR
 			return result, err
 		}
 	}
-	rows, err := db.QueryContext(ctx, "SELECT kind,id,data FROM records WHERE kind IN ('artifact','candidate_artifact','candidate','run','intent','planning_run') ORDER BY kind,id")
+	rows, err := db.QueryContext(ctx, "SELECT kind,id,data FROM records WHERE kind IN ('artifact','candidate_artifact','candidate','run','intent','planning_run','task') ORDER BY kind,id")
 	if err != nil {
 		return result, err
 	}
@@ -250,6 +251,12 @@ func readBackupRecords(ctx context.Context, file string, sanitize bool) (backupR
 			return result, err
 		}
 		switch kind {
+		case "task":
+			var task domain.Task
+			if err = json.Unmarshal(b, &task); err != nil {
+				return result, err
+			}
+			result.Tasks = append(result.Tasks, task)
 		case "artifact", "candidate_artifact":
 			var a domain.Artifact
 			if err = json.Unmarshal(b, &a); err != nil {
@@ -310,6 +317,13 @@ func requiredBackupOIDs(records backupRecords) ([]gitops.OID, error) {
 	for _, r := range records.Runs {
 		if err := add(r.Base); err != nil {
 			return nil, err
+		}
+	}
+	for _, task := range records.Tasks {
+		if task.Verification != nil {
+			if err := add(task.Verification.Commit); err != nil {
+				return nil, err
+			}
 		}
 	}
 	for _, c := range records.Candidates {

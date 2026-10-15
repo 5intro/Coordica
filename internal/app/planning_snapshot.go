@@ -53,6 +53,23 @@ func phaseBSnapshot(tx *store.Tx, v *domain.Snapshot) error {
 			v.Blocks = append(v.Blocks, domain.BlockItem{Kind: "run", ObjectID: r.ID, Reason: "unknown_live", Actions: []string{"confirm_stopped"}})
 		}
 	}
+	// Publication independently checks exact M/C. Failed verification tasks
+	// remain visible separately with their pinned versions.
+	commits := []string{}
+	for _, candidate := range v.Candidates {
+		if candidate.State == "ready_to_land" {
+			commits = append(commits, candidate.Main, candidate.Commit)
+		}
+	}
+	if len(commits) != 0 {
+		blockedTests, e := blockingTestFailures(tx, commits...)
+		if e != nil {
+			return e
+		}
+		for _, run := range blockedTests {
+			v.Blocks = append(v.Blocks, domain.BlockItem{Kind: "run", ObjectID: run.ID, Reason: "critical_test_failure", Actions: []string{"inspect_test", "create_repair"}})
+		}
+	}
 	for _, c := range v.Candidates {
 		current := false
 		if v.Project != nil {

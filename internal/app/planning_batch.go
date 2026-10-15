@@ -65,6 +65,9 @@ func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.Plan
 			return domain.Fail("invalid_input", "duplicate or empty local task key")
 		}
 		t := proposalTask(q, settings.DevelopmentTool)
+		if e = validateTestRunLink(tx, t.TestRunID); e != nil {
+			return e
+		}
 		if e = domain.ValidateTask(t); e != nil {
 			return e
 		}
@@ -123,7 +126,7 @@ func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.Plan
 	}
 	allocated := int64(0)
 	for _, t := range existing {
-		if t.GoalVersion == d.Version && t.State != "cancelled" && t.State != "integrated" {
+		if t.GoalVersion == d.Version && !domain.TaskFinished(t) {
 			allocated += t.BudgetSeconds - t.UsedSeconds - t.ReservedSeconds
 		}
 	}
@@ -188,7 +191,7 @@ func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.Plan
 		if e = goalGate(tx, &t, false); e != nil {
 			return e
 		}
-		if t.CurrentRunID != "" || t.CurrentCandidateID != "" || t.State == "integrated" || t.State == "cancelled" {
+		if t.CurrentRunID != "" || t.CurrentCandidateID != "" || domain.TaskFinished(t) {
 			return domain.Fail("conflict", "scope change requires a stopped task without a candidate")
 		}
 		if e = requireQuiescence(tx, t.ID); e != nil {
@@ -303,7 +306,7 @@ func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.Plan
 	return nil
 }
 func proposalTask(q domain.TaskProposal, tool string) domain.Task {
-	return domain.Task{Title: q.Title, Description: q.Objective, Acceptance: q.Acceptance, RequirementIDs: q.RequirementIDs, AllowedPaths: q.Paths, HotResources: q.HotResources, Tool: tool, BudgetSeconds: q.BudgetSeconds, MaxRunSeconds: q.MaxRunSeconds, MaxRepairs: q.MaxRepairs, MaxRetries: q.MaxRetries}
+	return domain.Task{TestRunID: q.TestRunID, Title: q.Title, Description: q.Objective, Acceptance: q.Acceptance, RequirementIDs: q.RequirementIDs, AllowedPaths: q.Paths, HotResources: q.HotResources, Tool: tool, BudgetSeconds: q.BudgetSeconds, MaxRunSeconds: q.MaxRunSeconds, MaxRepairs: q.MaxRepairs, MaxRetries: q.MaxRetries}
 }
 
 func sameStrings(a, b []string) bool {
@@ -324,5 +327,5 @@ func containsPaths(paths, required []string) bool {
 	return true
 }
 func sameTaskProposal(a, b domain.Task) bool {
-	return a.Title == b.Title && a.Description == b.Description && a.Acceptance == b.Acceptance && a.Tool == b.Tool && sameStrings(a.RequirementIDs, b.RequirementIDs) && sameStrings(a.AllowedPaths, b.AllowedPaths) && sameStrings(a.HotResources, b.HotResources) && a.BudgetSeconds == b.BudgetSeconds && a.MaxRunSeconds == b.MaxRunSeconds && a.MaxRepairs == b.MaxRepairs && a.MaxRetries == b.MaxRetries
+	return a.TestRunID == b.TestRunID && a.Title == b.Title && a.Description == b.Description && a.Acceptance == b.Acceptance && a.Tool == b.Tool && sameStrings(a.RequirementIDs, b.RequirementIDs) && sameStrings(a.AllowedPaths, b.AllowedPaths) && sameStrings(a.HotResources, b.HotResources) && a.BudgetSeconds == b.BudgetSeconds && a.MaxRunSeconds == b.MaxRunSeconds && a.MaxRepairs == b.MaxRepairs && a.MaxRetries == b.MaxRetries
 }

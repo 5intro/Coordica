@@ -2,7 +2,7 @@
 
 多电脑、多 Agent 开发协调底座。采用 Go 中心与 Runner、SQLite、React/TypeScript 控制台；Web 产物嵌入中心二进制，无 Redis、消息队列或额外后台运行时。
 
-当前源码版本是 **0.2.3-dev 开发预览版**。已实现固定 Git 候选、独立评审、程序检查和条件发布闭环；实际可下载版本与对应验证记录见 [Releases](https://github.com/5intro/Coordica/releases) 和 [GitHub Actions](https://github.com/5intro/Coordica/actions)。协议模拟测试、跨平台编译和托管 CI 不代表用户电脑上的真实部署验收。
+当前源码版本是 **0.2.4-dev 开发预览版**。已实现固定 Git 候选、独立评审、程序检查和条件发布闭环；实际可下载版本与对应验证记录见 [Releases](https://github.com/5intro/Coordica/releases) 和 [GitHub Actions](https://github.com/5intro/Coordica/actions)。协议模拟测试、跨平台编译和托管 CI 不代表用户电脑上的真实部署验收。
 
 ## 许可与下载
 
@@ -33,9 +33,9 @@ go test -race ./...
 
 `make generate` 从 Go 协议记录生成 `api/v1.schema.json` 与 Web 类型；不手改生成文件。网络输入仍由中心做严格 JSON 解码、领域校验和授权检查。
 
-构建后运行 `./bin/coordica version` 应输出 `0.2.3-dev`；各 MCP 角色的初始化元数据也使用同一发布版本。
+构建后运行 `./bin/coordica version` 应输出 `0.2.4-dev`；各 MCP 角色的初始化元数据也使用同一发布版本。
 
-维护者准备好 `bin/coordica`（macOS arm64）、`bin/coordica-windows-amd64.exe` 和 `bin/coordica-linux-amd64` 后，可运行 `make package`（默认版本 `0.2.3-dev`），或显式运行 `python3 scripts/package-release.py --version 0.2.3-dev`，用 Python 3 标准库生成三个分发包、各平台 `START-HERE.txt` 和 `SHA256SUMS`。脚本校验许可、包内文件及二进制字节；它不构建程序、不上传发布，普通下载用户无需安装 Python。
+维护者准备好 `bin/coordica`（macOS arm64）、`bin/coordica-windows-amd64.exe` 和 `bin/coordica-linux-amd64` 后，可运行 `make package`（默认版本 `0.2.4-dev`），或显式运行 `python3 scripts/package-release.py --version 0.2.4-dev`，用 Python 3 标准库生成三个分发包、各平台 `START-HERE.txt` 和 `SHA256SUMS`。脚本校验许可、包内文件及二进制字节；它不构建程序、不上传发布，普通下载用户无需安装 Python。
 
 ## 可信中心设置与项目初始化（0.2.3-dev）
 
@@ -121,7 +121,7 @@ coordica ctl --center http://127.0.0.1:8080 --token-file /chosen/runtime/center/
 
 当前开发版没有稳定的 Developer ID 分发签名。构建产物变化会改变 ad hoc 签名的 `cdhash`，系统可能重新请求权限，不能保证一次授权跨版本有效；请按实际需要授权，不要为减少弹窗而授予全磁盘访问。[Apple 分发签名说明](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac/)、[DR 身份说明](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements)
 
-已有节点升级保持原数据目录和节点身份，不直接搬动已有数据；材料和仓库记录可能使用绝对路径。本次源码版本为 v0.2.3-dev，中心与 Runner 使用匹配版本；升级并重启由用户实施，代码合并不会更新运行中的服务。
+已有节点升级保持原数据目录和节点身份，不直接搬动已有数据；材料和仓库记录可能使用绝对路径。本次源码版本为 v0.2.4-dev，中心与 Runner 使用匹配版本；升级并重启由用户实施，代码合并不会更新运行中的服务。
 
 ## 本机启动
 
@@ -176,6 +176,14 @@ Web 中建立项目、明确最低检查，录入需求，再按下方 Phase B �
 “Agent 池”和“运行与节点”按实际节点报告能力展示工具，不保证固定 Agent 名单。Owner 通过节点配置控制工具 enabled、implement（实现）、review（评审），节点容量为 1 或 2，并可排空、禁用新工作或撤销节点。能力发现与调度权限分开；排空、禁用或撤销不表示在途进程已经停止。工具支持以节点实际报告、可信工具注册表和协议能力为准，安装或版本探测不代表已认证、可承担某角色或已验收。其他 Agent 可按报告能力承担已允许的角色；Leader 与自动开发政策的原生 Codex 模型固定如上。
 
 远端执行电脑的 `http://127.0.0.1:8081` 只展示该 Runner 身份可见的本机能力、任务、运行与需求提案，不提供 Owner 目标批准、扩围、预算或发布权限。远端浏览器不能通过局域网节点接口访问中心 Owner UI；同机导航也仍要求 Owner 独立登录。
+
+## 分层测试与验证任务（0.2.4-dev）
+
+开发 Agent 自测后，中心对固定预合并候选执行必需快速检查，再交独立 Agent 审查；候选、主线与规则不变时直接复用检查证据合并。项目基础检查始终保留，按版本化测试套件增加相关检查；未知影响和受保护变化扩大检查范围。全量回归、黄金旅程、端到端与长生命周期测试独立执行，不为每个任务重复运行。
+
+Owner 通过 `tests/suites` 配置套件，通过 `tests/run` 请求有限验证任务。纯验证复用任务、Run、取消、重启恢复和累计记账，无代码候选；报告绑定提交、套件版本、平台和进程退出证据。首期执行位置是中心主机，命令不会下发到其他 Runner；其他平台仍须实测。测试代码开发仍使用普通任务，修复可通过 `test_run_id` 关联失败的验证 Run。
+
+`tests/readiness?commit=<完整提交>` 查询该版本的项目/发布测试就绪情况，未执行、取消、套件更新或版本变化均不能复用旧通过结果。发布工具须显式要求 `ready == true`；查询不授予发布权限。需求通过 `requirements/{id}/link` 建立原子双向关联。输入示例与限制见 [测试配置说明](examples/testing/README.md)。前端四池与测试中心的界面重构另行实施。
 
 ## 验证状态
 

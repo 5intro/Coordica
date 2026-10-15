@@ -85,6 +85,7 @@ def common_entries():
         "examples/native-scope/src/greeting.mjs",
         "examples/native-scope/test/greeting.test.mjs",
         "examples/native-scope/tools/verify-acceptance.mjs",
+        "examples/testing/README.md",
     ]
     license_dir = ROOT / "third_party/licenses"
     if not license_dir.is_dir() or license_dir.is_symlink():
@@ -314,7 +315,7 @@ def verify_archive(path, entries):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", default="0.2.3-dev", help="archive version (default: %(default)s)")
+    parser.add_argument("--version", default="0.2.4-dev", help="archive version (default: %(default)s)")
     args = parser.parse_args()
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?", args.version):
         raise ValueError("version must be a numeric semantic version with an optional prerelease suffix")

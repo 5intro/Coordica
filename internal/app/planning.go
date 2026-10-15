@@ -175,7 +175,7 @@ func goalAuthority(tx *store.Tx, t *domain.Task, bind bool) error {
 			return domain.Fail("scope", "task requirement outside goal")
 		}
 	}
-	if t.Tool != "codex" {
+	if t.Tool != "codex" && !(t.Tool == "program" && t.Verification != nil) {
 		return domain.Fail("invalid_input", "Phase B development requires codex gpt-6.1-sol")
 	}
 	if bind {
@@ -242,7 +242,7 @@ func (s *Service) SavePlanning(ctx context.Context, a Actor, key string, req dom
 			return nil, e
 		}
 		for _, t := range tasks {
-			if t.State == "integrated" || t.State == "cancelled" {
+			if domain.TaskFinished(t) {
 				continue
 			}
 			t.HoldReason = "goal_changed"
@@ -420,6 +420,11 @@ func requireLeaderFields(raw json.RawMessage, typ reflect.Type) error {
 			name := strings.Split(field.Tag.Get("json"), ",")[0]
 			value, ok := fields[name]
 			if !ok {
+				// Optional attribution added to v1. Legacy durable Leader receipts
+				// omit it; no authorization or scope is derived from this field.
+				if typ == reflect.TypeOf(domain.TaskProposal{}) && name == "test_run_id" {
+					continue
+				}
 				return domain.Fail("invalid_input", "structured Leader field missing: "+name)
 			}
 			if err := requireLeaderFields(value, field.Type); err != nil {

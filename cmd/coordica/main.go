@@ -220,6 +220,8 @@ func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hos
 	// Lease expiry must remain responsive while a long validation command runs.
 	start(time.Second, s.Expire)
 	start(time.Second, integration.Tick)
+	verification := &app.VerificationWorker{Integration: integration}
+	start(time.Second, verification.Tick)
 	start(time.Second, func(ctx context.Context) error {
 		if e := initialization.Tick(ctx); e != nil {
 			return e

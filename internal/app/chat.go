@@ -27,6 +27,7 @@ func sourceInput(a Actor, source domain.ChatSource) (domain.ChatSource, error) {
 	return source, nil
 }
 func (s *Service) createRequirement(tx *store.Tx, a Actor, r domain.Requirement) (any, error) {
+	r.RelatedIDs = nil // relationships are written symmetrically by LinkRequirements
 	if strings.TrimSpace(r.Title) == "" || strings.TrimSpace(r.Body) == "" {
 		return nil, domain.Fail("invalid_input", "requirement title and text required")
 	}

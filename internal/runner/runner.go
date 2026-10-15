@@ -23,6 +23,7 @@ import (
 )
 
 type Config struct {
+	HTTPSProxy    string             `json:"https_proxy,omitempty"`
 	CenterURL     string             `json:"center_url"`
 	DataDir       string             `json:"data_dir"`
 	Name          string             `json:"name"`
@@ -78,6 +79,9 @@ func (r *Runner) report(kind, runID, detail string) {
 }
 
 func New(config Config) (*Runner, error) {
+	if err := ValidateHTTPSProxy(config.HTTPSProxy); err != nil {
+		return nil, err
+	}
 	if config.DataDir == "" {
 		return nil, errors.New("runner data directory is required")
 	}

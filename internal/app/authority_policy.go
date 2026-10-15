@@ -82,7 +82,7 @@ func (s *Service) MigrateAuthorityPolicy(ctx context.Context) error {
 				return e
 			}
 			for _, t := range tasks {
-				if t.State == "integrated" || t.State == "cancelled" {
+				if domain.TaskFinished(t) {
 					continue
 				}
 				t.ApprovedVersion = 0

@@ -63,6 +63,7 @@ type PlanningMessageRequest struct {
 	Text            string `json:"text"`
 }
 type TaskProposal struct {
+	TestRunID      string   `json:"test_run_id,omitempty"`
 	Key            string   `json:"key"`
 	Title          string   `json:"title"`
 	Objective      string   `json:"objective"`

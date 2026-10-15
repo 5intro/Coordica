@@ -14,6 +14,7 @@ import (
 	"coordica/internal/domain"
 	"coordica/internal/gitops"
 	"coordica/internal/process"
+	"coordica/internal/process/checkexec"
 	"coordica/internal/store"
 )
 
@@ -93,7 +94,7 @@ func (w *Integrator) Tick(ctx context.Context) error {
 		switch c.State {
 		case "accepted":
 			return w.prepare(ctx, c)
-		case "validating":
+		case "prechecking", "validating":
 			return w.validate(ctx, c)
 		case "ready_to_land":
 			return w.land(ctx, c)
@@ -189,7 +190,30 @@ func (w *Integrator) prepare(ctx context.Context, c domain.Candidate) error {
 	}
 	c.Main = main
 	c.Commit = string(candidate.Commit)
-	c.State = "reviewing"
+	var suites []domain.TestSuite
+	if e = s.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
+		suites, err = store.List[domain.TestSuite](tx, "test_suite")
+		return err
+	}); e != nil {
+		return e
+	}
+	w.mu.Lock()
+	changes, diffErr := w.Git.DiffPaths(ctx, w.repo(), gitops.OID(main), candidate.Commit)
+	w.mu.Unlock()
+	if diffErr != nil {
+		return w.reject(ctx, c, diffErr, false)
+	}
+	var paths []string
+	for _, change := range changes {
+		paths = append(paths, change.Paths()...)
+	}
+	plan, e := mergeCheckPlan(p, suites, paths, c.Protected)
+	if e != nil {
+		return w.reject(ctx, c, e, false)
+	}
+	c.CheckPlan = &plan
+	c.State = "prechecking"
 	c.Version++
 	return s.DB.Update(ctx, func(tx *store.Tx) error {
 		var current domain.Candidate
@@ -208,6 +232,9 @@ func (w *Integrator) prepare(ctx context.Context, c domain.Candidate) error {
 			return e
 		}
 		if !candidateAuthority(tx, task, latestProject, c) {
+			return nil
+		}
+		if latestProject.TestPolicyVersion != c.CheckPlan.PolicyVersion {
 			return nil
 		}
 		if e := tx.Put("candidate", c.ID, c); e != nil {
@@ -273,11 +300,11 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 		if e = tx.Get("candidate", c.ID, &latest); e != nil {
 			return e
 		}
-		if latest.BaselineVersion != t.BaselineVersion || latest.BaselineDigest != t.BaselineDigest || goalGate(tx, &t, false) != nil || latest.State != "validating" || latest.Commit != c.Commit || t.State != "awaiting_integration" || t.AuthorizationVersion != latest.AuthorizationVersion || p.PolicyVersion != latest.PolicyVersion || p.Paused || t.HoldReason != "" || t.CurrentRunID != "" || t.CurrentCandidateID != c.ID {
+		if latest.BaselineVersion != t.BaselineVersion || latest.BaselineDigest != t.BaselineDigest || goalGate(tx, &t, false) != nil || (latest.State != "validating" && latest.State != "prechecking") || latest.Commit != c.Commit || t.State != "awaiting_integration" || t.AuthorizationVersion != latest.AuthorizationVersion || p.PolicyVersion != latest.PolicyVersion || p.Paused || t.HoldReason != "" || t.CurrentRunID != "" || t.CurrentCandidateID != c.ID {
 			return domain.Fail("conflict", "候选暂不可验证")
 		}
 		c = latest
-		if c.Review == nil || c.Review.Verdict != "approve" || c.Review.Candidate != c.Commit {
+		if c.State != "prechecking" && (c.Review == nil || c.Review.Verdict != "approve" || c.Review.Candidate != c.Commit) {
 			return domain.Fail("conflict", "缺少固定候选独立评审")
 		}
 		grant := limit(t.MaxRunSeconds, t.BudgetSeconds-t.UsedSeconds-t.ReservedSeconds)
@@ -295,6 +322,9 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 		t.Generation++
 		r = domain.Run{BaselineVersion: t.BaselineVersion, BaselineDigest: t.BaselineDigest, ID: ID("check_"), Version: 1, TaskID: t.ID, NodeID: "center", Kind: "validation", Tool: "program", State: "running", Generation: t.Generation, AuthorizationVersion: t.AuthorizationVersion, PolicyVersion: p.PolicyVersion, LeaseUntil: now.Add(time.Duration(grant) * time.Second), Deadline: now.Add(time.Duration(grant) * time.Second), GrantSeconds: grant, Base: c.Commit, CandidateID: c.ID, StartedAt: now}
 		r.GoalVersion = t.GoalVersion
+		if c.CheckPlan != nil {
+			r.CheckPlanDigest = c.CheckPlan.Digest
+		}
 		r.GoalAuthorizationVersion = t.GoalAuthorizationVersion
 		if e = reserveGoal(tx, t, grant); e != nil {
 			return e
@@ -333,7 +363,7 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 				return
 			case <-ticker.C:
 				var stop bool
-				_ = s.DB.View(runCtx, func(tx *store.Tx) error {
+				err := s.DB.View(runCtx, func(tx *store.Tx) error {
 					var current domain.Run
 					if e := tx.Get("run", r.ID, &current); e != nil {
 						stop = true
@@ -343,7 +373,7 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 					stop = e != nil || project.Paused || current.State != "running"
 					return nil
 				})
-				if stop {
+				if err != nil || stop {
 					cancel()
 					return
 				}
@@ -363,36 +393,7 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 		quiescent = false
 	}
 	if e == nil {
-		for _, check := range p.Checks {
-			start := s.Now()
-			checkCtx, checkCancel := context.WithTimeout(runCtx, time.Duration(check.TimeoutSeconds)*time.Second)
-			result := domain.CheckResult{Name: check.Name, ExitCode: -1}
-			session, execErr := process.Start(checkCtx, process.Spec{Executable: check.Command, Args: check.Args, Dir: work, Env: validationEnv(), GracePeriod: 2 * time.Second, DrainTimeout: 2 * time.Second})
-			if execErr == nil {
-				var output strings.Builder
-				for event := range session.Output() {
-					if output.Len() < 256<<10 {
-						output.Write(event.Line)
-						output.WriteByte('\n')
-					}
-				}
-				pr, waitErr := session.Wait()
-				quiescent = quiescent && pr.TreeStopped
-				result.ExitCode = pr.ExitCode
-				result.Output = output.String()
-				result.Passed = waitErr == nil && pr.ExitCode == 0 && pr.TreeStopped
-				execErr = waitErr
-			} else {
-				result.Output = errDetail(execErr)
-			}
-			checkCancel()
-			result.DurationSeconds = int64(s.Now().Sub(start) / time.Second)
-			results = append(results, result)
-			if !result.Passed {
-				e = fmt.Errorf("check %s failed: %v", check.Name, execErr)
-				break
-			}
-		}
+		results, quiescent, e = checkexec.Run(runCtx, work, candidateChecks(p, c), validationEnv())
 	}
 	if e == nil {
 		e = w.Git.VerifyClean(runCtx, work, gitops.OID(c.Commit))
@@ -432,7 +433,10 @@ func (w *Integrator) finishValidation(ctx context.Context, r domain.Run, c domai
 			if err = tx.Get("candidate", c.ID, &cand); err != nil {
 				return err
 			}
-			valid = valid && cand.BaselineVersion == current.BaselineVersion && cand.BaselineDigest == current.BaselineDigest && quiescent && current.CandidateID == c.ID && c.Commit == current.Base && cand.State == "validating" && cand.Commit == current.Base && cand.AuthorizationVersion == t.AuthorizationVersion && cand.PolicyVersion == project.PolicyVersion
+			valid = valid && cand.BaselineVersion == current.BaselineVersion && cand.BaselineDigest == current.BaselineDigest && quiescent && current.CandidateID == c.ID && c.Commit == current.Base && (cand.State == "validating" || cand.State == "prechecking") && cand.State == c.State && cand.Commit == current.Base && cand.AuthorizationVersion == t.AuthorizationVersion && cand.PolicyVersion == project.PolicyVersion
+			if cand.CheckPlan != nil {
+				valid = valid && cand.CheckPlan.PolicyVersion == project.TestPolicyVersion && cand.CheckPlan.Digest == current.CheckPlanDigest
+			}
 		}
 		if owns && active(current) {
 			elapsed := int64(0)
@@ -470,8 +474,12 @@ func (w *Integrator) finishValidation(ctx context.Context, r domain.Run, c domai
 			t.CurrentRunID = ""
 			cand.Checks = results
 			cand.Version++
-			if validationErr == nil && len(results) == len(project.Checks) && len(results) > 0 {
+			if validationErr == nil && domain.ChecksPassed(candidateChecks(project, cand), results) {
+				cand.CheckRunID = current.ID
 				cand.State = "ready_to_land"
+				if c.State == "prechecking" {
+					cand.State = "reviewing"
+				}
 			} else {
 				cand.State = "rejected"
 				cand.Detail = errDetail(validationErr)
@@ -621,8 +629,17 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 		if current.Protected && current.ApprovedCommit != current.Commit {
 			return nil
 		}
-		if current.Review == nil || current.Review.Candidate != current.Commit || current.Review.Verdict != "approve" || len(current.Checks) != len(project.Checks) {
+		blockingTests, e := blockingTestFailures(tx, current.Main, current.Commit)
+		if e != nil { return e }
+		if len(blockingTests) != 0 { return nil }
+		if current.Review == nil || current.Review.Candidate != current.Commit || current.Review.Verdict != "approve" || !domain.ChecksPassed(candidateChecks(project, current), current.Checks) {
 			return domain.Fail("conflict", "缺少完整固定候选证据")
+		}
+		if current.CheckPlan != nil {
+			var checkRun domain.Run
+			if current.CheckPlan.PolicyVersion != project.TestPolicyVersion || tx.Get("run", current.CheckRunID, &checkRun) != nil || checkRun.Kind != "validation" || checkRun.State != "succeeded" || !checkRun.Quiescent || checkRun.Base != current.Commit || checkRun.CandidateID != current.ID || checkRun.CheckPlanDigest != current.CheckPlan.Digest {
+				return domain.Fail("conflict", "候选检查版本或证据已失效")
+			}
 		}
 		for _, ch := range current.Checks {
 			if !ch.Passed {
@@ -741,6 +758,8 @@ func (w *Integrator) invalidate(ctx context.Context, c domain.Candidate, reason 
 		current.Main = ""
 		current.Review = nil
 		current.Checks = nil
+		current.CheckPlan = nil
+		current.CheckRunID = ""
 		current.ApprovedCommit = ""
 		current.Detail = reason
 		current.Version++

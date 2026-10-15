@@ -316,6 +316,19 @@
         "baseline_version": {
           "type": "integer"
         },
+        "check_plan": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CheckPlan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "check_run_id": {
+          "type": "string"
+        },
         "checks": {
           "items": {
             "$ref": "#/$defs/CheckResult"
@@ -747,6 +760,15 @@
             {
               "type": "null"
             }
+          ]
+        },
+        "related_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
           ]
         },
         "requirement_ids": {
@@ -1206,6 +1228,32 @@
         "command",
         "args",
         "timeout_seconds"
+      ],
+      "type": "object"
+    },
+    "CheckPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/Check"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "digest": {
+          "type": "string"
+        },
+        "policy_version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_version",
+        "digest",
+        "checks"
       ],
       "type": "object"
     },
@@ -2884,6 +2932,9 @@
         "target_branch": {
           "type": "string"
         },
+        "test_policy_version": {
+          "type": "integer"
+        },
         "total_budget_seconds": {
           "deprecated": true,
           "description": "Ignored legacy field. Project used/reserved are cumulative statistics, never an allowance.",
@@ -3029,6 +3080,15 @@
         "original_text": {
           "type": "string"
         },
+        "related_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "source": {
           "anyOf": [
             {
@@ -3055,6 +3115,26 @@
         "title",
         "body",
         "created_at"
+      ],
+      "type": "object"
+    },
+    "RequirementLinkRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "type": "integer"
+        },
+        "other_expected_version": {
+          "type": "integer"
+        },
+        "other_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected_version",
+        "other_expected_version",
+        "other_id"
       ],
       "type": "object"
     },
@@ -3126,6 +3206,9 @@
         "candidate_id": {
           "type": "string"
         },
+        "check_plan_digest": {
+          "type": "string"
+        },
         "deadline": {
           "format": "date-time",
           "type": "string"
@@ -3193,6 +3276,16 @@
         },
         "task_id": {
           "type": "string"
+        },
+        "test_report": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TestReport"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "tool": {
           "type": "string"
@@ -3538,6 +3631,15 @@
             "array",
             "null"
           ]
+        },
+        "test_suites": {
+          "items": {
+            "$ref": "#/$defs/TestSuite"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
       "required": [
@@ -3687,6 +3789,9 @@
         "state": {
           "type": "string"
         },
+        "test_run_id": {
+          "type": "string"
+        },
         "title": {
           "type": "string"
         },
@@ -3695,6 +3800,16 @@
         },
         "used_seconds": {
           "type": "integer"
+        },
+        "verification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VerificationSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "version": {
           "type": "integer"
@@ -3799,6 +3914,9 @@
             "null"
           ]
         },
+        "test_run_id": {
+          "type": "string"
+        },
         "title": {
           "type": "string"
         }
@@ -3816,6 +3934,219 @@
         "max_run_seconds",
         "max_repairs",
         "max_retries"
+      ],
+      "type": "object"
+    },
+    "TestReadiness": {
+      "additionalProperties": false,
+      "properties": {
+        "commit": {
+          "type": "string"
+        },
+        "failed": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "missing": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "passed": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "required": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "uncovered_requirement_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "commit",
+        "ready",
+        "required",
+        "passed",
+        "missing",
+        "failed",
+        "uncovered_requirement_ids"
+      ],
+      "type": "object"
+    },
+    "TestReport": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/CheckResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "commit": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "suite_id": {
+          "type": "string"
+        },
+        "suite_version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "commit",
+        "suite_id",
+        "suite_version",
+        "digest",
+        "platform",
+        "checks"
+      ],
+      "type": "object"
+    },
+    "TestSuite": {
+      "additionalProperties": false,
+      "properties": {
+        "block_merges_on_failure": {
+          "type": "boolean"
+        },
+        "categories": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/Check"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "id": {
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$",
+          "type": "string"
+        },
+        "match_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "platforms": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "requirement_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "stage": {
+          "enum": [
+            "merge",
+            "project",
+            "release"
+          ],
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "name",
+        "description",
+        "stage",
+        "enabled",
+        "categories",
+        "match_paths",
+        "platforms",
+        "requirement_ids",
+        "checks"
+      ],
+      "type": "object"
+    },
+    "TestSuiteSave": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "type": "integer"
+        },
+        "suite": {
+          "$ref": "#/$defs/TestSuite"
+        }
+      },
+      "required": [
+        "expected_version",
+        "suite"
       ],
       "type": "object"
     },
@@ -3856,6 +4187,74 @@
       "required": [
         "name",
         "state"
+      ],
+      "type": "object"
+    },
+    "VerificationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "budget_seconds": {
+          "maximum": 31536000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "expected_version": {
+          "type": "integer"
+        },
+        "max_retries": {
+          "maximum": 2,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_run_seconds": {
+          "maximum": 604800,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "requirement_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "suite_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "suite_id",
+        "expected_version",
+        "commit",
+        "budget_seconds",
+        "max_run_seconds",
+        "max_retries",
+        "requirement_ids"
+      ],
+      "type": "object"
+    },
+    "VerificationSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "commit": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "suite": {
+          "$ref": "#/$defs/TestSuite"
+        }
+      },
+      "required": [
+        "suite",
+        "commit",
+        "digest"
       ],
       "type": "object"
     },

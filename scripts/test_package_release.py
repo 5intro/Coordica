@@ -79,6 +79,7 @@ class ReleaseTests(unittest.TestCase):
             'examples/native-scope/src/greeting.mjs',
             'examples/native-scope/test/greeting.test.mjs',
             'examples/native-scope/tools/verify-acceptance.mjs',
+            'examples/testing/README.md',
         }
         self.assertEqual({name for name in entries if not name.startswith('third_party/licenses/')}, expected)
         for name in entries:

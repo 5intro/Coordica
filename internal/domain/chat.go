@@ -130,6 +130,7 @@ type ChatAgentCapability struct {
 	Review     bool   `json:"review"`
 }
 type ChatItem struct {
+	RelatedIDs   []string              `json:"related_ids,omitempty"`
 	SourceNodeID string                `json:"source_node_id,omitempty"`
 	Runs         []ChatRun             `json:"runs,omitempty"`
 	Run          *ChatRun              `json:"run,omitempty"`

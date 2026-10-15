@@ -149,11 +149,15 @@
           },
           "type": "array"
         },
+        "test_run_id": {
+          "type": "string"
+        },
         "title": {
           "type": "string"
         }
       },
       "required": [
+        "test_run_id",
         "key",
         "title",
         "objective",

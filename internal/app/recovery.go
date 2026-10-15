@@ -17,7 +17,7 @@ func (s *Service) recoverStopped(tx *store.Tx, p domain.Project, t *domain.Task,
 	if t.CurrentRunID != r.ID || t.Generation != r.Generation || !r.Quiescent || (r.State != "stopped" && r.State != "lost") {
 		return false, nil
 	}
-	if t.State == "cancelled" || t.State == "integrated" || t.ApprovedVersion == 0 || (t.HoldReason != "" && t.HoldReason != "offline") {
+	if domain.TaskFinished(*t) || t.ApprovedVersion == 0 || (t.HoldReason != "" && t.HoldReason != "offline") {
 		t.CurrentRunID = ""
 		return true, nil
 	}
@@ -55,7 +55,7 @@ func (s *Service) recoverStopped(tx *store.Tx, p domain.Project, t *domain.Task,
 		if e = tx.Get("candidate", t.CurrentCandidateID, &c); e != nil {
 			return false, e
 		}
-		if t.State != "awaiting_integration" || c.AuthorizationVersion != t.AuthorizationVersion || c.PolicyVersion != p.PolicyVersion || (c.State != "accepted" && c.State != "reviewing" && c.State != "validating" && c.State != "ready_to_land") {
+		if t.State != "awaiting_integration" || c.AuthorizationVersion != t.AuthorizationVersion || c.PolicyVersion != p.PolicyVersion || (c.State != "accepted" && c.State != "prechecking" && c.State != "reviewing" && c.State != "validating" && c.State != "ready_to_land") {
 			return block("human_decision", "已受理候选状态不允许自动恢复")
 		}
 		// Already accepted material proceeds through its existing gates; the old
@@ -69,6 +69,10 @@ func (s *Service) recoverStopped(tx *store.Tx, p domain.Project, t *domain.Task,
 		if t.State != "executing" {
 			return block("human_decision", "任务状态不允许重新开发")
 		}
+	case "verification":
+		if t.Verification == nil || t.State != "executing" || t.Verification.Commit != r.Base {
+			return block("human_decision", "verification snapshot changed")
+		}
 	case "review", "validation":
 		var c domain.Candidate
 		if t.State != "awaiting_integration" || t.CurrentCandidateID != r.CandidateID || r.CandidateID == "" {
@@ -80,7 +84,7 @@ func (s *Service) recoverStopped(tx *store.Tx, p domain.Project, t *domain.Task,
 		if c.Commit != r.Base || c.AuthorizationVersion != t.AuthorizationVersion || c.PolicyVersion != p.PolicyVersion {
 			return block("human_decision", "固定候选或其授权已变化")
 		}
-		if r.Kind == "review" && (c.State != "reviewing" || c.Review != nil) || r.Kind == "validation" && (c.State != "validating" || c.Review == nil || c.Review.Verdict != "approve" || c.Review.Candidate != c.Commit) {
+		if r.Kind == "review" && (c.State != "reviewing" || c.Review != nil) || r.Kind == "validation" && c.State != "prechecking" && (c.State != "validating" || c.Review == nil || c.Review.Verdict != "approve" || c.Review.Candidate != c.Commit) {
 			return block("human_decision", "固定候选不允许重试当前步骤")
 		}
 	default:
@@ -92,7 +96,7 @@ func (s *Service) recoverStopped(tx *store.Tx, p domain.Project, t *domain.Task,
 	t.Retries++
 	t.CurrentRunID = ""
 	t.HoldReason = ""
-	if r.Kind == "implement" {
+	if r.Kind == "implement" || r.Kind == "verification" {
 		t.State = "ready"
 	}
 	return true, s.audit(tx, Actor{ID: "center"}, "task.automatically_recovered", t.ID, fmt.Sprintf("%s; prior_run=%s; retry=%d/%d", r.Kind, r.ID, t.Retries, t.MaxRetries))
@@ -250,7 +254,7 @@ func requireQuiescence(tx *store.Tx, taskID string) error {
 		return e
 	}
 	for _, r := range runs {
-		if r.TaskID == taskID && !r.Quiescent && (active(r) || r.State == "lost") {
+		if (taskID == "" || r.TaskID == taskID) && !r.Quiescent && (active(r) || r.State == "lost") {
 			return domain.Fail("conflict", "旧执行尚未确认停止")
 		}
 	}
