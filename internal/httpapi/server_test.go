@@ -388,7 +388,7 @@ func TestRunnerRuntimeRoutesKeepNodeIdentityAndRunOwnership(t *testing.T) {
 
 func TestPhaseBOwnerRoutesNeverReachRunnerListener(t *testing.T) {
 	f := newBoundaryFixture(t)
-	routes := []string{"system/automation", "planning/save", "planning/authorize", "planning/messages", "planning/evaluate", "planning/cancel", "nodes/" + f.node.NodeID + "/configure", "decisions/unknown/resolve"}
+	routes := []string{"system/automation", "planning/save", "planning/authorize", "planning/messages", "planning/evaluate", "planning/cancel", "nodes/" + f.node.NodeID + "/configure", "decisions/unknown/resolve", "tasks/unknown/retry-integration", "tasks/unknown/confirm-preparation-stopped"}
 	for _, path := range routes {
 		for _, token := range []string{f.owner, f.node.Token} {
 			w := boundaryRequest(f.server.RunnerHandler(), "POST", "/api/v1/"+path, token, `{}`)

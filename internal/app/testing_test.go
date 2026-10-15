@@ -154,6 +154,10 @@ func TestVerificationRealCommandsReadinessAndSuiteVersionInvalidation(t *testing
 	if e != nil || !readiness.Ready {
 		t.Fatal(readiness, e)
 	}
+	canonical, e := f.s.TestReadiness(context.Background(), f.owner, strings.ToUpper(f.b.String()))
+	if e != nil || !canonical.Ready || canonical.Commit != f.b.String() {
+		t.Fatal("equivalent full object IDs did not share fixed evidence", canonical, e)
+	}
 	other, e := f.s.TestReadiness(context.Background(), f.owner, strings.Repeat("b", 40))
 	if e != nil || other.Ready || len(other.Missing) != 1 {
 		t.Fatal("result reused for another commit", other, e)

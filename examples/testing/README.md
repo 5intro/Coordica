@@ -8,6 +8,8 @@ same independent code-review/integration pipeline.
 
 The current executor runs commands on the **center host** in an isolated
 checkout. It does not send executable commands to paired Runner machines.
+The Owner's `GET system/connection` reports the center's runtime `platform`;
+the browser OS is not evidence of the execution platform.
 Declare `platforms` explicitly when a suite requires a particular OS. Other
 platforms remain unverified; cross-compilation does not count as execution.
 
@@ -87,6 +89,18 @@ code review. Approval reuses those results without another identical run.
 Mainline changes rebuild the candidate; merge-test policy changes invalidate
 its evidence. A late/cancelled/unknown process cannot validate a new execution.
 The center's latest test-policy version is checked again before publication.
+
+For a program preparation failure before a fixed candidate exists, an Owner
+can request `POST tasks/<id>/retry-integration` with the current task
+`expected_version`. This reuses the original stopped implementation and its
+immutable artifact, consumes one of the task's finite retries, and rebuilds
+the checks and independent review. It does not rerun code development or
+accept a failed review. Authorization, baseline, goal, remaining budget and
+process-stop fences still apply. A rejected fixed candidate is ineligible.
+Legacy failures or unknown preparation processes additionally require
+`POST tasks/<id>/confirm-preparation-stopped` with the current task version
+and explicit Owner `evidence` after inspecting the actual process state.
+Recording that observation alone never queues work or approves code.
 
 Long checks have explicit finite timeouts (up to the existing seven-day Run
 limit) and execute in a separate worker from candidate integration. A restart

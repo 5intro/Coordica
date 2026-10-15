@@ -258,6 +258,7 @@ func (w *Integrator) reject(ctx context.Context, c domain.Candidate, cause error
 			return nil
 		}
 		current.State = "rejected"
+		current.PreparationStopped = !errors.Is(cause, process.ErrTreeNotStopped)
 		current.Detail = errDetail(cause)
 		current.Version++
 		project, e := getProject(tx)

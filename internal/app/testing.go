@@ -214,10 +214,13 @@ func (s *Service) TestReadiness(ctx context.Context, a Actor, commit string) (do
 	if e := owner(a); e != nil {
 		return out, e
 	}
-	if _, e := gitops.ParseOID(commit); e != nil {
+	fixed, e := gitops.ParseOID(commit)
+	if e != nil {
 		return out, domain.Fail("invalid_input", "full fixed commit required")
 	}
-	e := s.DB.View(ctx, func(tx *store.Tx) error {
+	commit = string(fixed)
+	out.Commit = commit
+	e = s.DB.View(ctx, func(tx *store.Tx) error {
 		suites, e := store.List[domain.TestSuite](tx, "test_suite")
 		if e != nil {
 			return e

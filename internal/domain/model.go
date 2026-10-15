@@ -165,6 +165,7 @@ type CheckResult struct {
 	DurationSeconds int64  `json:"duration_seconds"`
 }
 type Candidate struct {
+	PreparationStopped   bool          `json:"preparation_stopped,omitempty"`
 	CheckPlan            *CheckPlan    `json:"check_plan,omitempty"`
 	CheckRunID           string        `json:"check_run_id,omitempty"`
 	BaselineVersion      int64         `json:"baseline_version"`

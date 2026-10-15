@@ -349,7 +349,7 @@ func (s *Service) TaskAction(ctx context.Context, a Actor, key, id, action strin
 		return nil, err
 	}
 	return s.mutateWithCheck(ctx, a, key, "task."+id+"."+action, req, func(tx *store.Tx) error {
-		if action == "approve" || action == "resume" {
+		if action == "approve" || action == "resume" || action == "retry-integration" {
 			return baselineGate(tx, nil, false)
 		}
 		return nil
@@ -362,6 +362,10 @@ func (s *Service) TaskAction(ctx context.Context, a Actor, key, id, action strin
 			return nil, err
 		}
 		switch action {
+		case "retry-integration":
+			if err := s.retryCandidatePreparation(tx, a, &t); err != nil {
+				return nil, err
+			}
 		case "approve":
 			if t.State != "draft" {
 				return nil, domain.Fail("conflict", "只能批准草稿任务")

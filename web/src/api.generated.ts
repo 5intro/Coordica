@@ -691,6 +691,7 @@ export interface CheckResult {
   duration_seconds: number;
 }
 export interface Candidate {
+  preparation_stopped?: boolean;
   check_plan?: CheckPlan | null;
   check_run_id?: string;
   baseline_version: number;

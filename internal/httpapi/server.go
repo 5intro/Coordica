@@ -409,6 +409,11 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		if err = decode(r, &in); err == nil {
 			result, err = s.Service.Scope(ctx, a, key, parts[1], in)
 		}
+	case len(parts) == 3 && parts[0] == "tasks" && parts[2] == "confirm-preparation-stopped":
+		var in domain.StopConfirmation
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.ConfirmPreparationStopped(ctx, a, key, parts[1], in)
+		}
 	case len(parts) == 3 && parts[0] == "tasks":
 		var in domain.VersionRequest
 		if err = decode(r, &in); err == nil {

@@ -225,7 +225,7 @@ func (g *Client) run(ctx context.Context, dir string, extra []string, args ...st
 		err = errors.Join(err, ctx.Err())
 	}
 	if errors.Is(err, process.ErrOutputLimit) {
-		return stdout, errors.Join(ErrOutputLimit, err)
+		return stdout, &Error{Op: args[0], Kind: errors.Join(ErrOutputLimit, err), Detail: "managed command output limit exceeded", ExitCode: result.ExitCode}
 	}
 	if err != nil {
 		e := &Error{Op: args[0], Kind: errors.Join(ErrGit, err), Detail: strings.TrimSpace(string(stderr)), ExitCode: result.ExitCode}
@@ -430,7 +430,7 @@ func (g *Client) Clone(ctx context.Context, source, dir string) error {
 		return err
 	}
 	// Center material/candidate refs are outside Git's default branch refspec.
-	_, err = g.run(ctx, dir, g.authEnv(src), "fetch", "--no-tags", "--no-recurse-submodules", "--", src, "refs/coordica/*:refs/coordica/*")
+	_, err = g.run(ctx, dir, g.authEnv(src), "fetch", "--quiet", "--no-tags", "--no-recurse-submodules", "--", src, "refs/coordica/*:refs/coordica/*")
 	return err
 }
 
@@ -1130,8 +1130,9 @@ func (g *Client) Query(ctx context.Context, remote, ref string) (OID, error) {
 	return ParseOID(strings.TrimSpace(string(out)))
 }
 
-// Fetch fixes the remote ref observed by the fetch itself, retaining its
-// objects under a unique local ref. It never overwrites a task or main ref.
+// Fetch fixes the remote ref observed by the fetch itself. Each distinct commit
+// is retained under an immutable ref; repeated observations do not leak refs.
+// It never overwrites a task or main ref.
 func (g *Client) Fetch(ctx context.Context, repo, remote, ref string) (OID, error) {
 	if err := g.guardRepo(ctx, repo); err != nil {
 		return "", err
@@ -1154,14 +1155,32 @@ func (g *Client) Fetch(ctx context.Context, repo, remote, ref string) (OID, erro
 		return "", err
 	}
 	local := "refs/coordica/fetch/" + hex.EncodeToString(nonce[:])
-	if _, err = g.run(ctx, repo, g.authEnv(source), "fetch", "--no-tags", "--no-recurse-submodules", "--", source, ref+":"+local); err != nil {
+	if _, err = g.run(ctx, repo, g.authEnv(source), "fetch", "--quiet", "--no-write-fetch-head", "--no-tags", "--no-recurse-submodules", "--", source, ref+":"+local); err != nil {
 		return "", err
 	}
 	out, err := g.run(ctx, repo, nil, "rev-parse", "--verify", local+"^{commit}")
 	if err != nil {
 		return "", err
 	}
-	return ParseOID(strings.TrimSpace(string(out)))
+	observed, err := ParseOID(strings.TrimSpace(string(out)))
+	if err != nil {
+		return "", err
+	}
+	retained := "refs/coordica/observed/" + string(observed)
+	if _, err = g.run(ctx, repo, nil, "update-ref", retained, string(observed), strings.Repeat("0", len(observed))); err != nil {
+		if errors.Is(err, process.ErrTreeNotStopped) || !errors.Is(err, ErrGit) {
+			return "", err
+		}
+		// Another observer may already have pinned the same exact object.
+		pinned, readErr := g.run(ctx, repo, nil, "rev-parse", "--verify", retained)
+		if readErr != nil || strings.TrimSpace(string(pinned)) != string(observed) {
+			return "", errors.Join(err, readErr)
+		}
+	}
+	if _, err = g.run(ctx, repo, nil, "update-ref", "-d", local, string(observed)); err != nil {
+		return "", err
+	}
+	return observed, nil
 }
 
 type PublishResult struct {

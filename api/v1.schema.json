@@ -360,6 +360,9 @@
         "policy_version": {
           "type": "integer"
         },
+        "preparation_stopped": {
+          "type": "boolean"
+        },
         "protected": {
           "type": "boolean"
         },

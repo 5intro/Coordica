@@ -64,6 +64,20 @@ func (w *Integrator) Claim(ctx context.Context, a Actor, key string, req domain.
 				if goalGate(tx, &t, false) != nil || !nodeAllows(n, t.Tool, "implement") {
 					continue
 				}
+				dependenciesReady := true
+				for _, id := range t.Dependencies {
+					var dependency domain.Task
+					if e := tx.Get("task", id, &dependency); e != nil {
+						return e
+					}
+					if dependency.State != "integrated" && dependency.State != "verified" {
+						dependenciesReady = false
+						break
+					}
+				}
+				if !dependenciesReady {
+					continue
+				}
 				needed = true
 				break
 			}

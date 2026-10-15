@@ -281,3 +281,29 @@ func TestIdlePollingDoesNotRequireRemoteGit(t *testing.T) {
 		t.Fatal(string(raw), e)
 	}
 }
+
+func TestDependencyBlockedPollingDoesNotResolveGit(t *testing.T) {
+	for _, state := range []string{"draft", "executing", "cancelled"} {
+		t.Run(state, func(t *testing.T) {
+			f := newServiceFixture(t)
+			ctx := context.Background()
+			if err := f.s.DB.Update(ctx, func(tx *store.Tx) error {
+				dependency := f.task
+				dependency.ID = "dependency"
+				dependency.State = state
+				dependency.ApprovedVersion = 0
+				if err := tx.Put("task", dependency.ID, dependency); err != nil {
+					return err
+				}
+				f.task.Dependencies = []string{dependency.ID}
+				return tx.Put("task", f.task.ID, f.task)
+			}); err != nil {
+				t.Fatal(err)
+			}
+			raw, err := (&Integrator{Service: f.s}).Claim(ctx, f.node, "blocked-dependency", domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true}}})
+			if err != nil || string(raw) != "null" {
+				t.Fatal("blocked dependency required Git", string(raw), err)
+			}
+		})
+	}
+}
