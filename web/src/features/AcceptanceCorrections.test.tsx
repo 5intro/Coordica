@@ -24,7 +24,7 @@ const recovery: Snapshot = { ...centerSnapshot, tasks: [recoverTask], runs: [sto
 it('counts verified as completed, excludes cancellation from progress, and ends linked requirement activity', () => {
   const state = { ...centerSnapshot, tasks: [verified, { ...localTask, id: 'cancelled', state: 'cancelled' }], requirements: [requirement] };
   const view = render(<Overview snapshot={state} navigate={vi.fn()} />);
-  expect(screen.getByText('任务进度：1 / 1 已完成（集成或验证）；取消 1 项不计入')).toBeTruthy();
+  expect(screen.getByText('1/1 已完成')).toBeTruthy();
   expect(within(screen.getByRole('region', { name: '任务池' })).queryByRole('button')).toBeNull();
   expect(within(screen.getByRole('region', { name: '需求池' })).queryByRole('button')).toBeNull();
   view.unmount();
@@ -148,7 +148,7 @@ it('removes an already open scope or budget editor when a verification task comp
   view.rerender(<Tasks snapshot={{ ...centerSnapshot, tasks: [verified] }} client={client} refresh={refresh} />);
   expect(screen.queryByRole('button', { name: '批准新范围' })).toBeNull();
   expect(screen.queryByRole('button', { name: '批准预算调整' })).toBeNull();
-  expect(screen.getByRole('region', { name: '范围请求历史' })).toBeTruthy();
+  expect(screen.queryByRole('region', { name: '范围请求历史' })).toBeNull();
 });
 
 it('groups task title and status without repeating technical identifiers or empty blocks in the list', () => {

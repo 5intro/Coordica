@@ -3,7 +3,8 @@
 .workspace .main-shell { width: 100%; }
 main#main-content { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
 .workspace-status { display: flex; justify-content: flex-end; align-items: center; gap: 16px; color: var(--muted); font-size: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-.workspace-account { display: flex; justify-content: flex-end; gap: 20px; margin-top: 28px; }
+.settings-links { margin-bottom: 24px; max-width: 1000px; }
+.settings-links button { width: 100%; text-align: left; border-radius: 0; }
 .workbench-dock { position: fixed; z-index: 30; bottom: max(12px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: flex; flex-direction: row; gap: 4px; padding: 6px; background: var(--dock); box-shadow: 0 8px 24px rgb(0 0 0 / 10%); border: 1px solid var(--border); border-radius: 16px; max-width: calc(100% - 24px); margin: 0; overflow: visible; }
 .dock-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 68px; min-height: 54px; background: transparent; color: var(--dock-text); border-radius: 8px; font-size: 12px; }
 .dock-item:hover { background: var(--dock-hover); }

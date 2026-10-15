@@ -87,7 +87,7 @@ it('shows genuine system write failure and unsaved state without enabling automa
   const write = vi.spyOn(ApiClient.prototype, 'write').mockRejectedValue(new Error('系统保存失败'));
   start('#settings');
   await screen.findByRole('heading', { name: '项目设置' });
-  fireEvent.click(screen.getByRole('button', { name: '系统自动化' }));
+  fireEvent.click(screen.getByRole('button', { name: '系统' }));
   expect(screen.getByLabelText('自动化开关')).toHaveProperty('checked', false);
   expect(write).not.toHaveBeenCalled();
   fireEvent.change(screen.getByLabelText('规划 / 初始化超时（秒）'), { target: { value: '200' } });
