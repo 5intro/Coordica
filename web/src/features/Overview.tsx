@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import type { Snapshot } from '../api.generated';
 import type { Page } from '../App';
 import { Status, duration, time } from '../components/ui';
@@ -15,6 +15,7 @@ const roles: Record<string, string> = { implement: '开发', review: '独立审�
 
 export function Overview({ snapshot, navigate }: { snapshot: Snapshot; navigate: (page: Page, id?: string) => void }) {
   const [expandedGoal, setExpandedGoal] = useState(false);
+  const goalId = useId();
   const project = snapshot.project;
   if (!project) return <div className="overview"><h1>尚无项目</h1><p>等待中心提供项目快照。</p></div>;
   const tasks = snapshot.tasks ?? [];
@@ -55,7 +56,7 @@ export function Overview({ snapshot, navigate }: { snapshot: Snapshot; navigate:
   const completed = tasks.filter((task) => completedTask(task.state)).length;
   const cancelled = tasks.filter((task) => task.state === 'cancelled').length;
   return <div className="overview">
-    <header className="overview-header"><div><h1>{project.name}</h1><p className={`overview-objective ${expandedGoal ? 'expanded' : ''}`}>{snapshot.planning_document?.objective || '尚未记录目标'}</p>{snapshot.planning_document?.objective && <button className="text-button" aria-expanded={expandedGoal} onClick={() => setExpandedGoal(!expandedGoal)}>{expandedGoal ? '收起目标' : '展开目标'}</button>}<div className="overview-progress"><Status value={project.paused ? 'paused' : 'ready'} /><span>任务进度：{completed} / {tasks.length - cancelled} 已完成（集成或验证）；取消 {cancelled} 项不计入</span></div></div><div className="overview-header-actions">{link('requirements', '提交需求')}{link('planning', '查看目标')}</div></header>
+    <header className="overview-header"><div><h1>{project.name}</h1><p id={goalId} className={`overview-objective ${expandedGoal ? 'expanded' : ''}`}>{snapshot.planning_document?.objective || '尚未记录目标'}</p>{snapshot.planning_document?.objective && <button className="text-button" aria-expanded={expandedGoal} aria-controls={goalId} onClick={() => setExpandedGoal(!expandedGoal)}>{expandedGoal ? '收起目标' : '展开目标'}</button>}<div className="overview-progress"><Status value={project.paused ? 'paused' : 'ready'} /><span>任务进度：{completed} / {tasks.length - cancelled} 已完成（集成或验证）；取消 {cancelled} 项不计入</span></div></div><div className="overview-header-actions">{link('requirements', '提交需求')}{link('planning', '查看目标')}</div></header>
     {todos.length > 0 && <section className="overview-todos" aria-label="人工待办"><h2>需要你处理 <span>{todos.length}</span></h2><ul>{todos.map(row)}</ul></section>}
     <div className="overview-workspace"><div className="overview-pools">{pools.map((pool) => <section className="overview-pool" key={pool.page} aria-label={pool.title}><header><h2>{pool.title} <span aria-label={`${pool.title}活动总数`}>{pool.entries.length}</span></h2>{link(pool.page, '查看全部')}</header>{pool.entries.length ? <ul>{pool.entries.slice(0, 5).map(row)}</ul> : <p className="overview-empty">{pool.empty}</p>}</section>)}</div>
       <aside className="overview-hosts" aria-label="主机运行动态"><header><h2>主机运行动态</h2>{link('agents', '管理主机')}</header>{hosts.length ? hosts.map(({ id, node }) => {

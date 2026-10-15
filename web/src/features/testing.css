@@ -1,10 +1,10 @@
-.testing-center { color: var(--ink, #292b2c); min-width: 0; }
+.testing-center { color: var(--ink); min-width: 0; }
 .testing-center h1 { letter-spacing: -.03em; }
 .testing-center p { max-width: 75ch; overflow-wrap: anywhere; }
 .testing-center .testing-heading { display: flex; justify-content: space-between; align-items: start; gap: 16px; flex-wrap: wrap; }
-.testing-center .testing-section { padding: 28px 0; border-top: 1px solid var(--border, #eaeaea); }
+.testing-center .testing-section { padding: 28px 0; border-top: 1px solid var(--border); }
 .testing-center .testing-list { padding: 0; margin: 0; list-style: none; }
-.testing-center .testing-list > li { display: flex; justify-content: space-between; align-items: start; gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--border, #eaeaea); }
+.testing-center .testing-list > li { display: flex; justify-content: space-between; align-items: start; gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--border); }
 .testing-center .testing-list p { margin: 6px 0; }
 .testing-center .testing-list > li > div { min-width: 0; }
 .testing-center .testing-form { display: grid; gap: 18px; max-width: 960px; }
@@ -12,26 +12,26 @@
 .testing-center .testing-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .testing-center .testing-query { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
 .testing-center .testing-query .field { flex: 1 1 300px; }
-.testing-center .testing-editor { background: var(--bone, #f7f6f3); padding: 24px; margin-top: 24px; }
-.testing-center fieldset { border: 1px solid var(--border, #eaeaea); padding: 16px; min-width: 0; }
+.testing-center .testing-editor { background: var(--subtle); padding: 24px; margin-top: 24px; }
+.testing-center fieldset { border: 1px solid var(--border); padding: 16px; min-width: 0; }
 .testing-center legend { font-size: 14px; padding: 0 6px; }
 .testing-center .actions label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
-.testing-center .testing-note { color: #5c615e; font-size: 13px; margin-top: 20px; }
-.testing-center .testing-warning { color: #8b3e19; }
-.testing-center .testing-pass { color: #346538; }
+.testing-center .testing-note { color: var(--muted); font-size: 13px; margin-top: 20px; }
+.testing-center .testing-warning { color: var(--warning); }
+.testing-center .testing-pass { color: var(--success); }
 .testing-center .testing-facts { display: grid; grid-template-columns: minmax(140px, 1fr) 2fr; gap: 12px; font-size: 14px; }
 .testing-center dd { margin: 0; overflow-wrap: anywhere; }
-.testing-center .testing-run { padding: 22px 0; border-bottom: 1px solid var(--border, #eaeaea); }
+.testing-center .testing-run { padding: 22px 0; border-bottom: 1px solid var(--border); }
 .testing-center .testing-summary { white-space: pre-wrap; }
 .testing-center .testing-check { padding: 12px 0; font-size: 14px; }
 .testing-center details { margin-top: 10px; }
 .testing-center summary { cursor: pointer; min-height: 32px; text-underline-offset: 4px; }
 .testing-center summary:hover { text-decoration: underline; }
-.testing-center pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 400px; overflow: auto; background: var(--bone, #f7f6f3); padding: 16px; font-size: 12px; tab-size: 2; }
-.testing-center :focus-visible { outline: 2px solid #637261; outline-offset: 3px; }
-.testing-center ::selection { background: #dce5d7; color: #292b2c; }
-.testing-center input, .testing-center textarea { caret-color: #346538; }
-.testing-center input::placeholder, .testing-center textarea::placeholder { color: #656862; }
+.testing-center pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 400px; overflow: auto; background: var(--subtle); padding: 16px; font-size: 12px; tab-size: 2; }
+.testing-center :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.testing-center ::selection { background: var(--selection); color: var(--ink); }
+.testing-center input, .testing-center textarea { caret-color: var(--accent); }
+.testing-center input::placeholder, .testing-center textarea::placeholder { color: var(--muted); }
 .testing-center button:disabled { cursor: not-allowed; }
 .testing-center code, .testing-center dd { font-variant-numeric: tabular-nums; }
 @media (max-width: 680px) {

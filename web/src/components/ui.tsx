@@ -11,7 +11,8 @@ const stateLabels: Record<string, string> = {
 };
 const green = new Set(['verified', 'integrated', 'succeeded', 'landed', 'approve']);
 const blue = new Set(['executing', 'starting', 'running', 'reviewing', 'validating', 'landing']);
-const red = new Set(['failed', 'lost', 'rejected', 'cancelled', 'changes_requested']);
+const red = new Set(['failed', 'lost', 'rejected', 'changes_requested']);
+const warning = new Set(['draft', 'paused', 'blocked', 'cancel_requested', 'changes_requested']);
 export const stateLabel = (value: string) => stateLabels[value] ?? value;
 export const platformLabel = (value: string) => {
   const [os, ...architecture] = value.split('/');
@@ -21,11 +22,11 @@ export const platformLabel = (value: string) => {
 export const stageLabel = (value: string) => ({ merge: '合并检查', project: '项目验证', release: '发布回归' }[value] ?? value);
 export const roleLabel = (value: string) => ({ implement: '开发', review: '独立审查', repair: '修复', verification: '测试验证' }[value] ?? value);
 export function Status({ value }: { value: string }) {
-  const tone = green.has(value) ? 'green' : blue.has(value) ? 'blue' : red.has(value) ? 'red' : 'neutral';
+  const tone = green.has(value) ? 'green' : blue.has(value) ? 'blue' : red.has(value) ? 'red' : warning.has(value) ? 'warning' : 'neutral';
   return <span className={`status ${tone}`}>{stateLabels[value] ?? value}</span>;
 }
 export function Empty({ title, children }: { title: string; children?: ReactNode }) {
-  return <div className="empty"><span className="empty-mark" aria-hidden="true">＋</span><h3>{title}</h3>{children && <p>{children}</p>}</div>;
+  return <div className="empty"><h3>{title}</h3>{children && <p>{children}</p>}</div>;
 }
 export function Feedback({ error, notice }: { error?: string; notice?: string }) {
   return <>{error && <p className="feedback error" role="alert">{error}</p>}{notice && <p className="feedback notice" role="status">{notice}</p>}</>;
