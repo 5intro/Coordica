@@ -119,7 +119,7 @@ describe('Overview factual work lists', () => {
     expect(idle.getByText('已撤销')).toBeTruthy();
     expect(idle.getByText('暂无运行实例')).toBeTruthy();
     expect(idle.queryAllByRole('button')).toHaveLength(0);
-    const unknown = within(hosts.getByRole('region', { name: 'unknown-host' }));
+    const unknown = within(hosts.getByRole('region', { name: '主机未命名' }));
     expect(unknown.getByText('失联 · 未确认静止')).toBeTruthy();
     expect(hosts.queryByText(/实例 finished/)).toBeNull();
   });

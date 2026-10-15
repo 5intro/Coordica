@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import type { Run } from '../api.generated';
 import { LocalClient } from '../api/localClient';
 import { localConsoleURL } from '../api/connection';
-import { Empty, Feedback, Field, SectionTitle, Status, duration, short, time } from '../components/ui';
+import { Empty, Feedback, Field, SectionTitle, Status, duration, time } from '../components/ui';
 import { useAction } from '../hooks/useAction';
 import { useSnapshot } from '../hooks/useSnapshot';
 
@@ -50,7 +50,7 @@ export function RunnerWorkspace({ client: providedClient, centerConsoleURL }: { 
         {!snapshot ? <section className="panel connection-panel"><Empty title={loading ? '正在读取本机活动' : '尚未取得本机状态'}>{loading ? '读取中心保存的节点与执行记录。' : '确认 Runner 已配对并正在运行，然后重试。'}</Empty>{!loading && <div className="actions"><button className="primary" onClick={refresh}>重新连接</button></div>}</section> : <>
           {snapshot.project_paused && <p className="hold">中心项目已暂停，新的执行等待中心恢复。</p>}
           {page === 'activity' ? <>
-            <SectionTitle title="本机 Agent 在做什么" description="展示这台电脑的实际执行记录，每 3 秒更新。" />
+            <SectionTitle title="本机 Agent 在做什么" />
             <section className="panel runner-node-summary">
               <div className="subheading"><h2>{node?.name}</h2><span className={`status ${node?.revoked ? 'red' : 'neutral'}`}>{node?.revoked ? '已撤销' : node?.platform}</span></div>
               <p className="muted">并发容量 {node?.capacity} · 最后上报 {time(node?.last_seen)} · {error ? '显示上次上报状态' : activeRuns.length ? `${activeRuns.length} 项执行或待确认活动` : '当前空闲，等待自动领取任务'}</p>
@@ -62,13 +62,13 @@ export function RunnerWorkspace({ client: providedClient, centerConsoleURL }: { 
               {!(node?.capabilities ?? []).length && <p className="muted">尚未报告 Agent 工具能力。</p>}
             </section>
             <section className="panel run-history"><div className="subheading"><h2>执行活动</h2><span className="count">{runs.length} 个 Run</span></div>
-              {runs.length ? <div className="table-scroll"><table><thead><tr><th>任务 / Agent</th><th>阶段</th><th>状态</th><th>用量 / 授予</th><th>租约截止</th><th>进程</th></tr></thead><tbody>{runs.map((run) => <tr key={run.id}><td><strong>{(snapshot.tasks ?? []).find((task) => task.id === run.task_id)?.title ?? run.task_id}</strong><small>{run.tool} · <code>{short(run.id)}</code></small><details className="run-detail"><summary>执行详情</summary><p>{run.detail || '中心尚无补充记录。'}</p><code>B {run.base || '未记录'}<br />H {run.head || '未记录'}</code><p>开始 {time(run.started_at)}{run.finished_at ? ` · 结束 ${time(run.finished_at)}` : ''}</p></details></td><td>{stage(run)}</td><td><Status value={run.state} /></td><td>{duration(run.elapsed_seconds)}<small>/ {duration(run.grant_seconds)}</small></td><td>{time(run.lease_until)}</td><td><span className={`status ${run.quiescent ? 'green' : 'neutral'}`}>{run.quiescent ? '已确认静止' : '未确认静止'}</span></td></tr>)}</tbody></table></div> : <Empty title="本机尚无实际运行">Runner 会自动领取符合本机能力的获批任务。</Empty>}
+              {runs.length ? <div className="table-scroll"><table><thead><tr><th>任务 / Agent</th><th>阶段</th><th>状态</th><th>用量 / 授予</th><th>租约截止</th><th>进程</th></tr></thead><tbody>{runs.map((run) => <tr key={run.id}><td><strong>{(snapshot.tasks ?? []).find((task) => task.id === run.task_id)?.title ?? '未命名任务'}</strong><small>{run.tool}</small><details className="run-detail"><summary>技术详情</summary><code>{run.id}</code><p>{run.detail || '中心尚无补充记录。'}</p><code>B {run.base || '未记录'}<br />H {run.head || '未记录'}</code><p>开始 {time(run.started_at)}{run.finished_at ? ` · 结束 ${time(run.finished_at)}` : ''}</p></details></td><td>{stage(run)}</td><td><Status value={run.state} /></td><td>{duration(run.elapsed_seconds)}<small>/ {duration(run.grant_seconds)}</small></td><td>{time(run.lease_until)}</td><td><span className={`status ${run.quiescent ? 'green' : 'neutral'}`}>{run.quiescent ? '已确认静止' : '未确认静止'}</span></td></tr>)}</tbody></table></div> : <Empty title="本机尚无实际运行">Runner 会自动领取符合本机能力的获批任务。</Empty>}
             </section>
           </> : <>
-            <SectionTitle title="向中心提交需求" description="记录要解决的问题和成功条件，提交后可在中心需求池查看。" />
+            <SectionTitle title="向中心提交需求" />
             <Feedback {...action} />
             <form className="panel form-stack runner-requirement-form" onSubmit={submit}><Field label="需求标题"><input name="title" required maxLength={200} /></Field><Field label="原始需求与成功条件"><textarea name="body" required rows={6} /></Field><div className="form-footer"><small>提交会保留本机来源。需求记录完成后，中心仍按授权、预算和门禁规则推进开发。</small><button className="primary" disabled={action.busy || !snapshot.project_name}>提交到中心</button></div>{!snapshot.project_name && <p className="muted">中心尚未创建项目，请先在中心电脑完成项目设置。</p>}</form>
-            <section className="runner-submissions"><div className="subheading"><h2>本机提交记录</h2><span className="count">{requirements.length} 项</span></div>{requirements.length ? <div className="requirement-grid">{requirements.map((requirement) => <article className="panel" key={requirement.id}><div className="record-meta"><code>{requirement.id}</code><span>已记录 · v{requirement.version}</span></div><h2>{requirement.title}</h2><p className="preserve-lines">{requirement.body}</p><small className="muted">提交于 {time(requirement.created_at)}</small></article>)}</div> : <div className="panel"><Empty title="尚未提交需求">本机提交的需求及中心回执会保存在这里。</Empty></div>}</section>
+            <section className="runner-submissions"><div className="subheading"><h2>本机提交记录</h2><span className="count">{requirements.length} 项</span></div>{requirements.length ? <div className="requirement-grid">{requirements.map((requirement) => <article className="panel" key={requirement.id}><div className="record-meta"><details><summary>技术详情</summary><code>{requirement.id}</code></details><span>已记录 · v{requirement.version}</span></div><h2>{requirement.title}</h2><p className="preserve-lines">{requirement.body}</p><small className="muted">提交于 {time(requirement.created_at)}</small></article>)}</div> : <div className="panel"><Empty title="尚未提交需求">本机提交的需求及中心回执会保存在这里。</Empty></div>}</section>
           </>}
         </>}
         <footer className="workbench-footer"><span>COORDICA / LOCAL RUNNER</span><span>本机活动 · 自动领取 · 需求提交</span></footer>

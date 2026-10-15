@@ -10,7 +10,7 @@ const stateLabels: Record<string, string> = {
   paused: '已暂停', approve: '评审通过', changes_requested: '需要修改', blocked: '阻断',
 };
 const green = new Set(['verified', 'integrated', 'succeeded', 'landed', 'approve']);
-const blue = new Set(['executing', 'starting', 'running', 'reviewing', 'validating', 'landing']);
+const active = new Set(['executing', 'starting', 'running', 'reviewing', 'validating', 'landing']);
 const red = new Set(['failed', 'lost', 'rejected', 'changes_requested']);
 const warning = new Set(['draft', 'paused', 'blocked', 'cancel_requested']);
 export const stateLabel = (value: string) => stateLabels[value] ?? value;
@@ -29,7 +29,7 @@ export const categoryLabel = (value: string) => ({ smoke: '冒烟', regression: 
 export const stageLabel = (value: string) => ({ merge: '合并检查', project: '项目验证', release: '发布回归' }[value] ?? value);
 export const roleLabel = (value: string) => ({ implement: '开发', review: '独立审查', repair: '修复', verification: '测试验证' }[value] ?? value);
 export function Status({ value }: { value: string }) {
-  const tone = green.has(value) ? 'green' : blue.has(value) ? 'blue' : red.has(value) ? 'red' : warning.has(value) ? 'warning' : 'neutral';
+  const tone = green.has(value) ? 'green' : active.has(value) ? 'active' : red.has(value) ? 'red' : warning.has(value) ? 'warning' : 'neutral';
   return <span className={`status ${tone}`}>{stateLabels[value] ?? value}</span>;
 }
 export function Empty({ title, children }: { title: string; children?: ReactNode }) {

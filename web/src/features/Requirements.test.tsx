@@ -10,8 +10,8 @@ it('renders distinct chat original/summary plus host provenance and filters/sear
   render(<Requirements requirements={[chat, old]} client={new ApiClient('owner')} refresh={vi.fn()} />);
   expect(screen.getByText('Original user statement')).toBeTruthy();
   expect(screen.getByText('Distinct assistant summary')).toBeTruthy();
-  expect(screen.getByText(/聊天来源：client_host \/ session_42 \/ message_99/)).toBeTruthy();
-  expect(screen.getByText(/来源：node_host/)).toBeTruthy();
+  expect(screen.getAllByText(/client_host \/ session_42 \/ message_99/)).toBeTruthy();
+  expect(screen.getByText(/来源：节点来源/)).toBeTruthy();
   const table = screen.getByRole('table');
   for (const value of ['Original user statement', 'Distinct assistant summary', 'session_42', 'message_99', 'node_host']) {
     fireEvent.change(screen.getByRole('searchbox'), { target: { value } });
@@ -28,7 +28,7 @@ it('renders distinct chat original/summary plus host provenance and filters/sear
 it('identifies a center-host chat requirement without a source node as chat provenance', () => {
   const requirement: Requirement = { id: 'req_center_chat', version: 1, title: 'Center chat input', body: 'Original from chat', assistant_summary: 'Assistant interpretation', source: { client_id: 'client_center', session_id: 'session_center', message_id: 'message_center' }, created_at: '' };
   render(<Requirements requirements={[requirement]} client={new ApiClient('owner')} refresh={vi.fn()} />);
-  expect(screen.getByText(/聊天来源：client_center \/ session_center \/ message_center/)).toBeTruthy();
+  expect(screen.getAllByText(/client_center \/ session_center \/ message_center/)).toBeTruthy();
   expect(screen.getByText('Assistant interpretation')).toBeTruthy();
   fireEvent.change(screen.getByLabelText('需求来源'), { target: { value: 'center' } });
   expect(screen.queryByRole('table')).toBeNull();
