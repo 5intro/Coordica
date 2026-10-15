@@ -33,19 +33,21 @@ export function RunnerWorkspace({ client: providedClient, centerConsoleURL }: { 
 
   return <div className="workspace runner-workspace">
     <a href="#main-content" className="skip-link">跳转到主要内容</a>
-    <aside className="sidebar">
-      <button className="wordmark brand-button" onClick={() => setPage('activity')}>Coordica<span className="wordmark-dot" /></button>
-      <div className="project-label"><span className="project-monogram">{node?.name.slice(0, 1) || 'R'}</span><div><strong>{node?.name || '本机 Runner'}</strong><small>{snapshot?.project_name || '等待项目连接'}</small></div></div>
-      <nav aria-label="本机工作台页面">
-        <button className={page === 'activity' ? 'nav-item active' : 'nav-item'} aria-current={page === 'activity' ? 'page' : undefined} onClick={() => setPage('activity')}><span className="nav-number">01</span>本机活动{activeRuns.length > 0 && <span className="nav-count">{activeRuns.length}</span>}</button>
-        <button className={page === 'requirements' ? 'nav-item active' : 'nav-item'} aria-current={page === 'requirements' ? 'page' : undefined} onClick={() => setPage('requirements')}><span className="nav-number">02</span>提交需求</button>
-      </nav>
-      {centerURL && <nav className="local-center-navigation" aria-label="同机中心工作台"><span>同机中心 · 需 owner 登录</span><a className="nav-item" href={`${centerURL}/#tasks`}>中心任务池 ↗</a><a className="nav-item" href={`${centerURL}/#requirements`}>中心需求池 ↗</a><a className="nav-item" href={`${centerURL}/#blocks`}>中心阻断管理 ↗</a><a className="nav-item" href={`${centerURL}/#agents`}>中心 Agents 管理 ↗</a><a className="nav-item" href={`${centerURL}/#runs`}>中心运行与节点 ↗</a><a className="nav-item" href={`${centerURL}/#connection`}>中心配置与接入 ↗</a></nav>}
-      <div className="sidebar-bottom"><div className={`connection ${error ? 'offline' : loading ? 'loading' : 'online'}`}><span />{error ? '中心连接异常' : loading ? '正在读取本机状态' : '中心已连接'}</div><small>本机页面 · 自动执行</small></div>
-    </aside>
     <div className="main-shell">
-      <div className="topbar"><span>{page === 'activity' ? '本机活动' : '提交需求'}</span><div><span className="snapshot-time">{updatedAt ? `状态更新 ${time(updatedAt)}` : '等待中心记录'}</span><button className="text-button" onClick={refresh}>刷新 ↻</button></div></div>
       <main id="main-content" tabIndex={-1}>
+        <header className="runner-heading">
+          <div><h1>{node?.name || '本机 Runner'}</h1><p className="muted">{snapshot?.project_name || '等待项目连接'}</p></div>
+          <div className="runner-status">
+            <span className={`connection ${error ? 'offline' : loading ? 'loading' : 'online'}`}><span />{error ? '中心连接异常' : loading ? '正在读取本机状态' : '中心已连接'}</span>
+            <span className="snapshot-time">{updatedAt ? `状态更新 ${time(updatedAt)}` : '等待中心记录'}</span>
+            <button className="secondary" onClick={refresh}>刷新 ↻</button>
+          </div>
+        </header>
+        <nav className="segmented" aria-label="本机工作台页面">
+          <button aria-pressed={page === 'activity'} aria-current={page === 'activity' ? 'page' : undefined} onClick={() => setPage('activity')}>本机活动{activeRuns.length > 0 && <span> · {activeRuns.length}</span>}</button>
+          <button aria-pressed={page === 'requirements'} aria-current={page === 'requirements' ? 'page' : undefined} onClick={() => setPage('requirements')}>提交需求</button>
+        </nav>
+        {centerURL && <details className="runner-center-access"><summary>同机中心 · 需 owner 登录</summary><nav className="runner-center-links" aria-label="同机中心工作台"><a href={`${centerURL}/#tasks`}>中心任务池 ↗</a><a href={`${centerURL}/#requirements`}>中心需求池 ↗</a><a href={`${centerURL}/#blocks`}>中心阻断管理 ↗</a><a href={`${centerURL}/#agents`}>中心 Agents 管理 ↗</a><a href={`${centerURL}/#runs`}>中心运行与节点 ↗</a><a href={`${centerURL}/#connection`}>中心配置与接入 ↗</a></nav></details>}
         <Feedback error={error ? `${error}${snapshot ? ' 当前显示上次成功取得的状态。' : ''}` : ''} />
         {!snapshot ? <section className="panel connection-panel"><Empty title={loading ? '正在读取本机活动' : '尚未取得本机状态'}>{loading ? '读取中心保存的节点与执行记录。' : '确认 Runner 已配对并正在运行，然后重试。'}</Empty>{!loading && <div className="actions"><button className="primary" onClick={refresh}>重新连接</button></div>}</section> : <>
           {snapshot.project_paused && <p className="hold">中心项目已暂停，新的执行等待中心恢复。</p>}

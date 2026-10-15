@@ -10,6 +10,7 @@ describe('local Runner workbench', () => {
     vi.spyOn(client, 'snapshot').mockResolvedValue(nodeSnapshot);
     const rendered = render(<RunnerWorkspace client={client} centerConsoleURL="http://127.0.0.1:8080" />);
     await screen.findByText('规范化问候姓名');
+    fireEvent.click(screen.getByText('同机中心 · 需 owner 登录'));
     expect(screen.getByRole('link', { name: '中心任务池 ↗' }).getAttribute('href')).toBe('http://127.0.0.1:8080/#tasks');
     expect(screen.getByRole('link', { name: '中心需求池 ↗' }).getAttribute('href')).toBe('http://127.0.0.1:8080/#requirements');
     expect(screen.getByRole('link', { name: '中心配置与接入 ↗' }).getAttribute('href')).toBe('http://127.0.0.1:8080/#connection');
@@ -22,6 +23,26 @@ describe('local Runner workbench', () => {
     expect(screen.queryByRole('button', { name: '撤销节点' })).toBeNull();
     rendered.rerender(<RunnerWorkspace client={client} />);
     expect(screen.queryByRole('link', { name: '中心任务池 ↗' })).toBeNull();
+  });
+
+  it('keeps local navigation in the page and exposes execution IDs only in technical details', async () => {
+    const client = new LocalClient();
+    vi.spyOn(client, 'snapshot').mockResolvedValue(nodeSnapshot);
+    const { container } = render(<RunnerWorkspace client={client} />);
+    await screen.findByText('规范化问候姓名');
+    const main = screen.getByRole('main');
+    expect(main.contains(screen.getByRole('navigation', { name: '本机工作台页面' }))).toBe(true);
+    expect(container.querySelector('.sidebar, .topbar, .nav-item')).toBeNull();
+    expect(screen.getByRole('button', { name: /本机活动/ }).getAttribute('aria-pressed')).toBe('true');
+    const technical = screen.getByText(localRun.id).closest('details')!;
+    expect(technical.open).toBe(false);
+    fireEvent.click(technical.querySelector('summary')!);
+    expect(technical.open).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '提交需求' }));
+    expect(screen.getByRole('button', { name: '提交需求' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByLabelText('需求标题')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /本机活动/ }));
+    expect(screen.getByText('规范化问候姓名')).toBeTruthy();
   });
 
   it('shows actual local execution and keeps the last state visibly stale when disconnected', async () => {
