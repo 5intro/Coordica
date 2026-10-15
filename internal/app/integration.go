@@ -396,7 +396,11 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 		results, quiescent, e = checkexec.Run(runCtx, work, candidateChecks(p, c), validationEnv())
 	}
 	if e == nil {
-		e = w.Git.VerifyClean(runCtx, work, gitops.OID(c.Commit))
+		outputs := []string{}
+		if c.CheckPlan != nil {
+			outputs = c.CheckPlan.OutputPaths
+		}
+		e = w.Git.VerifyCheckOutputs(runCtx, work, gitops.OID(c.Commit), outputs)
 		if errors.Is(e, process.ErrTreeNotStopped) {
 			quiescent = false
 		}
@@ -630,8 +634,12 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 			return nil
 		}
 		blockingTests, e := blockingTestFailures(tx, current.Main, current.Commit)
-		if e != nil { return e }
-		if len(blockingTests) != 0 { return nil }
+		if e != nil {
+			return e
+		}
+		if len(blockingTests) != 0 {
+			return nil
+		}
 		if current.Review == nil || current.Review.Candidate != current.Commit || current.Review.Verdict != "approve" || !domain.ChecksPassed(candidateChecks(project, current), current.Checks) {
 			return domain.Fail("conflict", "缺少完整固定候选证据")
 		}

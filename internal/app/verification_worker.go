@@ -182,7 +182,7 @@ func (w *VerificationWorker) Tick(ctx context.Context) error {
 		results, quiet, e = checkexec.Run(runCtx, work, t.Verification.Suite.Checks, validationEnv())
 	}
 	if e == nil {
-		e = i.Git.VerifyClean(runCtx, work, gitops.OID(r.Base))
+		e = i.Git.VerifyCheckOutputs(runCtx, work, gitops.OID(r.Base), t.Verification.Suite.OutputPaths)
 		quiet = quiet && !errors.Is(e, process.ErrTreeNotStopped)
 	}
 	finalCtx, finalCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)

@@ -818,6 +818,7 @@ export interface Artifact {
   created_at: string;
 }
 export interface TestSuite {
+  output_paths?: (string)[] | null;
   block_merges_on_failure?: boolean;
   id: string;
   version: number;
@@ -858,6 +859,7 @@ export interface TestReport {
   checks: (CheckResult)[] | null;
 }
 export interface CheckPlan {
+  output_paths?: (string)[] | null;
   policy_version: number;
   digest: string;
   checks: (Check)[] | null;

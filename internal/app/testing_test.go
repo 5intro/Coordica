@@ -321,6 +321,15 @@ func TestVerificationCancellationKillsProcessAndKeepsEvidence(t *testing.T) {
 
 func TestVerificationSubprocess(t *testing.T) {
 	for i, arg := range os.Args {
+		if arg == "coordica-generate-test-output" {
+			if e := os.MkdirAll("cache", 0700); e != nil {
+				os.Exit(2)
+			}
+			if e := os.WriteFile(filepath.Join("cache", "generated.txt"), []byte("test evidence"), 0600); e != nil {
+				os.Exit(2)
+			}
+			os.Exit(0)
+		}
 		if arg == "coordica-longevity" && i+1 < len(os.Args) {
 			if e := os.WriteFile(os.Args[i+1], []byte("started"), 0600); e != nil {
 				os.Exit(2)
@@ -328,6 +337,37 @@ func TestVerificationSubprocess(t *testing.T) {
 			time.Sleep(time.Minute)
 			os.Exit(0)
 		}
+	}
+}
+
+func TestVerificationRetainsOnlyDeclaredGeneratedOutputs(t *testing.T) {
+	for _, allow := range []bool{false, true} {
+		t.Run(map[bool]string{false: "undeclared", true: "declared"}[allow], func(t *testing.T) {
+			f := newITFixture(t)
+			binary, e := os.Executable()
+			if e != nil {
+				t.Fatal(e)
+			}
+			suite := domain.TestSuite{ID: "outputs", Name: "Generated output", Stage: "project", Enabled: true, Checks: []domain.Check{{Name: "generate", Command: binary, Args: []string{"-test.run=^TestVerificationSubprocess$", "--", "coordica-generate-test-output"}, TimeoutSeconds: 10}}}
+			if allow {
+				suite.OutputPaths = []string{"cache/**"}
+			}
+			b, e := f.s.SaveTestSuite(context.Background(), f.owner, "outputs", domain.TestSuiteSave{Suite: suite})
+			suite = itDecode[domain.TestSuite](t, b, e)
+			request := requestVerification(t, f, suite)
+			w := &VerificationWorker{Integration: f.w}
+			if e = w.Tick(context.Background()); e != nil {
+				t.Fatal(e)
+			}
+			for _, task := range f.snapshot(t).Tasks {
+				if task.ID != request.ID {
+					continue
+				}
+				if (task.State == "verified") != allow {
+					t.Fatal("output policy not enforced", task)
+				}
+			}
+		})
 	}
 }
 

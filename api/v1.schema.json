@@ -1246,6 +1246,15 @@
         "digest": {
           "type": "string"
         },
+        "output_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "policy_version": {
           "type": "integer"
         }
@@ -4088,6 +4097,15 @@
         },
         "name": {
           "type": "string"
+        },
+        "output_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "platforms": {
           "items": {

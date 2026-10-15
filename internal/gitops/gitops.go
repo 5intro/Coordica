@@ -966,6 +966,17 @@ func (g *Client) BuildCandidate(ctx context.Context, repo string, m, h OID, work
 // VerifyClean rejects staged, tracked, untracked and ignored inputs. Build
 // outputs must live outside this fixed source directory.
 func (g *Client) VerifyClean(ctx context.Context, workspace string, c OID) error {
+	return g.VerifyCheckOutputs(ctx, workspace, c, nil)
+}
+
+// VerifyCheckOutputs permits explicitly declared untracked/ignored outputs
+// only after trusted checks. Call VerifyClean before executing any checks.
+// HEAD, tracked blobs, modes and the index must still match the fixed commit.
+func (g *Client) VerifyCheckOutputs(ctx context.Context, workspace string, c OID, outputs []string) error {
+	allowed, err := NewScope(outputs, nil)
+	if err != nil {
+		return err
+	}
 	if err := validIDs(c); err != nil {
 		return err
 	}
@@ -980,8 +991,13 @@ func (g *Client) VerifyClean(ctx context.Context, workspace string, c OID) error
 	if err != nil {
 		return err
 	}
-	if len(out) != 0 {
-		return fault("verify", ErrDirty, "tracked or extra inputs present")
+	for _, record := range bytes.Split(out, []byte{0}) {
+		if len(record) == 0 {
+			continue
+		}
+		if len(record) < 4 || (string(record[:2]) != "??" && string(record[:2]) != "!!") || record[2] != ' ' || !allowed.Check([]string{strings.TrimSuffix(string(record[3:]), "/")}).Allowed {
+			return fault("verify", ErrDirty, "tracked changes or undeclared check outputs present")
+		}
 	}
 	// Unsupported tree entries cannot become invisible behind a clean status.
 	out, err = g.run(ctx, workspace, nil, "ls-tree", "-r", "--full-tree", "-z", string(c))

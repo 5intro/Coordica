@@ -39,6 +39,9 @@ func (s *Service) SaveTestSuite(ctx context.Context, a Actor, key string, in dom
 	if _, e := gitops.NewScope(in.Suite.MatchPaths, nil); e != nil {
 		return nil, domain.Fail("invalid_input", e.Error())
 	}
+	if _, e := gitops.NewScope(in.Suite.OutputPaths, nil); e != nil {
+		return nil, domain.Fail("invalid_input", e.Error())
+	}
 	return s.mutate(ctx, a, key, "tests.suite.save", in, func(tx *store.Tx) (any, error) {
 		p, e := getProject(tx)
 		if e != nil {
@@ -328,6 +331,7 @@ func mergeCheckPlan(p domain.Project, suites []domain.TestSuite, paths []string,
 			check.Name = suite.ID + "/" + check.Name
 			plan.Checks = append(plan.Checks, check)
 		}
+		plan.OutputPaths = append(plan.OutputPaths, suite.OutputPaths...)
 	}
 	b, e := json.Marshal(plan)
 	plan.Digest = Hash(string(b))

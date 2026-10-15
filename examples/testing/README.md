@@ -40,6 +40,13 @@ Save with `POST tests/suites`. Update with the exact current suite version.
 Changing a merge suite requires a paused project and confirmed process
 quiescence. It invalidates pending candidate checks and review approval.
 
+Declare generated directories in optional `output_paths`, for example
+`["web/node_modules/**", "web/*.tsbuildinfo"]`. Source must be completely clean
+before checks start. After checks, only declared untracked/ignored outputs may
+remain; tracked code, index changes and undeclared files still fail verification.
+The declared paths are part of the pinned suite/candidate evidence. Development
+Agents must remove their own generated caches before handing code to Runner.
+
 Request `POST tests/run` with `suite_id`, `expected_version`, a full fixed
 `commit`, `budget_seconds`, `max_run_seconds`, `max_retries` (0..2), and optional
 `requirement_ids`. This explicitly admits a finite verification task under the

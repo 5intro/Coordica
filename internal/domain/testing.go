@@ -5,6 +5,7 @@ import "strings"
 // Test suites are Owner-maintained policy. A task pins a complete immutable
 // suite version; an Agent's prose is never a substitute for process results.
 type TestSuite struct {
+	OutputPaths          []string `json:"output_paths,omitempty"`
 	BlockMergesOnFailure bool     `json:"block_merges_on_failure,omitempty"`
 	ID                   string   `json:"id"`
 	Version              int64    `json:"version"`
@@ -51,9 +52,10 @@ type TestReport struct {
 
 // CheckPlan binds the exact commands selected for one fixed merge candidate.
 type CheckPlan struct {
-	PolicyVersion int64   `json:"policy_version"`
-	Digest        string  `json:"digest"`
-	Checks        []Check `json:"checks"`
+	OutputPaths   []string `json:"output_paths,omitempty"`
+	PolicyVersion int64    `json:"policy_version"`
+	Digest        string   `json:"digest"`
+	Checks        []Check  `json:"checks"`
 }
 
 type TestReadiness struct {
@@ -73,7 +75,7 @@ type RequirementLinkRequest struct {
 }
 
 func ValidateTestSuite(s TestSuite) error {
-	if !ChatIdentifier.MatchString(s.ID) || !ChatText(s.Name, 512, true) || !ChatText(s.Description, 16384, false) || (s.Stage != "merge" && s.Stage != "project" && s.Stage != "release") || len(s.Checks) == 0 || len(s.Checks) > 32 || len(s.MatchPaths) > 128 || len(s.RequirementIDs) > 128 || len(s.Categories) > 32 || len(s.Platforms) > 3 {
+	if !ChatIdentifier.MatchString(s.ID) || !ChatText(s.Name, 512, true) || !ChatText(s.Description, 16384, false) || (s.Stage != "merge" && s.Stage != "project" && s.Stage != "release") || len(s.Checks) == 0 || len(s.Checks) > 32 || len(s.MatchPaths) > 128 || len(s.OutputPaths) > 128 || len(s.RequirementIDs) > 128 || len(s.Categories) > 32 || len(s.Platforms) > 3 {
 		return Fail("invalid_input", "bounded suite ID, name, stage and 1..32 checks required")
 	}
 	names := map[string]bool{}
