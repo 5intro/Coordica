@@ -63,6 +63,50 @@ func (s *Service) RequestScope(ctx context.Context, a Actor, key, id string, req
 	})
 }
 
+// A successful terminal task needs no further scope grant. Keep the obsolete
+// decision as history; never retire a stop prerequisite or unknown execution.
+func (s *Service) retireCompletedScopeDecisions(tx *store.Tx) error {
+	decisions, err := store.List[domain.Decision](tx, "decision")
+	if err != nil {
+		return err
+	}
+	runs, err := store.List[domain.Run](tx, "run")
+	if err != nil {
+		return err
+	}
+	unquiet := map[string]bool{}
+	for _, run := range runs {
+		if !run.Quiescent {
+			unquiet[run.TaskID] = true
+		}
+	}
+	for _, decision := range decisions {
+		if decision.Status != "open" || decision.SourceKind != "task" || decision.Kind != "scope" {
+			continue
+		}
+		var task domain.Task
+		if err = tx.Get("task", decision.SourceID, &task); err != nil {
+			return err
+		}
+		if (task.State != "integrated" && task.State != "verified") || task.CurrentRunID != "" {
+			continue
+		}
+		if unquiet[task.ID] {
+			continue
+		}
+		decision.Status = "superseded"
+		decision.Resolution = "task completed and all executions quiescent; no scope granted"
+		decision.Version++
+		if err = tx.Put("decision", decision.ID, decision); err != nil {
+			return err
+		}
+		if err = s.audit(tx, Actor{ID: "center"}, "decision.task_completed", decision.ID, decision.Resolution); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (w *PlanningWorker) queueScopes(ctx context.Context) error {
 	s := w.Service
 	return s.DB.Update(ctx, func(tx *store.Tx) error {
@@ -80,6 +124,9 @@ func (w *PlanningWorker) queueScopes(ctx context.Context) error {
 			if r.Purpose == domain.ConsultationPurpose && (r.State == "queued" || r.State == "running" || r.State == "pending_result" || r.State == "unknown_live" || r.State == "cancel_requested") {
 				return nil
 			}
+		}
+		if e = s.retireCompletedScopeDecisions(tx); e != nil {
+			return e
 		}
 		for _, v := range requests {
 			if v.State != "waiting_stop" {

@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-15T08:52:49.603434+00:00",
+  "title": "Design System: Coordica",
+  "extensions": {
+    "shadows": [
+      {
+        "name": "floating-dock",
+        "value": "0 8px 24px rgb(24 34 54 / 20%)",
+        "purpose": "唯一常驻浮起导航"
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-transition",
+        "value": "150ms",
+        "purpose": "短暂操作反馈；reduced-motion关闭"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "host-below",
+        "value": "1000px"
+      },
+      {
+        "name": "mobile",
+        "value": "640px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "主要操作",
+      "html": "<button class=\"ds-primary\">提交需求</button>",
+      "css": ".ds-primary{background:var(--accent);color:var(--surface);border:0;border-radius:var(--radius-control);padding:9px 16px;font:inherit;cursor:pointer}.ds-primary:hover{background:var(--accent-hover)}.ds-primary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.ds-primary:active{transform:scale(.98)}"
+    },
+    {
+      "name": "Secondary button",
+      "kind": "button",
+      "description": "次要操作",
+      "html": "<button class=\"ds-secondary\">查看详情</button>",
+      "css": ".ds-secondary{background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:var(--radius-control);padding:9px 16px;font:inherit}.ds-secondary:hover{background:var(--subtle)}.ds-secondary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
+    },
+    {
+      "name": "Text field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "真实表单输入",
+      "html": "<label>搜索任务<input class=\"ds-input\" placeholder=\"标题、工具或节点\" /></label>",
+      "css": ".ds-input{display:block;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:var(--radius-control);padding:9px 12px;font:inherit;caret-color:var(--accent)}.ds-input::placeholder{color:var(--muted)}.ds-input:hover{border-color:var(--muted)}.ds-input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}"
+    },
+    {
+      "name": "Semantic status",
+      "kind": "chip",
+      "description": "真实成功状态，非导航",
+      "html": "<span class=\"ds-status\">验证完成</span>",
+      "css": ".ds-status{display:inline-flex;background:var(--success-bg);color:var(--success);font-size:12px;line-height:1.7;padding:3px 8px;border-radius:9999px}"
+    },
+    {
+      "name": "Dock selection",
+      "kind": "nav",
+      "description": "当前页的明确导航",
+      "html": "<nav class=\"ds-dock\" aria-label=\"页面\"><button aria-current=\"page\">总览</button><button>需求</button></nav>",
+      "css": ".ds-dock{display:flex;gap:4px;padding:6px;border-radius:12px;background:var(--dock)}.ds-dock button{border:0;border-radius:7px;padding:12px;color:var(--dock-text);background:transparent;font:inherit}.ds-dock button:hover{background:var(--dock-hover)}.ds-dock button[aria-current]{background:var(--accent);color:var(--surface)}.ds-dock button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "项目档案工作台",
+    "overview": "工作列表、真实状态与清楚导航优先。",
+    "keyCharacteristics": [
+      "纸白工作面",
+      "深墨Dock",
+      "蓝色操作",
+      "状态色仅作语义"
+    ],
+    "rules": [
+      {
+        "name": "状态与证据一致",
+        "body": "不以颜色替代真实运行与验证结果。",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "保持真实值可查",
+      "统一语义token"
+    ],
+    "donts": [
+      "不要泛化灰绿",
+      "不要伪造配置或通过"
+    ]
+  }
+}

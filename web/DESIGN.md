@@ -1,36 +1,111 @@
-# 工作台视觉体系
+---
+name: Coordica
+description: 单项目多 Agent 协作工作台
+colors:
+  canvas: "#f4f6fa"
+  surface: "#ffffff"
+  subtle: "#edf1f7"
+  ink: "#182236"
+  muted: "#53627a"
+  border: "#d7dfea"
+  accent: "#2456d9"
+  accent-hover: "#1c43b0"
+  selection: "#e9efff"
+  success: "#23633e"
+  success-bg: "#eaf5ee"
+  warning: "#80520b"
+  warning-bg: "#fff4da"
+  failure: "#a52c37"
+  failure-bg: "#ffedf0"
+  dock: "#182236"
+  dock-hover: "#26344c"
+  dock-text: "#dfe8f8"
+typography:
+  title:
+    fontFamily: "'SF Pro Text', 'PingFang SC', 'Segoe UI', 'Microsoft YaHei', sans-serif"
+    fontSize: "28px"
+    fontWeight: 600
+    lineHeight: 1.25
+  section:
+    fontFamily: "'SF Pro Text', 'PingFang SC', 'Segoe UI', 'Microsoft YaHei', sans-serif"
+    fontSize: "16px"
+    fontWeight: 600
+    lineHeight: 1.45
+  body:
+    fontFamily: "'SF Pro Text', 'PingFang SC', 'Segoe UI', 'Microsoft YaHei', sans-serif"
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: 1.5
+  secondary:
+    fontFamily: "'SF Pro Text', 'PingFang SC', 'Segoe UI', 'Microsoft YaHei', sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.5
+  small:
+    fontFamily: "'SF Pro Text', 'PingFang SC', 'Segoe UI', 'Microsoft YaHei', sans-serif"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: 1.6
+rounded:
+  control: "5px"
+spacing:
+  step-1: "4px"
+  step-2: "8px"
+  step-3: "12px"
+  step-4: "16px"
+  step-6: "24px"
+components:
+  button-primary:
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.surface}"
+    rounded: "{rounded.control}"
+    padding: "9px 16px"
+  button-primary-hover:
+    backgroundColor: "{colors.accent-hover}"
+  input:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.control}"
+    padding: "9px 12px"
+---
+# Design System: Coordica
 
-已确认方向为建筑事务所项目档案的阅读纪律：纸白工作面、深墨文字、蓝色操作，按标题、状态、责任排列真实工作。适用首页、四池、Agent、测试、设置，以及初始化、咨询、运行、恢复和登录。工作台为 Operate；无图片、网络字体、新依赖或装饰性图案。
+## Overview
 
-## Token 与排版
+**Creative North Star: "项目档案工作台"**
 
-`styles.css` 持有共享语义 token。canvas #f4f6fa 为页面底，surface #ffffff 为工作面，subtle #edf1f7 为辅助层，ink #182236 为正文，muted #53627a 为说明，border #d7dfea 为分隔。accent #2456d9 / accent-hover #1c43b0 用于主操作、焦点、caret；selection #e9efff 用于选择和选中行。旧 paper/bone/green/red/blue 类名与变量保留兼容语义别名。
+工作台服务于日常推进与处理问题。项目、具体列表与真实执行实例优先，视觉来自清楚的排版、状态和对齐。用户明确反对泛化灰绿；本轮受托设计使用纸白工作面、浅冷背景、深墨 Dock 和蓝色操作。功能与权限是产品事实，颜色不能代替执行证据。
 
-成功使用 #23633e / #eaf5ee；待处理与暂停使用 #80520b / #fff4da；失败使用 #a52c37 / #ffedf0。通知用蓝色信息态。导航、普通进度及能力记录不借用成功绿；已取消使用中性状态。状态始终保留可读文字。
+## Colors
 
-系统字体按 SF Pro Text、PingFang SC、Segoe UI、Microsoft YaHei、sans-serif 顺序回退。正文与表格14px，区域标题16px，页内标题28px，说明12–13px；标题 tracking -.025em。代码12px等宽，计数和时间使用 tabular 数字。间距 token 为4、8、12、16、24px，标准控件半径5px。无入场动画，reduced-motion 取消过渡。
+颜色的规范值在frontmatter与src/styles.css。accent用于主操作、当前选择、focus和caret；canvas与surface区分背景和工作区，muted仍保证可读性。success只传达实际成功或可用性，warning用于待处理/暂停，failure用于失败。普通通知用信息态，已取消使用中性态。状态始终带文字，能力探测不代表认证或真实运行。
 
-## 布局与交互
+## Typography
 
-桌面正文限宽1480px，常规左右32px。首页目标默认单行，可展开完整内容；展开控件用 aria-expanded 和 aria-controls 关联原文。四池为平面2×2工作区域，右侧约四分之一宽展示真实主机运行动态。池与主机共用标题基线、细分隔与14px条目标题。短记录最小52px，长标题自然换行，空态随内容收缩。人工待办仅在有真实记录时出现，使用琥珀标题与明确处理入口。
+系统无衬线统一标题、正文、标签与控件；标题28px、区域标题16px、正文及表格14px，次要说明13px，技术文字12px。标题600、tracking -.025em，行高1.25；正文继承1.5，段落1.8。代码/OID使用等宽，时间和计数用tabular数字。没有装饰性eyebrow或巨大指标数字。
 
-1000px 以下主机移至池下；640px 以下池单列，页边16px，Dock沿用五项与可见池切换。宽表在内部滚动，长ID断行，表单和flex/grid子项可收缩。底部预留112px及安全区。
+## Layout
 
-Dock 使用 #182236 底、#26344c hover、#dfe8f8 文字；当前项蓝底白字。仅Dock有带实际偏移的柔和阴影。保留原生1.6px SVG图标、中文标签、aria-current和键盘操作。控件共享蓝色焦点、选中、hover、active及disabled语言；危险主按钮红底白字。高级证据、输出和能力报告维持现有渐进展开。
+桌面正文限宽1480px、左右32px；640px以下16px边距。首页四池2×2，主机动态在右侧；1000px以下主机移至正文下，640px以下池单列。目标默认简洁、可展开原文；高级信息渐进展开，普通行优先标题、状态和责任。宽表仅内部滚动，长ID可换行。底部预留112px与safe-area，Dock不覆盖末尾内容。
 
-## Finish review 与实际验证
+## Elevation & Depth
 
-代码检查已覆盖四份CSS的颜色用途、紧凑首页、响应式规则、所有共享控件与状态；Impeccable机械检测返回空数组。无shipping raster，因此无图片来源记录。
+内容工作面平坦，以底色、细分隔和一致标题分组；不堆叠卡片或用阴影代替内容。仅浮起Dock使用真实偏移的柔和阴影，值记录在sidecar。
 
-结论：实现与代码级检查完成；真实浏览器视觉验收待Root在固定候选上执行。当前工具未提供浏览器能力，不能证明1280×800、320/390px实际渲染、像素密度或键盘浏览器旅程。本地Vitest为jsdom组件测试，不是浏览器E2E；macOS执行不代表Windows/Linux实测。功能边界沿用E与D，不改API、授权或业务状态机。
+## Shapes
 
-本轮实际执行：从指定tool-cache复制npm缓存后，npm --prefix web ci --offline --cache "$PWD/.cache/coordica-npm" --no-audit --no-fund 成功（104 packages）；最终 npm --prefix web test -- --maxWorkers=2 为22文件、223测试通过；npm --prefix web run build 成功（TypeScript与Vite），保留对应dist。基础文本token对比计算覆盖正文、辅助文本、蓝色操作、三类状态与Dock，最小5.46:1；这是色值计算，不代替浏览器逐元素检查。已清理本轮node_modules、tsbuildinfo和本地npm缓存。
+标准控件5px圆角，底部Dock12px圆角；列表分隔与原生输入/下拉保持熟悉操作。小状态标签保留语义文字，不把所有元素胶囊化。图标使用既有1.6px内联SVG。
 
+## Components
 
-## G：最终验收修正
+主按钮蓝底白字，hover加深，危险动作保留红色；次按钮白底边框，text-button使用蓝色。输入统一padding与边框，caret/focus与主色一致。焦点2px、offset3px；文字选中使用selection/ink。disabled不冒充可操作状态，错误与成功反馈保留真实请求结果。
 
-沿用 Root 已在固定候选完成的桌面 1280×800、手机 390×844/320px 验收方向，不开启新视觉方案。HTML 源 theme-color 与 canvas #f4f6fa 一致，并重新构建 dist。SectionTitle 不再含装饰 eyebrow 参数与 DOM，遗留装饰节点及对应 CSS 已删除；必要凭据、角色与备份位置事实保留。changes_requested 维持红色，移除 warning 集合死项。
+Dock桌面八项，小屏五项并提供工作池内切换；深墨底、浅色文字，当前项蓝底白字，保留aria-current与键盘操作。无常驻顶部/侧边全局导航，无毛玻璃、霓虹或入场编排。reduced-motion取消无必要过渡。
 
-任务列表以标题与状态成组，只在实际阻断时显示原因；原始任务、候选、运行标识和阻断值放任务技术详情。当前运行与候选、前置依赖仍可访问，任务已用/预留/上限保持独立有限预算语义。套件列表优先名称、阶段、版本、启用状态、中文分类、平台、失败阻断配置与需求标题深链接；完整匹配规则、输出目录、检查命令与原始分类、ID 按需展开。分类显示映射不改 Owner 值，未修改分类时保存保留原数组顺序。已知阻断与决策种类中文显示，未知值原样；不改变待办集合及后台状态。
+## Do's and Don'ts
 
-实际验证：按指定离线缓存执行 npm ci 成功；最终 `npm --prefix web test -- --maxWorkers=2` 为 22 文件、226 测试通过，包含新增任务信息分组、原始阻断值保留、需求标题链接和 Owner 套件完整载荷回归；`npm --prefix web run build` 成功并保留匹配 dist；Impeccable detect 返回 []。原有授权、恢复、取消、准备停止及咨询丢 ACK 断言保留，行为查询随中文术语同步。本轮未执行真实浏览器 E2E 或 Windows/Linux 实测；最终浏览器确认由 Root 完成。清理本次 node_modules、tsbuildinfo 与 npm 缓存。
+- Do 保持用户原文、助手摘要和来源可查，技术证据按需展开，未知值保留。
+- Do 区分工具能力与真实实例、历史报告与当前固定版本、缺失与通过。
+- Do 复用现有特性组件、语义token和真实API，不用视觉状态制造授权或成功。
+- Don't 用灰绿表示导航、普通进度、焦点或一般提示，不伪造可保存配置。
+- Don't 把桌面/手机浏览器确认说成所有平台原生部署验收；jsdom不是浏览器E2E。

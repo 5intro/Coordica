@@ -13,7 +13,7 @@ import (
 )
 
 const APIVersion = "v1"
-const SourceVersion = "0.2.4-dev"
+const SourceVersion = "0.2.5-dev"
 
 // Explicit finite task and execution deadlines; project spending is telemetry.
 const MaxTaskBudgetSeconds int64 = 31536000 // 365 days, including manual extensions
