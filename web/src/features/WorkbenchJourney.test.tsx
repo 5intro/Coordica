@@ -106,6 +106,7 @@ it.each(['missing', 'skipped', 'running'] as const)('测试中心不把 %s 当�
   else expect(screen.getByText('未记录检查结果，不算通过。')).toBeTruthy();
   fireEvent.change(screen.getByLabelText('完整提交 SHA'), { target: { value: sha } });
   request.mockImplementationOnce(async () => new Response(JSON.stringify({ commit: sha, ready: false, required: ['journey@darwin'], passed: [], missing: ['journey@darwin'], failed: [], uncovered_requirement_ids: [] })));
+  fireEvent.click(screen.getByRole('button', { name: '覆盖与就绪' }));
   fireEvent.click(screen.getByRole('button', { name: '查询就绪状态' }));
   await screen.findByText('尚未就绪');
   expect(request).toHaveBeenCalledWith(`/api/v1/tests/readiness?commit=${sha}`, expect.anything());

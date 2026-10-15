@@ -28,7 +28,7 @@ describe('Phase B owner writes and authority fences', () => {
     fireEvent.change(screen.getByLabelText('目标'), { target: { value: 'Build' } });
     fireEvent.change(screen.getByLabelText('验收标准'), { target: { value: 'Checks' } });
     fireEvent.change(screen.getByLabelText(/字面允许根目录（每行一个）/), { target: { value: 'web/src\n literal root ' } });
-    fireEvent.click(screen.getByLabelText('Existing requirement · req'));
+    fireEvent.click(screen.getByLabelText('Existing requirement'));
     fireEvent.click(screen.getByRole('button', { name: '保存目标' }));
     await waitFor(() => expect(write).toHaveBeenCalledWith('/planning/save', { expected_version: 0, document: { ...emptyGoal, objective: 'Build', acceptance: 'Checks', requirement_ids: ['req'], allowed_roots: ['web/src', ' literal root '] } }));
   });
@@ -151,14 +151,14 @@ describe('Phase B owner writes and authority fences', () => {
   it('keeps a decision edit tied to its reviewed source version across snapshot updates', async () => {
     const { client, refresh, write } = controls();
     const view = render(<DecisionResolve decision={decision} client={client} refresh={refresh} />);
-    fireEvent.change(screen.getByLabelText('决策操作 d'), { target: { value: 'confirm_stopped' } });
-    fireEvent.change(screen.getByLabelText('决策证据 d'), { target: { value: 'PID verified' } });
+    fireEvent.change(screen.getByLabelText('决策操作'), { target: { value: 'confirm_stopped' } });
+    fireEvent.change(screen.getByLabelText('决策证据'), { target: { value: 'PID verified' } });
     view.rerender(<DecisionResolve decision={{ ...decision, source_version: 10 }} client={client} refresh={refresh} />);
     fireEvent.click(screen.getByRole('button', { name: '提交决策处理' }));
     expect(write).not.toHaveBeenCalled();
     expect(screen.getByRole('alert').textContent).toContain('来源版本已变化');
     fireEvent.click(screen.getByRole('button', { name: '载入当前决策' }));
-    expect(screen.getByLabelText('决策证据 d')).toHaveProperty('value', '');
+    expect(screen.getByLabelText('决策证据')).toHaveProperty('value', '');
   });
   it('closing automation writes disabled settings without cancelling authorized work', async () => {
     const { client, refresh, write } = controls();
@@ -172,13 +172,13 @@ describe('Phase B owner writes and authority fences', () => {
     const { client, refresh, write } = controls();
     write.mockRejectedValue(new ApiError('forbidden', 'Owner denied', 403));
     render(<DecisionResolve decision={decision} client={client} refresh={refresh} />);
-    fireEvent.change(screen.getByLabelText('决策操作 d'), { target: { value: 'confirm_stopped' } });
+    fireEvent.change(screen.getByLabelText('决策操作'), { target: { value: 'confirm_stopped' } });
     expect(screen.getByText(/Owner 必须亲自核验/).textContent).toContain('原始进程身份及进程树');
     expect(screen.getByText(/Owner 必须亲自核验/).textContent).toContain('核对来源 Run 的版本');
-    fireEvent.change(screen.getByLabelText('决策证据 d'), { target: { value: '   ' } });
+    fireEvent.change(screen.getByLabelText('决策证据'), { target: { value: '   ' } });
     fireEvent.click(screen.getByRole('button', { name: '提交决策处理' }));
     expect(write).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText('决策证据 d'), { target: { value: 'Verified PID 123 and descendants exited' } });
+    fireEvent.change(screen.getByLabelText('决策证据'), { target: { value: 'Verified PID 123 and descendants exited' } });
     fireEvent.click(screen.getByRole('button', { name: '提交决策处理' }));
     await screen.findByText('Owner denied');
     expect(write).toHaveBeenCalledWith('/decisions/d/resolve', { expected_version: 4, expected_source_version: 9, action: 'confirm_stopped', evidence: 'Verified PID 123 and descendants exited' });
@@ -188,19 +188,19 @@ describe('Phase B owner writes and authority fences', () => {
     const { client, refresh, write } = controls();
     const scopeDecision = { ...decision, kind: 'scope_request', source_kind: 'run', source_id: 'original-run', actions: ['confirm_run_stopped'] };
     render(<DecisionResolve decision={scopeDecision} client={client} refresh={refresh} />);
-    fireEvent.change(screen.getByLabelText('决策操作 d'), { target: { value: 'confirm_run_stopped' } });
+    fireEvent.change(screen.getByLabelText('决策操作'), { target: { value: 'confirm_run_stopped' } });
     const caution = screen.getByText(/Owner 必须亲自核验/).textContent;
     expect(caution).toContain('原始进程身份及进程树');
     expect(caution).toContain('核对来源 Run 的版本');
     expect(caution).toContain('失联、取消请求和模型文字都不是停止证据');
     expect(caution).toContain('必须先在原始 Run 通过共享停止证据 API 成功记录停止证明');
     for (const evidence of ['', '   ']) {
-      fireEvent.change(screen.getByLabelText('决策证据 d'), { target: { value: evidence } });
+      fireEvent.change(screen.getByLabelText('决策证据'), { target: { value: evidence } });
       fireEvent.click(screen.getByRole('button', { name: '提交决策处理' }));
       expect(write).not.toHaveBeenCalled();
       expect(screen.getByRole('alert').textContent).toContain('进程身份及进程树核验依据');
     }
-    fireEvent.change(screen.getByLabelText('决策证据 d'), { target: { value: 'Original Run stop proof recorded after checking PID and descendants' } });
+    fireEvent.change(screen.getByLabelText('决策证据'), { target: { value: 'Original Run stop proof recorded after checking PID and descendants' } });
     fireEvent.click(screen.getByRole('button', { name: '提交决策处理' }));
     await screen.findByText('决策处理请求已受理；此回执不代表当前运行已停止，以中心状态为准。');
     expect(write).toHaveBeenCalledTimes(1);
@@ -212,8 +212,8 @@ describe('Phase B owner writes and authority fences', () => {
     const scopeDecision = { ...decision, kind: 'scope_request', source_kind: 'run', source_id: 'original-run', actions: ['confirm_run_stopped'] };
     write.mockRejectedValueOnce(new ApiError('conflict', 'Run version changed', 409));
     const view = render(<DecisionResolve decision={scopeDecision} client={client} refresh={refresh} />);
-    fireEvent.change(screen.getByLabelText('决策操作 d'), { target: { value: 'confirm_run_stopped' } });
-    fireEvent.change(screen.getByLabelText('决策证据 d'), { target: { value: 'Reviewed original Run proof' } });
+    fireEvent.change(screen.getByLabelText('决策操作'), { target: { value: 'confirm_run_stopped' } });
+    fireEvent.change(screen.getByLabelText('决策证据'), { target: { value: 'Reviewed original Run proof' } });
     fireEvent.click(screen.getByRole('button', { name: '提交决策处理' }));
     await screen.findByText('Run version changed');
     expect(refresh).toHaveBeenCalled();
@@ -222,10 +222,10 @@ describe('Phase B owner writes and authority fences', () => {
     expect(write).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('alert').textContent).toContain('来源版本已变化');
     fireEvent.click(screen.getByRole('button', { name: '载入当前决策' }));
-    expect(screen.getByLabelText('决策操作 d')).toHaveProperty('value', '');
-    expect(screen.getByLabelText('决策证据 d')).toHaveProperty('value', '');
-    fireEvent.change(screen.getByLabelText('决策操作 d'), { target: { value: 'confirm_run_stopped' } });
-    fireEvent.change(screen.getByLabelText('决策证据 d'), { target: { value: 'Rechecked original Run proof and version' } });
+    expect(screen.getByLabelText('决策操作')).toHaveProperty('value', '');
+    expect(screen.getByLabelText('决策证据')).toHaveProperty('value', '');
+    fireEvent.change(screen.getByLabelText('决策操作'), { target: { value: 'confirm_run_stopped' } });
+    fireEvent.change(screen.getByLabelText('决策证据'), { target: { value: 'Rechecked original Run proof and version' } });
     fireEvent.click(screen.getByRole('button', { name: '提交决策处理' }));
     await screen.findByText('决策处理请求已受理；此回执不代表当前运行已停止，以中心状态为准。');
     expect(write).toHaveBeenCalledTimes(2);
@@ -234,9 +234,9 @@ describe('Phase B owner writes and authority fences', () => {
   it.each(['evaluate', 'edit_goal', 'edit_budget', 'dismiss'])('acknowledges %s as a choice requiring appropriate source operations', async (selected) => {
     const { client, refresh, write } = controls();
     render(<DecisionResolve decision={{ ...decision, actions: [selected] }} client={client} refresh={refresh} />);
-    fireEvent.change(screen.getByLabelText('决策操作 d'), { target: { value: selected } });
+    fireEvent.change(screen.getByLabelText('决策操作'), { target: { value: selected } });
     expect(screen.getByText(/主要记录决策选择/).textContent).toContain('本身不会编辑或授权目标，也不会改变预算');
-    fireEvent.change(screen.getByLabelText('决策证据 d'), { target: { value: 'Owner reviewed the source' } });
+    fireEvent.change(screen.getByLabelText('决策证据'), { target: { value: 'Owner reviewed the source' } });
     fireEvent.click(screen.getByRole('button', { name: '提交决策处理' }));
     await screen.findByText('决策选择已记录；目标编辑、目标授权或预算调整仍须按需在来源对象执行，以中心状态为准。');
     expect(write).toHaveBeenCalledTimes(1);
@@ -245,9 +245,9 @@ describe('Phase B owner writes and authority fences', () => {
   it.each(['evaluate', 'edit_budget', 'dismiss', 'edit_goal'])('requires evidence for %s without issuing an empty request', (selected) => {
     const { client, refresh, write } = controls();
     render(<DecisionResolve decision={{ ...decision, actions: [selected] }} client={client} refresh={refresh} />);
-    fireEvent.change(screen.getByLabelText('决策操作 d'), { target: { value: selected } });
+    fireEvent.change(screen.getByLabelText('决策操作'), { target: { value: selected } });
     for (const value of ['', '   ']) {
-      fireEvent.change(screen.getByLabelText('决策证据 d'), { target: { value } });
+      fireEvent.change(screen.getByLabelText('决策证据'), { target: { value } });
       fireEvent.click(screen.getByRole('button', { name: '提交决策处理' }));
       expect(write).not.toHaveBeenCalled();
       expect(screen.getByRole('alert').textContent).toContain('非空');

@@ -24,7 +24,7 @@ export function Overview({ snapshot, navigate }: { snapshot: Snapshot; navigate:
   const live = runs.filter(currentWork);
   const candidates = (snapshot.candidates ?? []).filter((candidate) => !!candidate.commit && ['reviewing', 'ready_to_land'].includes(candidate.state));
   const blocks = blockRecords(snapshot);
-  const taskTitle = (id: string) => tasks.find((task) => task.id === id)?.title ?? id;
+  const taskTitle = (id: string) => tasks.find((task) => task.id === id)?.title ?? '未命名任务';
   const pending = tasks.filter((task) => !terminalTask(task.state));
   const requirements = (snapshot.requirements ?? []).filter((requirement) => {
     const linked = tasks.filter((task) => task.requirement_ids?.includes(requirement.id));
@@ -35,7 +35,7 @@ export function Overview({ snapshot, navigate }: { snapshot: Snapshot; navigate:
     { title: '任务池', page: 'tasks', empty: '暂无活动任务', entries: pending.map((task) => {
       const run = live.find((item) => item.id === task.current_run_id);
       const node = snapshot.nodes?.find((item) => item.id === run?.node_id);
-      return { id: task.id, title: task.title, detail: (task.hold_reason ? `阻断原因：${reasonLabel(task.hold_reason)}` : '') || (run ? `执行主机：${node?.name ?? run.node_id}` : '尚未分配运行实例'), status: <Status value={task.state} />, page: 'tasks', target: task.id };
+      return { id: task.id, title: task.title, detail: (task.hold_reason ? `阻断原因：${reasonLabel(task.hold_reason)}` : '') || (run ? `执行主机：${node?.name ?? '主机未命名'}` : '尚未分配运行实例'), status: <Status value={task.state} />, page: 'tasks', target: task.id };
     }) },
     { title: '审查池', page: 'candidates', empty: '暂无活动候选', entries: candidates.map((candidate) => ({ id: candidate.id, title: taskTitle(candidate.task_id), detail: `固定版本 ${candidate.commit.slice(0, 12)}`, status: candidateLabels[candidate.state], page: 'candidates', target: candidate.id })) },
     { title: '阻断池', page: 'blocks', empty: '暂无阻断', entries: blocks.map((block) => ({ id: block.id, title: block.task?.title || block.target, detail: reasonLabel(block.reason), status: block.decision ? '待决策' : reasonLabel(block.source), page: block.page, target: block.target })) },
@@ -62,7 +62,7 @@ export function Overview({ snapshot, navigate }: { snapshot: Snapshot; navigate:
     <div className="overview-workspace"><div className="overview-pools">{pools.map((pool) => <section className="overview-pool" key={pool.page} aria-label={pool.title}><header><h2>{pool.title} <span aria-label={`${pool.title}活动总数`}>{pool.entries.length}</span></h2>{link(pool.page, '查看全部')}</header>{pool.entries.length ? <ul>{pool.entries.slice(0, 5).map(row)}</ul> : <p className="overview-empty">{pool.empty}</p>}</section>)}</div>
       <aside className="overview-hosts" aria-label="主机运行动态"><header><h2>主机运行动态</h2>{link('agents', '管理主机')}</header>{hosts.length ? hosts.map(({ id, node }) => {
         const work = live.filter((run) => run.node_id === id);
-        return <section className="overview-host" key={id} aria-label={id === 'center' ? '中心程序执行' : node?.name ?? id}><h3>{id === 'center' ? '中心程序执行' : node?.name ?? id}</h3><p>{node?.revoked ? '已撤销' : work.some((run) => run.state === 'lost') ? '存在失联实例' : work.length ? '有活动运行记录' : '空闲 · 无活动运行记录'}</p><small>{node ? `${platformLabel(node.platform)} · 最后上报 ${time(node.last_seen)} · 在线状态以实际连接为准` : id === 'center' ? '中心本机的程序验证执行器' : '主机记录未包含在快照中'}</small>{work.length ? <ul>{work.map((run) => <li key={run.id}><button className="overview-run" onClick={() => navigate('runs', run.id)}><strong>{taskTitle(run.task_id)}</strong><span>{run.tool} · {roles[run.kind] ?? run.kind} · {duration(run.elapsed_seconds)}</span><span>{run.state === 'lost' ? '失联 · 未确认静止' : <Status value={run.state} />}</span></button></li>)}</ul> : <p className="overview-empty">暂无运行实例</p>}</section>;
+        return <section className="overview-host" key={id} aria-label={id === 'center' ? '中心程序执行' : node?.name ?? '主机未命名'}><h3>{id === 'center' ? '中心程序执行' : node?.name ?? '主机未命名'}</h3><details><summary>技术详情</summary><code>{id}</code></details><p>{node?.revoked ? '已撤销' : work.some((run) => run.state === 'lost') ? '存在失联实例' : work.length ? '有活动运行记录' : '空闲 · 无活动运行记录'}</p><small>{node ? `${platformLabel(node.platform)} · 最后上报 ${time(node.last_seen)} · 在线状态以实际连接为准` : id === 'center' ? '中心本机的程序验证执行器' : '主机记录未包含在快照中'}</small>{work.length ? <ul>{work.map((run) => <li key={run.id}><button className="overview-run" onClick={() => navigate('runs', run.id)}><strong>{taskTitle(run.task_id)}</strong><span>{run.tool} · {roles[run.kind] ?? run.kind} · {duration(run.elapsed_seconds)}</span><span>{run.state === 'lost' ? '失联 · 未确认静止' : <Status value={run.state} />}</span></button></li>)}</ul> : <p className="overview-empty">暂无运行实例</p>}</section>;
       }) : <p className="overview-empty">尚无主机或运行记录</p>}</aside>
     </div>
     <nav className="overview-tools" aria-label="项目管理入口">{link('initialization', '初始化')}{link('planning', 'Leader 规划与咨询')}{link('automation', '自动化')}{link('runs', '运行与恢复')}{link('audit', '审计历史')}{link('settings', '项目设置')}</nav>
