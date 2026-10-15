@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -68,6 +69,7 @@ func centerAddresses(address, console, cert, key string) (runnerAddress, console
 // request authority or forwarding headers and exports certificate blocks only.
 func centerConnectionInfo(runnerAddress, consoleAddress, advertised, dataDir string, pair tls.Certificate) (domain.ConnectionInfo, error) {
 	info := domain.ConnectionInfo{
+		Platform: runtime.GOOS,
 		APIVersion: domain.APIVersion, Version: version, ConsoleURL: "http://" + consoleAddress,
 		RunnerConsoleURL: "http://127.0.0.1:8081", RunnerListen: runnerAddress, ConsoleListen: consoleAddress, DataDir: dataDir,
 	}

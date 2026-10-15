@@ -1386,6 +1386,9 @@
         "data_dir": {
           "type": "string"
         },
+        "platform": {
+          "type": "string"
+        },
         "runner_console_url": {
           "type": "string"
         },

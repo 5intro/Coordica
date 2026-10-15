@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -47,6 +48,9 @@ func TestConnectionInfoExportsOnlyPublicCertificate(t *testing.T) {
 	}
 	if info.RunnerURL != "https://192.0.2.1:8443" || info.ConsoleURL != "http://127.0.0.1:8080" || info.RunnerListen != "192.0.2.1:8443" {
 		t.Fatal("unexpected runtime addresses", info)
+	}
+	if info.Platform != runtime.GOOS {
+		t.Fatal("center platform must describe the server runtime, not the browser or supplied path")
 	}
 	expected := sha256.Sum256(pair.Certificate[0])
 	if info.CertificateSHA256 != hex.EncodeToString(expected[:]) {

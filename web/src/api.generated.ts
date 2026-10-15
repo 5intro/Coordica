@@ -517,6 +517,7 @@ export interface BlockItem {
   actions: (string)[] | null;
 }
 export interface ConnectionInfo {
+  platform?: string;
   api_version: string;
   version: string;
   runner_listen: string;

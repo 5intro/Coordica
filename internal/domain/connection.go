@@ -4,6 +4,7 @@ package domain
 // owner console. Only the public certificate is included, never private keys or
 // owner/node credentials.
 type ConnectionInfo struct {
+	Platform          string `json:"platform,omitempty"`
 	APIVersion        string `json:"api_version"`
 	Version           string `json:"version"`
 	RunnerListen      string `json:"runner_listen"`
