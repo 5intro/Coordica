@@ -14,7 +14,7 @@ export function NodeManagement({ client, refresh }: { client: ApiClient; refresh
     const data = new FormData(event.currentTarget);
     await action.execute(async () => setPairing(await client.write<{ code: string; expires_at: string }>('/pairings', { name: String(data.get('name')).trim() })), '一次性配对码已生成。');
   }
-  return <><button className="secondary" onClick={() => setOpen(!open)}>{open ? '收起配对' : '配对节点 ＋'}</button><Feedback {...action} />{open && <form className="panel pairing-form" onSubmit={pair}><Field label="节点名称"><input name="name" required placeholder="开发电脑名称" /></Field><button className="primary" disabled={action.busy}>生成配对码</button>{pairing && <div className="pairing-result"><span className="eyebrow">一次性凭据</span><code>{pairing.code}</code><p>有效至 {time(pairing.expires_at)}。在 Runner 配对时使用此码。</p><button type="button" className="secondary" onClick={() => void action.execute(() => navigator.clipboard.writeText(pairing.code), '配对码已复制。')}>复制配对码</button></div>}</form>}</>;
+  return <><button className="secondary" onClick={() => setOpen(!open)}>{open ? '收起配对' : '配对节点 ＋'}</button><Feedback {...action} />{open && <form className="panel pairing-form" onSubmit={pair}><Field label="节点名称"><input name="name" required placeholder="开发电脑名称" /></Field><button className="primary" disabled={action.busy}>生成配对码</button>{pairing && <div className="pairing-result"><span>一次性凭据</span><code>{pairing.code}</code><p>有效至 {time(pairing.expires_at)}。在 Runner 配对时使用此码。</p><button type="button" className="secondary" onClick={() => void action.execute(() => navigator.clipboard.writeText(pairing.code), '配对码已复制。')}>复制配对码</button></div>}</form>}</>;
 }
 
 export function RevokeNode({ node, client, refresh }: { node: Node; client: ApiClient; refresh: () => void }) {

@@ -24,7 +24,7 @@ export function ProjectInitialization({ snapshot, client, refresh }: { snapshot:
     const ok = await action.execute(() => client.write<Initialization>('/initialization/answer', { expected_version: v.version, question_id: question, original_text: answer, source: { session_id: 'owner-console', message_id: crypto.randomUUID() } }), '原始反馈已保存。Leader 将重新判断当前 frontier。');
     if (ok) { setAnswer(''); setQuestion(''); setReviewed(''); }
   }
-  return <><SectionTitle eyebrow="00 / SHARED BASELINE" title="项目初始化" description="Leader 只读理解项目，Owner 确认精确共享基线。基线确认后，目标、任务、范围和候选仍分别需要授权。" /><Feedback {...action} />
+  return <><SectionTitle title="项目初始化" description="Leader 只读理解项目，Owner 确认精确共享基线。基线确认后，目标、任务、范围和候选仍分别需要授权。" /><Feedback {...action} />
     <section className="panel" aria-labelledby="initialization-status"><h2 id="initialization-status">{labels[v?.status ?? 'draft']}</h2>
       <p role="status">{v?.status === 'initialized' ? '下一步：由 Owner 设置和批准目标；项目保持原有暂停与自动化设置。' : v?.status === 'awaiting_owner' ? '下一步：审阅下方草案、原始反馈与覆盖记录，确认当前版本和摘要。' : v?.status === 'interview' ? '下一步：回答尚未解决的问题。已回答的原文保留，下轮只讨论依赖已确定的决定。' : v?.status === 'analyzing' ? '等待有限只读请求的结果。未知存活需要 Owner 实际核验停止后恢复。' : '下一步：暂停项目，确认无活动执行、Leader 请求或待处理候选，然后开始分析。'}</p>
       {missingChecks && <p role="status">当前尚无有效检查：可先分析 / 访谈；Owner 必须在下方配置真实检查，再重新分析，才能确认共享基线。</p>}

@@ -17,7 +17,7 @@ export function Agents({ snapshot, client, refresh, navigate }: { snapshot: Snap
   const shown = rows.filter(({ node, capability, toolId }) => (nodeFilter === 'all' || node.id === nodeFilter) && (tool === 'all' || toolId === tool) && (availability === 'all' || (availability === 'revoked' ? node.revoked : availability === 'available' ? !node.revoked && capability?.available : !node.revoked && (availability === 'unknown' ? !capability : capability?.available === false))) && matches(query, [node.id, node.name, node.platform, toolId, capability?.protocol, capability?.version, capability?.detail]));
   const live = (snapshot.runs ?? []).filter(currentWork);
   const hostIds = [...new Set([...nodes.map((node) => node.id), ...live.map((run) => run.node_id)])];
-  return <><SectionTitle eyebrow="AGENTS" title="Agent 管理" description="按主机展示实际运行。版本探测通过不代表执行认证；最后上报时间不代表在线。撤销不代表进程已停止。" />
+  return <><SectionTitle title="Agent 管理" description="按主机展示实际运行。版本探测通过不代表执行认证；最后上报时间不代表在线。撤销不代表进程已停止。" />
     <section className="panel"><h2>实际运行实例</h2><p>开发模型固定 gpt-6.1-sol；思考强度无可写 API。</p>
       <details><summary>调度配置</summary><p>开发 {snapshot.automation.development_tool} / {snapshot.automation.development_model}，Leader {snapshot.automation.leader_tool} / {snapshot.automation.leader_model}。</p></details>
       {!live.length && <p>暂无活动运行实例。已安装工具仅表示上报能力。</p>}

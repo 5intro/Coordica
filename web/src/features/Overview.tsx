@@ -1,3 +1,4 @@
+import { reasonLabel } from '../components/ui';
 import { useId, useState, type ReactNode } from 'react';
 import type { Snapshot } from '../api.generated';
 import type { Page } from '../App';
@@ -34,17 +35,17 @@ export function Overview({ snapshot, navigate }: { snapshot: Snapshot; navigate:
     { title: '任务池', page: 'tasks', empty: '暂无活动任务', entries: pending.map((task) => {
       const run = live.find((item) => item.id === task.current_run_id);
       const node = snapshot.nodes?.find((item) => item.id === run?.node_id);
-      return { id: task.id, title: task.title, detail: task.hold_reason || (run ? `执行主机：${node?.name ?? run.node_id}` : '尚未分配运行实例'), status: <Status value={task.state} />, page: 'tasks', target: task.id };
+      return { id: task.id, title: task.title, detail: (task.hold_reason ? `阻断原因：${reasonLabel(task.hold_reason)}` : '') || (run ? `执行主机：${node?.name ?? run.node_id}` : '尚未分配运行实例'), status: <Status value={task.state} />, page: 'tasks', target: task.id };
     }) },
     { title: '审查池', page: 'candidates', empty: '暂无活动候选', entries: candidates.map((candidate) => ({ id: candidate.id, title: taskTitle(candidate.task_id), detail: `固定版本 ${candidate.commit.slice(0, 12)}`, status: candidateLabels[candidate.state], page: 'candidates', target: candidate.id })) },
-    { title: '阻断池', page: 'blocks', empty: '暂无阻断', entries: blocks.map((block) => ({ id: block.id, title: block.task?.title || block.target, detail: block.reason, status: block.decision ? '待决策' : block.source, page: block.page, target: block.target })) },
+    { title: '阻断池', page: 'blocks', empty: '暂无阻断', entries: blocks.map((block) => ({ id: block.id, title: block.task?.title || block.target, detail: reasonLabel(block.reason), status: block.decision ? '待决策' : reasonLabel(block.source), page: block.page, target: block.target })) },
   ];
   const todos: Entry[] = [];
   if (snapshot.initialization && snapshot.initialization.status !== 'initialized') todos.push({ id: 'initialization', title: '完成项目初始化', detail: '核对基线与初始化状态', status: '待处理', page: 'initialization', target: '' });
   for (const task of tasks.filter((task) => task.state === 'draft')) todos.push({ id: `approve:${task.id}`, title: task.title, detail: '核对任务契约后批准执行', status: '待批准', page: 'tasks', target: task.id });
   // Block records already deduplicate server decisions and their source holds.
   for (const block of blocks.filter((block) => !!block.decision || block.id.startsWith('run:') || block.id.startsWith('candidate:') && candidates.some((candidate) => candidate.id === block.target && candidate.state === 'ready_to_land' && protectedCandidate(snapshot, candidate)))) {
-    todos.push({ id: block.id, title: block.task?.title || block.target, detail: block.reason, status: block.decision ? '待决策' : '待人工核验', page: block.decision ? 'blocks' : block.page, target: block.decision ? block.decision.id : block.target });
+    todos.push({ id: block.id, title: block.task?.title || block.target, detail: reasonLabel(block.reason), status: block.decision ? '待决策' : '待人工核验', page: block.decision ? 'blocks' : block.page, target: block.decision ? block.decision.id : block.target });
   }
   const hosts = [...(snapshot.nodes ?? []).map((node) => ({ id: node.id, node })), ...[...new Set(live.map((run) => run.node_id))].filter((id) => !snapshot.nodes?.some((node) => node.id === id)).map((id) => ({ id, node: undefined }))];
   function link(page: Page, label: string, id?: string) {
