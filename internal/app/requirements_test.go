@@ -528,3 +528,53 @@ func TestRequirementDraftEditNeedsNoExecutionAssessmentAndHistoryIsPaged(t *test
 		t.Fatal("history pagination lost original", older, e)
 	}
 }
+
+func TestRequirementEmptyCenterAndRetiredAssessmentsKeepStopBarriers(t *testing.T) {
+	db, e := store.Open(t.TempDir() + "/empty.db")
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer db.Close()
+	s := New(db, t.TempDir())
+	ctx := context.Background()
+	w := &PlanningWorker{Service: s}
+	if e = w.queueRequirementChanges(ctx); e != nil {
+		t.Fatal("unused center needs no project", e)
+	}
+	if e = s.DB.Update(ctx, func(tx *store.Tx) error {
+		change := domain.RequirementChange{ID: "change", State: "applied"}
+		if e := tx.Put("requirement_change", change.ID, change); e != nil {
+			return e
+		}
+		for _, tc := range []struct {
+			id, kind string
+			stopped  bool
+		}{{"old", "invalid_plan", true}, {"live", "invalid_plan", false}, {"stop", "unknown_live", true}} {
+			plan := domain.PlanningRun{ID: tc.id, RequirementChangeID: change.ID, TreeStopped: tc.stopped, Settled: true}
+			if e := tx.Put("planning_run", plan.ID, plan); e != nil {
+				return e
+			}
+			decision := domain.Decision{ID: tc.id, Version: 1, SourceKind: "planning_run", SourceID: plan.ID, Status: "open", Kind: tc.kind}
+			if e := tx.Put("decision", decision.ID, decision); e != nil {
+				return e
+			}
+		}
+		return s.retireRequirementDecisions(tx)
+	}); e != nil {
+		t.Fatal(e)
+	}
+	if e = s.DB.View(ctx, func(tx *store.Tx) error {
+		for _, id := range []string{"old", "live", "stop"} {
+			var d domain.Decision
+			if e := tx.Get("decision", id, &d); e != nil {
+				return e
+			}
+			if (d.Status == "superseded") != (id == "old") {
+				t.Fatal("incorrect retirement", d)
+			}
+		}
+		return nil
+	}); e != nil {
+		t.Fatal(e)
+	}
+}

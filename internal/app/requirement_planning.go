@@ -60,6 +60,12 @@ func (w *PlanningWorker) queueRequirementChanges(ctx context.Context) error {
 		if e != nil {
 			return e
 		}
+		if len(changes) == 0 {
+			return nil
+		}
+		if e = s.retireRequirementDecisions(tx); e != nil {
+			return e
+		}
 		d, e := goalDocument(tx)
 		if e != nil {
 			return e
@@ -533,5 +539,46 @@ func (s *Service) applyRequirementPlan(tx *store.Tx, r *domain.PlanningRun, d do
 	if e = tx.Put("requirement_change", change.ID, change); e != nil {
 		return e
 	}
+	if e = s.retireRequirementDecisions(tx); e != nil {
+		return e
+	}
 	return s.audit(tx, Actor{ID: "leader"}, "requirement.plan_applied", change.ID, result.Reply)
+}
+
+// Obsolete assessments remain auditable history, without permanently showing
+// an already replaced problem as a current human action. Unknown stop evidence
+// must still use the original Run's confirmation path.
+func (s *Service) retireRequirementDecisions(tx *store.Tx) error {
+	decisions, e := store.List[domain.Decision](tx, "decision")
+	if e != nil {
+		return e
+	}
+	for _, decision := range decisions {
+		if decision.Status != "open" || decision.SourceKind != "planning_run" || decision.Kind == "unknown_live" {
+			continue
+		}
+		var plan domain.PlanningRun
+		if e = tx.Get("planning_run", decision.SourceID, &plan); e != nil {
+			return e
+		}
+		if plan.RequirementChangeID == "" || !plan.TreeStopped || !plan.Settled && plan.GrantSeconds > 0 {
+			continue
+		}
+		var change domain.RequirementChange
+		if e = tx.Get("requirement_change", plan.RequirementChangeID, &change); e != nil {
+			return e
+		}
+		if change.State != "applied" && change.State != "superseded" {
+			continue
+		}
+		decision.Status = "superseded"
+		decision.Version++
+		if e = tx.Put("decision", decision.ID, decision); e != nil {
+			return e
+		}
+		if e = s.audit(tx, Actor{ID: "center"}, "requirement.decision_superseded", decision.ID, change.ID); e != nil {
+			return e
+		}
+	}
+	return nil
 }
