@@ -175,16 +175,20 @@ func TestInstalledCodexModelCatalog(t *testing.T) {
 }
 
 func TestCodexLegacyDefaultStillChecksSuccessfulCatalog(t *testing.T) {
-	r := DefaultRegistry()
-	req := fixtureRequest(t, "codex", "args")
-	req.Model = "gpt-6.1-sol"
-	t.Setenv("AGENT_TEST_CATALOG", "alternate")
-	started := false
-	if _, e := r.Execute(context.Background(), req, func(event Event) { started = started || event.Type == "process.started" }); e == nil || started {
-		t.Fatal("missing default executed", e)
-	}
-	t.Setenv("AGENT_TEST_CATALOG", "malformed")
-	if result, e := r.Execute(context.Background(), req, nil); e != nil || !strings.Contains(result.OutputText, "gpt-6.1-sol") {
-		t.Fatal("legacy default rejected", e)
+	for _, model := range []string{"gpt-6.1-sol", ""} {
+		t.Run("model="+model, func(t *testing.T) {
+			r := DefaultRegistry()
+			req := fixtureRequest(t, "codex", "args")
+			req.Model = model
+			t.Setenv("AGENT_TEST_CATALOG", "alternate")
+			started := false
+			if _, e := r.Execute(context.Background(), req, func(event Event) { started = started || event.Type == "process.started" }); e == nil || started {
+				t.Fatal("missing default executed", e)
+			}
+			t.Setenv("AGENT_TEST_CATALOG", "malformed")
+			if result, e := r.Execute(context.Background(), req, nil); e != nil || !strings.Contains(result.OutputText, "gpt-6.1-sol") {
+				t.Fatal("legacy default rejected", e)
+			}
+		})
 	}
 }
