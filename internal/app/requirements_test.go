@@ -1047,3 +1047,47 @@ func TestRequirementEditingNodeProposalDoesNotMintAdditionAuthority(t *testing.T
 		t.Fatal("unadmitted proposal acquired authority")
 	}
 }
+
+func TestRequirementAddAdmittedRevisionsFenceOrdinaryPlanning(t *testing.T) {
+	for _, prequeued := range []bool{false, true} {
+		t.Run(fmt.Sprint(prequeued), func(t *testing.T) {
+			f, _, template := requirementFixture(t)
+			ctx := context.Background()
+			raw, e := f.s.CreateRequirement(ctx, f.owner, "add-dynamic", domain.Requirement{Title: "Dynamic requirement", Body: "Additional admitted work"})
+			r := decodeTest[domain.Requirement](t, raw, e)
+			p := emptyRequirementPlan()
+			q := taskProposal(template)
+			q.Key = "dynamic-work"
+			q.Title = "Dynamic requirement"
+			q.Objective = "Additional admitted work"
+			q.RequirementIDs = []string{r.ID}
+			p.Tasks = append(p.Tasks, domain.RequirementNewTask{Proposal: q, RelatedTaskIDs: []string{}})
+			runRequirementPlan(t, f, p)
+			doc := *f.snapshot(t).PlanningDocument
+			if containsPaths(doc.RequirementIDs, []string{r.ID}) || requirementDetail(t, f, r.ID).Changes[0].State != "applied" {
+				t.Fatal("fixture did not use admission")
+			}
+			if prequeued {
+				scheduleTest(t, f, doc, "ordinary-before-dynamic-revision")
+			}
+			reviseRequirement(t, f, r, "revise")
+			frozen := f.snapshot(t)
+			if !prequeued {
+				if _, e = f.s.SchedulePlanning(ctx, f.owner, "ordinary-after-dynamic-revision", domain.PlanningMessageRequest{ExpectedVersion: doc.Version}); e == nil {
+					t.Fatal("admission-aware pending fence bypassed")
+				}
+				return
+			}
+			q.Key = "replacement-dynamic"
+			q.Objective = "Fresh replacement counters"
+			result := domain.LeaderResult{Reply: "Ready", Ready: true, Tasks: []domain.TaskProposal{q}, MissingItems: []string{}, Clarifications: []string{}, Scopes: []domain.ScopeProposal{}, MajorDecisions: []domain.MajorDecisionProposal{}}
+			w := &PlanningWorker{Service: f.s, Executor: resultExecutor(result)}
+			if e = w.Tick(ctx); e != nil {
+				t.Fatal(e)
+			}
+			if !reflect.DeepEqual(frozen.Tasks, f.snapshot(t).Tasks) {
+				t.Fatal("ordinary plan bypassed dynamic requirement change")
+			}
+		})
+	}
+}

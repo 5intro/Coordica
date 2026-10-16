@@ -623,7 +623,7 @@ func pendingGoalRequirementChange(tx *store.Tx, d domain.PlanningDocument) (bool
 		return false, e
 	}
 	for _, change := range changes {
-		if change.GoalVersion == d.Version && change.GoalAuthorizationVersion == d.AuthorizationVersion && change.State != "applied" && change.State != "superseded" && containsPaths(d.RequirementIDs, []string{change.RequirementID}) {
+		if change.GoalVersion == d.Version && change.GoalAuthorizationVersion == d.AuthorizationVersion && change.State != "applied" && change.State != "superseded" && goalAllowsRequirement(tx, d, change.RequirementID) {
 			var requirement domain.Requirement
 			if e = tx.Get("requirement", change.RequirementID, &requirement); e != nil {
 				return false, e
