@@ -30,13 +30,16 @@ func fakeConfiguredACP() {
 		var request struct {
 			ID     int
 			Method string
-			Params struct{ ConfigID, Value, MethodID string }
+			Params struct{ ConfigID, Value, MethodID, SessionID string }
 		}
 		json.Unmarshal(scanner.Bytes(), &request)
 		result := map[string]any{}
 		switch request.Method {
 		case "initialize":
 			result["protocolVersion"] = 1
+			if os.Getenv("AGENT_TEST_CLOSE") != "missing" {
+				result["agentCapabilities"] = map[string]any{"sessionCapabilities": map[string]any{"close": map[string]any{}}}
+			}
 			result["authMethods"] = []any{map[string]string{"id": "cursor_login"}}
 			if os.Getenv("AGENT_TEST_AUTH") == "missing" {
 				result["authMethods"] = []any{}
@@ -54,6 +57,17 @@ func fakeConfiguredACP() {
 			}
 			result["sessionId"] = "catalog-session"
 			result["configOptions"] = options()
+		case "session/close":
+			if request.Params.SessionID != "catalog-session" {
+				os.Exit(7)
+			}
+			if path := os.Getenv("AGENT_TEST_CLOSE_FILE"); path != "" {
+				_ = os.WriteFile(path, []byte(request.Params.SessionID), 0600)
+			}
+			if os.Getenv("AGENT_TEST_CLOSE") == "reject" {
+				printJSON(map[string]any{"jsonrpc": "2.0", "id": request.ID, "error": map[string]any{"code": -32000, "message": "close rejected"}})
+				continue
+			}
 		case "session/set_config_option":
 			if request.Params.ConfigID == "opaque-model-option" {
 				model = request.Params.Value
@@ -185,5 +199,32 @@ func TestACPCatalogAuthenticatesBeforeSessionAndFailsClosed(t *testing.T) {
 				t.Fatal("failed authentication exposed catalog", e, models)
 			}
 		})
+	}
+}
+
+func TestACPCatalogClosesOnlyAdvertisedRegisteredSessions(t *testing.T) {
+	for _, tool := range []string{"dsh", "kimi"} {
+		for _, mode := range []string{"close", "missing", "reject", "unregistered"} {
+			t.Run(tool+"/"+mode, func(t *testing.T) {
+				t.Setenv("AGENT_TEST_MODEL_PROTOCOL", "acp")
+				t.Setenv("AGENT_TEST_CLOSE", mode)
+				path := t.TempDir() + "/closed"
+				t.Setenv("AGENT_TEST_CLOSE_FILE", path)
+				def, _ := DefaultRegistry().Resolve(tool)
+				if mode == "unregistered" {
+					def.CloseMethod = ""
+				}
+				req := fixtureRequest(t, tool, "unused")
+				models, e := readToolModels(context.Background(), def, req.Executable)
+				if (e != nil) != (mode == "reject") || mode == "reject" && len(models) != 0 {
+					t.Fatal("wrong metadata close result", e)
+				}
+				data, err := os.ReadFile(path)
+				wantClose := mode == "close" || mode == "reject"
+				if wantClose && (err != nil || string(data) != "catalog-session") || !wantClose && !os.IsNotExist(err) {
+					t.Fatal("unexpected session close", mode, err)
+				}
+			})
+		}
 	}
 }

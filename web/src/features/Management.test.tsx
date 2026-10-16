@@ -78,7 +78,7 @@ describe('management records', () => {
     expect(screen.getByText('没有匹配 Agent')).toBeTruthy();
   });
 
-  it('shows each host actual harness inventory and retains only unfinished work when a tool disappears', () => {
+  it('shows each host actual harness inventory and retains configured tools and unfinished work when a tool disappears', () => {
     const cap = nodeSnapshot.node.capabilities![0];
     const nodes = [
       { ...nodeSnapshot.node, name: 'Mac', tools: [{ tool: 'configured-only', enabled: true, implement: true, review: true }], capabilities: [{ ...cap, tool: 'codex' }, { ...cap, tool: 'claude', installed: true, available: false }, { ...cap, tool: 'dsh', available: false }] },
@@ -88,8 +88,11 @@ describe('management records', () => {
     const state = { ...centerSnapshot, nodes, tasks: [localTask], runs: [{ ...localRun, tool: 'unreported-inflight', state: 'lost' }, { ...localRun, id: 'finished', tool: 'finished-only', state: 'succeeded', quiescent: true }] };
     const view = render(<Agents snapshot={state} client={client} refresh={refresh} navigate={vi.fn()}/>);
     const table = within(screen.getByRole('table'));
-    for (const name of ['codex', 'claude', 'kimi', 'unreported-inflight']) expect(table.getByText(name)).toBeTruthy();
-    for (const name of ['dsh', 'configured-only', 'finished-only']) expect(table.queryByText(name)).toBeNull();
+    for (const name of ['codex', 'claude', 'kimi', 'unreported-inflight', 'configured-only']) expect(table.getByText(name)).toBeTruthy();
+    for (const name of ['dsh', 'finished-only']) expect(table.queryByText(name)).toBeNull();
+    fireEvent.click(table.getByRole('button', { name: /configured-only/ }));
+    expect(screen.getByRole('form', { name: 'configured-only 执行配置' })).toBeTruthy();
+    expect(screen.getByLabelText('允许调度')).toHaveProperty('checked', true);
     expect(table.getByText('探测异常')).toBeTruthy();
     expect(table.getByText('未发现已安装工具')).toBeTruthy();
     view.rerender(<Agents snapshot={{ ...state, nodes: nodes.map((node) => node.id === 'empty' ? { ...node, capabilities: [{ ...cap, installed: true }] } : node) }} client={client} refresh={refresh} navigate={vi.fn()}/>);

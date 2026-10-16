@@ -234,7 +234,13 @@ func acpModels(ctx context.Context, def Definition, executable string) (models [
 	if err != nil {
 		return nil, err
 	}
+	sessionID := ""
+	canClose := false
 	defer func() {
+		if sessionID != "" && canClose && def.CloseMethod != "" {
+			_, closeErr := p.call(def.CloseMethod, map[string]string{"sessionId": sessionID})
+			err = errors.Join(err, closeErr)
+		}
 		err = errors.Join(err, p.close())
 		if err != nil {
 			models = nil
@@ -245,6 +251,9 @@ func acpModels(ctx context.Context, def Definition, executable string) (models [
 		return nil, err
 	}
 	var init struct {
+		AgentCapabilities struct {
+			Sessions map[string]json.RawMessage `json:"sessionCapabilities"`
+		} `json:"agentCapabilities"`
 		ProtocolVersion int
 		AuthMethods     []struct {
 			ID string `json:"id"`
@@ -253,6 +262,7 @@ func acpModels(ctx context.Context, def Definition, executable string) (models [
 	if json.Unmarshal(raw, &init) != nil || init.ProtocolVersion != 1 {
 		return nil, ErrProtocol
 	}
+	_, canClose = init.AgentCapabilities.Sessions["close"]
 	if def.AuthMethod != "" {
 		advertised := false
 		for _, method := range init.AuthMethods {
@@ -276,6 +286,7 @@ func acpModels(ctx context.Context, def Definition, executable string) (models [
 	if json.Unmarshal(raw, &session) != nil || session.SessionID == "" {
 		return nil, ErrProtocol
 	}
+	sessionID = session.SessionID
 	model := configOption(session.ConfigOptions, "model")
 	if model == nil {
 		return nil, ErrProtocol

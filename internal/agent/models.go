@@ -67,11 +67,6 @@ func (r *Registry) validateExecutionOptions(ctx context.Context, def Definition,
 	if req.Model == "" && req.ReasoningEffort == "" {
 		return nil
 	}
-	// Preserve the legacy explicit default for nodes without a model catalog.
-	// All selected alternatives and explicit efforts require a fresh report.
-	if def.Protocol == ProtocolCodex && req.Model == "gpt-6.1-sol" && req.ReasoningEffort == "" {
-		return nil
-	}
 	if def.Protocol == ProtocolACP || def.Protocol == ProtocolPi {
 		// The actual execution session verifies configuration before prompting.
 		if !modelID.MatchString(req.Model) || req.ReasoningEffort != "" && !effortID.MatchString(req.ReasoningEffort) {
@@ -81,6 +76,11 @@ func (r *Registry) validateExecutionOptions(ctx context.Context, def Definition,
 	}
 	models, err := readToolModels(ctx, def, req.Executable)
 	if err != nil {
+		// Older CLIs without catalogs retain only the explicit legacy default.
+		// A successful current catalog, even an empty one, is authoritative.
+		if def.Protocol == ProtocolCodex && req.Model == "gpt-6.1-sol" && req.ReasoningEffort == "" && ctx.Err() == nil && !errors.Is(err, process.ErrTreeNotStopped) {
+			return nil
+		}
 		return fmt.Errorf("cannot verify execution model options: %w", err)
 	}
 	if modelSupported(models, req.Model, req.ReasoningEffort) {
