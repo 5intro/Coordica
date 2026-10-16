@@ -38,7 +38,7 @@ it('counts verified as completed, excludes cancellation from progress, and ends 
 it('shows verified tasks in history without writes or pending assignment copy', () => {
   const write = vi.spyOn(client, 'write');
   render(<Tasks snapshot={{ ...centerSnapshot, tasks: [verified] }} client={client} refresh={refresh} />);
-  for (const name of ['暂停', '取消任务', '调整预算', '调整范围', '恢复']) expect(screen.queryByRole('button', { name })).toBeNull();
+  expect(screen.queryAllByRole('button', { name: /^(暂停|取消任务|调整预算|调整范围|恢复)$/ })).toHaveLength(0);
   expect(screen.queryByText(/获批后由可用 Runner 领取/)).toBeNull();
   fireEvent.change(screen.getByLabelText('任务筛选'), { target: { value: 'active' } });
   expect(within(screen.getByRole('region', { name: '任务列表' })).queryByRole('button')).toBeNull();
