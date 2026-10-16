@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -18,8 +19,23 @@ import time
 
 REPO = Path(__file__).resolve().parent.parent
 MARKER = ".coordica-test-owner.json"
-PREFIX = "coordica-test-"
+PREFIX = "ct-" if os.name == "nt" else "coordica-test-"
 GIB = 1024 ** 3
+DEFAULT_TEMP_PARENT = Path(os.environ.get("RUNNER_TEMP", str(Path.home()))) if os.name == "nt" else Path(tempfile.gettempdir())
+
+
+def remove_root(root):
+    def readonly_file(function, path, exception):
+        error = exception[1]
+        candidate = Path(path)
+        if os.name != "nt" or not isinstance(error, PermissionError) or candidate.is_symlink() or not candidate.resolve().is_relative_to(root.resolve()):
+            raise error
+        # Git packfiles are read-only on Windows. Only an already-stopped,
+        # explicitly owned root may have this attribute cleared for deletion.
+        candidate.chmod(stat.S_IREAD | stat.S_IWRITE)
+        function(path)
+
+    shutil.rmtree(root, onerror=readonly_file)
 
 
 def process_snapshot():
@@ -153,7 +169,7 @@ def recover_stale(parent):
         if snapshot.get(record["pid"], {}).get("start") == record["start"]:
             continue  # Another live invocation owns this root.
         stop_processes(root, child_identity=record.get("child"))
-        shutil.rmtree(root)
+        remove_root(root)
         print(f"Recovered stopped test root: {root}", flush=True)
 
 
@@ -236,7 +252,7 @@ def run(command, parent, timeout, min_free, max_temp):
             stopped = stop_processes(root, child, child_identity)
             if read_owner(root) != record:
                 raise RuntimeError(f"test ownership marker changed; retained {root}")
-            shutil.rmtree(root)
+            remove_root(root)
             print("Owned test processes stopped; temporary root removed", flush=True)
             if stopped and exit_code == 0:
                 exit_code = 1
@@ -263,7 +279,7 @@ def positive(value):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--go", default="go", help="Go executable")
-    parser.add_argument("--temp-parent", type=Path, default=Path(tempfile.gettempdir()))
+    parser.add_argument("--temp-parent", type=Path, default=DEFAULT_TEMP_PARENT)
     parser.add_argument("--timeout-seconds", type=positive, default=1200)
     parser.add_argument("--min-free-gib", type=positive, default=8)
     parser.add_argument("--max-temp-gib", type=positive, default=4)

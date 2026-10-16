@@ -50,6 +50,13 @@ class TestSupervisor(unittest.TestCase):
         self.assertEqual(self.run_code("import time; time.sleep(60)", timeout=.1), 124)
         self.assert_clean()
 
+    def test_owned_read_only_git_like_file_is_reclaimed(self):
+        code = ("import os,pathlib,stat; "
+                "p=pathlib.Path(os.environ['TMPDIR'])/'pack.idx'; "
+                "p.write_bytes(b'fixture'); p.chmod(stat.S_IREAD)")
+        self.assertEqual(self.run_code(code), 0)
+        self.assert_clean()
+
     def test_low_disk_refuses_to_start(self):
         with patch.object(guard.subprocess, "Popen") as start:
             # Stale recovery has no candidates and needs no process query here.

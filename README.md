@@ -33,6 +33,8 @@ python scripts/test-go.py
 
 维护者测试需要 Python 3.10+，无需第三方 Python 包。`make test` 与 CI 共用 `scripts/test-go.py`：每次使用独立临时目录，正常结束、失败、超时或中断后先确认测试进程停止，再回收该目录。强制结束监督器留下的目录会在下次运行时按归属和进程创建身份恢复；不能确认停止时保留目录并让检查失败。默认保留 8 GiB 空闲空间，测试临时文件达到 4 GiB 或整轮超过 20 分钟时停止；可用 `--min-free-gib`、`--max-temp-gib`、`--timeout-seconds` 显式调整为正的有限值。源码、全局缓存及正式运行数据不在回收范围内。
 
+Windows 默认使用 CI 的 `RUNNER_TEMP` 或用户目录中的短前缀测试目录，避免叠加系统长临时路径触发 Git 限制；可用 `--temp-parent` 自选更短路径。回收仅处理本轮自有目录中的 Git 只读文件，不改变系统长路径设置。
+
 `make generate` 从 Go 协议记录生成 `api/v1.schema.json` 与 Web 类型；不手改生成文件。网络输入仍由中心做严格 JSON 解码、领域校验和授权检查。
 
 构建后运行 `./bin/coordica version` 应输出 `0.2.5-dev`；各 MCP 角色的初始化元数据也使用同一发布版本。
