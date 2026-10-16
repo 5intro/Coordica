@@ -427,6 +427,9 @@ func (s *Service) applyRequirementPlan(tx *store.Tx, r *domain.PlanningRun, d do
 			t.HoldReason = "requirement_changed"
 		}
 		t.ApprovedVersion = t.Version
+		if old.ApprovedVersion == 0 || old.State == "draft" {
+			t.State, t.ApprovedVersion = "draft", 0
+		}
 		proposed[t.ID] = t
 	}
 	for _, impact := range change.Impacts {

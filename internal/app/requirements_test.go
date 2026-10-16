@@ -894,3 +894,43 @@ func TestRequirementNewKeysCannotShadowExistingDependencyIDs(t *testing.T) {
 		t.Fatal("local key shadowed an existing task", change)
 	}
 }
+
+func TestRequirementRevisionCannotApproveAManualDraft(t *testing.T) {
+	f, r, task := requirementFixture(t)
+	ctx := context.Background()
+	task.Title = "Unapproved draft"
+	task.Description = "Manual work awaiting approval"
+	raw, e := f.s.CreateTask(ctx, f.owner, "manual-draft", task)
+	draft := decodeTest[domain.Task](t, raw, e)
+	if draft.State != "draft" || draft.ApprovedVersion != 0 {
+		t.Fatal("fixture already approved")
+	}
+	reviseRequirement(t, f, r, "revise")
+	p := emptyRequirementPlan()
+	for _, t0 := range f.snapshot(t).Tasks {
+		if containsPaths(t0.RequirementIDs, []string{r.ID}) {
+			p.Updates = append(p.Updates, domain.RequirementTaskUpdate{TaskID: t0.ID, ExpectedVersion: t0.Version, Proposal: taskProposal(t0)})
+		}
+	}
+	runRequirementPlan(t, f, p)
+	updated := requirementTask(t, f, draft.ID)
+	if requirementDetail(t, f, r.ID).Changes[0].State != "applied" || updated.State != "draft" || updated.ApprovedVersion != 0 || updated.RequirementRevisions[r.ID] != 2 {
+		t.Fatal("replanning acquired draft authority", updated)
+	}
+	for _, other := range f.snapshot(t).Tasks {
+		if other.ID != draft.ID && !domain.TaskFinished(other) {
+			if _, e = f.s.TaskAction(ctx, f.owner, "cancel-"+other.ID, other.ID, "cancel", domain.VersionRequest{ExpectedVersion: other.Version}); e != nil {
+				t.Fatal(e)
+			}
+		}
+	}
+	if got := f.claim(t, "before-manual-approval"); got != nil {
+		t.Fatal("draft was claimable", got.Task.ID)
+	}
+	if _, e = f.s.TaskAction(ctx, f.owner, "approve-draft", draft.ID, "approve", domain.VersionRequest{ExpectedVersion: updated.Version}); e != nil {
+		t.Fatal(e)
+	}
+	if got := f.claim(t, "after-manual-approval"); got == nil || got.Task.ID != draft.ID {
+		t.Fatal("normal approval did not authorize revised draft")
+	}
+}
