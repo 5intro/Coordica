@@ -64,6 +64,11 @@ func (r *Registry) discoverModels(ctx context.Context, def Definition, cap Capab
 }
 
 func (r *Registry) validateExecutionOptions(ctx context.Context, def Definition, req Request) error {
+	// launchArgs supplies this same default for implicit Leader/initialization
+	// requests. Validate the effective model even when no Runner selected it.
+	if def.Protocol == ProtocolCodex && req.Model == "" {
+		req.Model = "gpt-6.1-sol"
+	}
 	if req.Model == "" && req.ReasoningEffort == "" {
 		return nil
 	}
