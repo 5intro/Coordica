@@ -395,6 +395,9 @@ func (s *Service) ReassessRequirement(ctx context.Context, a Actor, key, id stri
 		if d.Status != "admitted" {
 			return nil, domain.Fail("conflict", "先完成目标批准")
 		}
+		if change.Kind != "add" && !goalAllowsRequirement(tx, d, change.RequirementID) {
+			return nil, domain.Fail("scope", "当前目标未包含该需求，不能重新绑定变更")
+		}
 		change.GoalVersion, change.GoalAuthorizationVersion = d.Version, d.AuthorizationVersion
 		change.State, change.Detail = "queued", ""
 		change.Version++

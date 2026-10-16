@@ -121,6 +121,14 @@ func (w *PlanningWorker) queueRequirementChanges(ctx context.Context) error {
 				}
 				continue
 			}
+			if change.Kind != "add" && !goalAllowsRequirement(tx, d, change.RequirementID) {
+				change.State, change.Detail = "blocked", "当前目标未包含该需求，需要 Owner 核对目标"
+				change.Version++
+				if e = tx.Put("requirement_change", change.ID, change); e != nil {
+					return e
+				}
+				continue
+			}
 			baseline, e := initialization(tx)
 			if e != nil {
 				return e
@@ -253,7 +261,7 @@ func requirementDecision(result domain.RequirementPlan) bool {
 
 // validateRequirementWork shares the existing task, scope and test-link rules;
 // no transport or model result supplies execution authority by itself.
-func validateRequirementWork(tx *store.Tx, t domain.Task, d domain.PlanningDocument, p domain.Project, change domain.RequirementChange) error {
+func validateRequirementWork(tx *store.Tx, t domain.Task, d domain.PlanningDocument, p domain.Project, change domain.RequirementChange, existingRequirementIDs []string) error {
 	if e := domain.ValidateTask(t); e != nil {
 		return e
 	}
@@ -270,7 +278,7 @@ func validateRequirementWork(tx *store.Tx, t domain.Task, d domain.PlanningDocum
 		return domain.Fail("invalid_plan", "任务必须关联需求")
 	}
 	for _, id := range t.RequirementIDs {
-		if id != change.RequirementID && !goalAllowsRequirement(tx, d, id) {
+		if id != change.RequirementID && (!containsPaths(existingRequirementIDs, []string{id}) || !goalAllowsRequirement(tx, d, id)) {
 			return domain.Fail("scope", "变更不能引入无关需求")
 		}
 	}
@@ -284,6 +292,9 @@ func (s *Service) applyRequirementPlan(tx *store.Tx, r *domain.PlanningRun, d do
 	var change domain.RequirementChange
 	if e := tx.Get("requirement_change", r.RequirementChangeID, &change); e != nil {
 		return e
+	}
+	if change.Kind != "add" && !goalAllowsRequirement(tx, d, change.RequirementID) {
+		return domain.Fail("scope", "当前目标未包含该需求")
 	}
 	settings, e := automation(tx)
 	if e != nil {
@@ -387,7 +398,7 @@ func (s *Service) applyRequirementPlan(tx *store.Tx, r *domain.PlanningRun, d do
 		if e != nil {
 			return e
 		}
-		if e = validateRequirementWork(tx, t, d, p, change); e != nil {
+		if e = validateRequirementWork(tx, t, d, p, change, old.RequirementIDs); e != nil {
 			return e
 		}
 		t.Version++
@@ -422,28 +433,8 @@ func (s *Service) applyRequirementPlan(tx *store.Tx, r *domain.PlanningRun, d do
 	}
 	for _, next := range result.Tasks {
 		q := next.Proposal
-		t := proposalTask(q, settings.DevelopmentTool)
-		t.ID, t.Version, t.AuthorizationVersion = keys[q.Key], 1, 1
-		t.RequirementChangeID = change.ID
-		t.RequirementRevisions, e = requirementChangeBindings(tx, t.RequirementIDs, change)
-		if e != nil {
-			return e
-		}
-		if !containsPaths(t.RequirementIDs, []string{change.RequirementID}) {
-			return domain.Fail("scope", "后续任务必须关联本次变更需求")
-		}
-		if e = validateRequirementWork(tx, t, d, p, change); e != nil {
-			return e
-		}
-		if e = baselineGate(tx, &t, true); e != nil {
-			return e
-		}
-		t.GoalVersion, t.GoalAuthorizationVersion = d.Version, d.AuthorizationVersion
-		t.State, t.ApprovedVersion, t.CreatedAt = "ready", 1, s.Now()
-		t.Dependencies, e = resolveDeps(q.Dependencies)
-		if e != nil {
-			return e
-		}
+		relatedTasks := []domain.Task{}
+		existingRequirementIDs := []string{}
 		for _, relatedID := range next.RelatedTaskIDs {
 			var related domain.Task
 			if e = tx.Get("task", relatedID, &related); e != nil {
@@ -455,13 +446,44 @@ func (s *Service) applyRequirementPlan(tx *store.Tx, r *domain.PlanningRun, d do
 			if change.Kind != "add" {
 				allowed := false
 				for _, impact := range change.Impacts {
-					allowed = allowed || impact.Task.ID == relatedID
+					if impact.Task.ID == relatedID {
+						allowed = true
+						existingRequirementIDs = append(existingRequirementIDs, impact.Task.RequirementIDs...)
+					}
 				}
 				if !allowed {
 					return domain.Fail("scope", "补偿只能关联受影响任务")
 				}
 			}
-			if !domain.TaskFinished(related) && !containsPaths(t.Dependencies, []string{relatedID}) {
+			if change.Kind == "add" {
+				existingRequirementIDs = append(existingRequirementIDs, related.RequirementIDs...)
+			}
+			relatedTasks = append(relatedTasks, related)
+		}
+		t := proposalTask(q, settings.DevelopmentTool)
+		t.ID, t.Version, t.AuthorizationVersion = keys[q.Key], 1, 1
+		t.RequirementChangeID = change.ID
+		t.RequirementRevisions, e = requirementChangeBindings(tx, t.RequirementIDs, change)
+		if e != nil {
+			return e
+		}
+		if !containsPaths(t.RequirementIDs, []string{change.RequirementID}) {
+			return domain.Fail("scope", "后续任务必须关联本次变更需求")
+		}
+		if e = validateRequirementWork(tx, t, d, p, change, existingRequirementIDs); e != nil {
+			return e
+		}
+		if e = baselineGate(tx, &t, true); e != nil {
+			return e
+		}
+		t.GoalVersion, t.GoalAuthorizationVersion = d.Version, d.AuthorizationVersion
+		t.State, t.ApprovedVersion, t.CreatedAt = "ready", 1, s.Now()
+		t.Dependencies, e = resolveDeps(q.Dependencies)
+		if e != nil {
+			return e
+		}
+		for _, related := range relatedTasks {
+			if !domain.TaskFinished(related) && !containsPaths(t.Dependencies, []string{related.ID}) {
 				return domain.Fail("invalid_plan", "后续工作必须等待关联的在途任务")
 			}
 		}

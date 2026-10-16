@@ -22,6 +22,7 @@ func fakeClaudeCatalog() {
 func fakeConfiguredACP() {
 	scanner := bufio.NewScanner(os.Stdin)
 	model, effort, mode := "model-a", "high", "code"
+	authenticated := false
 	options := func() []any {
 		return []any{map[string]any{"id": "opaque-mode-option", "category": "mode", "type": "select", "currentValue": mode, "options": []any{map[string]string{"value": "ask", "name": "Ask"}, map[string]string{"value": "code", "name": "Code"}}}, map[string]any{"id": "opaque-model-option", "category": "model", "type": "select", "currentValue": model, "options": []any{map[string]string{"value": "model-a", "name": "Model A"}, map[string]string{"value": "model-b", "name": "Model B"}}}, map[string]any{"id": "opaque-effort-option", "category": "thought_level", "type": "select", "currentValue": effort, "options": []any{map[string]string{"value": "high", "name": "High"}, map[string]string{"value": "max", "name": "Max"}}}}
 	}
@@ -29,7 +30,7 @@ func fakeConfiguredACP() {
 		var request struct {
 			ID     int
 			Method string
-			Params struct{ ConfigID, Value string }
+			Params struct{ ConfigID, Value, MethodID string }
 		}
 		json.Unmarshal(scanner.Bytes(), &request)
 		result := map[string]any{}
@@ -37,8 +38,20 @@ func fakeConfiguredACP() {
 		case "initialize":
 			result["protocolVersion"] = 1
 			result["authMethods"] = []any{map[string]string{"id": "cursor_login"}}
+			if os.Getenv("AGENT_TEST_AUTH") == "missing" {
+				result["authMethods"] = []any{}
+			}
 		case "authenticate":
+			if request.Params.MethodID != "cursor_login" || os.Getenv("AGENT_TEST_AUTH") == "reject" {
+				printJSON(map[string]any{"jsonrpc": "2.0", "id": request.ID, "error": map[string]any{"code": -32000, "message": "auth rejected"}})
+				continue
+			}
+			authenticated = true
 		case "session/new":
+			if os.Getenv("AGENT_TEST_AUTH") != "" && !authenticated {
+				printJSON(map[string]any{"jsonrpc": "2.0", "id": request.ID, "error": map[string]any{"code": -32000, "message": "authenticate first"}})
+				continue
+			}
 			result["sessionId"] = "catalog-session"
 			result["configOptions"] = options()
 		case "session/set_config_option":
@@ -153,5 +166,24 @@ func TestACPModelSelectionRetainsRequiredReviewModeWithModernConfigOptions(t *te
 	result, err := Execute(context.Background(), req, nil)
 	if err != nil || !result.TreeStopped {
 		t.Fatalf("%+v %v", result, err)
+	}
+}
+
+func TestACPCatalogAuthenticatesBeforeSessionAndFailsClosed(t *testing.T) {
+	for _, auth := range []string{"required", "reject", "missing"} {
+		t.Run(auth, func(t *testing.T) {
+			t.Setenv("AGENT_TEST_MODEL_PROTOCOL", "acp")
+			t.Setenv("AGENT_TEST_AUTH", auth)
+			req := fixtureRequest(t, "cursor", "unused")
+			def, _ := DefaultRegistry().Resolve("cursor")
+			models, e := readToolModels(context.Background(), def, req.Executable)
+			if auth == "required" {
+				if e != nil || len(models) != 2 {
+					t.Fatal("authenticated metadata unavailable", e, models)
+				}
+			} else if e == nil || len(models) != 0 {
+				t.Fatal("failed authentication exposed catalog", e, models)
+			}
+		})
 	}
 }

@@ -212,6 +212,70 @@ class TestSupervisor(unittest.TestCase):
                 supervisor.wait(timeout=10)
             guard.recover_stale(self.parent)
 
+    def test_recovery_observes_new_owner_after_discovering_its_marker(self):
+        root = Path(tempfile.mkdtemp(prefix=guard.PREFIX, dir=self.parent))
+        owner = guard.owner_record(root)
+        (root / guard.MARKER).write_text(json.dumps(owner))
+        observed = []
+        read = guard.read_owner
+        snapshot = guard.process_snapshot
+
+        def read_first(path):
+            observed.append("marker")
+            return read(path)
+
+        def fresh_snapshot():
+            self.assertIn("marker", observed, "snapshot predates a newly discovered supervisor")
+            return snapshot()
+
+        with patch.object(guard, "read_owner", read_first), patch.object(guard, "process_snapshot", fresh_snapshot):
+            with patch.object(guard, "stop_processes") as stop:
+                guard.recover_stale(self.parent)
+                stop.assert_not_called()
+        self.assertTrue(root.exists())
+
+    def test_external_orphan_survives_parent_exit_but_not_test_cleanup(self):
+        # This executable is outside the owned root. Its parent deliberately
+        # exits before the supervisor can observe parent-child ancestry.
+        evidence = self.parent / "outside-orphan.json"
+        code = ("import json,pathlib,subprocess,sys; "
+                "p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(30)'], "
+                "stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); "
+                f"pathlib.Path({str(evidence)!r}).write_text(json.dumps({{'pid':p.pid}}))")
+        self.assertEqual(self.run_code(code), 1)
+        self.assertNotIn(json.loads(evidence.read_text())["pid"], guard.process_snapshot())
+        self.assert_clean()
+
+    def test_concurrent_supervisors_do_not_recover_each_others_work(self):
+        programs = []
+        for number in range(2):
+            ready = self.parent / ("ready-" + str(number))
+            payload = f"import pathlib,time;pathlib.Path({str(ready)!r}).write_text('ready');time.sleep(2)"
+            code = ("import importlib.util,pathlib,sys; "
+                    f"s=importlib.util.spec_from_file_location('g',{str(Path(guard.__file__))!r}); "
+                    "g=importlib.util.module_from_spec(s);s.loader.exec_module(g); "
+                    f"sys.exit(g.run([sys.executable,'-c',{payload!r}],pathlib.Path({str(self.parent)!r}),20,1,33554432))")
+            programs.append(subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+        try:
+            for program in programs:
+                self.assertEqual(program.wait(timeout=30), 0)
+            self.assertTrue(all((self.parent / ("ready-" + str(n))).exists() for n in range(2)))
+            self.assert_clean()
+        finally:
+            for program in programs:
+                if program.poll() is None:
+                    program.kill()
+                    program.wait(timeout=10)
+            guard.recover_stale(self.parent)
+
+    def test_legacy_marker_without_containment_proof_is_preserved(self):
+        root = Path(tempfile.mkdtemp(prefix=guard.PREFIX, dir=self.parent))
+        record = guard.owner_record(root)
+        record.update(version=1, pid=0, start="dead")
+        (root / guard.MARKER).write_text(json.dumps(record))
+        guard.recover_stale(self.parent)
+        self.assertTrue(root.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

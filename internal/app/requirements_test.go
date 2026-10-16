@@ -578,3 +578,114 @@ func TestRequirementEmptyCenterAndRetiredAssessmentsKeepStopBarriers(t *testing.
 		t.Fatal(e)
 	}
 }
+
+func addUnrelatedGoalRequirement(t *testing.T, f *serviceFixture) domain.Requirement {
+	t.Helper()
+	r := domain.Requirement{ID: "req_unrelated", Version: 1, ContentRevision: 1, State: "active", Title: "Independent work", Body: "Not part of the edited task", CreatedAt: f.now}
+	if e := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
+		if e := tx.Put("requirement", r.ID, r); e != nil {
+			return e
+		}
+		d, e := goalDocument(tx)
+		if e != nil {
+			return e
+		}
+		d.RequirementIDs = append(d.RequirementIDs, r.ID)
+		return tx.Put("planning_document", "current", d)
+	}); e != nil {
+		t.Fatal(e)
+	}
+	return r
+}
+func TestRequirementChangeRejectsUnrelatedGoalRequirementsAtomically(t *testing.T) {
+	for _, kind := range []string{"revise-update", "revise-new", "withdraw-new"} {
+		t.Run(kind, func(t *testing.T) {
+			f, r, task := requirementFixture(t)
+			other := addUnrelatedGoalRequirement(t, f)
+			operation := "revise"
+			if kind == "withdraw-new" {
+				operation = "withdraw"
+			}
+			reviseRequirement(t, f, r, operation)
+			current := requirementTask(t, f, task.ID)
+			p := emptyRequirementPlan()
+			q := taskProposal(current)
+			if operation == "revise" {
+				p.Updates = append(p.Updates, domain.RequirementTaskUpdate{TaskID: task.ID, ExpectedVersion: current.Version, Proposal: q})
+			}
+			if kind == "revise-update" {
+				p.Updates[0].Proposal.RequirementIDs = append([]string{r.ID}, other.ID)
+			} else {
+				q.Key = "extra"
+				q.Title = "Additional work"
+				q.Objective = "Changed requirement plus unrelated work"
+				q.RequirementIDs = []string{r.ID, other.ID}
+				p.Tasks = append(p.Tasks, domain.RequirementNewTask{Proposal: q, RelatedTaskIDs: []string{}})
+			}
+			before := f.snapshot(t)
+			runRequirementPlan(t, f, p)
+			after := f.snapshot(t)
+			if !reflect.DeepEqual(before.Tasks, after.Tasks) || requirementDetail(t, f, r.ID).Changes[0].State != "blocked" {
+				t.Fatal("unrelated requirement reshaped work or partially applied")
+			}
+		})
+	}
+}
+func TestRequirementSharedCompensationRetainsRecordedContext(t *testing.T) {
+	f, r, task := requirementFixture(t)
+	other := addUnrelatedGoalRequirement(t, f)
+	if e := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
+		task.RequirementIDs = append(task.RequirementIDs, other.ID)
+		task.RequirementRevisions[other.ID] = 1
+		task.State = "integrated"
+		return tx.Put("task", task.ID, task)
+	}); e != nil {
+		t.Fatal(e)
+	}
+	reviseRequirement(t, f, r, "withdraw")
+	p := emptyRequirementPlan()
+	q := taskProposal(task)
+	q.Key = "compensate"
+	p.Tasks = append(p.Tasks, domain.RequirementNewTask{Proposal: q, RelatedTaskIDs: []string{task.ID}})
+	runRequirementPlan(t, f, p)
+	if requirementDetail(t, f, r.ID).Changes[0].State != "applied" {
+		t.Fatal("recorded shared context rejected")
+	}
+	a := f.claim(t, "shared-compensation")
+	if a == nil || !sameStrings(a.Task.RequirementIDs, []string{r.ID, other.ID}) {
+		t.Fatal("shared compensation not schedulable")
+	}
+}
+func TestRequirementReassessmentCannotRebindExcludedGoalRequirement(t *testing.T) {
+	f, r, _ := requirementFixture(t)
+	other := addUnrelatedGoalRequirement(t, f)
+	reviseRequirement(t, f, r, "revise")
+	runRequirementPlan(t, f, emptyRequirementPlan())
+	detail := requirementDetail(t, f, r.ID)
+	if detail.Changes[0].State != "blocked" {
+		t.Fatal("fixture not blocked")
+	}
+	if e := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
+		d, e := goalDocument(tx)
+		if e != nil {
+			return e
+		}
+		d.RequirementIDs = []string{other.ID}
+		d.Version++
+		d.AuthorizationVersion++
+		d.ApprovedVersion = d.Version
+		d.AdmittedDocumentVersion = d.Version
+		d.ApprovedAuthorizationVersion = d.AuthorizationVersion
+		d.AdmittedAuthorizationVersion = d.AuthorizationVersion
+		return tx.Put("planning_document", "current", d)
+	}); e != nil {
+		t.Fatal(e)
+	}
+	before := f.snapshot(t)
+	if _, e := f.s.ReassessRequirement(context.Background(), f.owner, "excluded", r.ID, domain.VersionRequest{ExpectedVersion: detail.Changes[0].Version}); e == nil {
+		t.Fatal("excluded requirement rebound")
+	}
+	if !reflect.DeepEqual(before, f.snapshot(t)) {
+		t.Fatal("rejected reassessment mutated state")
+	}
+}

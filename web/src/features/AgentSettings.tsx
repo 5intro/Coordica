@@ -23,7 +23,10 @@ export function AgentSettings({ node, capability, tool, client, refresh }: { nod
     e.preventDefault();
     if (stale) { setError('主机配置已变化，请重新载入后核对。'); return; }
     if (draft.version > node.version) { setError('已保存的配置正在同步，请稍后再试。'); refresh(); return; }
-    if ((draft.value.model || draft.value.reasoning_effort) && (!model || draft.value.reasoning_effort && !model.reasoning_efforts?.includes(draft.value.reasoning_effort))) { setError('模型或思考强度已不在最新能力报告中。'); return; }
+    const old = node.tools?.find((p) => p.tool === tool);
+    const reduction = old && (old.model ?? '') === (draft.value.model ?? '') && (old.reasoning_effort ?? '') === (draft.value.reasoning_effort ?? '')
+      && (!draft.value.enabled || old.enabled) && (!draft.value.implement || old.implement) && (!draft.value.review || old.review);
+    if (!reduction && (draft.value.model || draft.value.reasoning_effort) && (!model || draft.value.reasoning_effort && !model.reasoning_efforts?.includes(draft.value.reasoning_effort))) { setError('模型或思考强度已不在最新能力报告中。'); return; }
     const request: NodeConfigureRequest = { expected_version: draft.version, name: node.name, capacity: node.capacity, draining: node.draining, disabled_new_work: node.disabled_new_work, tools: [...preferences(node).filter((p) => p.tool !== tool), draft.value] };
     setError('');
     void action.execute(async () => {

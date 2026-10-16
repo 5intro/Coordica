@@ -561,16 +561,17 @@ func (s *Service) ConfigureNode(ctx context.Context, a Actor, key, id string, re
 			return nil, e
 		}
 		for _, preference := range req.Tools {
-			// Retaining an unchanged preference while draining is safe; Claim
-			// independently checks the current report before allocating a Run.
-			unchanged := false
+			// Reducing existing permissions cannot admit work. Retain an obsolete
+			// selection without requiring it to be executable; all increases or
+			// parameter changes still validate against the current report.
+			reduction := false
 			for _, old := range n.Tools {
-				if old == preference {
-					unchanged = true
+				if old.Tool == preference.Tool && old.Model == preference.Model && old.ReasoningEffort == preference.ReasoningEffort {
+					reduction = (!preference.Enabled || old.Enabled) && (!preference.Implement || old.Implement) && (!preference.Review || old.Review)
 					break
 				}
 			}
-			if !unchanged {
+			if !reduction {
 				if _, _, err := configuredExecution(n.Capabilities, preference); err != nil {
 					return nil, err
 				}
