@@ -34,7 +34,7 @@ func chatItems(tx *store.Tx, kind string, a Actor) ([]domain.ChatItem, error) {
 			return nil, e
 		}
 		for _, v := range all {
-			out = append(out, domain.ChatItem{ID: v.ID, Version: v.Version, Kind: kind, Title: redacted(v.Title), Text: redacted(v.Body), Summary: redacted(v.AssistantSummary), Source: v.Source, SourceNodeID: v.SourceNodeID, RelatedIDs: safeIdentifiers(v.RelatedIDs), Truncated: len(v.Body) > 16<<10 || len(v.Title) > 16<<10})
+			out = append(out, domain.ChatItem{ID: v.ID, Version: v.Version, Kind: kind, Status: v.State, Title: redacted(v.Title), Text: redacted(v.Body), Summary: redacted(v.AssistantSummary), Source: v.Source, SourceNodeID: v.SourceNodeID, RelatedIDs: safeIdentifiers(v.RelatedIDs), Truncated: len(v.Body) > 16<<10 || len(v.Title) > 16<<10})
 		}
 	case "runs":
 		runs, e := chatRuns(tx, binding)

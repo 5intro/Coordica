@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"coordica/internal/app"
@@ -199,6 +200,17 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 			result, err = s.Service.Initialization(ctx, a)
 		case path == "state":
 			result, err = s.Service.Snapshot(ctx, a)
+		case len(parts) == 2 && parts[0] == "requirements":
+			var before int64
+			if text := r.URL.Query().Get("before"); text != "" {
+				before, err = strconv.ParseInt(text, 10, 64)
+				if err != nil {
+					err = domain.Fail("invalid_input", "历史游标无效")
+				}
+			}
+			if err == nil {
+				result, err = s.Service.RequirementDetail(ctx, a, parts[1], before)
+			}
 		case path == "export":
 			result, err = s.Service.Export(ctx, a)
 		case path == "system/connection":
@@ -235,6 +247,16 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case len(parts) == 3 && parts[0] == "requirements" && parts[2] == "reassess":
+		var in domain.VersionRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.ReassessRequirement(ctx, a, key, parts[1], in)
+		}
+	case len(parts) == 3 && parts[0] == "requirements" && (parts[2] == "revise" || parts[2] == "withdraw"):
+		var in domain.RequirementEdit
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.EditRequirement(ctx, a, key, parts[1], parts[2], in)
+		}
 	case path == "tests/suites":
 		var in domain.TestSuiteSave
 		if err = decode(r, &in); err == nil {

@@ -44,6 +44,9 @@ type Project struct {
 	CreatedAt          time.Time `json:"created_at"`
 }
 type Requirement struct {
+	ContentRevision  int64       `json:"content_revision,omitempty"`
+	State            string      `json:"state,omitempty"`
+	UpdatedAt        time.Time   `json:"updated_at,omitempty"`
 	RelatedIDs       []string    `json:"related_ids,omitempty"`
 	OriginalText     string      `json:"original_text,omitempty"`
 	AssistantSummary string      `json:"assistant_summary,omitempty"`
@@ -60,6 +63,9 @@ type RequirementProposal struct {
 	Body  string `json:"body"`
 }
 type Task struct {
+	RequirementHoldReason    string            `json:"requirement_hold_reason,omitempty"`
+	RequirementRevisions     map[string]int64  `json:"requirement_revisions,omitempty"`
+	RequirementChangeID      string            `json:"requirement_change_id,omitempty"`
 	TestRunID                string            `json:"test_run_id,omitempty"`
 	Verification             *VerificationSpec `json:"verification,omitempty"`
 	BaselineVersion          int64             `json:"baseline_version"`
@@ -125,36 +131,37 @@ type Node struct {
 	TokenHash            string           `json:"-"`
 }
 type Run struct {
-	Model                    string      `json:"model,omitempty"`
-	ReasoningEffort          string      `json:"reasoning_effort,omitempty"`
-	CheckPlanDigest          string      `json:"check_plan_digest,omitempty"`
-	TestReport               *TestReport `json:"test_report,omitempty"`
-	BaselineVersion          int64       `json:"baseline_version"`
-	BaselineDigest           string      `json:"baseline_digest"`
-	GoalVersion              int64       `json:"goal_version"`
-	GoalAuthorizationVersion int64       `json:"goal_authorization_version"`
-	ID                       string      `json:"id"`
-	Version                  int64       `json:"version"`
-	TaskID                   string      `json:"task_id"`
-	NodeID                   string      `json:"node_id"`
-	Kind                     string      `json:"kind"`
-	Tool                     string      `json:"tool"`
-	State                    string      `json:"state"`
-	Generation               int64       `json:"generation"`
-	AuthorizationVersion     int64       `json:"authorization_version"`
-	PolicyVersion            int64       `json:"policy_version"`
-	LeaseUntil               time.Time   `json:"lease_until"`
-	Deadline                 time.Time   `json:"deadline"`
-	GrantSeconds             int64       `json:"grant_seconds"`
-	ElapsedSeconds           int64       `json:"elapsed_seconds"`
-	Base                     string      `json:"base"`
-	Head                     string      `json:"head"`
-	CandidateID              string      `json:"candidate_id"`
-	SessionID                string      `json:"session_id"`
-	Detail                   string      `json:"detail"`
-	Quiescent                bool        `json:"quiescent"`
-	StartedAt                time.Time   `json:"started_at"`
-	FinishedAt               *time.Time  `json:"finished_at,omitempty"`
+	RequirementRevisions     map[string]int64 `json:"requirement_revisions,omitempty"`
+	Model                    string           `json:"model,omitempty"`
+	ReasoningEffort          string           `json:"reasoning_effort,omitempty"`
+	CheckPlanDigest          string           `json:"check_plan_digest,omitempty"`
+	TestReport               *TestReport      `json:"test_report,omitempty"`
+	BaselineVersion          int64            `json:"baseline_version"`
+	BaselineDigest           string           `json:"baseline_digest"`
+	GoalVersion              int64            `json:"goal_version"`
+	GoalAuthorizationVersion int64            `json:"goal_authorization_version"`
+	ID                       string           `json:"id"`
+	Version                  int64            `json:"version"`
+	TaskID                   string           `json:"task_id"`
+	NodeID                   string           `json:"node_id"`
+	Kind                     string           `json:"kind"`
+	Tool                     string           `json:"tool"`
+	State                    string           `json:"state"`
+	Generation               int64            `json:"generation"`
+	AuthorizationVersion     int64            `json:"authorization_version"`
+	PolicyVersion            int64            `json:"policy_version"`
+	LeaseUntil               time.Time        `json:"lease_until"`
+	Deadline                 time.Time        `json:"deadline"`
+	GrantSeconds             int64            `json:"grant_seconds"`
+	ElapsedSeconds           int64            `json:"elapsed_seconds"`
+	Base                     string           `json:"base"`
+	Head                     string           `json:"head"`
+	CandidateID              string           `json:"candidate_id"`
+	SessionID                string           `json:"session_id"`
+	Detail                   string           `json:"detail"`
+	Quiescent                bool             `json:"quiescent"`
+	StartedAt                time.Time        `json:"started_at"`
+	FinishedAt               *time.Time       `json:"finished_at,omitempty"`
 }
 type Review struct {
 	Candidate string   `json:"candidate"`

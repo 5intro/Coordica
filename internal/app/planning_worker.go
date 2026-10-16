@@ -20,6 +20,7 @@ type PlanningExecutor interface {
 	Execute(context.Context, string, string, func(int) error) (PlanningOutcome, error)
 }
 type PlanningOutcome struct {
+	RequirementChangeID  string    `json:"requirement_change_id,omitempty"`
 	RunID                string    `json:"run_id"`
 	Purpose              string    `json:"purpose"`
 	AccountingTarget     string    `json:"accounting_target"`
@@ -94,10 +95,22 @@ func (w *PlanningWorker) reserve(ctx context.Context) (domain.PlanningRun, domai
 				}
 				return nil
 			}
-			if d.Version != r.DocumentVersion || d.AuthorizationVersion != r.AuthorizationVersion || r.ScopeRequestID != "" && (!settings.Enabled || settings.Version != r.AutomationVersion) {
+			ids := append([]string{}, d.RequirementIDs...)
+			if r.RequirementChangeID != "" {
+				var change domain.RequirementChange
+				if e = tx.Get("requirement_change", r.RequirementChangeID, &change); e != nil {
+					return e
+				}
+				ids = append(ids, change.RequirementID)
+			}
+			r.RequirementRevisions, e = requirementPlanBindings(tx, ids)
+			if e != nil {
+				return e
+			}
+			if d.Version != r.DocumentVersion || d.AuthorizationVersion != r.AuthorizationVersion || (r.ScopeRequestID != "" || r.RequirementChangeID != "") && (!settings.Enabled || settings.Version != r.AutomationVersion) || !requirementPlanCurrent(tx, r) {
 				r.State = "stale"
 				r.Version++
-				if e = s.blockScopeAssessment(tx, r, d, "goal or automation policy changed before assessment"); e != nil {
+				if e = s.blockPlanningAssessment(tx, r, d, "goal, requirement or automation policy changed before assessment"); e != nil {
 					return e
 				}
 				return tx.Put("planning_run", r.ID, r)
@@ -117,7 +130,7 @@ func (w *PlanningWorker) reserve(ctx context.Context) (domain.PlanningRun, domai
 				if e = tx.Put("planning_run", r.ID, r); e != nil {
 					return e
 				}
-				if e = s.blockScopeAssessment(tx, r, d, r.Detail); e != nil {
+				if e = s.blockPlanningAssessment(tx, r, d, r.Detail); e != nil {
 					return e
 				}
 				return s.decision(tx, "planning_run", r.ID, r.Version, d, "budget", r.Detail, []string{"dismiss", "edit_budget"})
@@ -166,6 +179,9 @@ func (w *PlanningWorker) Tick(ctx context.Context) error {
 	if e := w.queueScopes(ctx); e != nil {
 		return e
 	}
+	if e := w.queueRequirementChanges(ctx); e != nil {
+		return e
+	}
 	if w.Executor == nil {
 		return errors.New("planning executor required")
 	}
@@ -194,7 +210,13 @@ func (w *PlanningWorker) Tick(ctx context.Context) error {
 		return w.record(context.WithoutCancel(ctx), r, PlanningOutcome{Generation: r.Generation, DocumentVersion: r.DocumentVersion, TreeStopped: true, Error: e.Error()})
 	}
 	var prompt string
-	if r.Purpose == domain.ConsultationPurpose {
+	if r.RequirementChangeID != "" {
+		prompt, e = w.requirementPrompt(ctx, r)
+		if e != nil {
+			os.RemoveAll(dir)
+			return w.record(context.WithoutCancel(ctx), r, PlanningOutcome{Generation: r.Generation, DocumentVersion: r.DocumentVersion, TreeStopped: true, Error: e.Error()})
+		}
+	} else if r.Purpose == domain.ConsultationPurpose {
 		prompt, e = w.consultationPrompt(ctx, r)
 		if e != nil {
 			os.RemoveAll(dir)
@@ -352,7 +374,7 @@ func (w *PlanningWorker) Tick(ctx context.Context) error {
 					if current.Purpose != domain.ConsultationPurpose && (baselineGate(tx, nil, false) != nil || current.BaselineVersion != baseline.ApprovedVersion || current.BaselineDigest != baseline.ApprovedDigest) {
 						return context.Canceled
 					}
-					if current.State != "running" || current.Generation != r.Generation || doc.Version != r.DocumentVersion || p.Paused || !w.Service.Now().Before(current.LeaseUntil) {
+					if current.State != "running" || current.Generation != r.Generation || doc.Version != r.DocumentVersion || p.Paused || !w.Service.Now().Before(current.LeaseUntil) || current.Purpose != domain.ConsultationPurpose && !requirementPlanCurrent(tx, current) {
 						return context.Canceled
 					}
 					current.LeaseUntil = w.Service.Now().Add(w.Service.Lease)
@@ -416,7 +438,7 @@ func (w *PlanningWorker) record(ctx context.Context, original domain.PlanningRun
 		if e := tx.Get("planning_run", original.ID, &r); e != nil {
 			return e
 		}
-		if r.ID != original.ID || r.Purpose != original.Purpose || r.AccountingTarget != original.AccountingTarget || r.ConversationID != original.ConversationID || r.AuthorizationVersion != original.AuthorizationVersion || r.Generation != out.Generation || r.DocumentVersion != out.DocumentVersion || out.RunID != "" && !planningReceiptMatches(r, out) {
+		if r.ID != original.ID || r.Purpose != original.Purpose || r.RequirementChangeID != original.RequirementChangeID || r.AccountingTarget != original.AccountingTarget || r.ConversationID != original.ConversationID || r.AuthorizationVersion != original.AuthorizationVersion || r.Generation != out.Generation || r.DocumentVersion != out.DocumentVersion || out.RunID != "" && !planningReceiptMatches(r, out) {
 			return domain.Fail("stale_run", "planning receipt generation mismatch")
 		}
 		if r.Settled && (r.State != "unknown_live" || !out.TreeStopped) {
@@ -494,7 +516,7 @@ func (w *PlanningWorker) record(ctx context.Context, original domain.PlanningRun
 			if e = s.decision(tx, "planning_run", r.ID, r.Version, d, "unknown_live", "process tree stop could not be proven", []string{"confirm_stopped"}); e != nil {
 				return e
 			}
-		} else if wasUnknown || !timely || d.Version != r.DocumentVersion || d.AuthorizationVersion != r.AuthorizationVersion || r.State == "cancel_requested" {
+		} else if wasUnknown || !timely || d.Version != r.DocumentVersion || d.AuthorizationVersion != r.AuthorizationVersion || r.State == "cancel_requested" || !requirementPlanCurrent(tx, r) {
 			r.State = "stopped"
 			if !timely && !wasUnknown && d.Version == r.DocumentVersion {
 				if e = s.decision(tx, "planning_run", r.ID, r.Version, d, "planning_expired", "completion arrived outside its lease/deadline", []string{"dismiss", "evaluate"}); e != nil {
@@ -519,6 +541,7 @@ func (w *PlanningWorker) record(ctx context.Context, original domain.PlanningRun
 				retry.GrantSeconds = 0
 				retry.ElapsedSeconds = 0
 				retry.PendingResult = nil
+				retry.RequirementResult = nil
 				retry.TaskIDs = nil
 				retry.TaskMapping = nil
 				retry.ProcessID = 0
@@ -533,7 +556,16 @@ func (w *PlanningWorker) record(ctx context.Context, original domain.PlanningRun
 				}
 			}
 		} else {
-			result, err := decodeLeader(out.Output)
+			var result domain.LeaderResult
+			var requirementResult *domain.RequirementPlan
+			var err error
+			if r.RequirementChangeID != "" {
+				var plan domain.RequirementPlan
+				plan, err = decodeRequirementPlan(out.Output)
+				requirementResult = &plan
+			} else {
+				result, err = decodeLeader(out.Output)
+			}
 			if err != nil {
 				r.State = "failed"
 				r.Detail = err.Error()
@@ -542,11 +574,15 @@ func (w *PlanningWorker) record(ctx context.Context, original domain.PlanningRun
 				}
 			} else {
 				r.State = "pending_result"
-				r.PendingResult = &result
+				if requirementResult != nil {
+					r.RequirementResult = requirementResult
+				} else {
+					r.PendingResult = &result
+				}
 			}
 		}
 		if r.State == "stopped" || r.State == "unknown_live" || r.State == "failed" && !retryQueued {
-			if e = s.blockScopeAssessment(tx, r, d, "scope assessment stopped, expired or failed: "+r.Detail); e != nil {
+			if e = s.blockPlanningAssessment(tx, r, d, "assessment stopped, expired or failed: "+r.Detail); e != nil {
 				return e
 			}
 		}
@@ -600,7 +636,7 @@ func (w *PlanningWorker) apply(ctx context.Context, id string) error {
 		if r.Purpose == domain.ConsultationPurpose {
 			return nil
 		}
-		if r.State != "pending_result" || r.PendingResult == nil {
+		if r.State != "pending_result" || r.PendingResult == nil && r.RequirementResult == nil {
 			return nil
 		}
 		var d domain.PlanningDocument
@@ -615,9 +651,21 @@ func (w *PlanningWorker) apply(ctx context.Context, id string) error {
 			return nil
 		}
 		r.Version++
-		if d.Version != r.DocumentVersion || d.AuthorizationVersion != r.AuthorizationVersion {
+		if d.Version != r.DocumentVersion || d.AuthorizationVersion != r.AuthorizationVersion || !requirementPlanCurrent(tx, r) {
 			r.State = "stale"
-			if e = s.blockScopeAssessment(tx, r, d, "goal changed before scope apply"); e != nil {
+			if e = s.blockPlanningAssessment(tx, r, d, "goal or requirement changed before apply"); e != nil {
+				return e
+			}
+		} else if r.RequirementChangeID != "" {
+			if r.RequirementResult == nil {
+				return domain.Fail("invalid_result", "缺少需求变更结构化计划")
+			}
+			if e = s.applyRequirementPlan(tx, &r, d, *r.RequirementResult); e != nil {
+				return e
+			}
+			r.State = "succeeded"
+			message := domain.LeaderMessage{ID: ID("msg_"), DocumentVersion: d.Version, Role: "leader", Text: r.RequirementResult.Reply, CreatedAt: s.Now()}
+			if e = tx.Put("leader_message", message.ID, message); e != nil {
 				return e
 			}
 		} else {
@@ -675,6 +723,9 @@ func (w *PlanningWorker) apply(ctx context.Context, id string) error {
 		r.State = "blocked"
 		r.Detail = e.Error()
 		r.Version++
+		if err := s.blockRequirementAssessment(tx, r, r.Detail); err != nil {
+			return err
+		}
 		if err := tx.Put("planning_run", id, r); err != nil {
 			return err
 		}
@@ -750,6 +801,7 @@ func (w *PlanningWorker) reconcile(ctx context.Context, restart bool) error {
 }
 
 func bindPlanningOutcome(out *PlanningOutcome, r domain.PlanningRun) {
+	out.RequirementChangeID = r.RequirementChangeID
 	out.RunID = r.ID
 	out.Purpose = r.Purpose
 	out.AccountingTarget = r.AccountingTarget
@@ -757,5 +809,12 @@ func bindPlanningOutcome(out *PlanningOutcome, r domain.PlanningRun) {
 	out.AuthorizationVersion = r.AuthorizationVersion
 }
 func planningReceiptMatches(r domain.PlanningRun, out PlanningOutcome) bool {
-	return out.RunID == r.ID && out.Purpose == r.Purpose && out.AccountingTarget == r.AccountingTarget && out.ConversationID == r.ConversationID && out.AuthorizationVersion == r.AuthorizationVersion && out.Generation == r.Generation && out.DocumentVersion == r.DocumentVersion
+	return out.RunID == r.ID && out.Purpose == r.Purpose && out.RequirementChangeID == r.RequirementChangeID && out.AccountingTarget == r.AccountingTarget && out.ConversationID == r.ConversationID && out.AuthorizationVersion == r.AuthorizationVersion && out.Generation == r.Generation && out.DocumentVersion == r.DocumentVersion
+}
+
+func (s *Service) blockPlanningAssessment(tx *store.Tx, r domain.PlanningRun, d domain.PlanningDocument, detail string) error {
+	if e := s.blockRequirementAssessment(tx, r, detail); e != nil {
+		return e
+	}
+	return s.blockScopeAssessment(tx, r, d, detail)
 }

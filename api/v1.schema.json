@@ -2851,6 +2851,25 @@
         "purpose": {
           "type": "string"
         },
+        "requirement_change_id": {
+          "type": "string"
+        },
+        "requirement_result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequirementPlan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requirement_revisions": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
         "scope_request_id": {
           "type": "string"
         },
@@ -3144,6 +3163,9 @@
         "body": {
           "type": "string"
         },
+        "content_revision": {
+          "type": "integer"
+        },
         "created_at": {
           "format": "date-time",
           "type": "string"
@@ -3176,7 +3198,14 @@
         "source_node_id": {
           "type": "string"
         },
+        "state": {
+          "type": "string"
+        },
         "title": {
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
           "type": "string"
         },
         "version": {
@@ -3189,6 +3218,183 @@
         "title",
         "body",
         "created_at"
+      ],
+      "type": "object"
+    },
+    "RequirementChange": {
+      "additionalProperties": false,
+      "properties": {
+        "automation_version": {
+          "type": "integer"
+        },
+        "content_revision": {
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "goal_authorization_version": {
+          "type": "integer"
+        },
+        "goal_version": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "impacts": {
+          "items": {
+            "$ref": "#/$defs/RequirementImpact"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "requirement_id": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "task_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "requirement_id",
+        "content_revision",
+        "kind",
+        "state",
+        "reason",
+        "goal_version",
+        "goal_authorization_version",
+        "automation_version",
+        "impacts",
+        "task_ids",
+        "detail",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "RequirementDetail": {
+      "additionalProperties": false,
+      "properties": {
+        "before": {
+          "type": "integer"
+        },
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/RequirementChange"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "impact": {
+          "items": {
+            "$ref": "#/$defs/RequirementImpact"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "requirement": {
+          "$ref": "#/$defs/Requirement"
+        },
+        "revisions": {
+          "items": {
+            "$ref": "#/$defs/RequirementRevision"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "requirement",
+        "revisions",
+        "changes",
+        "impact",
+        "before"
+      ],
+      "type": "object"
+    },
+    "RequirementEdit": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "expected_version": {
+          "type": "integer"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected_version",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "RequirementImpact": {
+      "additionalProperties": false,
+      "properties": {
+        "direct": {
+          "type": "boolean"
+        },
+        "integrated": {
+          "type": "boolean"
+        },
+        "needs_stop": {
+          "type": "boolean"
+        },
+        "publication_busy": {
+          "type": "boolean"
+        },
+        "shared": {
+          "type": "boolean"
+        },
+        "task": {
+          "$ref": "#/$defs/Task"
+        }
+      },
+      "required": [
+        "task",
+        "shared",
+        "needs_stop",
+        "integrated",
+        "publication_busy",
+        "direct"
       ],
       "type": "object"
     },
@@ -3212,6 +3418,74 @@
       ],
       "type": "object"
     },
+    "RequirementNewTask": {
+      "additionalProperties": false,
+      "properties": {
+        "proposal": {
+          "$ref": "#/$defs/TaskProposal"
+        },
+        "related_task_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "proposal",
+        "related_task_ids"
+      ],
+      "type": "object"
+    },
+    "RequirementPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "major_decisions": {
+          "items": {
+            "$ref": "#/$defs/MajorDecisionProposal"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "reply": {
+          "type": "string"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/RequirementNewTask"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "updates": {
+          "items": {
+            "$ref": "#/$defs/RequirementTaskUpdate"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "reply",
+        "ready",
+        "updates",
+        "tasks",
+        "major_decisions"
+      ],
+      "type": "object"
+    },
     "RequirementProposal": {
       "additionalProperties": false,
       "properties": {
@@ -3225,6 +3499,51 @@
       "required": [
         "title",
         "body"
+      ],
+      "type": "object"
+    },
+    "RequirementRevision": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "requirement": {
+          "$ref": "#/$defs/Requirement"
+        }
+      },
+      "required": [
+        "requirement",
+        "actor_id",
+        "reason",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "RequirementTaskUpdate": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "type": "integer"
+        },
+        "proposal": {
+          "$ref": "#/$defs/TaskProposal"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "expected_version",
+        "proposal"
       ],
       "type": "object"
     },
@@ -3343,6 +3662,12 @@
         },
         "reasoning_effort": {
           "type": "string"
+        },
+        "requirement_revisions": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
         },
         "session_id": {
           "type": "string"
@@ -3851,6 +4176,12 @@
         "repairs": {
           "type": "integer"
         },
+        "requirement_change_id": {
+          "type": "string"
+        },
+        "requirement_hold_reason": {
+          "type": "string"
+        },
         "requirement_ids": {
           "items": {
             "type": "string"
@@ -3859,6 +4190,12 @@
             "array",
             "null"
           ]
+        },
+        "requirement_revisions": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
         },
         "reserved_seconds": {
           "type": "integer"

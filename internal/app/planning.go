@@ -144,6 +144,9 @@ func goalGate(tx *store.Tx, t *domain.Task, bind bool) error {
 // Existing grants retain authority while their own reservation fills the goal.
 // Admission of new work additionally requires availability through goalGate.
 func goalAuthority(tx *store.Tx, t *domain.Task, bind bool) error {
+	if e := requirementTaskGate(tx, *t); e != nil {
+		return e
+	}
 	if e := baselineGate(tx, t, bind); e != nil {
 		return e
 	}
@@ -165,13 +168,7 @@ func goalAuthority(tx *store.Tx, t *domain.Task, bind bool) error {
 		return domain.Fail("planning_not_ready", "task requires goal requirements")
 	}
 	for _, id := range t.RequirementIDs {
-		found := false
-		for _, r := range d.RequirementIDs {
-			if r == id {
-				found = true
-			}
-		}
-		if !found {
+		if !goalAllowsRequirement(tx, d, id) {
 			return domain.Fail("scope", "task requirement outside goal")
 		}
 	}
@@ -217,6 +214,9 @@ func (s *Service) SavePlanning(ctx context.Context, a Actor, key string, req dom
 			var r domain.Requirement
 			if e = tx.Get("requirement", id, &r); e != nil {
 				return nil, domain.Fail("invalid_input", "unknown requirement")
+			}
+			if !domain.RequirementActive(r) {
+				return nil, domain.Fail("requirement_withdrawn", "新目标不能包含已撤回需求")
 			}
 		}
 		d := req.Document

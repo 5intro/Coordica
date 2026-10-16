@@ -442,6 +442,9 @@ export interface LeaderResult {
   major_decisions: (MajorDecisionProposal)[] | null;
 }
 export interface PlanningRun {
+  requirement_change_id?: string;
+  requirement_revisions?: Record<string, number>;
+  requirement_result?: RequirementPlan | null;
   baseline_version: number;
   baseline_digest: string;
   purpose?: string;
@@ -571,6 +574,9 @@ export interface Project {
   created_at: string;
 }
 export interface Requirement {
+  content_revision?: number;
+  state?: string;
+  updated_at?: string;
   related_ids?: (string)[] | null;
   original_text?: string;
   assistant_summary?: string;
@@ -596,6 +602,9 @@ export interface NodeSnapshot {
   requirements: (Requirement)[] | null;
 }
 export interface Task {
+  requirement_hold_reason?: string;
+  requirement_revisions?: Record<string, number>;
+  requirement_change_id?: string;
   test_run_id?: string;
   verification?: VerificationSpec | null;
   baseline_version: number;
@@ -659,6 +668,7 @@ export interface Node {
   last_seen: string;
 }
 export interface Run {
+  requirement_revisions?: Record<string, number>;
   model?: string;
   reasoning_effort?: string;
   check_plan_digest?: string;
@@ -893,4 +903,63 @@ export interface RequirementLinkRequest {
   expected_version: number;
   other_expected_version: number;
   other_id: string;
+}
+export interface RequirementEdit {
+  expected_version: number;
+  title?: string;
+  body?: string;
+  reason: string;
+}
+export interface RequirementRevision {
+  requirement: Requirement;
+  actor_id: string;
+  reason: string;
+  created_at: string;
+}
+export interface RequirementImpact {
+  task: Task;
+  shared: boolean;
+  needs_stop: boolean;
+  integrated: boolean;
+  publication_busy: boolean;
+  direct: boolean;
+}
+export interface RequirementChange {
+  id: string;
+  version: number;
+  requirement_id: string;
+  content_revision: number;
+  kind: string;
+  state: string;
+  reason: string;
+  goal_version: number;
+  goal_authorization_version: number;
+  automation_version: number;
+  impacts: (RequirementImpact)[] | null;
+  task_ids: (string)[] | null;
+  detail: string;
+  created_at: string;
+}
+export interface RequirementDetail {
+  requirement: Requirement;
+  revisions: (RequirementRevision)[] | null;
+  changes: (RequirementChange)[] | null;
+  impact: (RequirementImpact)[] | null;
+  before: number;
+}
+export interface RequirementTaskUpdate {
+  task_id: string;
+  expected_version: number;
+  proposal: TaskProposal;
+}
+export interface RequirementNewTask {
+  proposal: TaskProposal;
+  related_task_ids: (string)[] | null;
+}
+export interface RequirementPlan {
+  reply: string;
+  ready: boolean;
+  updates: (RequirementTaskUpdate)[] | null;
+  tasks: (RequirementNewTask)[] | null;
+  major_decisions: (MajorDecisionProposal)[] | null;
 }

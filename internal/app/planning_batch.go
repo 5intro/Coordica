@@ -75,13 +75,7 @@ func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.Plan
 			return domain.Fail("invalid_input", "task must map to requirements")
 		}
 		for _, id := range q.RequirementIDs {
-			ok := false
-			for _, want := range d.RequirementIDs {
-				if id == want {
-					ok = true
-				}
-			}
-			if !ok {
+			if !goalAllowsRequirement(tx, *d, id) {
 				return domain.Fail("scope", "task requirement outside goal")
 			}
 			var req domain.Requirement
@@ -248,6 +242,10 @@ func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.Plan
 		}
 		t := proposalTask(q, settings.DevelopmentTool)
 		t.ID = ids[q.Key]
+		t.RequirementRevisions, e = requirementBindings(tx, t.RequirementIDs)
+		if e != nil {
+			return e
+		}
 		t.Version = 1
 		t.AuthorizationVersion = 1
 		if e := baselineGate(tx, &t, true); e != nil {
