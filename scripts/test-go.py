@@ -79,25 +79,20 @@ def owned_processes(snapshot, root, child_identity=None):
 
 
 def terminate(infos, root):
-    if os.name == "nt":
-        script = ("[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false); "
-                  "$ErrorActionPreference='Stop'; "
-                  "$targets = [Console]::In.ReadToEnd() | ConvertFrom-Json; "
-                  "foreach ($target in $targets) { "
-                  "$p = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $target.pid); "
-                  "if ($p -and $p.CreationDate.ToUniversalTime().ToString('o') -eq $target.start) { "
-                  "Stop-Process -Id $target.pid -Force -ErrorAction SilentlyContinue } }")
-        result = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
-                                input=json.dumps(infos), capture_output=True, text=True, encoding="utf-8",
-                                timeout=30)
-        if result.returncode:
-            raise RuntimeError(f"Windows test shutdown failed in {root}: {result.stderr[-2000:]}")
-    else:
-        for info in infos:
-            # A PID may have been reused between snapshots.
-            current = process_snapshot().get(info["pid"])
-            if current is None or current["start"] != info["start"]:
-                continue
+    for info in infos:
+        # A PID may have been reused between snapshots.
+        current = process_snapshot().get(info["pid"])
+        if current is None or current["start"] != info["start"]:
+            continue
+        if os.name == "nt":
+            # Use native PID termination after identity checks. Enumerated
+            # descendants are handled individually, without a broad /T kill.
+            result = subprocess.run(["taskkill.exe", "/F", "/PID", str(info["pid"])],
+                                    capture_output=True, timeout=10)
+            if result.returncode and process_snapshot().get(info["pid"], {}).get("start") == info["start"]:
+                detail = (result.stdout + result.stderr).decode(errors="replace")[-2000:]
+                raise RuntimeError(f"Windows test shutdown failed in {root}: {detail}")
+        else:
             try:
                 os.kill(info["pid"], signal.SIGSTOP)
                 os.kill(info["pid"], signal.SIGKILL)
