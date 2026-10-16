@@ -91,6 +91,41 @@ func executeACP(ctx context.Context, def Definition, req Request, onEvent func(E
 		promptStarted = true
 		return send("session/prompt", map[string]any{"sessionId": result.SessionID, "prompt": []map[string]string{{"type": "text", "text": req.Prompt}}})
 	}
+	var options []acpConfigOption
+	configCategory, configValue := "", ""
+	configChanges := 0
+	reviewModeAvailable := false
+	configure := func() error {
+		preferences := []struct{ category, value string }{{"model", req.Model}, {"thought_level", req.ReasoningEffort}}
+		modernReviewMode := isReview(req) && def.ReviewMode != "" && configOption(options, "mode") != nil
+		if modernReviewMode {
+			preferences = append(preferences, struct{ category, value string }{"mode", def.ReviewMode})
+		}
+		for _, preference := range preferences {
+			if preference.value == "" {
+				continue
+			}
+			option := configOption(options, preference.category)
+			if !configContains(option, preference.value) {
+				return errors.New("ACP session does not support the selected model options")
+			}
+			if option.CurrentValue != preference.value {
+				configChanges++
+				if configChanges > 3 {
+					return errors.New("ACP session did not retain the requested configuration")
+				}
+				configCategory, configValue = preference.category, preference.value
+				return send("session/set_config_option", map[string]string{"sessionId": result.SessionID, "configId": option.ID, "value": preference.value})
+			}
+		}
+		if isReview(req) && def.ReviewMode != "" && !modernReviewMode {
+			if !reviewModeAvailable {
+				return errors.New("ACP peer does not advertise required read-only review mode")
+			}
+			return send("session/set_mode", map[string]string{"sessionId": result.SessionID, "modeId": def.ReviewMode})
+		}
+		return prompt()
+	}
 	shutdown := func() error {
 		armStop(2 * time.Second)
 		if canClose && def.CloseMethod != "" {
@@ -268,8 +303,9 @@ func executeACP(ctx context.Context, def Definition, req Request, onEvent func(E
 				nextErr = startSession()
 			case "session/new", "session/load", "session/resume":
 				var created struct {
-					SessionID string `json:"sessionId"`
-					Modes     *struct {
+					ConfigOptions []acpConfigOption `json:"configOptions"`
+					SessionID     string            `json:"sessionId"`
+					Modes         *struct {
 						AvailableModes []struct {
 							ID string `json:"id"`
 						} `json:"availableModes"`
@@ -286,21 +322,28 @@ func executeACP(ctx context.Context, def Definition, req Request, onEvent func(E
 					}
 					result.SessionID = created.SessionID
 				}
-				if isReview(req) && def.ReviewMode != "" {
-					available := false
-					if created.Modes != nil {
-						for _, mode := range created.Modes.AvailableModes {
-							available = available || mode.ID == def.ReviewMode
-						}
+				options = created.ConfigOptions
+				if created.Modes != nil {
+					for _, mode := range created.Modes.AvailableModes {
+						reviewModeAvailable = reviewModeAvailable || mode.ID == def.ReviewMode
 					}
-					if !available {
-						nextErr = errors.New("ACP peer does not advertise required read-only review mode")
-					} else {
-						nextErr = send("session/set_mode", map[string]string{"sessionId": result.SessionID, "modeId": def.ReviewMode})
-					}
-				} else {
-					nextErr = prompt()
 				}
+				nextErr = configure()
+			case "session/set_config_option":
+				var changed struct {
+					ConfigOptions []acpConfigOption `json:"configOptions"`
+				}
+				if json.Unmarshal(message.Result, &changed) != nil {
+					nextErr = ErrProtocol
+					break
+				}
+				options = changed.ConfigOptions
+				option := configOption(options, configCategory)
+				if option == nil || option.CurrentValue != configValue {
+					nextErr = errors.New("ACP rejected the requested execution configuration")
+					break
+				}
+				nextErr = configure()
 			case "session/set_mode":
 				nextErr = prompt()
 			case "session/prompt":

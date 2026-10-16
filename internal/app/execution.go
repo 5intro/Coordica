@@ -102,14 +102,16 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 				candidate = &c
 				tool = ""
 				for _, capability := range req.Capabilities {
-					if capability.Tool != t.Tool && nodeAllows(n, capability.Tool, "review") && capability.Review && available(req.Capabilities, capability.Tool) {
+					_, _, optionsValid := nodeExecution(n, capability.Tool)
+					if optionsValid && capability.Tool != t.Tool && nodeAllows(n, capability.Tool, "review") && capability.Review && available(req.Capabilities, capability.Tool) {
 						tool = capability.Tool
 						break
 					}
 				}
 				if tool == "" {
 					for _, capability := range req.Capabilities {
-						if capability.Tool == t.Tool && nodeAllows(n, capability.Tool, "review") && capability.Review && available(req.Capabilities, t.Tool) {
+						_, _, optionsValid := nodeExecution(n, capability.Tool)
+						if optionsValid && capability.Tool == t.Tool && nodeAllows(n, capability.Tool, "review") && capability.Review && available(req.Capabilities, t.Tool) {
 							tool = t.Tool
 							break
 						}
@@ -141,6 +143,10 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 				}
 			}
 			if !nodeAllows(n, tool, kind) || !available(req.Capabilities, tool) || runBase == "" {
+				continue
+			}
+			model, effort, optionsValid := nodeExecution(n, tool)
+			if !optionsValid {
 				continue
 			}
 			ready := true
@@ -195,6 +201,13 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			now := s.Now()
 			t.Generation++
 			r := domain.Run{BaselineVersion: t.BaselineVersion, BaselineDigest: t.BaselineDigest, ID: ID("run_"), Version: 1, TaskID: t.ID, NodeID: n.ID, Kind: kind, Tool: tool, State: "running", Generation: t.Generation, AuthorizationVersion: t.AuthorizationVersion, PolicyVersion: p.PolicyVersion, LeaseUntil: now.Add(s.Lease), Deadline: now.Add(time.Duration(grant) * time.Second), GrantSeconds: grant, Base: runBase, StartedAt: now}
+			r.Model, r.ReasoningEffort = model, effort
+			for _, c := range n.Capabilities {
+				if r.Model == "" && c.Tool == tool && (tool == "codex" || c.Protocol == "codex-jsonl") {
+					r.Model = "gpt-6.1-sol"
+					break
+				}
+			}
 			if r.Deadline.Before(r.LeaseUntil) {
 				r.LeaseUntil = r.Deadline
 			}

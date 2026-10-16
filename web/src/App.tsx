@@ -25,6 +25,11 @@ import { Audit } from './features/Audit';
 import { Settings } from './features/Settings';
 import { ConnectionSettings } from './features/ConnectionSettings';
 import { RunnerWorkspace } from './features/RunnerWorkspace';
+import { GlassDock, type DockItem } from './components/material/GlassDock';
+import { DetailPanel } from './components/material/DetailPanel';
+import { Icon } from './components/material/icons';
+import { RequirementComposer } from './features/RequirementComposer';
+import { WorkspaceSearch } from './features/WorkspaceSearch';
 
 export type Page = 'initialization' | 'planning' | 'automation' | 'blocks' | 'agents' | 'overview' | 'requirements' | 'tasks' | 'runs' | 'candidates' | 'audit' | 'settings' | 'connection' | 'testing';
 const pages: { id: Page; label: string; number: string }[] = [
@@ -37,21 +42,17 @@ const pages: { id: Page; label: string; number: string }[] = [
   { id: 'candidates', label: '集成候选', number: '05' }, { id: 'audit', label: '审计记录', number: '06' },
   { id: 'settings', label: '政策与恢复', number: '07' }, { id: 'connection', label: '中心配置与接入', number: '08' },
 ];
-const poolPages: { id: Page; label: string }[] = [{ id: 'requirements', label: '需求' }, { id: 'tasks', label: '任务' }, { id: 'candidates', label: '审查' }, { id: 'blocks', label: '阻断' }];
 const managementPages: { id: Page; label: string }[] = [
   { id: 'settings', label: '项目' }, { id: 'automation', label: '系统' }, { id: 'connection', label: '接入' },
   { id: 'initialization', label: '项目初始化' }, { id: 'planning', label: 'Leader 规划与咨询' }, { id: 'runs', label: '运行与恢复' }, { id: 'audit', label: '审计记录' },
 ];
-const dockPages: { id: Page; label: string; short: string }[] = [
-  { id: 'overview', label: '总览', short: '总览' }, { id: 'requirements', label: '需求池', short: '需求' },
-  { id: 'tasks', label: '任务池', short: '任务' }, { id: 'candidates', label: '审查池', short: '审查' },
-  { id: 'blocks', label: '阻断池', short: '阻断' }, { id: 'agents', label: 'Agent 管理', short: 'Agent' },
-  { id: 'testing', label: '测试中心', short: '测试' }, { id: 'settings', label: '设置', short: '设置' },
+const dockPages: DockItem[] = [
+  { id: 'overview', name: '总览', icon: 'home' }, { id: 'requirements', name: '需求池', icon: 'idea' },
+  { id: 'tasks', name: '任务池', icon: 'task' }, { id: 'candidates', name: '审查池', icon: 'review' },
+  { id: 'blocks', name: '阻断池', icon: 'block' }, { id: 'agents', name: 'Agent 管理', icon: 'agents' },
+  { id: 'testing', name: '测试中心', icon: 'test' }, { id: 'settings', name: '设置', icon: 'settings' },
 ];
-function DockIcon({ index }: { index: number }) {
-  const paths = ['M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z', 'M6 3h12v18H6z M9 8h6 M9 12h6 M9 16h4', 'M4 6h3 M10 6h10 M4 12h3 M10 12h10 M4 18h3 M10 18h10', 'M12 3l8 4v6c0 4-8 8-8 8s-8-4-8-8V7z M8 12l3 3 5-6', 'M8 3h8l5 5v8l-5 5H8l-5-5V8z M12 7v6 M12 16v1', 'M5 7h14v13H5z M9 11v3 M15 11v3 M9 17h6 M12 3v4', 'M9 3h6 M10 3v6L4 19q0 2 2 2h12q2 0 2-2L14 9V3 M8 15h8', 'M4 7h16 M4 17h16 M8 4v6 M16 14v6'];
-  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[index]} /></svg>;
-}
+const dockAppearance = { motion: true, refraction: true };
 function hashFocus() { return new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('id') ?? undefined; }
 function storedToken() { try { return sessionStorage.getItem(TOKEN_KEY) ?? ''; } catch { return ''; } }
 function hashPage(): Page | undefined {
@@ -90,14 +91,6 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
   const client = useMemo(() => new ApiClient(token), [token]);
   const { snapshot, error, updatedAt, loading, refresh } = useSnapshot(client);
   const connection = useConnectionInfo(client);
-  const [compact, setCompact] = useState(() => window.matchMedia?.('(max-width: 640px)').matches ?? false);
-  useEffect(() => {
-    const media = window.matchMedia?.('(max-width: 640px)');
-    if (!media) return;
-    const change = () => setCompact(media.matches);
-    media.addEventListener('change', change);
-    return () => media.removeEventListener('change', change);
-  }, []);
   const [page, setPage] = useState<Page>(() => hashPage() ?? 'overview');
   const [focusId, setFocusId] = useState<string | undefined>(hashFocus);
   const [visited, setVisited] = useState<Set<Page>>(() => new Set([hashPage() ?? 'overview']));
@@ -141,26 +134,34 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
     setVisited((previous) => new Set([...previous, next]));
     window.dispatchEvent(new Event(routeEvent));
   }
+  const [composer, setComposer] = useState(false);
+  const [requirementNotice, setRequirementNotice] = useState('');
+  const [searching, setSearching] = useState(false);
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setSearching((previous) => !previous); } };
+    window.addEventListener('keydown',shortcut); return () => window.removeEventListener('keydown',shortcut);
+  }, []);
   const project = snapshot?.project;
   const runnerURL = localConsoleURL(connection.info?.runner_console_url);
   return <div className="workspace">
     <a href="#main-content" className="skip-link" onClick={(event) => { event.preventDefault(); document.getElementById('main-content')?.focus(); }}>跳转到主要内容</a>
+    <div className="workspace-ambient" aria-hidden="true"/>
+    <header className="workspace-topbar"><button className="workspace-brand" aria-label="Coordica 项目概览" onClick={() => navigate('overview')}><span className="wordmark">Coordica<span className="wordmark-dot"/></span></button><div className="workspace-top-actions"><button className="workspace-search" aria-label="搜索工作台" onClick={() => setSearching(true)}><Icon name="search" size={17}/><kbd>⌘ K</kbd></button></div></header>
     <div className="main-shell">
       <main id="main-content" tabIndex={-1}>
         {(error || loading) && <div className="workspace-status"><span>{error ? '中心连接异常' : loading ? '正在连接中心' : '中心已连接'} · {updatedAt ? time(updatedAt) : '等待快照'}</span></div>}
-        {['requirements', 'tasks', 'candidates', 'blocks'].includes(page) && <nav className="pool-switch" aria-label="工作池切换">{poolPages.map((item) => <button key={item.id} aria-current={page === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}>{item.label}</button>)}</nav>}
         {['settings', 'automation', 'connection', 'initialization', 'planning', 'audit', 'runs'].includes(page) && <nav className="settings-switch" aria-label="管理与设置">{managementPages.slice(0, 3).map((item) => <button key={item.id} aria-current={page === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}>{item.label}</button>)}</nav>}
         {page === 'settings' && <nav className="settings-group settings-links" aria-label="更多项目设置">{managementPages.slice(3).map((item) => <button className="settings-row text-button" key={item.id} onClick={() => navigate(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}</nav>}
         {managementPages.slice(3).some((item) => item.id === page) && <button className="text-button" onClick={() => navigate('settings')}>返回设置</button>}
-        <Feedback error={error ? `${error}${snapshot ? ' 当前显示上次成功取得的状态。' : ''}` : ''} />
+        <Feedback notice={requirementNotice} error={error ? `${error}${snapshot ? ' 当前显示上次成功取得的状态。' : ''}` : ''} />
         {page === 'connection' ? <ConnectionSettings client={client} {...connection} project={project} openPolicies={() => navigate('settings')} />
           : !snapshot ? <div className="panel connection-panel"><Empty title={loading ? '正在读取中心状态' : '尚未取得中心状态'}>{loading ? '仅显示服务端实际记录。' : '确认 owner token 与中心连接后重试。'}</Empty>{!loading && <div className="actions"><button className="primary" onClick={refresh}>重新连接</button><button className="secondary" onClick={logout}>更换凭据</button></div>}</div>
             : !project && !['agents', 'automation', 'planning'].includes(page) ? <ProjectSetup client={client} refresh={refresh} />
-              : <div>
+              : <div className={`feature-page feature-${page}`}>
                 {page === 'initialization' && <ProjectInitialization snapshot={snapshot} client={client} refresh={refresh} />}
                 {page === 'planning' && <Planning snapshot={snapshot} client={client} refresh={refresh} initialId={focusId} />}
                 {page === 'automation' && <Automation settings={snapshot.automation} client={client} refresh={refresh} />}
-                {page === 'overview' && <Overview snapshot={snapshot} navigate={navigate} />}
+                {page === 'overview' && <Overview snapshot={snapshot} navigate={navigate} onNewRequirement={() => { setRequirementNotice(''); setComposer(true); }} />}
                 {visited.has('requirements') && <div hidden={page !== 'requirements'}><Requirements nodes={snapshot.nodes ?? []} requirements={snapshot.requirements ?? []} tasks={snapshot.tasks ?? []} navigate={navigate} client={client} refresh={refresh} /></div>}
                 {visited.has('tasks') && <div hidden={page !== 'tasks'}><Tasks snapshot={snapshot} client={client} refresh={refresh} /></div>}
                 {visited.has('blocks') && <div hidden={page !== 'blocks'}><Blocks snapshot={snapshot} client={client} refresh={refresh} navigate={navigate} /></div>}
@@ -174,12 +175,8 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
         <footer className="workbench-footer"><span>Coordica {SOURCE_VERSION}</span>{!error && !loading && <span>中心已连接 · {updatedAt ? time(updatedAt) : '等待快照'}</span>}<button className="text-button" onClick={() => { refresh(); connection.reload(); }} aria-label="刷新中心状态">刷新状态</button>{runnerURL && <a className="text-button" href={`${runnerURL}/`}>本机 Runner ↗</a>}<button className="text-button" onClick={logout}>断开工作台</button></footer>
       </main>
     </div>
-    <nav className="workbench-dock" aria-label="工作台页面" onKeyDown={(event) => {
-      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-      const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button')).filter((button) => button.getClientRects().length);
-      const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-      const target = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
-      buttons[target]?.focus(); event.preventDefault();
-    }}>{dockPages.map((item, index) => <button key={item.id} className={poolPages.some((pool) => pool.id === item.id) ? `dock-item dock-pool ${item.id === 'tasks' ? 'dock-pool-entry' : ''}` : 'dock-item'} aria-label={compact && item.id === 'tasks' ? '工作池' : item.label} aria-current={page === item.id || item.id === 'tasks' && ['requirements', 'candidates', 'blocks'].includes(page) && compact || item.id === 'settings' && managementPages.some((entry) => entry.id === page) ? 'page' : undefined} onClick={() => navigate(item.id)}><DockIcon index={index} /><span className="dock-label">{item.short}</span>{item.id === 'tasks' && <span className="dock-mobile-label">工作池</span>}</button>)}</nav>
+    <GlassDock label="工作台页面" items={dockPages} active={managementPages.some((entry) => entry.id === page) ? 'settings' : page} onSelect={(id) => navigate(id as Page)} appearance={dockAppearance}/>
+    {composer && <DetailPanel title="新需求" onClose={() => setComposer(false)}><h2>新需求</h2><RequirementComposer client={client} refresh={refresh} onSaved={() => { setComposer(false); setRequirementNotice('需求已记录。'); }}/></DetailPanel>}
+    {searching && snapshot && <WorkspaceSearch snapshot={snapshot} onClose={() => setSearching(false)} navigate={(page,id) => { setSearching(false); navigate(page,id); }}/>}
   </div>;
 }

@@ -45,6 +45,7 @@ func executePi(ctx context.Context, def Definition, req Request, onEvent func(Ev
 	result := Result{ExitCode: -1}
 	protocolErr := err
 	promptSent, promptAccepted, settled, finalStateRequested := false, false, false, false
+	modelConfigured := false
 	complete, cancelled, teardown := false, false, false
 	lastStop := ""
 	cancelInput := ctx.Done()
@@ -145,11 +146,13 @@ func executePi(ctx context.Context, def Definition, req Request, onEvent func(Ev
 				switch command {
 				case "get_state":
 					var state struct {
-						SessionID   string `json:"sessionId"`
-						SessionFile string `json:"sessionFile"`
-						Streaming   *bool  `json:"isStreaming"`
-						Compacting  *bool  `json:"isCompacting"`
-						Pending     *int   `json:"pendingMessageCount"`
+						Model         *struct{ ID, Provider string } `json:"model"`
+						ThinkingLevel string                         `json:"thinkingLevel"`
+						SessionID     string                         `json:"sessionId"`
+						SessionFile   string                         `json:"sessionFile"`
+						Streaming     *bool                          `json:"isStreaming"`
+						Compacting    *bool                          `json:"isCompacting"`
+						Pending       *int                           `json:"pendingMessageCount"`
 					}
 					if json.Unmarshal(message.Data, &state) != nil || state.SessionID == "" || state.SessionFile == "" || state.Streaming == nil || state.Compacting == nil || state.Pending == nil {
 						nextErr = ErrProtocol
@@ -165,6 +168,21 @@ func executePi(ctx context.Context, def Definition, req Request, onEvent func(Ev
 							nextErr = errors.New("pi did not load the exact requested session")
 							break
 						}
+						if *state.Streaming || *state.Compacting || *state.Pending != 0 {
+							nextErr = errors.New("pi session is not idle before configuration")
+							break
+						}
+						if req.Model != "" {
+							if !modelConfigured {
+								nextErr = send("get_available_models", nil)
+								break
+							}
+							provider, id, _ := splitPiModel(req.Model)
+							if state.Model == nil || state.Model.ID != id || state.Model.Provider != provider || req.ReasoningEffort != "" && state.ThinkingLevel != req.ReasoningEffort {
+								nextErr = errors.New("pi did not apply the exact requested model options")
+								break
+							}
+						}
 						promptSent = true
 						nextErr = send("prompt", map[string]any{"message": req.Prompt})
 					} else if finalStateRequested {
@@ -178,6 +196,58 @@ func executePi(ctx context.Context, def Definition, req Request, onEvent func(Ev
 					} else {
 						nextErr = ErrProtocol
 					}
+				case "get_available_models":
+					var catalog struct {
+						Models []struct{ ID, Provider string }
+					}
+					if json.Unmarshal(message.Data, &catalog) != nil || len(catalog.Models) > 64 {
+						nextErr = ErrProtocol
+						break
+					}
+					provider, id, err := splitPiModel(req.Model)
+					if err != nil {
+						nextErr = err
+						break
+					}
+					found := false
+					for _, model := range catalog.Models {
+						found = found || model.ID == id && model.Provider == provider
+					}
+					if !found {
+						nextErr = errors.New("pi model is no longer available")
+						break
+					}
+					nextErr = send("set_model", map[string]any{"provider": provider, "modelId": id})
+				case "set_model":
+					var selected struct{ ID, Provider string }
+					provider, id, _ := splitPiModel(req.Model)
+					if json.Unmarshal(message.Data, &selected) != nil || selected.ID != id || selected.Provider != provider {
+						nextErr = ErrProtocol
+						break
+					}
+					modelConfigured = true
+					if req.ReasoningEffort != "" {
+						nextErr = send("get_available_thinking_levels", nil)
+					} else {
+						nextErr = send("get_state", nil)
+					}
+				case "get_available_thinking_levels":
+					var levels struct{ Levels []string }
+					if json.Unmarshal(message.Data, &levels) != nil || len(levels.Levels) > 16 {
+						nextErr = ErrProtocol
+						break
+					}
+					found := false
+					for _, level := range levels.Levels {
+						found = found || level == req.ReasoningEffort
+					}
+					if !found {
+						nextErr = errors.New("pi effort is not supported by this model")
+						break
+					}
+					nextErr = send("set_thinking_level", map[string]any{"level": req.ReasoningEffort})
+				case "set_thinking_level":
+					nextErr = send("get_state", nil)
 				case "prompt":
 					promptAccepted = true
 					nextErr = finalState()

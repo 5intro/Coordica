@@ -50,7 +50,7 @@ describe('management records', () => {
     expect(blockRecords({ ...snapshot, tasks: [localTask], runs: [{ ...localRun, state: 'lost', quiescent: true }], candidates: [{ ...candidate, approved_commit: candidate.commit }] })).toEqual([]);
     render(<Blocks client={client} refresh={refresh} snapshot={snapshot} navigate={navigate} />);
     fireEvent.change(screen.getByLabelText('阻断来源'), { target: { value: '失联 Run' } });
-    expect(screen.getByText('失联 · 未确认静止')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: '阻断列表' })).getByText('失联 · 未确认静止')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /核对进程/ }));
     expect(navigate).toHaveBeenCalledWith('runs', localRun.id);
     fireEvent.change(screen.getByLabelText('阻断来源'), { target: { value: '固定候选' } });
@@ -72,15 +72,38 @@ describe('management records', () => {
     fireEvent.click(screen.getByRole('button', { name: /失联 · 未确认静止/ }));
     expect(navigate).toHaveBeenCalledWith('runs', localRun.id);
     expect(screen.getByText(/节点活动 1 \/ 容量 1/)).toBeTruthy();
+    fireEvent.click(screen.getByText('工具能力与技术详情'));
     expect(screen.getByText('执行认证未提供')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Agent 可用性'), { target: { value: 'available' } });
     expect(screen.getByText('没有匹配 Agent')).toBeTruthy();
+  });
+
+  it('shows each host actual harness inventory and retains only unfinished work when a tool disappears', () => {
+    const cap = nodeSnapshot.node.capabilities![0];
+    const nodes = [
+      { ...nodeSnapshot.node, name: 'Mac', tools: [{ tool: 'configured-only', enabled: true, implement: true, review: true }], capabilities: [{ ...cap, tool: 'codex' }, { ...cap, tool: 'claude', installed: true, available: false }, { ...cap, tool: 'dsh', available: false }] },
+      { ...nodeSnapshot.node, id: 'windows', name: 'Windows', capabilities: [{ ...cap, tool: 'kimi', installed: true }, { ...cap, tool: 'codex', available: false }] },
+      { ...nodeSnapshot.node, id: 'empty', name: 'Empty', capabilities: [{ ...cap, tool: 'dsh', available: false }] },
+    ];
+    const state = { ...centerSnapshot, nodes, tasks: [localTask], runs: [{ ...localRun, tool: 'unreported-inflight', state: 'lost' }, { ...localRun, id: 'finished', tool: 'finished-only', state: 'succeeded', quiescent: true }] };
+    const view = render(<Agents snapshot={state} client={client} refresh={refresh} navigate={vi.fn()}/>);
+    const table = within(screen.getByRole('table'));
+    for (const name of ['codex', 'claude', 'kimi', 'unreported-inflight']) expect(table.getByText(name)).toBeTruthy();
+    for (const name of ['dsh', 'configured-only', 'finished-only']) expect(table.queryByText(name)).toBeNull();
+    expect(table.getByText('探测异常')).toBeTruthy();
+    expect(table.getByText('未发现已安装工具')).toBeTruthy();
+    view.rerender(<Agents snapshot={{ ...state, nodes: nodes.map((node) => node.id === 'empty' ? { ...node, capabilities: [{ ...cap, installed: true }] } : node) }} client={client} refresh={refresh} navigate={vi.fn()}/>);
+    expect(within(screen.getByRole('table')).getByText('dsh')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Agent 节点'), { target: { value: 'windows' } });
+    expect(within(screen.getByRole('table')).getByText('kimi')).toBeTruthy();
+    expect(within(screen.getByRole('table')).queryByText('codex')).toBeNull();
   });
 
   it('reuses node revocation and reports the center recovery outcome after stop evidence', async () => {
     const write = vi.spyOn(client, 'write').mockResolvedValue({});
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const view = render(<Agents snapshot={snapshot} client={client} refresh={refresh} navigate={vi.fn()} />);
+    fireEvent.click(screen.getByText('主机设置'));
     fireEvent.click(screen.getByRole('button', { name: '撤销节点' }));
     await waitFor(() => expect(write).toHaveBeenCalledWith('/nodes/node_local/revoke', {}));
     view.unmount();

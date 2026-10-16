@@ -114,15 +114,15 @@ it('keeps eight Dock destinations and arrow/Home/End keyboard focus', async () =
   expect(buttons[0].getAttribute('aria-current')).toBe('page');
 });
 
-it('uses a compact work-pool entry with visible local pool navigation', async () => {
+it('keeps all pools reachable from the compact Dock without a duplicate pool switch', async () => {
   vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   start('#requirements?id=r1');
   await screen.findByRole('heading', { name: '原始需求甲' });
-  const entry = screen.getByRole('button', { name: '工作池' });
-  expect(entry.getAttribute('aria-current')).toBe('page');
-  const pools = screen.getByRole('navigation', { name: '工作池切换' });
-  expect(within(pools).getAllByRole('button').map((button) => button.textContent)).toEqual(['需求', '任务', '审查', '阻断']);
-  fireEvent.click(within(pools).getByRole('button', { name: '审查' }));
+  const dock = within(screen.getByRole('navigation', { name: '工作台页面' }));
+  expect(dock.getAllByRole('button')).toHaveLength(8);
+  expect(dock.getByRole('button', { name: '需求池' }).getAttribute('aria-current')).toBe('page');
+  expect(screen.queryByRole('navigation', { name: '工作池切换' })).toBeNull();
+  fireEvent.click(dock.getByRole('button', { name: '审查池' }));
   await screen.findByRole('heading', { name: '审查池' });
   expect(window.location.hash).toBe('#candidates');
 });
@@ -150,5 +150,5 @@ it('restores a block history link and filters historical evidence without presen
   expect(screen.queryByRole('button', { name: '提交决策处理' })).toBeNull();
   fireEvent.change(screen.getByLabelText('搜索阻断'), { target: { value: 'missing' } });
   expect(screen.queryByText('处理：process tree stopped')).toBeNull();
-  expect(screen.getByText('没有匹配的决策处理历史。')).toBeTruthy();
+  expect(screen.getByText('没有匹配阻断')).toBeTruthy();
 });

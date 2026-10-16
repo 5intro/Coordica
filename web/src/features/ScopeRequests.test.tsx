@@ -79,6 +79,7 @@ describe('read-only scope request facts', () => {
     const navigate = vi.fn();
     const state: Snapshot = { ...snapshot, decisions: [{ ...waitStopDecision, status }], scope_requests: [{ ...request, id: 'another-request', run_id: 'another-run' }, request] };
     const { container } = render(<Blocks snapshot={state} client={client} refresh={vi.fn()} navigate={navigate} />);
+    if (status === 'resolved') fireEvent.click(within(screen.getByRole('region', { name: '阻断列表' })).getByRole('button', { name: /已处理/ }));
     expect(container.querySelector('form')).toBeNull();
     expect(screen.queryByLabelText('决策操作')).toBeNull();
     expect(screen.queryByLabelText('决策证据')).toBeNull();

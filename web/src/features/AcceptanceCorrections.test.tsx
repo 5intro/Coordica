@@ -129,6 +129,7 @@ it('groups six capabilities under one host with management controls once and sep
   const node = { ...nodeSnapshot.node, capabilities: Array.from({ length: 6 }, (_, i) => ({ ...nodeSnapshot.node.capabilities![0], tool: `tool-${i}`, detail: `诊断-${i}` })) };
   render(<Agents snapshot={{ ...centerSnapshot, nodes: [node], tasks: [localTask], runs: [{ ...localRun, node_id: 'center', kind: 'verification', tool: 'program' }] }} client={client} refresh={refresh} navigate={vi.fn()} />);
   expect(screen.getByRole('heading', { name: '中心程序执行' })).toBeTruthy();
+  fireEvent.click(screen.getByText('主机设置'));
   expect(screen.getAllByRole('button', { name: '配置调度权限' })).toHaveLength(1);
   expect(screen.getAllByRole('button', { name: '撤销节点' })).toHaveLength(1);
   expect(screen.getByText('工具能力与技术详情').closest('details')).toHaveProperty('open', false);

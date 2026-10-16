@@ -16,6 +16,18 @@ import (
 
 func TestMain(m *testing.M) {
 	if len(os.Args) > 1 {
+		if os.Args[1] == "-p" && strings.Contains(strings.Join(os.Args, " "), "--input-format stream-json") {
+			fakeClaudeCatalog()
+			os.Exit(0)
+		}
+		if os.Getenv("AGENT_TEST_MODEL_PROTOCOL") == "acp" && (os.Args[1] == "--profile" || os.Args[1] == "acp") {
+			fakeConfiguredACP()
+			os.Exit(0)
+		}
+		if os.Args[1] == "app-server" {
+			fakeModelCatalog()
+			os.Exit(0)
+		}
 		if os.Args[1] == "--version" {
 			version := os.Getenv("AGENT_TEST_VERSION")
 			if version == "" {
@@ -410,6 +422,19 @@ func TestProbeIsPreflightNotCertification(t *testing.T) {
 	cap := Probe(context.Background(), req.Tool, req.Executable)
 	if !cap.Available || cap.Verified || cap.Version != "fixture 1.1.0" {
 		t.Fatalf("%+v", cap)
+	}
+}
+
+func TestProbeDistinguishesMissingFromInstalledButUnavailableHarness(t *testing.T) {
+	r := DefaultRegistry()
+	missing := r.Probe(context.Background(), "codex", filepath.Join(t.TempDir(), "missing-harness"))
+	if missing.Installed || missing.Available {
+		t.Fatalf("missing executable advertised as installed: %+v", missing)
+	}
+	t.Setenv("AGENT_TEST_VERSION", "0.0.1")
+	installed := r.Probe(context.Background(), "pi", fixtureRequest(t, "pi", "unused").Executable)
+	if !installed.Installed || installed.Available {
+		t.Fatalf("installed but unsupported version lost installation fact: %+v", installed)
 	}
 }
 

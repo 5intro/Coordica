@@ -176,7 +176,7 @@ func goalAuthority(tx *store.Tx, t *domain.Task, bind bool) error {
 		}
 	}
 	if t.Tool != "codex" && !(t.Tool == "program" && t.Verification != nil) {
-		return domain.Fail("invalid_input", "Phase B development requires codex gpt-6.1-sol")
+		return domain.Fail("invalid_input", "Phase B development requires native codex")
 	}
 	if bind {
 		t.GoalVersion = d.Version
@@ -559,6 +559,22 @@ func (s *Service) ConfigureNode(ctx context.Context, a Actor, key, id string, re
 		}
 		if e := version(n.Version, req.ExpectedVersion); e != nil {
 			return nil, e
+		}
+		for _, preference := range req.Tools {
+			// Retaining an unchanged preference while draining is safe; Claim
+			// independently checks the current report before allocating a Run.
+			unchanged := false
+			for _, old := range n.Tools {
+				if old == preference {
+					unchanged = true
+					break
+				}
+			}
+			if !unchanged {
+				if _, _, err := configuredExecution(n.Capabilities, preference); err != nil {
+					return nil, err
+				}
+			}
 		}
 		n.Name = req.Name
 		n.Capacity = req.Capacity

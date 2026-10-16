@@ -94,8 +94,12 @@ type Task struct {
 	CreatedAt                time.Time         `json:"created_at"`
 }
 type Capability struct {
-	Tool       string `json:"tool"`
-	Version    string `json:"version"`
+	Models         []ModelOption `json:"models,omitempty"`
+	ModelDiscovery string        `json:"model_discovery,omitempty"`
+	Tool           string        `json:"tool"`
+	Version        string        `json:"version"`
+	// Installation presence is display metadata, never execution permission.
+	Installed  bool   `json:"installed,omitempty"`
 	Available  bool   `json:"available"`
 	Structured bool   `json:"structured"`
 	Protocol   string `json:"protocol,omitempty"`
@@ -121,6 +125,8 @@ type Node struct {
 	TokenHash            string           `json:"-"`
 }
 type Run struct {
+	Model                    string      `json:"model,omitempty"`
+	ReasoningEffort          string      `json:"reasoning_effort,omitempty"`
 	CheckPlanDigest          string      `json:"check_plan_digest,omitempty"`
 	TestReport               *TestReport `json:"test_report,omitempty"`
 	BaselineVersion          int64       `json:"baseline_version"`
@@ -429,6 +435,15 @@ func ValidateCapabilities(caps []Capability) error {
 			return Fail("invalid_input", "节点工具 ID 不可重复")
 		}
 		seen[c.Tool] = true
+		if err := ValidateModelOptions(c.Models); err != nil {
+			return err
+		}
+		if c.ModelDiscovery != "" && c.ModelDiscovery != "reported" && c.ModelDiscovery != "unavailable" && c.ModelDiscovery != "unsupported" {
+			return Fail("invalid_input", "invalid model discovery status")
+		}
+		if len(c.Models) > 0 && c.ModelDiscovery != "reported" {
+			return Fail("invalid_input", "models require a successful discovery report")
+		}
 		if len(c.Version) > 1024 || len(c.Detail) > 4096 || len(c.Protocol) > 64 {
 			return Fail("invalid_input", "节点能力元数据超过长度限制")
 		}

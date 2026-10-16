@@ -46,10 +46,15 @@ describe('Overview factual work lists', () => {
     view.rerender(<Overview snapshot={{ ...centerSnapshot, tasks: [{ ...localTask, state: 'draft' }], runs: [{ ...localRun, state: 'lost' }] }} navigate={navigate} />);
     const todos = within(screen.getByRole('region', { name: '人工待办' }));
     expect(todos.getAllByRole('button')).toHaveLength(2);
-    fireEvent.click(todos.getByRole('button', { name: /待批准/ }));
-    expect(navigate).toHaveBeenCalledWith('tasks', localTask.id);
-    fireEvent.click(todos.getByRole('button', { name: /未确认静止/ }));
+    fireEvent.click(todos.getByRole('button', { name: '查看全部' }));
+    const all = within(screen.getByRole('dialog', { name: '需要你处理' }));
+    expect(all.getAllByRole('button').filter((button) => button.textContent?.includes('规范化'))).toHaveLength(2);
+    fireEvent.click(all.getByRole('button', { name: /未确认静止/ }));
     expect(navigate).toHaveBeenCalledWith('runs', localRun.id);
+    fireEvent.click(todos.getByRole('button', { name: /待批准/ }));
+    expect(screen.getByRole('dialog', { name: localTask.title })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '打开任务页面 →' }));
+    expect(navigate).toHaveBeenCalledWith('tasks', localTask.id);
     view.rerender(<Overview snapshot={{ ...centerSnapshot, runs: [{ ...localRun, state: 'lost', quiescent: true }] }} navigate={navigate} />);
     expect(screen.queryByRole('region', { name: '人工待办' })).toBeNull();
   });
@@ -62,33 +67,39 @@ describe('Overview factual work lists', () => {
     const todos = within(screen.getByRole('region', { name: '人工待办' }));
     expect(todos.getAllByRole('button')).toHaveLength(1);
     fireEvent.click(todos.getByRole('button'));
+    expect(within(screen.getByRole('dialog')).getByText('累计预算已用尽')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '打开阻断页面 →' }));
     expect(navigate).toHaveBeenCalledWith('blocks', decision.id);
     expect(within(screen.getByRole('region', { name: '阻断池' })).getByLabelText('阻断池活动总数').textContent).toBe('1');
     view.rerender(<Overview snapshot={{ ...snapshot, decisions: [{ ...decision, status: 'resolved' }] }} navigate={navigate} />);
     expect(screen.queryByRole('region', { name: '人工待办' })).toBeNull();
   });
 
-  it('uses four real pools with activity counts, five-row previews and source navigation', () => {
+  it('uses four real pools with activity counts, scrollable pools and source navigation', () => {
     const requirements = Array.from({ length: 7 }, (_, index) => ({ id: `req-${index}`, version: 1, title: `需求 ${index}`, body: '原文', created_at: '' }));
     const tasks = Array.from({ length: 7 }, (_, index) => ({ ...localTask, id: `task-${index}`, title: `工作 ${index}`, requirement_ids: [`req-${index}`], state: index === 6 ? 'integrated' : 'ready', hold_reason: index === 0 ? '需要预算调整' : '' }));
     const navigate = show({ ...centerSnapshot, requirements, tasks, candidates: [{ ...candidate, task_id: 'task-1' }, { ...candidate, id: 'history', state: 'landed' }] });
     for (const name of ['需求池', '任务池']) {
       const pool = within(screen.getByRole('region', { name }));
       expect(pool.getByLabelText(`${name}活动总数`).textContent).toBe('6');
-      expect(pool.getAllByRole('button')).toHaveLength(5);
-      expect(pool.getByRole('link', { name: '查看全部' })).toBeTruthy();
+      expect(pool.getAllByRole('button')).toHaveLength(6);
+      expect(pool.getByRole('link', { name })).toBeTruthy();
     }
     const reviews = within(screen.getByRole('region', { name: '审查池' }));
     expect(reviews.getByLabelText('审查池活动总数').textContent).toBe('1');
     expect(reviews.getByText(/固定版本 fixed-C/)).toBeTruthy();
     fireEvent.click(reviews.getByRole('button'));
+    expect(screen.getByRole('dialog', { name: '工作 1' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '打开审查页面 →' }));
     expect(navigate).toHaveBeenCalledWith('candidates', candidate.id);
     const blocks = within(screen.getByRole('region', { name: '阻断池' }));
     expect(blocks.getByText('需要预算调整')).toBeTruthy();
     expect(blocks.getByLabelText('阻断池活动总数').textContent).toBe('1');
     fireEvent.click(blocks.getByRole('button'));
+    expect(screen.getByRole('dialog', { name: '工作 0' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '打开任务页面 →' }));
     expect(navigate).toHaveBeenCalledWith('tasks', 'task-0');
-    fireEvent.click(within(screen.getByRole('region', { name: '需求池' })).getByRole('link', { name: '查看全部' }));
+    fireEvent.click(within(screen.getByRole('region', { name: '需求池' })).getByRole('link', { name: '需求池' }));
     expect(navigate).toHaveBeenCalledWith('requirements', undefined);
   });
 
@@ -112,8 +123,10 @@ describe('Overview factual work lists', () => {
     const hosts = within(screen.getByRole('complementary', { name: '主机运行动态' }));
     const active = within(hosts.getByRole('region', { name: nodeSnapshot.node.name }));
     expect(active.getAllByRole('button')).toHaveLength(2);
-    expect(active.getByText('dsh · 独立审查 · 12 秒')).toBeTruthy();
+    expect(active.getByRole('button', { name: /dsh.*独立审查.*12 秒/ })).toBeTruthy();
     fireEvent.click(active.getByRole('button', { name: /独立审查/ }));
+    expect(screen.getByRole('dialog', { name: localTask.title })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '打开运行页面 →' }));
     expect(navigate).toHaveBeenCalledWith('runs', 'review-run');
     const idle = within(hosts.getByRole('region', { name: '空闲主机' }));
     expect(idle.getByText('已撤销')).toBeTruthy();

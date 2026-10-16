@@ -16,6 +16,7 @@ var ErrProtocol = errors.New("invalid or incomplete agent protocol")
 
 type Request struct {
 	Tool, Executable, WorkDir, Prompt, ResumeSession, Role string
+	Model, ReasoningEffort                                 string
 	OutputSchemaPath                                       string
 	outputSchema                                           string
 	AllowedTools                                           []string
@@ -31,19 +32,22 @@ type Result struct {
 	TreeStopped bool   `json:"tree_stopped"`
 }
 type Capability struct {
-	Tool       string `json:"tool"`
-	Version    string `json:"version"`
-	Executable string `json:"executable,omitempty"`
-	Protocol   string `json:"protocol"`
-	Available  bool   `json:"available"`
-	Structured bool   `json:"structured"`
-	Resume     bool   `json:"resume"`
-	Cancel     bool   `json:"cancel"`
-	Review     bool   `json:"review"`
-	ReadOnly   bool   `json:"read_only"`
-	Verified   bool   `json:"verified"`
-	Approvals  string `json:"approvals"`
-	Detail     string `json:"detail"`
+	Models         []ModelOption `json:"models,omitempty"`
+	ModelDiscovery string        `json:"model_discovery,omitempty"`
+	Tool           string        `json:"tool"`
+	Version        string        `json:"version"`
+	Executable     string        `json:"executable,omitempty"`
+	Protocol       string        `json:"protocol"`
+	Installed      bool          `json:"installed,omitempty"`
+	Available      bool          `json:"available"`
+	Structured     bool          `json:"structured"`
+	Resume         bool          `json:"resume"`
+	Cancel         bool          `json:"cancel"`
+	Review         bool          `json:"review"`
+	ReadOnly       bool          `json:"read_only"`
+	Verified       bool          `json:"verified"`
+	Approvals      string        `json:"approvals"`
+	Detail         string        `json:"detail"`
 }
 
 func Probe(ctx context.Context, tool, executable string) Capability {
@@ -100,6 +104,9 @@ func (r *Registry) Execute(ctx context.Context, req Request, onEvent func(Event)
 	}
 	req.Executable, err = resolveExecutable(def, req.Executable)
 	if err != nil {
+		return Result{ExitCode: -1}, err
+	}
+	if err := r.validateExecutionOptions(ctx, def, req); err != nil {
 		return Result{ExitCode: -1}, err
 	}
 	if def.MinimumVersion != "" {

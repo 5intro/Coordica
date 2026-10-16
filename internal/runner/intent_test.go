@@ -218,6 +218,24 @@ func scopeIntentText() string {
 	return `{"version":1,"status":"scope_requested","requested_paths":["src/greeting.mjs"],"reason":"Existing task needs the greeting implementation","summary":"Stopped before any edits"}`
 }
 
+func TestAssignedExecutionOptionsReachAdapterWithoutReadingMutableNodeSettings(t *testing.T) {
+	f := newIntentFixture(t)
+	f.record.Assignment.Run.Model = "gpt-6-astra"
+	f.record.Assignment.Run.ReasoningEffort = "ultra"
+	called := false
+	f.r.execute = func(_ context.Context, req agent.Request, _ func(agent.Event)) (agent.Result, error) {
+		called = true
+		if req.Model != "gpt-6-astra" || req.ReasoningEffort != "ultra" {
+			t.Fatalf("assigned settings lost: %+v", req)
+		}
+		return agent.Result{ExitCode: 0, TreeStopped: true, OutputText: scopeIntentText(), SessionID: "native-fixture"}, nil
+	}
+	f.perform(context.Background())
+	if !called {
+		t.Fatal("execution adapter not reached")
+	}
+}
+
 func (f *intentFixture) perform(ctx context.Context) {
 	now := time.Now()
 	f.r.perform(ctx, f.record, responseClock{Server: now, Sent: now, Received: now})

@@ -36,6 +36,16 @@ func TestMain(m *testing.M) {
 		fmt.Printf("%s fixture 1.0 %s\n", name, os.Getenv("MCP_FIXTURE_API_KEY"))
 		os.Exit(0)
 	}
+	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-test.") {
+		if log := os.Getenv("MCP_FIXTURE_ARGV_LOG"); log != "" {
+			file, err := os.OpenFile(log, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+			if err == nil {
+				fmt.Fprintf(file, "unexpected fixture command: %s\n", os.Args[1])
+				file.Close()
+			}
+		}
+		os.Exit(2)
+	}
 	os.Exit(m.Run())
 }
 
@@ -258,7 +268,7 @@ func TestBootstrapInitializeDefaultsAndPreservesUseCaseResult(t *testing.T) {
 func TestBootstrapFailedVersionRemainsUnavailableAndAuthenticationUnknown(t *testing.T) {
 	bootstrapFixtures(t, "git", "dsh")
 	t.Setenv("MCP_FIXTURE_FAIL", "dsh")
-	replies := bootstrapReplies(t, Bootstrap{}, bootstrapInitialize,
+	replies := bootstrapReplies(t, Bootstrap{Executables: map[string]string{"codex": filepath.Join(t.TempDir(), "not-installed", "codex")}}, bootstrapInitialize,
 		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"inspect_environment","arguments":{}}}`)
 	var environment bootstrapEnvironment
 	if replies[1].Result.IsError || json.Unmarshal([]byte(replies[1].Result.Content[0].Text), &environment) != nil {

@@ -16,8 +16,9 @@ func fakePi() {
 		}
 	}
 	scenario := ""
+	model, effort := "test-model", "high"
 	for scanner.Scan() {
-		var msg struct{ ID, Type, Message string }
+		var msg struct{ ID, Type, Message, ModelID, Provider, Level string }
 		if json.Unmarshal(scanner.Bytes(), &msg) != nil {
 			os.Exit(4)
 		}
@@ -25,8 +26,21 @@ func fakePi() {
 			printJSON(map[string]any{"type": "response", "id": msg.ID, "command": msg.Type, "success": true, "data": data})
 		}
 		switch msg.Type {
+		case "get_available_models":
+			response(map[string]any{"models": []any{map[string]string{"id": "test-model", "provider": "test", "name": "Test model"}}})
+		case "get_available_thinking_levels":
+			response(map[string]any{"levels": []string{"high", "max"}})
+		case "set_model":
+			model = msg.ModelID
+			response(map[string]string{"id": model, "provider": msg.Provider})
+		case "set_thinking_level":
+			effort = msg.Level
+			if os.Getenv("AGENT_TEST_MODEL_PROTOCOL") == "clamp" {
+				effort = "high"
+			}
+			response(nil)
 		case "get_state":
-			response(map[string]any{"sessionId": "pi-fixture-id", "sessionFile": session, "isStreaming": scenario == "still-streaming", "isCompacting": false, "pendingMessageCount": 0})
+			response(map[string]any{"sessionId": "pi-fixture-id", "sessionFile": session, "isStreaming": scenario == "still-streaming", "isCompacting": false, "pendingMessageCount": 0, "model": map[string]string{"id": model, "provider": "test"}, "thinkingLevel": effort})
 		case "prompt":
 			recordForbiddenFixtureAction("prompt")
 			scenario = msg.Message
