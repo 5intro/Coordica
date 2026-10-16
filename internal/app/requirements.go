@@ -311,7 +311,28 @@ func (s *Service) EditRequirement(ctx context.Context, a Actor, key, id, kind st
 			return nil, e
 		}
 		change.GoalVersion, change.GoalAuthorizationVersion = d.Version, d.AuthorizationVersion
-		if len(impacts) == 0 && d.Status != "admitted" {
+		var prior domain.RequirementChange
+		priorErr := tx.Get("requirement_change", requirementRevisionID(id, r.ContentRevision-1), &prior)
+		if priorErr != nil && !errors.Is(priorErr, domain.ErrNotFound) {
+			return nil, priorErr
+		}
+		if kind == "revise" && !goalAllowsRequirement(tx, d, id) && priorErr == nil && prior.Kind == "add" && prior.State != "applied" && prior.State != "superseded" && prior.GoalVersion == d.Version && prior.GoalAuthorizationVersion == d.AuthorizationVersion {
+			change.Kind = "add"
+		}
+		previous, e := store.List[domain.RequirementChange](tx, "requirement_change")
+		if e != nil {
+			return nil, e
+		}
+		for _, old := range previous {
+			if old.RequirementID == id && old.ContentRevision < r.ContentRevision && old.State != "applied" && old.State != "superseded" {
+				old.State, old.Detail = "superseded", "已被后续需求版本取代"
+				old.Version++
+				if e = tx.Put("requirement_change", old.ID, old); e != nil {
+					return nil, e
+				}
+			}
+		}
+		if len(impacts) == 0 && (d.Status != "admitted" || kind == "withdraw" && !goalAllowsRequirement(tx, d, id)) {
 			change.State, change.Detail = "applied", "需求已更新，后续随项目规划"
 		}
 		for _, impact := range impacts {
@@ -351,6 +372,9 @@ func (s *Service) EditRequirement(ctx context.Context, a Actor, key, id, kind st
 			return nil, e
 		}
 		if e = tx.Put("requirement_change", change.ID, change); e != nil {
+			return nil, e
+		}
+		if e = s.retireRequirementDecisions(tx); e != nil {
 			return nil, e
 		}
 		return change, s.audit(tx, a, "requirement."+kind, id, change.ID)

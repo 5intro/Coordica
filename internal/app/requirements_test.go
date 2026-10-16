@@ -934,3 +934,116 @@ func TestRequirementRevisionCannotApproveAManualDraft(t *testing.T) {
 		t.Fatal("normal approval did not authorize revised draft")
 	}
 }
+
+func TestRequirementObsoleteBlocksDoNotFenceCurrentRevision(t *testing.T) {
+	for _, legacy := range []bool{false, true} {
+		t.Run(fmt.Sprint(legacy), func(t *testing.T) {
+			f, r, task := requirementFixture(t)
+			reviseRequirement(t, f, r, "revise")
+			runRequirementPlan(t, f, emptyRequirementPlan())
+			blocked := requirementDetail(t, f, r.ID)
+			if blocked.Changes[0].State != "blocked" {
+				t.Fatal("fixture not blocked")
+			}
+			reviseRequirement(t, f, blocked.Requirement, "revise")
+			current := requirementTask(t, f, task.ID)
+			p := emptyRequirementPlan()
+			p.Updates = append(p.Updates, domain.RequirementTaskUpdate{TaskID: task.ID, ExpectedVersion: current.Version, Proposal: taskProposal(current)})
+			runRequirementPlan(t, f, p)
+			detail := requirementDetail(t, f, r.ID)
+			if detail.Changes[0].State != "applied" || detail.Changes[1].State != "superseded" {
+				t.Fatal("superseded block retained", detail.Changes)
+			}
+			if legacy {
+				if e := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
+					old := detail.Changes[1]
+					old.State = "blocked"
+					return tx.Put("requirement_change", old.ID, old)
+				}); e != nil {
+					t.Fatal(e)
+				}
+			}
+			doc := *f.snapshot(t).PlanningDocument
+			if _, e := f.s.SchedulePlanning(context.Background(), f.owner, "after-current-revision", domain.PlanningMessageRequest{ExpectedVersion: doc.Version}); e != nil {
+				t.Fatal("obsolete block fenced ordinary planning", e)
+			}
+		})
+	}
+}
+func TestRequirementPreAdmissionEditsRetainOwnerAdditionAuthority(t *testing.T) {
+	for _, state := range []string{"queued", "blocked", "assessing"} {
+		t.Run(state, func(t *testing.T) {
+			f, _, template := requirementFixture(t)
+			ctx := context.Background()
+			raw, e := f.s.CreateRequirement(ctx, f.owner, "new-owner-add", domain.Requirement{Title: "Additional behavior", Body: "First version"})
+			r := decodeTest[domain.Requirement](t, raw, e)
+			if state == "blocked" {
+				p := emptyRequirementPlan()
+				p.Ready = false
+				runRequirementPlan(t, f, p)
+			}
+			if state == "assessing" {
+				w := &PlanningWorker{Service: f.s}
+				if e = w.queueRequirementChanges(ctx); e != nil {
+					t.Fatal(e)
+				}
+			}
+			change := reviseRequirement(t, f, r, "revise")
+			if change.Kind != "add" || change.ContentRevision != 2 {
+				t.Fatal("pending addition semantics lost", change)
+			}
+			p := emptyRequirementPlan()
+			q := taskProposal(template)
+			q.Key = "new-addon"
+			q.Title = "Additional behavior"
+			q.Objective = "Revised additional behavior"
+			q.RequirementIDs = []string{r.ID}
+			p.Tasks = append(p.Tasks, domain.RequirementNewTask{Proposal: q, RelatedTaskIDs: []string{}})
+			for attempt := 0; attempt < 3; attempt++ {
+				runRequirementPlan(t, f, p)
+				if requirementDetail(t, f, r.ID).Changes[0].State == "applied" {
+					break
+				}
+			}
+			detail := requirementDetail(t, f, r.ID)
+			if detail.Changes[0].State != "applied" || detail.Changes[1].State != "superseded" {
+				t.Fatal("revised addition failed", detail.Changes)
+			}
+			for _, other := range f.snapshot(t).Tasks {
+				if !containsPaths(other.RequirementIDs, []string{r.ID}) && !domain.TaskFinished(other) {
+					if _, e = f.s.TaskAction(ctx, f.owner, "cancel-"+other.ID, other.ID, "cancel", domain.VersionRequest{ExpectedVersion: other.Version}); e != nil {
+						t.Fatal(e)
+					}
+				}
+			}
+			if got := f.claim(t, "revised-addition"); got == nil || got.Run.RequirementRevisions[r.ID] != 2 {
+				t.Fatal("revised addition not schedulable")
+			}
+		})
+	}
+}
+func TestRequirementUnadmittedWithdrawalCannotCreateWork(t *testing.T) {
+	f, _, _ := requirementFixture(t)
+	raw, e := f.s.CreateRequirement(context.Background(), f.owner, "new", domain.Requirement{Title: "Never admitted", Body: "Withdraw before assessment"})
+	r := decodeTest[domain.Requirement](t, raw, e)
+	change := reviseRequirement(t, f, r, "withdraw")
+	if change.State != "applied" {
+		t.Fatal("unadmitted withdrawal needlessly blocked")
+	}
+	if requirementDetail(t, f, r.ID).Changes[1].State != "superseded" {
+		t.Fatal("old addition can still execute")
+	}
+}
+func TestRequirementEditingNodeProposalDoesNotMintAdditionAuthority(t *testing.T) {
+	f, _, _ := requirementFixture(t)
+	raw, e := f.s.SubmitRequirement(context.Background(), f.node, "proposal", domain.RequirementProposal{Title: "Proposal", Body: "Not an Owner addition"})
+	r := decodeTest[domain.Requirement](t, raw, e)
+	change := reviseRequirement(t, f, r, "revise")
+	if change.Kind != "revise" {
+		t.Fatal("proposal promoted without prior Owner addition")
+	}
+	runRequirementPlan(t, f, emptyRequirementPlan())
+	if requirementDetail(t, f, r.ID).Changes[0].State != "blocked" {
+		t.Fatal("unadmitted proposal acquired authority")
+	}
+}
