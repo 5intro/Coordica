@@ -151,6 +151,10 @@ func (s *Service) StartVerification(ctx context.Context, a Actor, key string, in
 			}
 		}
 		t := domain.Task{ID: ID("task_"), Version: 1, Title: "验证 · " + suite.Name, Description: suite.Description, Acceptance: "Every configured check passes against the pinned commit with the process tree stopped", RequirementIDs: ids, AllowedPaths: paths, Tool: "program", State: "ready", ApprovedVersion: 1, AuthorizationVersion: 1, BudgetSeconds: in.BudgetSeconds, MaxRunSeconds: in.MaxRunSeconds, MaxRetries: in.MaxRetries, CreatedAt: s.Now(), Verification: &domain.VerificationSpec{Suite: suite, Commit: in.Commit, Digest: suiteDigest(suite)}}
+		t.RequirementRevisions, e = requirementBindings(tx, ids)
+		if e != nil {
+			return nil, e
+		}
 		if t.Description == "" {
 			t.Description = suite.Name
 		}
@@ -263,11 +267,18 @@ func (s *Service) TestReadiness(ctx context.Context, a Actor, commit string) (do
 					out.Missing = append(out.Missing, label)
 					continue
 				}
-				accepted := false
+				accepted, currentContract := false, false
 				for _, t := range tasks {
-					if t.ID == latest.TaskID && t.State == "verified" && t.Generation == latest.Generation && t.Verification != nil && t.Verification.Digest == latest.TestReport.Digest {
+					if t.ID == latest.TaskID && requirementTaskGate(tx, t) == nil {
+						currentContract = true
+					}
+					if t.ID == latest.TaskID && t.State == "verified" && t.Generation == latest.Generation && t.Verification != nil && t.Verification.Digest == latest.TestReport.Digest && requirementTaskGate(tx, t) == nil {
 						accepted = true
 					}
+				}
+				if !currentContract {
+					out.Missing = append(out.Missing, label)
+					continue
 				}
 				if accepted && latest.State == "succeeded" && latest.Quiescent && domain.ChecksPassed(suite.Checks, latest.TestReport.Checks) {
 					out.Passed = append(out.Passed, label)
@@ -284,7 +295,7 @@ func (s *Service) TestReadiness(ctx context.Context, a Actor, commit string) (do
 			return e
 		}
 		for _, requirement := range requirements {
-			if !covered[requirement.ID] {
+			if domain.RequirementActive(requirement) && !covered[requirement.ID] {
 				out.Uncovered = append(out.Uncovered, requirement.ID)
 			}
 		}

@@ -31,10 +31,8 @@ func (s *Service) createRequirement(tx *store.Tx, a Actor, r domain.Requirement)
 	if strings.TrimSpace(r.Title) == "" || strings.TrimSpace(r.Body) == "" {
 		return nil, domain.Fail("invalid_input", "requirement title and text required")
 	}
-	if a.Role != "owner" {
-		if e := domain.ValidateRequirementProposal(domain.RequirementProposal{Title: r.Title, Body: r.Body}); e != nil {
-			return nil, e
-		}
+	if e := domain.ValidateRequirementProposal(domain.RequirementProposal{Title: r.Title, Body: r.Body}); e != nil {
+		return nil, e
 	}
 	if _, e := getProject(tx); e != nil {
 		return nil, e
@@ -42,8 +40,17 @@ func (s *Service) createRequirement(tx *store.Tx, a Actor, r domain.Requirement)
 	r.ID = ID("req_")
 	r.Version = 1
 	r.CreatedAt = s.Now()
+	r.ContentRevision, r.State, r.UpdatedAt = 1, "active", r.CreatedAt
 	if e := tx.Put("requirement", r.ID, r); e != nil {
 		return nil, e
+	}
+	if e := s.saveRequirementRevision(tx, a, r, ""); e != nil {
+		return nil, e
+	}
+	if a.Role == "owner" {
+		if e := s.queueRequirementAddition(tx, r); e != nil {
+			return nil, e
+		}
 	}
 	if a.Role == "chat" {
 		r.Title = redacted(r.Title)

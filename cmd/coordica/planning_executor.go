@@ -24,6 +24,9 @@ var initializationOutputSchema []byte
 //go:embed consult.schema.json
 var consultOutputSchema []byte
 
+//go:embed requirement-change.schema.json
+var requirementOutputSchema []byte
+
 func (e CodexPlanningExecutor) Execute(ctx context.Context, dir, prompt string, onStarted func(int) error) (app.PlanningOutcome, error) {
 	scratch, err := os.MkdirTemp("", "coordica-leader-schema-")
 	if err != nil {
@@ -37,6 +40,9 @@ func (e CodexPlanningExecutor) Execute(ctx context.Context, dir, prompt string, 
 	}
 	if strings.HasPrefix(prompt, "COORDICA_ADVISORY_V1\n") {
 		schema = consultOutputSchema
+	}
+	if strings.HasPrefix(prompt, "COORDICA_REQUIREMENT_CHANGE_V1\n") {
+		schema = requirementOutputSchema
 	}
 	if err = os.WriteFile(schemaPath, schema, 0600); err != nil {
 		return app.PlanningOutcome{TreeStopped: true, Error: planningError(err)}, err

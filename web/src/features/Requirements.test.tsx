@@ -35,3 +35,12 @@ it('identifies a center-host chat requirement without a source node as chat prov
   fireEvent.change(screen.getByLabelText('需求来源'), { target: { value: 'chat' } });
   expect(within(screen.getByRole('table')).getByRole('button', { name: 'Center chat input' })).toBeTruthy();
 });
+
+it('keeps withdrawn requirements in history and out of the active pool', () => {
+  const requirements: Requirement[] = [{ id: 'req_a', version: 2, title: 'Withdrawn', body: 'Before', state: 'withdrawn', content_revision: 2, created_at: '' }, { id: 'req_b', version: 1, title: 'Active', body: 'After', created_at: '' }];
+  render(<Requirements requirements={requirements} client={new ApiClient('owner')} refresh={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: '活动' }));
+  expect(within(screen.getByRole('table')).queryByRole('button', { name: 'Withdrawn' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: '历史' }));
+  expect(within(screen.getByRole('table')).getByRole('button', { name: 'Withdrawn' })).toBeTruthy();
+});

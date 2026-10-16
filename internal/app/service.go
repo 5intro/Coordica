@@ -338,6 +338,11 @@ func (s *Service) CreateTask(ctx context.Context, a Actor, key string, t domain.
 			return nil, e
 		}
 		clean := domain.Task{ID: ID("task_"), Version: 1, Title: t.Title, Description: t.Description, Acceptance: t.Acceptance, RequirementIDs: t.RequirementIDs, Dependencies: t.Dependencies, AllowedPaths: t.AllowedPaths, HotResources: t.HotResources, Tool: t.Tool, State: "draft", AuthorizationVersion: 1, BudgetSeconds: t.BudgetSeconds, MaxRunSeconds: t.MaxRunSeconds, MaxRepairs: t.MaxRepairs, MaxRetries: t.MaxRetries, CreatedAt: s.Now(), TestRunID: t.TestRunID}
+		var bindingErr error
+		clean.RequirementRevisions, bindingErr = requirementBindings(tx, clean.RequirementIDs)
+		if bindingErr != nil {
+			return nil, bindingErr
+		}
 		if err := tx.Put("task", clean.ID, clean); err != nil {
 			return nil, err
 		}

@@ -91,6 +91,7 @@ func (w *VerificationWorker) claim(ctx context.Context) (*domain.Task, *domain.R
 			now := s.Now()
 			t.Generation++
 			r := domain.Run{ID: ID("test_"), Version: 1, TaskID: t.ID, NodeID: "center", Kind: "verification", Tool: "program", State: "running", Generation: t.Generation, AuthorizationVersion: t.AuthorizationVersion, PolicyVersion: p.PolicyVersion, BaselineVersion: t.BaselineVersion, BaselineDigest: t.BaselineDigest, GoalVersion: t.GoalVersion, GoalAuthorizationVersion: t.GoalAuthorizationVersion, GrantSeconds: grant, StartedAt: now, Deadline: now.Add(time.Duration(grant) * time.Second), LeaseUntil: now.Add(time.Duration(grant) * time.Second), Base: t.Verification.Commit, TestReport: &domain.TestReport{Commit: t.Verification.Commit, SuiteID: t.Verification.Suite.ID, SuiteVersion: t.Verification.Suite.Version, Digest: t.Verification.Digest, Platform: runtime.GOOS}}
+			r.RequirementRevisions = copyRequirementBindings(t)
 			if e = reserveGoal(tx, t, grant); e != nil {
 				return e
 			}

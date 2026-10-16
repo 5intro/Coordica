@@ -1,3 +1,4 @@
+import { activeRequirement } from './requirementState';
 import { reasonLabel } from '../components/ui';
 import { useId, useState, type ReactNode } from 'react';
 import { PoolRow } from '../components/material/PoolRow';
@@ -37,10 +38,7 @@ export function Overview({ snapshot, navigate, onNewRequirement }: { snapshot: S
   const blocks = blockRecords(snapshot);
   const taskTitle = (id: string) => tasks.find((task) => task.id === id)?.title ?? '未命名任务';
   const pending = tasks.filter((task) => !terminalTask(task.state));
-  const requirements = (snapshot.requirements ?? []).filter((requirement) => {
-    const linked = tasks.filter((task) => task.requirement_ids?.includes(requirement.id));
-    return !linked.length || linked.some((task) => !terminalTask(task.state));
-  });
+  const requirements = (snapshot.requirements ?? []).filter((requirement) => activeRequirement(requirement, tasks));
   const pools: { title: string; page: Page; entries: Entry[]; empty: string }[] = [
     { title: '需求池', page: 'requirements', empty: '暂无活动需求', entries: requirements.map((requirement) => ({ id: requirement.id, title: requirement.title, detail: `${snapshot.nodes?.find((node) => node.id === requirement.source_node_id)?.name || (requirement.source_node_id ? '节点来源' : requirement.source ? '聊天' : '中心记录')}`, status: tasks.some((task) => task.requirement_ids?.includes(requirement.id)) ? '推进中' : '待规划', page: 'requirements', target: requirement.id })) },
     { title: '任务池', page: 'tasks', empty: '暂无活动任务', entries: pending.map((task) => {

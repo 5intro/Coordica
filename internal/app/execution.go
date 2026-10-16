@@ -201,6 +201,7 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			now := s.Now()
 			t.Generation++
 			r := domain.Run{BaselineVersion: t.BaselineVersion, BaselineDigest: t.BaselineDigest, ID: ID("run_"), Version: 1, TaskID: t.ID, NodeID: n.ID, Kind: kind, Tool: tool, State: "running", Generation: t.Generation, AuthorizationVersion: t.AuthorizationVersion, PolicyVersion: p.PolicyVersion, LeaseUntil: now.Add(s.Lease), Deadline: now.Add(time.Duration(grant) * time.Second), GrantSeconds: grant, Base: runBase, StartedAt: now}
+			r.RequirementRevisions = copyRequirementBindings(t)
 			r.Model, r.ReasoningEffort = model, effort
 			if r.Deadline.Before(r.LeaseUntil) {
 				r.LeaseUntil = r.Deadline

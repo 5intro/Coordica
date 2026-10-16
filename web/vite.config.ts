@@ -5,5 +5,5 @@ export default defineConfig({
   plugins: [react()],
   server: { proxy: { '/api': 'http://127.0.0.1:8080' } },
   build: { outDir: 'dist', emptyOutDir: true },
-  test: { environment: 'jsdom', setupFiles: './src/test/setup.ts', restoreMocks: true },
+  test: { maxWorkers: 2, environment: 'jsdom', setupFiles: './src/test/setup.ts', restoreMocks: true },
 });

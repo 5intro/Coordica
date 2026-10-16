@@ -190,3 +190,29 @@ func TestEmbeddedConsultContractCannotCarryActions(t *testing.T) {
 		t.Fatal("consult schema accepts action fields")
 	}
 }
+
+func TestEmbeddedRequirementChangeSchemaIsStrictAndCurrent(t *testing.T) {
+	generated := requirementSchema()
+	artifact, e := os.ReadFile("../coordica/requirement-change.schema.json")
+	if e != nil || !bytes.Equal(generated, artifact) {
+		t.Fatal("regenerate requirement change schema", e)
+	}
+	var schema map[string]any
+	if e = json.Unmarshal(generated, &schema); e != nil {
+		t.Fatal(e)
+	}
+	defs := schema["$defs"].(map[string]any)
+	for _, value := range []any{domain.RequirementPlan{}, domain.RequirementTaskUpdate{}, domain.RequirementNewTask{}, domain.TaskProposal{}, domain.MajorDecisionProposal{}} {
+		typ := reflect.TypeOf(value)
+		record := defs[typ.Name()].(map[string]any)
+		props := record["properties"].(map[string]any)
+		if record["additionalProperties"] != false || len(record["required"].([]any)) != typ.NumField() {
+			t.Fatal("non-strict requirement object", typ.Name())
+		}
+		for i := 0; i < typ.NumField(); i++ {
+			field := typ.Field(i)
+			name := strings.Split(field.Tag.Get("json"), ",")[0]
+			checkLeaderField(t, props[name].(map[string]any), field.Type, defs)
+		}
+	}
+}

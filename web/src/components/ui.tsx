@@ -20,7 +20,7 @@ export const platformLabel = (value: string) => {
   return [label, ...architecture].join('/');
 };
 export const reasonLabel = (value: string) => ({
-  scope: '范围调整', scope_requested: '请求调整范围', scope_wait_stop: '范围调整等待停止核验',
+  requirement_changed: '需求变更待重排', scope: '范围调整', scope_requested: '请求调整范围', scope_wait_stop: '范围调整等待停止核验',
   human_decision: '等待人工决策', offline: '执行主机离线', baseline_changed: '基线已变化', budget: '预算限制', paused: '已暂停', owner: 'Owner 阻断',
   task: '任务', run: '运行', candidate: '候选', decision: '决策', scope_request: '范围请求',
   planning_document: '规划文档', planning_run: '规划运行', unknown_live: '运行状态未知，等待停止核验', critical_test_failure: '关键测试失败', protected_candidate: '受保护候选等待批准', planning_not_ready: '规划尚未就绪', planning_expired: '规划运行已过期', planning_failure: '规划执行失败', invalid_result: '规划结果无效', invalid_plan: '规划方案无效', goal: '目标调整', protected: '受保护变化',

@@ -102,6 +102,9 @@ type ProposalTaskMapping struct {
 	TaskID string `json:"task_id"`
 }
 type PlanningRun struct {
+	RequirementChangeID  string                `json:"requirement_change_id,omitempty"`
+	RequirementRevisions map[string]int64      `json:"requirement_revisions,omitempty"`
+	RequirementResult    *RequirementPlan      `json:"requirement_result,omitempty"`
 	BaselineVersion      int64                 `json:"baseline_version"`
 	BaselineDigest       string                `json:"baseline_digest"`
 	Purpose              string                `json:"purpose,omitempty"` // empty legacy purpose means evaluation

@@ -163,6 +163,10 @@ Web 中建立项目、明确最低检查，录入需求，再按下方 Phase B �
 | --- | --- | --- |
 | 建立项目 | POST `project` | name、repository_url、target_branch、protected_paths、checks（total_budget_seconds 已弃用并忽略） |
 | 录入需求 | POST `requirements` | title、body |
+| 需求详情与历史 | GET `requirements/{id}?before=<内容修订号>` | 返回当前内容、影响任务及最近 20 个版本 |
+| 修订需求 | POST `requirements/{id}/revise` | expected_version、title、body、reason |
+| 撤回需求 | POST `requirements/{id}/withdraw` | expected_version、reason；保留历史 |
+| 重评被阻断的变更 | POST `requirements/{id}/reassess` | expected_version 使用变更记录版本 |
 | 保存目标 | POST `planning/save` | expected_version、document |
 | Owner 一次授权 | POST `planning/authorize` | expected_version |
 | Leader 消息 / 评估 | POST `planning/messages` / `planning/evaluate` | expected_version、text |
@@ -188,6 +192,10 @@ Web 中建立项目、明确最低检查，录入需求，再按下方 Phase B �
 开发 Agent 自测后，中心对固定预合并候选执行必需快速检查，再交独立 Agent 审查；候选、主线与规则不变时直接复用检查证据合并。项目基础检查始终保留，按版本化测试套件增加相关检查；未知影响和受保护变化扩大检查范围。全量回归、黄金旅程、端到端与长生命周期测试独立执行，不为每个任务重复运行。
 
 Owner 通过 `tests/suites` 配置套件，通过 `tests/run` 请求有限验证任务。纯验证复用任务、Run、取消、重启恢复和累计记账，无代码候选；报告绑定提交、套件版本、平台和进程退出证据。首期执行位置是中心主机，命令不会下发到其他 Runner；其他平台仍须实测。测试代码开发仍使用普通任务，修复可通过 `test_run_id` 关联失败的验证 Run。
+
+需求修订使用独立的内容版本，不因关联关系变化而失效。未完成的相关任务先冻结，旧执行确认停止后由 Leader 重排；任务和 Run 固定内容版本，迟到结果不能推进新版本。新增需求可以合并到未派任务，关联在途工作的增量使用依赖后续任务。撤回仅取消专属任务，共享任务保留其他有效需求；已集成内容生成补偿任务，继续经过原测试、审查与精确集成，不直接回滚主线。重新规划保留累计消耗、重试、修复及独立人工阻断。暂停或自动化关闭时变更只排队，重大决定仍由 Owner 处理。
+
+正式修订、撤回和重评使用 Owner 的 Web/API（CLI 的 `ctl` 命令复用相同接口）。有限交互 MCP 可继续通过既有 `propose_change` 提交变更建议，由 Owner 核对后正式修改需求；它不能直接替代决策或取得 Owner 权限。
 
 `tests/readiness?commit=<完整提交>` 查询该版本的项目/发布测试就绪情况，未执行、取消、套件更新或版本变化均不能复用旧通过结果。发布工具须显式要求 `ready == true`；查询不授予发布权限。需求通过 `requirements/{id}/link` 建立原子双向关联。输入示例与限制见 [测试配置说明](examples/testing/README.md)。
 
