@@ -281,7 +281,10 @@ func inspectRegistry(ctx context.Context, registry *agent.Registry, tools []agen
 			result.Git.Detail = "version preflight failed"
 		}
 	}
-	for _, capability := range registry.Discover(ctx, overrides) {
+	// Bootstrap reports installation/version facts only. Model catalogs belong
+	// to the paired Runner; inspecting a machine must not open tool sessions.
+	for _, definition := range registry.Definitions() {
+		capability := registry.Probe(ctx, definition.ID, overrides[definition.ID])
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

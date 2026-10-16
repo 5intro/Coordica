@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -52,6 +55,8 @@ type Registry struct {
 	mu          sync.RWMutex
 	definitions []Definition
 	names       map[string]int
+	modelMu     sync.Mutex
+	modelCache  map[string]modelCacheEntry
 }
 
 var validID = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
@@ -180,7 +185,11 @@ func (r *Registry) Definitions() []Definition {
 func (r *Registry) Discover(ctx context.Context, executables map[string]string) []Capability {
 	var caps []Capability
 	for _, def := range r.Definitions() {
-		caps = append(caps, r.Probe(ctx, def.ID, executables[def.ID]))
+		capability := r.Probe(ctx, def.ID, executables[def.ID])
+		if capability.Available {
+			capability.Models, capability.ModelDiscovery = r.discoverModels(ctx, def, capability)
+		}
+		caps = append(caps, capability)
 	}
 	return caps
 }
@@ -201,6 +210,7 @@ func (r *Registry) Probe(ctx context.Context, tool, executable string) Capabilit
 		return c
 	}
 	c.Executable = path
+	c.Installed = true
 	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	out, result, err := process.Collect(probeCtx, process.Spec{Executable: path, Args: def.VersionArgs, Env: developmentEnv()}, 16<<10)
@@ -251,9 +261,24 @@ func launchArgs(def Definition, req Request) []string {
 		args = append([]string{"--search"}, args...)
 	}
 	if def.Protocol == ProtocolCodex {
-		args = append(args, "--ignore-user-config", "--disable", "multi_agent", "--model", "gpt-6.1-sol")
+		model := req.Model
+		if model == "" {
+			model = "gpt-6.1-sol"
+		}
+		args = append(args, "--ignore-user-config", "--disable", "multi_agent", "--model", model)
+		if req.ReasoningEffort != "" {
+			args = append(args, "--config", "model_reasoning_effort="+strconv.Quote(req.ReasoningEffort))
+		}
 		if req.OutputSchemaPath != "" {
 			args = append(args, "--output-schema", req.OutputSchemaPath)
+		}
+	}
+	if def.Protocol == ProtocolClaude {
+		if req.Model != "" {
+			args = append(args, "--model", req.Model)
+		}
+		if req.ReasoningEffort != "" {
+			args = append(args, "--effort", req.ReasoningEffort)
 		}
 	}
 	if def.Protocol == ProtocolClaude && req.outputSchema != "" {
@@ -290,13 +315,27 @@ func isReview(req Request) bool {
 	return req.Role == "review" || req.Role == "reviewer" || req.Role == "leader"
 }
 
+// Desktop bundles can ship a CLI without registering it on a background
+// service's PATH. Only explicit CLI locations are candidates, never the GUI.
+func macAppExecutables(commands []string, relativeCLI string) []string {
+	if runtime.GOOS != "darwin" {
+		return commands
+	}
+	candidates := append([]string(nil), commands...)
+	candidates = append(candidates, filepath.Join("/Applications", relativeCLI))
+	if home, err := os.UserHomeDir(); err == nil {
+		candidates = append(candidates, filepath.Join(home, "Applications", relativeCLI))
+	}
+	return candidates
+}
+
 // BuiltinDefinitions is the only built-in tool list. New compatible tools use
 // Register rather than changing discovery, task validation, or scheduling.
 func BuiltinDefinitions() []Definition {
 	return []Definition{
-		{ID: "codex", CommitMode: "runner", Executables: []string{"codex"}, Protocol: ProtocolCodex, StartArgs: []string{"--ask-for-approval", "never", "exec", "--json"}, DevelopmentArgs: []string{"--sandbox", "workspace-write"}, ReviewArgs: []string{"--sandbox", "read-only"}, ResumeArgs: []string{"resume", "{session}"}, PromptArgs: []string{"--", "-"}, Resume: true, Cancel: true, Review: true, ReadOnly: true, Approvals: "no interactive approval; sandbox-limited execution"},
+		{ID: "codex", CommitMode: "runner", Executables: macAppExecutables([]string{"codex"}, "ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"), Protocol: ProtocolCodex, StartArgs: []string{"--ask-for-approval", "never", "exec", "--json"}, DevelopmentArgs: []string{"--sandbox", "workspace-write"}, ReviewArgs: []string{"--sandbox", "read-only"}, ResumeArgs: []string{"resume", "{session}"}, PromptArgs: []string{"--", "-"}, Resume: true, Cancel: true, Review: true, ReadOnly: true, Approvals: "no interactive approval; sandbox-limited execution"},
 		{ID: "claude", Aliases: []string{"claude-code"}, Executables: []string{"claude"}, Protocol: ProtocolClaude, StartArgs: []string{"-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "dontAsk"}, DevelopmentArgs: []string{"--allowedTools", "{allowed_tools}"}, ReviewArgs: []string{"--allowedTools", "Read,Glob,Grep", "--tools", "Read,Glob,Grep"}, ResumeArgs: []string{"--resume", "{session}"}, Resume: true, Cancel: true, Review: true, ReadOnly: true, Approvals: "dontAsk with explicit tool allow rules; native Windows has no built-in sandbox"},
-		{ID: "dsh", CommitMode: "runner", Aliases: []string{"deepseek-harness"}, Executables: []string{"dsh"}, Protocol: ProtocolACP, StartArgs: []string{"--profile", "acp"}, Resume: true, ResumeMethod: "session/resume", CloseMethod: "session/close", Cancel: true, Review: true, Approvals: "unverifiable ACP permission requests are rejected; no native read-only sandbox"},
+		{ID: "dsh", CommitMode: "runner", Aliases: []string{"deepseek-harness"}, Executables: macAppExecutables([]string{"dsh"}, "DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"), Protocol: ProtocolACP, StartArgs: []string{"--profile", "acp"}, Resume: true, ResumeMethod: "session/resume", CloseMethod: "session/close", Cancel: true, Review: true, Approvals: "unverifiable ACP permission requests are rejected; no native read-only sandbox"},
 		{ID: "cursor", CommitMode: "runner", Aliases: []string{"cursor-agent"}, Executables: []string{"cursor-agent", "agent"}, Protocol: ProtocolACP, StartArgs: []string{"acp"}, Resume: true, ResumeMethod: "session/load", AuthMethod: "cursor_login", ReviewMode: "ask", Cancel: true, Review: true, ReadOnly: true, Approvals: "ACP permissions are denied unless independently verifiable; review requires advertised ask mode"},
 		{ID: "kimi", CommitMode: "runner", Aliases: []string{"kimi-code", "kimicode"}, Executables: []string{"kimi"}, Protocol: ProtocolACP, StartArgs: []string{"acp"}, Resume: true, ResumeMethod: "session/load", CloseMethod: "session/close", Cancel: true, Review: true, Approvals: "unverifiable ACP permission requests are rejected; no native read-only sandbox"},
 		{ID: "pi", Executables: []string{"pi"}, Protocol: ProtocolPi, StartArgs: []string{"--mode", "rpc"}, Resume: true, ResumeArgs: []string{"--session", "{session}"}, MinimumVersion: "1.1.0", Cancel: true, Review: true, ReviewArgs: []string{"--tools", "read,grep,find,ls", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-mcp"}, ReadOnly: true, Approvals: "developer tools use local authenticated policy; review removes write and execution tools and extensions"},

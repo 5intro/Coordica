@@ -176,7 +176,7 @@ func goalAuthority(tx *store.Tx, t *domain.Task, bind bool) error {
 		}
 	}
 	if t.Tool != "codex" && !(t.Tool == "program" && t.Verification != nil) {
-		return domain.Fail("invalid_input", "Phase B development requires codex gpt-6.1-sol")
+		return domain.Fail("invalid_input", "Phase B development requires native codex")
 	}
 	if bind {
 		t.GoalVersion = d.Version
@@ -559,6 +559,23 @@ func (s *Service) ConfigureNode(ctx context.Context, a Actor, key, id string, re
 		}
 		if e := version(n.Version, req.ExpectedVersion); e != nil {
 			return nil, e
+		}
+		for _, preference := range req.Tools {
+			// Reducing existing permissions cannot admit work. Retain an obsolete
+			// selection without requiring it to be executable; all increases or
+			// parameter changes still validate against the current report.
+			reduction := false
+			for _, old := range n.Tools {
+				if old.Tool == preference.Tool && old.Model == preference.Model && old.ReasoningEffort == preference.ReasoningEffort {
+					reduction = (!preference.Enabled || old.Enabled) && (!preference.Implement || old.Implement) && (!preference.Review || old.Review)
+					break
+				}
+			}
+			if !reduction {
+				if _, _, err := configuredExecution(n.Capabilities, preference); err != nil {
+					return nil, err
+				}
+			}
 		}
 		n.Name = req.Name
 		n.Capacity = req.Capacity

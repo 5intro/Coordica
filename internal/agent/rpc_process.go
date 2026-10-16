@@ -18,14 +18,20 @@ type rpcProcess struct {
 }
 
 func startRPC(def Definition, req Request, onEvent func(Event)) (*rpcProcess, error) {
+	return startRPCSpec(process.Spec{Executable: req.Executable, Args: launchArgs(def, req), Dir: req.WorkDir, Env: developmentEnv()}, onEvent)
+}
+
+func startRPCSpec(spec process.Spec, onEvent func(Event)) (*rpcProcess, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	s, err := process.Start(ctx, process.Spec{Executable: req.Executable, Args: launchArgs(def, req), Dir: req.WorkDir, Env: developmentEnv()})
+	s, err := process.Start(ctx, spec)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
 	r := &rpcProcess{process: s, writes: make(chan []byte, 8), writeErrors: make(chan error, 1), stopWriter: cancel}
-	emit(onEvent, "process.started", map[string]int{"pid": s.PID()})
+	if onEvent != nil {
+		emit(onEvent, "process.started", map[string]int{"pid": s.PID()})
+	}
 	go func() {
 		for {
 			select {

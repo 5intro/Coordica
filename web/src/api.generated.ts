@@ -252,6 +252,7 @@ export interface ChatAgentCapability {
   tool: string;
   version: string;
   protocol: string;
+  installed?: boolean;
   available: boolean;
   read_only: boolean;
   review: boolean;
@@ -496,11 +497,19 @@ export interface DecisionResolveRequest {
   action: string;
   evidence: string;
 }
+export interface ModelOption {
+  id: string;
+  name: string;
+  reasoning_efforts: (string)[] | null;
+  default_reasoning_effort?: string;
+}
 export interface ToolScheduling {
   tool: string;
   enabled: boolean;
   implement: boolean;
   review: boolean;
+  model?: string;
+  reasoning_effort?: string;
 }
 export interface NodeConfigureRequest {
   expected_version: number;
@@ -621,8 +630,11 @@ export interface Task {
   created_at: string;
 }
 export interface Capability {
+  models?: (ModelOption)[] | null;
+  model_discovery?: string;
   tool: string;
   version: string;
+  installed?: boolean;
   available: boolean;
   structured: boolean;
   protocol?: string;
@@ -647,6 +659,8 @@ export interface Node {
   last_seen: string;
 }
 export interface Run {
+  model?: string;
+  reasoning_effort?: string;
   check_plan_digest?: string;
   test_report?: TestReport | null;
   baseline_version: number;

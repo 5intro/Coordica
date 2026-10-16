@@ -154,7 +154,7 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 		}
 		prompt += reviewInput
 	}
-	request := agent.Request{Tool: assignment.Run.Tool, Executable: r.config.Executables[assignment.Run.Tool], WorkDir: record.WorkDir, Prompt: prompt, Role: assignment.Run.Kind, AllowedTools: []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash"}}
+	request := agent.Request{Tool: assignment.Run.Tool, Executable: r.config.Executables[assignment.Run.Tool], WorkDir: record.WorkDir, Prompt: prompt, Role: assignment.Run.Kind, AllowedTools: []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash"}, Model: assignment.Run.Model, ReasoningEffort: assignment.Run.ReasoningEffort}
 	nativeIntent := assignment.GoalContext != nil && assignment.Run.Kind == "implement" && definition.Protocol == agent.ProtocolCodex && definition.ID == "codex"
 	if nativeIntent {
 		schemaPath := filepath.Join(dir, "execution.schema.json")

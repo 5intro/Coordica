@@ -51,7 +51,7 @@ it.each([
   { page: '需求池', route: 'requirements', search: '搜索需求', query: '黄金', filter: '需求历史', value: 'active', item: '黄金旅程需求', link: '需求永久链接', id: 'journey-requirement' },
   { page: '任务池', route: 'tasks', search: '搜索任务', query: '黄金', filter: '任务筛选', value: 'active', item: task.title, link: '任务永久链接', id: task.id },
   { page: '审查池', route: 'candidates', search: '搜索审查', query: '黄金', filter: '审查筛选', value: 'all', item: /黄金旅程任务/, link: '审查永久链接', id: candidate.id },
-  { page: '阻断池', route: 'blocks', search: '搜索阻断', query: '人工', filter: '阻断历史', value: 'active', item: '任务阻断', link: '阻断永久链接', id: `task:${task.id}` },
+  { page: '阻断池', route: 'blocks', search: '搜索阻断', query: '人工', filter: '阻断历史', value: 'active', item: /等待人工核对/, link: '阻断永久链接', id: `task:${task.id}` },
 ])('从 Dock 浏览$page，筛选后进入详情并通过历史与 Dock 返回', async ({ page, route, search, query, filter, value, item, link, id }) => {
   start();
   await screen.findByRole('heading', { name: centerSnapshot.project!.name });
@@ -96,6 +96,8 @@ it.each(['missing', 'skipped', 'running'] as const)('测试中心不把 %s 当�
   const request = start({ ...snapshot, test_suites: [suite], runs });
   await screen.findByRole('heading', { name: centerSnapshot.project!.name });
   dock('审查池');
+  fireEvent.change(screen.getByLabelText('审查筛选'), { target: { value: 'all' } });
+  fireEvent.click(within(screen.getByRole('region', { name: '候选列表' })).getByRole('button', { name: /黄金旅程任务/ }));
   await screen.findByText('未执行 / 缺失：旅程检查');
   expect(screen.getByText('检查尚未执行；不会显示为通过。')).toBeTruthy();
   expect(screen.queryByText('评审通过')).toBeNull();
@@ -136,20 +138,19 @@ it.each([false, true])('能力探测与真实活动实例分开呈现（有运�
   await screen.findByRole('heading', { name: centerSnapshot.project!.name });
   dock('Agent 管理');
   await screen.findByRole('heading', { name: 'Agent 管理' });
-  const instances = screen.getByRole('heading', { name: '实际运行实例' }).closest('section')!;
+  const directory = screen.getByRole('region', { name: '主机与 Agent' });
   fireEvent.click(screen.getByText('工具能力与技术详情'));
-  const capability = screen.getByRole('table');
-  expect(within(capability).getByText('版本探测通过')).toBeTruthy();
-  expect(within(capability).getByText('执行认证未提供')).toBeTruthy();
+  expect(within(directory).getByText('版本探测通过')).toBeTruthy();
+  expect(screen.getByText('执行认证未提供')).toBeTruthy();
   expect(screen.getByText(/最后上报时间不代表在线/)).toBeTruthy();
   expect(screen.queryByRole('combobox', { name: /模型|思考/ })).toBeNull();
   if (!running) {
-    expect(within(instances).getByText('暂无活动运行实例。已安装工具仅表示上报能力。')).toBeTruthy();
-    expect(within(instances).queryByRole('link')).toBeNull();
+    expect(within(directory).getByText('暂无活动任务')).toBeTruthy();
+    expect(within(directory).queryByRole('button', { name: /黄金旅程任务/ })).toBeNull();
   } else {
-    expect(within(instances).getAllByRole('link').map((a) => a.getAttribute('href'))).toEqual([`#runs?id=${localRun.id}`, '#runs?id=lost-instance']);
-    expect(within(instances).getByText('失联 · 未确认静止')).toBeTruthy();
-    fireEvent.click(within(capability).getByRole('button', { name: /黄金旅程任务 · implement · running/ }));
+    expect(within(directory).getAllByRole('button', { name: /黄金旅程任务/ })).toHaveLength(2);
+    expect(within(directory).getByText(/失联 · 未确认静止/)).toBeTruthy();
+    fireEvent.click(within(directory).getAllByRole('button', { name: /黄金旅程任务/ })[0]);
     await screen.findByRole('heading', { name: '运行与节点' });
     expect(window.location.hash).toBe(`#runs?id=${localRun.id}`);
   }

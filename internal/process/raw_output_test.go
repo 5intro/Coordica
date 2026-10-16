@@ -61,7 +61,15 @@ func TestRawHelperProcess(t *testing.T) {
 		}
 		deadline := time.Now().Add(20 * time.Second)
 		for sequence := 0; time.Now().Before(deadline); sequence++ {
-			if err := os.WriteFile(args[1], []byte(fmt.Sprint(sequence)), 0600); err != nil {
+			// Append so stopping between open and write cannot truncate prior
+			// readiness evidence into an empty, falsely failing marker.
+			file, err := os.OpenFile(args[1], os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+			if err != nil {
+				os.Exit(8)
+			}
+			_, err = fmt.Fprintln(file, sequence)
+			closeErr := file.Close()
+			if err != nil || closeErr != nil {
 				os.Exit(8)
 			}
 			time.Sleep(20 * time.Millisecond)

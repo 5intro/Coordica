@@ -5,15 +5,9 @@ main#main-content { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
 .workspace-status { display: flex; justify-content: flex-end; align-items: center; gap: 16px; color: var(--muted); font-size: 12px; margin-bottom: 20px; flex-wrap: wrap; }
 .settings-links { margin-bottom: 24px; max-width: 1000px; }
 .settings-links button { width: 100%; text-align: left; border-radius: 0; }
-.workbench-dock { position: fixed; z-index: 30; bottom: max(12px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: flex; flex-direction: row; gap: 4px; padding: 6px; background: var(--dock); box-shadow: 0 8px 24px rgb(0 0 0 / 10%); border: 1px solid var(--border); border-radius: 16px; max-width: calc(100% - 24px); margin: 0; overflow: visible; }
-.dock-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 68px; min-height: 54px; background: transparent; color: var(--dock-text); border-radius: 8px; font-size: 12px; }
-.dock-item:hover { background: var(--dock-hover); }
-.dock-item[aria-current=page] { color: var(--ink); background: var(--selection); font-weight: 650; }
-.dock-mobile-label { display: none; }
  .pool-switch, .settings-switch, .segmented { display: flex; flex-direction: row; flex-wrap: wrap; gap: 2px; width: fit-content; max-width: 100%; padding: 3px; margin: 0 0 20px; border-radius: 7px; background: var(--subtle); }
 .pool-switch button, .settings-switch button, .segmented button { min-height: 32px; padding: 4px 12px; border-radius: 5px; background: transparent; color: var(--muted); font-size: 13px; }
 .pool-switch [aria-current=page], .settings-switch [aria-current=page], .segmented [aria-pressed=true] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 12%); }
-.dock-item[aria-current=page]::after { content: ''; width: 3px; height: 3px; border-radius: 50%; background: currentColor; }
 .workspace .section-title h1 { margin-top: 0; }
 [hidden] { display: none !important; }
 .workspace input::placeholder, .workspace textarea::placeholder { color: var(--muted); }
@@ -24,12 +18,6 @@ main#main-content { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
 .workspace .count { font-variant-numeric: tabular-nums; }
 .pool-detail-link { display: inline-block; font-size: 12px; margin: 8px 0 16px; color: var(--muted); }
 @media (max-width: 640px) {
-  .workbench-dock { gap: 2px; bottom: max(8px, env(safe-area-inset-bottom)); }
-  .dock-item { width: 54px; min-height: 56px; }
-  .dock-pool { display: none; }
-  .dock-pool-entry { display: flex; }
-  .dock-pool-entry .dock-label { display: none; }
-  .dock-mobile-label { display: inline; }
   main#main-content { padding: 20px 16px calc(112px + env(safe-area-inset-bottom)); }
   .pool-switch { display: flex; }
   .workspace-status { justify-content: space-between; }
@@ -49,7 +37,6 @@ main#main-content { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
 .workspace .agent-host details { margin-top: 12px; }
 .workspace .task-detail code, .workspace .candidate-detail code { overflow-wrap: anywhere; }
 @media (max-width: 640px) {
-  .workspace .dock-item { min-width: 0; width: 50px; padding-inline: 4px; flex-shrink: 1; }
   .workspace .task-toolbar { max-width: 100%; }
   .workspace .panel { padding: 18px; }
   .workspace .node-config { min-width: 0; width: 100%; }

@@ -1,4 +1,5 @@
 GO ?= $(if $(wildcard .tools/go/bin/go),$(CURDIR)/.tools/go/bin/go,go)
+PYTHON ?= python3
 export GOCACHE ?= $(CURDIR)/.cache/go-build
 export GOMODCACHE ?= $(CURDIR)/.cache/mod
 export GOPATH ?= $(CURDIR)/.cache/gopath
@@ -12,7 +13,8 @@ web:
 generate:
 	$(GO) run ./cmd/contractgen
 test:
-	$(GO) test -race ./...
+	$(PYTHON) -m unittest discover -s scripts -p 'test_*.py'
+	$(PYTHON) scripts/test-go.py --go "$(GO)"
 	npm --prefix web test
 check:
 	$(GO) vet ./...

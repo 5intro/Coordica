@@ -423,6 +423,28 @@
         "detail": {
           "type": "string"
         },
+        "installed": {
+          "type": "boolean"
+        },
+        "model_discovery": {
+          "enum": [
+            "",
+            "reported",
+            "unavailable",
+            "unsupported"
+          ],
+          "type": "string"
+        },
+        "models": {
+          "items": {
+            "$ref": "#/$defs/ModelOption"
+          },
+          "maxItems": 64,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "protocol": {
           "type": "string"
         },
@@ -559,6 +581,9 @@
           "type": "boolean"
         },
         "cancel": {
+          "type": "boolean"
+        },
+        "installed": {
           "type": "boolean"
         },
         "protocol": {
@@ -2421,6 +2446,40 @@
       ],
       "type": "object"
     },
+    "ModelOption": {
+      "additionalProperties": false,
+      "properties": {
+        "default_reasoning_effort": {
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 128,
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "reasoning_efforts": {
+          "items": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "maxItems": 16,
+          "type": [
+            "array",
+            "null"
+          ],
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "reasoning_efforts"
+      ],
+      "type": "object"
+    },
     "Node": {
       "additionalProperties": false,
       "properties": {
@@ -3270,6 +3329,9 @@
           "format": "date-time",
           "type": "string"
         },
+        "model": {
+          "type": "string"
+        },
         "node_id": {
           "type": "string"
         },
@@ -3278,6 +3340,9 @@
         },
         "quiescent": {
           "type": "boolean"
+        },
+        "reasoning_effort": {
+          "type": "string"
         },
         "session_id": {
           "type": "string"
@@ -4182,6 +4247,12 @@
         },
         "implement": {
           "type": "boolean"
+        },
+        "model": {
+          "type": "string"
+        },
+        "reasoning_effort": {
+          "type": "string"
         },
         "review": {
           "type": "boolean"

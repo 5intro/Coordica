@@ -154,10 +154,12 @@ type DecisionResolveRequest struct {
 	Evidence              string `json:"evidence"`
 }
 type ToolScheduling struct {
-	Tool      string `json:"tool"`
-	Enabled   bool   `json:"enabled"`
-	Implement bool   `json:"implement"`
-	Review    bool   `json:"review"`
+	Tool            string `json:"tool"`
+	Enabled         bool   `json:"enabled"`
+	Implement       bool   `json:"implement"`
+	Review          bool   `json:"review"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 }
 type NodeConfigureRequest struct {
 	ExpectedVersion int64            `json:"expected_version"`

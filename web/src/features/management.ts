@@ -14,7 +14,7 @@ export function protectedCandidate(snapshot: Snapshot, candidate: Candidate) {
 }
 export function agentRows(snapshot: Snapshot): { node: Node; capability: Capability | undefined; toolId: string }[] {
   return (snapshot.nodes ?? []).flatMap((node) => {
-    const tools = [...new Set([...(node.capabilities ?? []).map((c) => c.tool), ...(snapshot.runs ?? []).filter((r) => r.node_id === node.id && currentWork(r)).map((r) => r.tool)])];
+    const tools = [...new Set([...(node.tools ?? []).map((p) => p.tool),...(node.capabilities ?? []).filter((c) => c.installed || c.available).map((c) => c.tool), ...(snapshot.runs ?? []).filter((r) => r.node_id === node.id && currentWork(r)).map((r) => r.tool)])];
     return tools.length ? tools.map((toolId) => ({ node, toolId, capability: (node.capabilities ?? []).find((c) => c.tool === toolId) })) : [{ node, toolId: '', capability: undefined }];
   });
 }

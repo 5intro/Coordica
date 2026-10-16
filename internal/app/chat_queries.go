@@ -252,7 +252,7 @@ func safeCapabilities(caps []domain.Capability) []domain.ChatAgentCapability {
 		if len(out) == 64 {
 			break
 		}
-		out = append(out, domain.ChatAgentCapability{Structured: c.Structured, Resume: c.Resume, Cancel: c.Cancel, Tool: redacted(c.Tool), Version: redacted(c.Version), Protocol: redacted(c.Protocol), Available: c.Available, ReadOnly: c.ReadOnly, Review: c.Review})
+		out = append(out, domain.ChatAgentCapability{Structured: c.Structured, Resume: c.Resume, Cancel: c.Cancel, Tool: redacted(c.Tool), Version: redacted(c.Version), Protocol: redacted(c.Protocol), Installed: c.Installed, Available: c.Available, ReadOnly: c.ReadOnly, Review: c.Review})
 	}
 	return out
 }

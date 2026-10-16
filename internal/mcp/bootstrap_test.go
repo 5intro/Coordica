@@ -12,16 +12,21 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"coordica/internal/agent"
 	"coordica/internal/nodeservice"
 	"coordica/internal/onboarding"
+	"coordica/internal/process"
 	"coordica/internal/runner"
 )
 
 func TestMain(m *testing.M) {
-	if len(os.Args) == 2 && os.Args[1] == "--version" {
-		name := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
+	name := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
+	// A renamed test executable is only a version fixture. In particular, an
+	// empty argv or injected -test flags must never re-enter the test suite.
+	fixture := os.Getenv("MCP_VERSION_FIXTURE") == "1"
+	if fixture && len(os.Args) == 2 && os.Args[1] == "--version" {
 		if log := os.Getenv("MCP_FIXTURE_ARGV_LOG"); log != "" {
 			file, err := os.OpenFile(log, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 			if err != nil {
@@ -36,11 +41,22 @@ func TestMain(m *testing.M) {
 		fmt.Printf("%s fixture 1.0 %s\n", name, os.Getenv("MCP_FIXTURE_API_KEY"))
 		os.Exit(0)
 	}
+	if fixture || len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-test.") {
+		if log := os.Getenv("MCP_FIXTURE_ARGV_LOG"); log != "" {
+			file, err := os.OpenFile(log, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+			if err == nil {
+				fmt.Fprintf(file, "unexpected fixture command: %q\n", os.Args[1:])
+				file.Close()
+			}
+		}
+		os.Exit(2)
+	}
 	os.Exit(m.Run())
 }
 
 func bootstrapFixtures(t *testing.T, names ...string) string {
 	t.Helper()
+	t.Setenv("MCP_VERSION_FIXTURE", "1")
 	dir := filepath.Join(t.TempDir(), "tools with spaces 本机")
 	if err := os.Mkdir(dir, 0700); err != nil {
 		t.Fatal(err)
@@ -49,20 +65,47 @@ func bootstrapFixtures(t *testing.T, names ...string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(executable)
-	if err != nil {
-		t.Fatal(err)
-	}
 	for _, name := range names {
 		if runtime.GOOS == "windows" {
 			name += ".exe"
 		}
-		if err = os.WriteFile(filepath.Join(dir, name), data, 0700); err != nil {
-			t.Fatal(err)
+		path := filepath.Join(dir, name)
+		// Alias one executable instead of copying its tens of MB for every
+		// tool. Cross-volume temp directories still work through a copy fallback.
+		if err = os.Link(executable, path); err != nil {
+			data, readErr := os.ReadFile(executable)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if err = os.WriteFile(path, data, 0700); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	t.Setenv("PATH", dir)
 	return dir
+}
+
+func TestBootstrapVersionFixtureCannotReenterTests(t *testing.T) {
+	tools := bootstrapFixtures(t, "codex")
+	executable := filepath.Join(tools, "codex")
+	if runtime.GOOS == "windows" {
+		executable += ".exe"
+	}
+	log := filepath.Join(t.TempDir(), "argv.log")
+	t.Setenv("MCP_FIXTURE_ARGV_LOG", log)
+	for _, args := range [][]string{nil, {"app-server"}, {"-test.run=TestBootstrapInspectsOnlyVersionsAndSavesPrivateProfile"}} {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_, result, err := process.Collect(ctx, process.Spec{Executable: executable, Args: args}, 1024)
+		cancel()
+		if err == nil || result.ExitCode != 2 || !result.TreeStopped || result.Canceled {
+			t.Fatalf("fixture re-entered tests: args=%q result=%+v err=%v", args, result, err)
+		}
+	}
+	data, err := os.ReadFile(log)
+	if err != nil || strings.Count(string(data), "unexpected fixture command:") != 3 || strings.Contains(string(data), "--version") {
+		t.Fatalf("fixture started work instead of rejecting argv: %q, %v", data, err)
+	}
 }
 
 const bootstrapInitialize = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"fixture","version":"1"}}}`
@@ -258,7 +301,7 @@ func TestBootstrapInitializeDefaultsAndPreservesUseCaseResult(t *testing.T) {
 func TestBootstrapFailedVersionRemainsUnavailableAndAuthenticationUnknown(t *testing.T) {
 	bootstrapFixtures(t, "git", "dsh")
 	t.Setenv("MCP_FIXTURE_FAIL", "dsh")
-	replies := bootstrapReplies(t, Bootstrap{}, bootstrapInitialize,
+	replies := bootstrapReplies(t, Bootstrap{Executables: map[string]string{"codex": filepath.Join(t.TempDir(), "not-installed", "codex")}}, bootstrapInitialize,
 		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"inspect_environment","arguments":{}}}`)
 	var environment bootstrapEnvironment
 	if replies[1].Result.IsError || json.Unmarshal([]byte(replies[1].Result.Content[0].Text), &environment) != nil {

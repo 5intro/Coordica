@@ -125,6 +125,7 @@ type ChatAgentCapability struct {
 	Tool       string `json:"tool"`
 	Version    string `json:"version"`
 	Protocol   string `json:"protocol"`
+	Installed  bool   `json:"installed,omitempty"`
 	Available  bool   `json:"available"`
 	ReadOnly   bool   `json:"read_only"`
 	Review     bool   `json:"review"`

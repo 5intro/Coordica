@@ -52,6 +52,23 @@ func TestRelativeExecutableIsResolvedBeforeWorkingDirectoryChanges(t *testing.T)
 	}
 }
 
+func TestDiscoveryFindsRegisteredCLIOutsidePATHAndHonorsExplicitMissingOverride(t *testing.T) {
+	cli := filepath.Join(t.TempDir(), "Desktop Harness.app", "Contents", "cli", "harness.exe")
+	if err := os.MkdirAll(filepath.Dir(cli), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cli, []byte("fixture executable"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	def := Definition{Executables: []string{filepath.Join(t.TempDir(), "not-in-PATH"), cli}}
+	if path, err := resolveExecutable(def, ""); err != nil || path != cli {
+		t.Fatalf("bundled CLI outside PATH not found: %s %v", path, err)
+	}
+	if _, err := resolveExecutable(def, filepath.Join(t.TempDir(), "explicitly-disabled")); err == nil {
+		t.Fatal("explicit missing executable fell back to a bundled tool")
+	}
+}
+
 func TestRegistryRejectsAmbiguousOrInvalidDefinitions(t *testing.T) {
 	base, _ := DefaultRegistry().Resolve("kimi")
 	for _, change := range []func(*Definition){
@@ -353,7 +370,7 @@ func TestPiResumeCannotRebindItsRecordedWorkingDirectory(t *testing.T) {
 	}
 }
 
-func TestCodexDevelopmentAndLeaderPinAuthorizedModel(t *testing.T) {
+func TestCodexDevelopmentAndLeaderRetainDefaultModelAndIsolation(t *testing.T) {
 	def, _ := DefaultRegistry().Resolve("codex")
 	if def.CommitMode != "runner" {
 		t.Fatal("builtin Codex must use trusted Runner snapshot")

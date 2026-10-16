@@ -42,6 +42,7 @@ func (w *Integrator) Claim(ctx context.Context, a Actor, key string, req domain.
 		if n.Revoked {
 			return domain.Fail("forbidden", "节点已撤销")
 		}
+		n.Capabilities = req.Capabilities
 		runs, e := store.List[domain.Run](tx, "run")
 		if e != nil {
 			return e
@@ -60,7 +61,8 @@ func (w *Integrator) Claim(ctx context.Context, a Actor, key string, req domain.
 			return e
 		}
 		for _, t := range tasks {
-			if t.State == "ready" && t.ApprovedVersion > 0 && t.HoldReason == "" && t.CurrentRunID == "" && available(req.Capabilities, t.Tool) {
+			_, _, optionsValid := nodeExecution(n, t.Tool)
+			if optionsValid && t.State == "ready" && t.ApprovedVersion > 0 && t.HoldReason == "" && t.CurrentRunID == "" && available(req.Capabilities, t.Tool) {
 				if goalGate(tx, &t, false) != nil || !nodeAllows(n, t.Tool, "implement") {
 					continue
 				}

@@ -136,7 +136,11 @@ func (r *Runner) capabilities(ctx context.Context) []domain.Capability {
 	for _, cap := range r.registry.Discover(ctx, r.config.Executables) {
 		tool := cap.Tool
 		r.report("capability", tool, fmt.Sprintf("available=%t version=%s verified=%t %s; %s", cap.Available, cap.Version, cap.Verified, cap.Detail, cap.Approvals))
-		result = append(result, domain.Capability{Tool: cap.Tool, Version: cap.Version, Available: cap.Available, Structured: cap.Structured, Protocol: cap.Protocol, Review: cap.Review, ReadOnly: cap.ReadOnly, Resume: cap.Resume, Cancel: cap.Cancel, Detail: cap.Detail + "; " + cap.Approvals})
+		result = append(result, domain.Capability{Tool: cap.Tool, Version: cap.Version, Installed: cap.Installed, Available: cap.Available, Structured: cap.Structured, Protocol: cap.Protocol, Review: cap.Review, ReadOnly: cap.ReadOnly, Resume: cap.Resume, Cancel: cap.Cancel, Detail: cap.Detail + "; " + cap.Approvals})
+		result[len(result)-1].ModelDiscovery = cap.ModelDiscovery
+		for _, model := range cap.Models {
+			result[len(result)-1].Models = append(result[len(result)-1].Models, domain.ModelOption{ID: model.ID, Name: model.Name, ReasoningEfforts: append([]string{}, model.ReasoningEfforts...), DefaultReasoningEffort: model.DefaultReasoningEffort})
+		}
 	}
 	return result
 }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Candidate, Decision, Snapshot } from '../api.generated';
 import { ApiClient, ApiError } from '../api/client';
@@ -298,9 +298,11 @@ describe('Phase B owner writes and authority fences', () => {
     const { client, refresh } = controls(); const navigate = vi.fn();
     render(<Blocks snapshot={{ ...snapshot, decisions: [decision, { ...decision, id: 'resolved', status: 'resolved', resolution: 'confirmed with evidence' }], blocks: [{ kind: 'planning_run', object_id: decision.source_id, reason: 'lost', actions: [] }] }} client={client} refresh={refresh} navigate={navigate} />);
     expect(screen.getAllByRole('button', { name: '提交决策处理' })).toHaveLength(1);
-    expect(screen.getByText('处理：confirmed with evidence')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '来源 v9 →' }));
     expect(navigate).toHaveBeenCalledWith('planning', 'leader-run');
+    fireEvent.click(within(screen.getByRole('region', { name: '阻断列表' })).getByRole('button', { name: /已处理/ }));
+    expect(screen.getByText('处理：confirmed with evidence')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '提交决策处理' })).toBeNull();
   });
 });
 

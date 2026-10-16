@@ -38,7 +38,7 @@ class ReleaseTests(unittest.TestCase):
                 self.assertNotIn('取消与断线等故障场景仍待实测', text)
 
     def test_public_execution_intent_boundary(self):
-        documents = {'README.md': (release.ROOT / 'README.md').read_text()}
+        documents = {'README.md': (release.ROOT / 'README.md').read_text(encoding='utf-8')}
         for platform, _, binary, _ in release.PLATFORMS:
             documents[platform] = release.start_here('0.2.3-dev', platform, binary).decode()
         for name, text in documents.items():

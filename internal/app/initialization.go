@@ -89,7 +89,7 @@ func baselineGate(tx *store.Tx, t *domain.Task, bind bool) error {
 	}
 	if t != nil {
 		if t.Tool != "codex" && !(t.Tool == "program" && t.Verification != nil) {
-			return domain.Fail("invalid_input", "development requires native codex gpt-6.1-sol; other registered tools are test/review-only")
+			return domain.Fail("invalid_input", "development requires native codex; other registered tools are test/review-only")
 		}
 		rootAll := false
 		for _, root := range v.ApprovedBaseline.AllowedRoots {

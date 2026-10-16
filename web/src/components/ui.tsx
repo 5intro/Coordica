@@ -38,8 +38,8 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
 export function Feedback({ error, notice }: { error?: string; notice?: string }) {
   return <>{error && <p className="feedback error" role="alert">{error}</p>}{notice && <p className="feedback notice" role="status">{notice}</p>}</>;
 }
-export function SectionTitle({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
-  return <header className="section-title"><div><h1>{title}</h1>{description && <p>{description}</p>}</div>{actions && <div className="actions">{actions}</div>}</header>;
+export function SectionTitle({ title, description, actions, filters }: { title: string; description?: string; actions?: ReactNode; filters?: ReactNode }) {
+  return <header className={`section-title ${filters ? 'has-filters' : ''}`}><div>{filters ? <div className="section-title-heading"><h1>{title}</h1>{filters}</div> : <h1>{title}</h1>}{description && <p>{description}</p>}</div>{actions && <div className="actions">{actions}</div>}</header>;
 }
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return <label className="field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
