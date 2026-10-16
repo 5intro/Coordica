@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"coordica/internal/process"
 )
 
 func TestMain(m *testing.M) {
@@ -54,6 +56,9 @@ func TestMain(m *testing.M) {
 			fakeACP()
 			os.Exit(0)
 		}
+	}
+	if os.Getenv("COORDICA_AGENT_FIXTURE") == "1" || len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-test.") {
+		os.Exit(2)
 	}
 	// Fixture subprocesses have no work after their protocol teardown. Avoid
 	// the race runtime's default one-second exit delay in each child; race
@@ -276,11 +281,24 @@ func fakeACP() {
 
 func fixtureRequest(t *testing.T, tool, prompt string) Request {
 	t.Helper()
+	t.Setenv("COORDICA_AGENT_FIXTURE", "1")
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
 	}
 	return Request{Tool: tool, Executable: exe, WorkDir: t.TempDir(), Prompt: prompt}
+}
+
+func TestProtocolFixtureCannotReenterTests(t *testing.T) {
+	req := fixtureRequest(t, "codex", "unused")
+	for _, args := range [][]string{nil, {"unsupported-protocol"}, {"-test.run=TestDocumentedJSONProtocols"}} {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_, result, err := process.Collect(ctx, process.Spec{Executable: req.Executable, Args: args}, 1024)
+		cancel()
+		if err == nil || result.ExitCode != 2 || !result.TreeStopped || result.Canceled {
+			t.Fatalf("protocol fixture re-entered tests: args=%q result=%+v err=%v", args, result, err)
+		}
+	}
 }
 func TestDocumentedJSONProtocols(t *testing.T) {
 	for _, tool := range []string{"codex", "claude", "dsh", "cursor", "kimi", "pi"} {
