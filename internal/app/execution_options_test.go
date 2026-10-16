@@ -129,3 +129,49 @@ func TestInvalidCatalogOrSelectionCannotAllocateOrReserve(t *testing.T) {
 		t.Fatal("removed model allocated, reserved or consumed retry")
 	}
 }
+
+func TestObsoleteExecutionSelectionAllowsOnlyPermissionReductions(t *testing.T) {
+	for _, permission := range []string{"enabled", "implement", "review"} {
+		t.Run(permission, func(t *testing.T) {
+			f := newServiceFixture(t)
+			ctx := context.Background()
+			if _, e := f.s.ProjectAction(ctx, f.owner, "pause", "pause", domain.VersionRequest{ExpectedVersion: f.snapshot(t).Project.Version}); e != nil {
+				t.Fatal(e)
+			}
+			cap := modelCapability()
+			if _, e := f.s.Claim(ctx, f.node, "catalog", domain.ClaimRequest{Capabilities: []domain.Capability{cap}}, strings.Repeat("a", 40)); e != nil {
+				t.Fatal(e)
+			}
+			n, e := configureExecution(t, f, "valid", "gpt-6.1-sol", "ultra")
+			if e != nil {
+				t.Fatal(e)
+			}
+			cap.Models[0].ReasoningEfforts = []string{"high"}
+			if _, e = f.s.Claim(ctx, f.node, "changed-catalog", domain.ClaimRequest{Capabilities: []domain.Capability{cap}}, strings.Repeat("a", 40)); e != nil {
+				t.Fatal(e)
+			}
+			n = f.snapshot(t).Nodes[0]
+			old := n.Tools[0]
+			next := old
+			switch permission {
+			case "enabled":
+				next.Enabled = false
+			case "implement":
+				next.Implement = false
+			case "review":
+				next.Review = false
+			}
+			request := domain.NodeConfigureRequest{ExpectedVersion: n.Version, Name: n.Name, Capacity: n.Capacity, Tools: []domain.ToolScheduling{next}}
+			raw, e := f.s.ConfigureNode(ctx, f.owner, "reduce", n.ID, request)
+			updated := decodeTest[domain.Node](t, raw, e)
+			if updated.Tools[0] != next {
+				t.Fatal("permission reduction lost")
+			}
+			request.ExpectedVersion = updated.Version
+			request.Tools = []domain.ToolScheduling{old}
+			if _, e = f.s.ConfigureNode(ctx, f.owner, "increase", n.ID, request); e == nil {
+				t.Fatal("stale parameters regained execution permission")
+			}
+		})
+	}
+}

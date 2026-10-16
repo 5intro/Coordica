@@ -81,3 +81,27 @@ it('does not label another fixed candidate’s historical review as approval', (
   expect(panel.queryByText('旧版本通过')).toBeNull();
   expect(panel.queryByText('评审通过')).toBeNull();
 });
+
+it('preserves the search field focus after the panel animation frame and restores its origin on close', async () => {
+  const { WorkspaceSearch } = await import('./WorkspaceSearch');
+  const frames: FrameRequestCallback[] = [];
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => { frames.push(callback); return frames.length; });
+  const origin = document.createElement('button'); document.body.append(origin); origin.focus();
+  const onClose = vi.fn(); const view = render(<WorkspaceSearch snapshot={snapshot} onClose={onClose} navigate={vi.fn()}/>);
+  const input = screen.getByRole('searchbox', { name: '搜索工作' });
+  for (const frame of frames) frame(0);
+  expect(document.activeElement).toBe(input);
+  fireEvent.change(input, { target: { value: '保持原文' } });
+  expect(input).toHaveProperty('value', '保持原文');
+  fireEvent.keyDown(document, { key: 'Escape' }); expect(onClose).toHaveBeenCalledTimes(1);
+  view.unmount(); expect(document.activeElement).toBe(origin); origin.remove();
+});
+
+it('inspects overview blocks with their decision evidence instead of generic source details', () => {
+  const decision = { id:'decision_fixture', version:1, source_kind:'task', source_id:task.id, source_version:task.version, document_version:1, authorization_version:1, kind:'scope', evidence:'需要 Owner 判断的新范围证据', actions:['edit_scope'], status:'open', resolution:'' };
+  render(<Overview snapshot={{...snapshot, tasks:[{...task,hold_reason:'scope'}], decisions:[decision]}} navigate={vi.fn()}/>);
+  fireEvent.click(within(screen.getByRole('region',{name:'阻断池'})).getByRole('button'));
+  const panel = within(screen.getByRole('dialog'));
+  expect(panel.getByText('需要 Owner 判断的新范围证据')).toBeTruthy();
+  expect(panel.getByRole('button',{name:'打开阻断页面 →'})).toBeTruthy();
+});

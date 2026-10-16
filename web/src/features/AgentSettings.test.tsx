@@ -55,3 +55,19 @@ it('shows no guessed menus and discovers new effort values after a tool update',
  expect(screen.getByText('模型目录暂时无法读取。')).toBeTruthy();
  await waitFor(() => expect(write).not.toHaveBeenCalled());
 });
+
+it.each(['允许调度', '开发任务', '审查任务'])('can reduce %s while keeping obsolete execution parameters', async (label) => {
+ const client = new ApiClient('owner');const write = vi.spyOn(client,'write').mockResolvedValue({});
+ const saved = {...node,tools:[{tool:'codex',enabled:true,implement:true,review:true,model:'removed-model',reasoning_effort:'removed-effort'}]};
+ render(<AgentSettings node={saved} capability={capability} tool="codex" client={client} refresh={vi.fn()}/>);
+ fireEvent.click(screen.getByLabelText(label));fireEvent.click(screen.getByRole('button',{name:'保存 Agent 配置'}));
+ await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
+ expect(write.mock.calls[0][1]).toMatchObject({tools:[{model:'removed-model',reasoning_effort:'removed-effort',[{'允许调度':'enabled','开发任务':'implement','审查任务':'review'}[label]!]:false}]});
+});
+it('still rejects increasing permissions with obsolete model parameters', () => {
+ const client=new ApiClient('owner');const write=vi.spyOn(client,'write');
+ const saved={...node,tools:[{tool:'codex',enabled:false,implement:true,review:true,model:'removed-model',reasoning_effort:'removed-effort'}]};
+ render(<AgentSettings node={saved} capability={capability} tool="codex" client={client} refresh={vi.fn()}/>);
+ fireEvent.click(screen.getByLabelText('允许调度'));fireEvent.click(screen.getByRole('button',{name:'保存 Agent 配置'}));
+ expect(screen.getByRole('alert').textContent).toContain('不在最新能力报告');expect(write).not.toHaveBeenCalled();
+});

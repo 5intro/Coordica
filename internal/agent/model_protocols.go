@@ -244,9 +244,26 @@ func acpModels(ctx context.Context, def Definition, executable string) (models [
 	if err != nil {
 		return nil, err
 	}
-	var init struct{ ProtocolVersion int }
+	var init struct {
+		ProtocolVersion int
+		AuthMethods     []struct {
+			ID string `json:"id"`
+		} `json:"authMethods"`
+	}
 	if json.Unmarshal(raw, &init) != nil || init.ProtocolVersion != 1 {
 		return nil, ErrProtocol
+	}
+	if def.AuthMethod != "" {
+		advertised := false
+		for _, method := range init.AuthMethods {
+			advertised = advertised || method.ID == def.AuthMethod
+		}
+		if !advertised {
+			return nil, errors.New("ACP peer does not advertise registered authentication method")
+		}
+		if _, err = p.call("authenticate", map[string]string{"methodId": def.AuthMethod}); err != nil {
+			return nil, err
+		}
 	}
 	raw, err = p.call("session/new", map[string]any{"cwd": p.dir, "mcpServers": []any{}})
 	if err != nil {
