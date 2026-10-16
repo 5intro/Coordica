@@ -86,14 +86,12 @@ def terminate(infos, root):
                   "foreach ($target in $targets) { "
                   "$p = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $target.pid); "
                   "if ($p -and $p.CreationDate.ToUniversalTime().ToString('o') -eq $target.start) { "
-                  "$result = Invoke-CimMethod -InputObject $p -MethodName Terminate; "
-                  "if ($result.ReturnValue -ne 0) { "
-                  "$still = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $target.pid); "
-                  "if ($still -and $still.CreationDate.ToUniversalTime().ToString('o') -eq $target.start) "
-                  "{ throw 'Cannot stop owned test process' } } } }")
-        subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
-                       input=json.dumps(infos), capture_output=True, text=True, encoding="utf-8",
-                       timeout=30, check=True)
+                  "Stop-Process -Id $target.pid -Force -ErrorAction SilentlyContinue } }")
+        result = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+                                input=json.dumps(infos), capture_output=True, text=True, encoding="utf-8",
+                                timeout=30)
+        if result.returncode:
+            raise RuntimeError(f"Windows test shutdown failed in {root}: {result.stderr[-2000:]}")
     else:
         for info in infos:
             # A PID may have been reused between snapshots.

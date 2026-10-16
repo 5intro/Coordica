@@ -95,17 +95,14 @@ class TestSupervisor(unittest.TestCase):
 
     def test_interrupt_runs_cleanup_and_preserves_handler(self):
         previous = signal.getsignal(signal.SIGTERM)
-        sleep = time.sleep
-        signaled = False
 
-        def interrupt_once(seconds):
-            nonlocal signaled
-            if not signaled:
-                signaled = True
-                signal.raise_signal(signal.SIGTERM)
-            sleep(min(seconds, .05))
+        def interrupt_after_start(_):
+            # Patching the global time.sleep can signal before the guard has
+            # installed handlers: subprocess.wait also uses it on some OSes.
+            signal.raise_signal(signal.SIGTERM)
+            return 0
 
-        with patch.object(guard.time, "sleep", interrupt_once):
+        with patch.object(guard, "allocated_bytes", interrupt_after_start):
             self.assertEqual(self.run_code("import time; time.sleep(60)"), 128 + signal.SIGTERM)
         self.assertEqual(signal.getsignal(signal.SIGTERM), previous)
         self.assert_clean()
