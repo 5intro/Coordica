@@ -95,7 +95,14 @@ func (w *PlanningWorker) reserve(ctx context.Context) (domain.PlanningRun, domai
 				}
 				return nil
 			}
-			ids := append([]string{}, d.RequirementIDs...)
+			requirements, e := authorizedGoalRequirements(tx, d)
+			if e != nil {
+				return e
+			}
+			ids := make([]string, 0, len(requirements)+1)
+			for _, requirement := range requirements {
+				ids = append(ids, requirement.ID)
+			}
 			if r.RequirementChangeID != "" {
 				var change domain.RequirementChange
 				if e = tx.Get("requirement_change", r.RequirementChangeID, &change); e != nil {
@@ -266,12 +273,9 @@ func (w *PlanningWorker) Tick(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			for _, id := range d.RequirementIDs {
-				var q domain.Requirement
-				if err = tx.Get("requirement", id, &q); err != nil {
-					return err
-				}
-				facts.Requirements = append(facts.Requirements, q)
+			facts.Requirements, err = authorizedGoalRequirements(tx, d)
+			if err != nil {
+				return err
 			}
 			plans, err := store.List[domain.PlanningRun](tx, "planning_run")
 			if err != nil {

@@ -126,9 +126,12 @@ func requirementPlanCurrent(tx *store.Tx, r domain.PlanningRun) bool {
 		if e != nil {
 			return false
 		}
-		for _, id := range d.RequirementIDs {
-			var req domain.Requirement
-			if tx.Get("requirement", id, &req) != nil || domain.RequirementRevisionNumber(req) != 1 {
+		requirements, e := authorizedGoalRequirements(tx, d)
+		if e != nil {
+			return false
+		}
+		for _, req := range requirements {
+			if domain.RequirementRevisionNumber(req) != 1 {
 				return false
 			}
 		}
@@ -172,7 +175,7 @@ func requirementImpacts(tx *store.Tx, id string) ([]domain.RequirementImpact, er
 		changed = false
 		for _, t := range tasks {
 			for _, dependency := range t.Dependencies {
-				if affected[dependency] && !affected[t.ID] && !domain.TaskFinished(t) {
+				if affected[dependency] && !affected[t.ID] && t.State != "cancelled" {
 					affected[t.ID], changed = true, true
 				}
 			}
