@@ -47,8 +47,10 @@ func (s *Service) createRequirement(tx *store.Tx, a Actor, r domain.Requirement)
 	if e := s.saveRequirementRevision(tx, a, r, ""); e != nil {
 		return nil, e
 	}
-	if e := s.queueRequirementAddition(tx, r); e != nil {
-		return nil, e
+	if a.Role == "owner" {
+		if e := s.queueRequirementAddition(tx, r); e != nil {
+			return nil, e
+		}
 	}
 	if a.Role == "chat" {
 		r.Title = redacted(r.Title)

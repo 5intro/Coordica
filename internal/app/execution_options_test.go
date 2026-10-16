@@ -3,6 +3,9 @@ package app
 import (
 	"context"
 	"coordica/internal/domain"
+	"coordica/internal/store"
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -171,6 +174,44 @@ func TestObsoleteExecutionSelectionAllowsOnlyPermissionReductions(t *testing.T) 
 			request.Tools = []domain.ToolScheduling{old}
 			if _, e = f.s.ConfigureNode(ctx, f.owner, "increase", n.ID, request); e == nil {
 				t.Fatal("stale parameters regained execution permission")
+			}
+		})
+	}
+}
+
+func TestMissingCodexDefaultCannotAllocateOrReserve(t *testing.T) {
+	for _, configured := range []bool{false, true} {
+		t.Run(fmt.Sprint(configured), func(t *testing.T) {
+			f := newServiceFixture(t)
+			cap := modelCapability()
+			cap.Models = cap.Models[1:]
+			if configured {
+				if e := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
+					var n domain.Node
+					if e := tx.Get("node", f.node.NodeID, &n); e != nil {
+						return e
+					}
+					n.Tools = []domain.ToolScheduling{{Tool: "codex", Enabled: true, Implement: true, Review: true}}
+					n.SchedulingConfigured = true
+					return tx.Put("node", n.ID, n)
+				}); e != nil {
+					t.Fatal(e)
+				}
+			}
+			before := f.snapshot(t)
+			raw, e := f.s.Claim(context.Background(), f.node, "missing-default", domain.ClaimRequest{Capabilities: []domain.Capability{cap}}, strings.Repeat("a", 40))
+			if a := decodeTest[*domain.Assignment](t, raw, e); a != nil {
+				t.Fatal("unsupported default assigned")
+			}
+			after := f.snapshot(t)
+			if !reflect.DeepEqual(before.Tasks, after.Tasks) || len(after.Runs) != 0 || after.Project.ReservedSeconds != before.Project.ReservedSeconds {
+				t.Fatal("unsupported default reserved or changed work")
+			}
+			cap.ModelDiscovery = "unavailable"
+			cap.Models = nil
+			raw, e = f.s.Claim(context.Background(), f.node, "legacy-default", domain.ClaimRequest{Capabilities: []domain.Capability{cap}}, strings.Repeat("a", 40))
+			if a := decodeTest[*domain.Assignment](t, raw, e); a == nil || a.Run.Model != "gpt-6.1-sol" {
+				t.Fatal("legacy catalog-less default lost")
 			}
 		})
 	}

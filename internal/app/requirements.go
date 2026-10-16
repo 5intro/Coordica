@@ -322,6 +322,9 @@ func (s *Service) EditRequirement(ctx context.Context, a Actor, key, id, kind st
 			if e = requestStop(tx, t.ID); e != nil {
 				return nil, e
 			}
+			if e = invalidateRequirementCandidate(tx, &t); e != nil {
+				return nil, e
+			}
 			t.AuthorizationVersion++
 			if t.HoldReason != "requirement_changed" {
 				t.RequirementHoldReason = t.HoldReason
@@ -406,4 +409,26 @@ func (s *Service) ReassessRequirement(ctx context.Context, a Actor, key, id stri
 		}
 		return change, s.audit(tx, a, "requirement.reassessed", id, change.ID)
 	})
+}
+
+func invalidateRequirementCandidate(tx *store.Tx, t *domain.Task) error {
+	if t.CurrentCandidateID == "" {
+		return nil
+	}
+	var c domain.Candidate
+	if e := tx.Get("candidate", t.CurrentCandidateID, &c); e != nil {
+		return e
+	}
+	if c.TaskID != t.ID {
+		return domain.Fail("conflict", "候选与任务不匹配")
+	}
+	if c.State != "landed" && c.State != "rejected" && c.State != "failed" && c.State != "invalidated" {
+		c.State, c.Detail = "invalidated", "需求已修订或撤销，固定候选不再适用"
+		c.Version++
+		if e := tx.Put("candidate", c.ID, c); e != nil {
+			return e
+		}
+	}
+	t.CurrentCandidateID = ""
+	return nil
 }

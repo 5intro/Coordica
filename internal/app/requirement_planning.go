@@ -52,7 +52,7 @@ func (w *PlanningWorker) queueRequirementChanges(ctx context.Context) error {
 			return e
 		}
 		for _, r := range plans {
-			if r.Purpose == domain.ConsultationPurpose && (r.State == "queued" || r.State == "running" || r.State == "pending_result" || r.State == "unknown_live" || r.State == "cancel_requested") {
+			if r.State == "queued" || r.State == "running" || r.State == "pending_result" || r.State == "unknown_live" || r.State == "cancel_requested" {
 				return nil
 			}
 		}
@@ -216,7 +216,7 @@ func decodeRequirementPlan(text string) (domain.RequirementPlan, error) {
 	return result, nil
 }
 
-func (s *Service) blockRequirementAssessment(tx *store.Tx, r domain.PlanningRun, detail string) error {
+func blockRequirementAssessment(tx *store.Tx, r domain.PlanningRun, detail string) error {
 	if r.RequirementChangeID == "" {
 		return nil
 	}
@@ -332,10 +332,14 @@ func (s *Service) applyRequirementPlan(tx *store.Tx, r *domain.PlanningRun, d do
 	}
 	proposed := map[string]domain.Task{}
 	keys := map[string]string{}
+	existingIDs := map[string]bool{}
+	for _, task := range all {
+		existingIDs[task.ID] = true
+	}
 	for _, next := range result.Tasks {
 		q := next.Proposal
-		if !domain.ChatIdentifier.MatchString(q.Key) || keys[q.Key] != "" {
-			return domain.Fail("invalid_plan", "新任务需要唯一局部标识")
+		if !domain.ChatIdentifier.MatchString(q.Key) || keys[q.Key] != "" || existingIDs[q.Key] {
+			return domain.Fail("invalid_plan", "新任务局部标识不能重复或与已有任务冲突")
 		}
 		keys[q.Key] = ID("task_")
 	}
@@ -403,6 +407,9 @@ func (s *Service) applyRequirementPlan(tx *store.Tx, r *domain.PlanningRun, d do
 		}
 		t.Version++
 		t.AuthorizationVersion++
+		if e = invalidateRequirementCandidate(tx, &t); e != nil {
+			return e
+		}
 		t.CurrentRunID, t.CurrentCandidateID, t.HoldReason, t.State = "", "", "", "ready"
 		t.HoldReason = old.HoldReason
 		if t.HoldReason == "requirement_changed" {
@@ -603,4 +610,19 @@ func (s *Service) retireRequirementDecisions(tx *store.Tx) error {
 		}
 	}
 	return nil
+}
+
+// A same-goal content change has its own fixed impact set and accounting.
+// Ordinary planning must not derive replacement tasks outside that plan.
+func pendingGoalRequirementChange(tx *store.Tx, d domain.PlanningDocument) (bool, error) {
+	changes, e := store.List[domain.RequirementChange](tx, "requirement_change")
+	if e != nil {
+		return false, e
+	}
+	for _, change := range changes {
+		if change.GoalVersion == d.Version && change.GoalAuthorizationVersion == d.AuthorizationVersion && change.State != "applied" && change.State != "superseded" && containsPaths(d.RequirementIDs, []string{change.RequirementID}) {
+			return true, nil
+		}
+	}
+	return false, nil
 }

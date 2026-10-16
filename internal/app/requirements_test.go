@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -687,5 +689,208 @@ func TestRequirementReassessmentCannotRebindExcludedGoalRequirement(t *testing.T
 	}
 	if !reflect.DeepEqual(before, f.snapshot(t)) {
 		t.Fatal("rejected reassessment mutated state")
+	}
+}
+
+func TestRequirementProposalsNeverAutomaticallyAcquireAuthority(t *testing.T) {
+	for _, source := range []string{"node", "center-chat", "node-chat", "owner"} {
+		t.Run(source, func(t *testing.T) {
+			f, _, _ := requirementFixture(t)
+			ctx := context.Background()
+			var raw json.RawMessage
+			var e error
+			switch source {
+			case "owner":
+				raw, e = f.s.CreateRequirement(ctx, f.owner, "new", domain.Requirement{Title: "New work", Body: "Proposal content"})
+			case "node":
+				raw, e = f.s.SubmitRequirement(ctx, f.node, "new", domain.RequirementProposal{Title: "New work", Body: "Proposal content"})
+			default:
+				var actor Actor
+				if source == "center-chat" {
+					actor, _ = chatFixture(t, f)
+				} else {
+					actor, _ = nodeChatFixture(t, f, f.node, "node-chat")
+				}
+				raw, e = f.s.ChatSubmitRequirement(ctx, actor, "new", domain.ChatRequirementInput{Title: "New work", OriginalText: "Proposal content", Source: domain.ChatSource{ClientID: actor.ID, SessionID: "session", MessageID: "message"}})
+			}
+			r := decodeTest[domain.Requirement](t, raw, e)
+			var change domain.RequirementChange
+			if e = f.s.DB.View(ctx, func(tx *store.Tx) error { return tx.Get("requirement_change", requirementRevisionID(r.ID, 1), &change) }); source == "owner" {
+				if e != nil || change.State != "queued" {
+					t.Fatal("Owner addition not queued", e)
+				}
+			} else {
+				if !errors.Is(e, domain.ErrNotFound) {
+					t.Fatal("proposal acquired change authority", e)
+				}
+				before := f.snapshot(t)
+				w := &PlanningWorker{Service: f.s, Executor: planningExecFunc(func(context.Context, string, string) (PlanningOutcome, error) {
+					t.Fatal("proposal invoked Leader")
+					return PlanningOutcome{}, nil
+				})}
+				if e = w.Tick(ctx); e != nil {
+					t.Fatal(e)
+				}
+				after := f.snapshot(t)
+				if !reflect.DeepEqual(before.Tasks, after.Tasks) || !reflect.DeepEqual(before.PlanningDocument, after.PlanningDocument) {
+					t.Fatal("proposal changed authority")
+				}
+			}
+		})
+	}
+}
+func TestRequirementReplanningSerializesOrdinaryEvaluation(t *testing.T) {
+	for _, prequeued := range []bool{false, true} {
+		t.Run(fmt.Sprint(prequeued), func(t *testing.T) {
+			f, r, task := requirementFixture(t)
+			ctx := context.Background()
+			doc := *f.snapshot(t).PlanningDocument
+			var ordinary domain.PlanningRun
+			if prequeued {
+				ordinary = scheduleTest(t, f, doc, "ordinary-before")
+			}
+			reviseRequirement(t, f, r, "revise")
+			frozen := f.snapshot(t)
+			if !prequeued {
+				if _, e := f.s.SchedulePlanning(ctx, f.owner, "ordinary-after", domain.PlanningMessageRequest{ExpectedVersion: doc.Version}); e == nil {
+					t.Fatal("ordinary evaluation bypassed pending change")
+				}
+				return
+			}
+			w := &PlanningWorker{Service: f.s}
+			if e := w.queueRequirementChanges(ctx); e != nil {
+				t.Fatal(e)
+			}
+			for _, plan := range f.snapshot(t).PlanningRuns {
+				if plan.Purpose == requirementPurpose && plan.State == "queued" {
+					t.Fatal("parallel requirement assessment queued")
+				}
+			}
+			result := domain.LeaderResult{Reply: "Ready", Ready: true, Tasks: []domain.TaskProposal{taskProposal(task)}, MissingItems: []string{}, Clarifications: []string{}, Scopes: []domain.ScopeProposal{}, MajorDecisions: []domain.MajorDecisionProposal{}}
+			result.Tasks[0].Key = "fresh-key"
+			result.Tasks[0].Title = "Replacement"
+			result.Tasks[0].Objective = "Fresh counters for the same requirement"
+			result.Tasks[0].RequirementIDs = []string{r.ID}
+			w.Executor = resultExecutor(result)
+			if e := w.Tick(ctx); e != nil {
+				t.Fatal(e)
+			}
+			after := f.snapshot(t)
+			if !reflect.DeepEqual(frozen.Tasks, after.Tasks) {
+				t.Fatal("ordinary plan minted replacement work")
+			}
+			for _, plan := range after.PlanningRuns {
+				if plan.ID == ordinary.ID && plan.State == "succeeded" {
+					t.Fatal("ordinary change bypass accepted")
+				}
+			}
+		})
+	}
+}
+func TestRequirementQueuedCancellationIsRecoverable(t *testing.T) {
+	for _, action := range []string{"cancel", "save"} {
+		for _, settled := range []bool{false, true} {
+			t.Run(fmt.Sprint(action, settled), func(t *testing.T) {
+				f, r, _ := requirementFixture(t)
+				ctx := context.Background()
+				reviseRequirement(t, f, r, "revise")
+				w := &PlanningWorker{Service: f.s}
+				if e := w.queueRequirementChanges(ctx); e != nil {
+					t.Fatal(e)
+				}
+				if settled {
+					if e := f.s.DB.Update(ctx, func(tx *store.Tx) error {
+						plans, e := store.List[domain.PlanningRun](tx, "planning_run")
+						if e != nil {
+							return e
+						}
+						for _, plan := range plans {
+							if plan.Purpose == requirementPurpose {
+								plan.GrantSeconds = 5
+								plan.Settled = true
+								plan.TreeStopped = true
+								if e = tx.Put("planning_run", plan.ID, plan); e != nil {
+									return e
+								}
+							}
+						}
+						return nil
+					}); e != nil {
+						t.Fatal(e)
+					}
+				}
+				doc := *f.snapshot(t).PlanningDocument
+				var e error
+				if action == "cancel" {
+					_, e = f.s.CancelPlanning(ctx, f.owner, "cancel", domain.VersionRequest{ExpectedVersion: doc.Version})
+				} else {
+					_, e = f.s.SavePlanning(ctx, f.owner, "save", domain.PlanningSaveRequest{ExpectedVersion: doc.Version, Document: doc})
+				}
+				if e != nil {
+					t.Fatal(e)
+				}
+				change := requirementDetail(t, f, r.ID).Changes[0]
+				if change.State != "blocked" {
+					t.Fatal("cancelled assessment stuck", change)
+				}
+				if action == "cancel" {
+					if _, e = f.s.ReassessRequirement(ctx, f.owner, "retry", r.ID, domain.VersionRequest{ExpectedVersion: change.Version}); e != nil {
+						t.Fatal("stopped assessment not recoverable", e)
+					}
+				}
+			})
+		}
+	}
+}
+func TestRequirementEditsInvalidateFixedCandidatesWithoutErasingEvidence(t *testing.T) {
+	for _, kind := range []string{"revise", "withdraw"} {
+		for _, state := range []string{"accepted", "reviewing", "ready_to_land"} {
+			t.Run(kind+"/"+state, func(t *testing.T) {
+				f, r, task := requirementFixture(t)
+				candidate := domain.Candidate{ID: "fixed", Version: 1, TaskID: task.ID, State: state, Commit: strings.Repeat("c", 40), Detail: "Old evidence"}
+				if e := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
+					task.State = "awaiting_integration"
+					task.CurrentCandidateID = candidate.ID
+					if e := tx.Put("task", task.ID, task); e != nil {
+						return e
+					}
+					return tx.Put("candidate", candidate.ID, candidate)
+				}); e != nil {
+					t.Fatal(e)
+				}
+				change := reviseRequirement(t, f, r, kind)
+				after := f.snapshot(t)
+				var got domain.Candidate
+				for _, c := range after.Candidates {
+					if c.ID == candidate.ID {
+						got = c
+					}
+				}
+				if got.State != "invalidated" || got.Version != 2 || got.Commit != candidate.Commit || requirementTask(t, f, task.ID).CurrentCandidateID != "" {
+					t.Fatal("abandoned candidate remains active or lost evidence", got)
+				}
+				if len(change.Impacts) != 1 || change.Impacts[0].Task.CurrentCandidateID != candidate.ID {
+					t.Fatal("impact history lost fixed candidate")
+				}
+			})
+		}
+	}
+}
+func TestRequirementNewKeysCannotShadowExistingDependencyIDs(t *testing.T) {
+	f, r, task := requirementFixture(t)
+	reviseRequirement(t, f, r, "revise")
+	current := requirementTask(t, f, task.ID)
+	p := emptyRequirementPlan()
+	p.Updates = append(p.Updates, domain.RequirementTaskUpdate{TaskID: task.ID, ExpectedVersion: current.Version, Proposal: taskProposal(current)})
+	q := taskProposal(current)
+	q.Key = task.ID
+	q.Title = "Different followup"
+	q.Objective = "New work"
+	p.Tasks = append(p.Tasks, domain.RequirementNewTask{Proposal: q, RelatedTaskIDs: []string{}})
+	before := f.snapshot(t)
+	runRequirementPlan(t, f, p)
+	change := requirementDetail(t, f, r.ID).Changes[0]
+	if change.State != "blocked" || !strings.Contains(change.Detail, "冲突") || !reflect.DeepEqual(before.Tasks, f.snapshot(t).Tasks) {
+		t.Fatal("local key shadowed an existing task", change)
 	}
 }

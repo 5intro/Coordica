@@ -310,6 +310,9 @@ func stopPlanning(tx *store.Tx) error {
 			if e = tx.Put("planning_run", r.ID, r); e != nil {
 				return e
 			}
+			if e = blockRequirementAssessment(tx, r, "规划已取消或目标已修改，需要重新评估"); e != nil {
+				return e
+			}
 			if e = syncConversation(tx, r); e != nil {
 				return e
 			}
@@ -331,6 +334,11 @@ func (s *Service) SchedulePlanning(ctx context.Context, a Actor, key string, req
 		}
 		if e := version(d.Version, req.ExpectedVersion); e != nil {
 			return nil, e
+		}
+		if pending, e := pendingGoalRequirementChange(tx, d); e != nil {
+			return nil, e
+		} else if pending {
+			return nil, domain.Fail("conflict", "先处理当前目标中的需求变更")
 		}
 		settings, e := automation(tx)
 		if e != nil {

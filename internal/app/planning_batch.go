@@ -13,6 +13,11 @@ func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.Plan
 	if r.Purpose == domain.ConsultationPurpose {
 		return domain.Fail("forbidden", "advisory requests cannot derive plans")
 	}
+	if pending, e := pendingGoalRequirementChange(tx, *d); e != nil {
+		return e
+	} else if pending {
+		return domain.Fail("conflict", "需求变更尚未重排，不能派生替代任务")
+	}
 	baseline, e := initialization(tx)
 	if e != nil {
 		return e

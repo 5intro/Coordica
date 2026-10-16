@@ -723,7 +723,7 @@ func (w *PlanningWorker) apply(ctx context.Context, id string) error {
 		r.State = "blocked"
 		r.Detail = e.Error()
 		r.Version++
-		if err := s.blockRequirementAssessment(tx, r, r.Detail); err != nil {
+		if err := blockRequirementAssessment(tx, r, r.Detail); err != nil {
 			return err
 		}
 		if err := tx.Put("planning_run", id, r); err != nil {
@@ -813,7 +813,7 @@ func planningReceiptMatches(r domain.PlanningRun, out PlanningOutcome) bool {
 }
 
 func (s *Service) blockPlanningAssessment(tx *store.Tx, r domain.PlanningRun, d domain.PlanningDocument, detail string) error {
-	if e := s.blockRequirementAssessment(tx, r, detail); e != nil {
+	if e := blockRequirementAssessment(tx, r, detail); e != nil {
 		return e
 	}
 	return s.blockScopeAssessment(tx, r, d, detail)
