@@ -277,7 +277,7 @@ func (s *Service) createProject(ctx context.Context, a Actor, key string, p doma
 		}
 		if e := tx.Put("authority_policy_migration", "current", struct {
 			Version int `json:"version"`
-		}{1}); e != nil {
+		}{authorityPolicyVersion}); e != nil {
 			return nil, e
 		}
 		return p, s.audit(tx, a, "project.created", p.ID, p.Name)

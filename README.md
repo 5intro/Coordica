@@ -264,6 +264,36 @@ Runner 启动后，在该电脑打开 `http://127.0.0.1:8081`，查看本机节�
 
 `--console-listen` 默认 `127.0.0.1:8080`，仅接受回环地址，端口可自定义。默认启动时两个监听地址相同，在本机共享 HTTP 服务；指定局域网监听后分为本机控制台和 HTTPS 节点接口。节点接口也可使用 `--listen 0.0.0.0:8443`，此时需加上 `--runner-url https://192.168.1.10:8443`，向配置页明确可分享的实际地址；该地址必须使用 HTTPS，且主机名或 IP 须被 TLS 证书 SAN 覆盖。未配置实际地址时不会把 `0.0.0.0` 或 `::` 复制给远端 Agent。私钥只留在中心，非回环 HTTP 连接会被拒绝；不提供跳过证书验证选项。证书默认一年有效，公网中转尚未实现。
 
+## GitHub PR 集成
+
+项目默认继续使用 Git 模式。可在项目设置的“代码集成”中切换为 GitHub PR；需要项目暂停、执行已停止且不存在待处理候选或未知发布操作。切换发布方式不恢复项目、不改变架构与执行授权。
+
+GitHub 模式为每个任务保留一个 PR。开发自测后，中心构建固定候选、执行预检查，再同步工作分支并创建或更新 PR；独立 Agent 评审与 GitHub 必需 CI 通过后，中心调用 GitHub 合并接口。修复保留任务、累计计数和原 PR，主线变化则重建候选与检查。Git 模式继续使用原来的精确提交发布，不依赖 GitHub API。
+
+中心通过一个专用私密令牌文件连接 GitHub，不借用开发 Runner 的账号。启动参数或可信 host-config 可使用：
+
+```sh
+coordica serve --data /private/coordica-center \
+  --github-repository owner/repository \
+  --github-token-file /private/coordica-secrets/github.token
+```
+
+该文件只保存原始 GitHub API token。中心可将同一凭据用于绑定到该仓库的 HTTPS Git 传输；已有 `--git-auth-file` 配置仍可单独使用。`host-config` 支持相同 GitHub 参数，统一 MCP 启动可信中心时沿用保存的配置。文件必须与中心 Owner token、交互配置和源码分开存放；令牌不会进入项目配置、导出、Runner 或安装包。Git 凭据在启动时载入，轮换后重启中心。
+
+GitHub 仓库需要启用分支保护：
+
+- 强制必需状态检查并要求分支保持最新，同时约束管理员，避免主线竞态与绕过检查。
+- 包含项目设置中填写的完整 CI 检查名称，以及中心上报的 `coordica/review` commit status；该状态的来源应允许中心使用的身份。
+- 允许 merge commit。首期不使用 squash、rebase 或 merge queue，以保留已检查的固定候选提交。
+
+专用凭据需要该仓库的 Contents、Pull requests、Commit statuses 写权限，以及 Checks 和分支保护的读取权限。平台不会修改仓库规则或绕过额外的 GitHub 审批要求。已有独立评审及受保护候选的 Owner 批准复用为 `coordica/review`，不会再生成一个 Coordica 批准步骤。
+
+审查池显示 PR、当前提交的 CI、标准 GitHub review 状态和同步时间；同步失败、关闭的 PR、缺少检查、取消或跳过的检查均不视为通过。第三方机器人的纯文本评论不会被推断为批准。项目暂停时仅同步已有 PR 的只读事实，不推分支、创建 PR、修复或合并。同步复用集成 worker 的持久重试时点，没有新增巡检服务。
+
+本功能的自动化验证使用 GitHub HTTP 协议夹具和真实临时 Git 仓库；不等于已完成用户账号、真实 GitHub 规则及多机的部署验收。
+
+升级时新增的 GitHub 适配代码归入受保护架构路径。已有项目会暂停并失效旧架构基线，需重新完成基线确认后才能恢复施工；不会自动派发。
+
 ## GitHub 发布权限
 
 开发 Runner 通过 bundle 收发固定代码材料，不接收中心发布凭据。中心 Git 客户端禁用系统/全局 Git 配置、交互凭据、仓库 hooks 和外部过滤器；平台不会借用 Runner 的 GitHub 写凭据。

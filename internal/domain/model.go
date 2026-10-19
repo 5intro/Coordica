@@ -26,13 +26,14 @@ type Check struct {
 	TimeoutSeconds int64    `json:"timeout_seconds"`
 }
 type Project struct {
-	ID               string `json:"id"`
-	Version          int64  `json:"version"`
-	Name             string `json:"name"`
-	RepositoryURL    string `json:"repository_url"`
-	SourceRepository string `json:"source_repository,omitempty"`
-	TargetBranch     string `json:"target_branch"`
-	Paused           bool   `json:"paused"`
+	Publication      *PublicationPolicy `json:"publication,omitempty"`
+	ID               string             `json:"id"`
+	Version          int64              `json:"version"`
+	Name             string             `json:"name"`
+	RepositoryURL    string             `json:"repository_url"`
+	SourceRepository string             `json:"source_repository,omitempty"`
+	TargetBranch     string             `json:"target_branch"`
+	Paused           bool               `json:"paused"`
 	// Deprecated: retained for wire/storage compatibility; ignored by all gates.
 	TotalBudgetSeconds int64     `json:"total_budget_seconds"`
 	UsedSeconds        int64     `json:"used_seconds"`
@@ -178,28 +179,29 @@ type CheckResult struct {
 	DurationSeconds int64  `json:"duration_seconds"`
 }
 type Candidate struct {
-	PreparationStopped   bool          `json:"preparation_stopped,omitempty"`
-	CheckPlan            *CheckPlan    `json:"check_plan,omitempty"`
-	CheckRunID           string        `json:"check_run_id,omitempty"`
-	BaselineVersion      int64         `json:"baseline_version"`
-	BaselineDigest       string        `json:"baseline_digest"`
-	ID                   string        `json:"id"`
-	Version              int64         `json:"version"`
-	TaskID               string        `json:"task_id"`
-	SourceRunID          string        `json:"source_run_id"`
-	AuthorizationVersion int64         `json:"authorization_version"`
-	PolicyVersion        int64         `json:"policy_version"`
-	Base                 string        `json:"base"`
-	Head                 string        `json:"head"`
-	Main                 string        `json:"main"`
-	Commit               string        `json:"commit"`
-	State                string        `json:"state"`
-	Detail               string        `json:"detail"`
-	Protected            bool          `json:"protected"`
-	ApprovedCommit       string        `json:"approved_commit"`
-	Review               *Review       `json:"review,omitempty"`
-	Checks               []CheckResult `json:"checks"`
-	CreatedAt            time.Time     `json:"created_at"`
+	PullRequest          *PullRequestStatus `json:"pull_request,omitempty"`
+	PreparationStopped   bool               `json:"preparation_stopped,omitempty"`
+	CheckPlan            *CheckPlan         `json:"check_plan,omitempty"`
+	CheckRunID           string             `json:"check_run_id,omitempty"`
+	BaselineVersion      int64              `json:"baseline_version"`
+	BaselineDigest       string             `json:"baseline_digest"`
+	ID                   string             `json:"id"`
+	Version              int64              `json:"version"`
+	TaskID               string             `json:"task_id"`
+	SourceRunID          string             `json:"source_run_id"`
+	AuthorizationVersion int64              `json:"authorization_version"`
+	PolicyVersion        int64              `json:"policy_version"`
+	Base                 string             `json:"base"`
+	Head                 string             `json:"head"`
+	Main                 string             `json:"main"`
+	Commit               string             `json:"commit"`
+	State                string             `json:"state"`
+	Detail               string             `json:"detail"`
+	Protected            bool               `json:"protected"`
+	ApprovedCommit       string             `json:"approved_commit"`
+	Review               *Review            `json:"review,omitempty"`
+	Checks               []CheckResult      `json:"checks"`
+	CreatedAt            time.Time          `json:"created_at"`
 }
 type Event struct {
 	Sequence int64     `json:"sequence"`
@@ -261,13 +263,15 @@ type Resource struct {
 	TaskID string `json:"task_id"`
 }
 type Intent struct {
-	ID          string    `json:"id"`
-	CandidateID string    `json:"candidate_id"`
-	Expected    string    `json:"expected"`
-	Desired     string    `json:"desired"`
-	State       string    `json:"state"`
-	Detail      string    `json:"detail"`
-	CreatedAt   time.Time `json:"created_at"`
+	PublicationMode   string    `json:"publication_mode,omitempty"`
+	PullRequestNumber int       `json:"pull_request_number,omitempty"`
+	ID                string    `json:"id"`
+	CandidateID       string    `json:"candidate_id"`
+	Expected          string    `json:"expected"`
+	Desired           string    `json:"desired"`
+	State             string    `json:"state"`
+	Detail            string    `json:"detail"`
+	CreatedAt         time.Time `json:"created_at"`
 }
 type Artifact struct {
 	ID        string    `json:"id"`
@@ -357,6 +361,9 @@ func ValidateRequirementProposal(r RequirementProposal) error {
 	return nil
 }
 func ValidateProject(p Project) error {
+	if e := ValidatePublication(p); e != nil {
+		return e
+	}
 	if strings.TrimSpace(p.Name) == "" || strings.TrimSpace(p.RepositoryURL) == "" {
 		return Fail("invalid_input", "项目名称和仓库地址不能为空")
 	}

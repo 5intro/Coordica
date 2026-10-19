@@ -379,6 +379,16 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		if err = decode(r, &in); err == nil {
 			result, err = s.Service.UpdateProjectPolicy(ctx, a, key, in)
 		}
+	case path == "project/publication":
+		var in domain.PublicationRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.ConfigurePublication(ctx, a, key, in)
+		}
+	case len(parts) == 3 && parts[0] == "candidates" && parts[2] == "sync":
+		var in domain.VersionRequest
+		if err = decode(r, &in); err == nil {
+			result, err = s.Service.RequestPullRequestSync(ctx, a, key, parts[1], in)
+		}
 	case path == "project/open":
 		var in domain.Project
 		if err = decode(r, &in); err == nil {

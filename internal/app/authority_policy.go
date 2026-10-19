@@ -8,9 +8,11 @@ import (
 	"coordica/internal/store"
 )
 
-var authorityPaths = []string{"AGENTS.md", ".github/**", "cmd/coordica/**", "internal/app/**", "internal/domain/**", "internal/httpapi/**", "internal/localhttp/**", "internal/nodeconsole/**", "internal/gitops/**", "internal/process/**", "internal/store/**", "internal/agent/**", "internal/runner/**", "internal/onboarding/**", "internal/nodeservice/**", "internal/localfile/**", "internal/filelock/**", "internal/mcp/**", "internal/chatprofile/**", "internal/mcpconfig/**", "internal/centerhost/**", "api/**"}
+var authorityPaths = []string{"AGENTS.md", ".github/**", "cmd/coordica/**", "internal/app/**", "internal/domain/**", "internal/httpapi/**", "internal/localhttp/**", "internal/nodeconsole/**", "internal/gitops/**", "internal/github/**", "internal/process/**", "internal/store/**", "internal/agent/**", "internal/runner/**", "internal/onboarding/**", "internal/nodeservice/**", "internal/localfile/**", "internal/filelock/**", "internal/mcp/**", "internal/chatprofile/**", "internal/mcpconfig/**", "internal/centerhost/**", "api/**"}
 
-// MigrateAuthorityPolicy is the single mandatory v1 authority-protection
+const authorityPolicyVersion = 2
+
+// MigrateAuthorityPolicy applies the mandatory authority-protection
 // migration. It preserves project identity/history, never grandfathering a
 // baseline or grant. Active old executions are drained through existing stop
 // requests, not erased or treated as stopped.
@@ -20,7 +22,7 @@ func (s *Service) MigrateAuthorityPolicy(ctx context.Context) error {
 			Version int `json:"version"`
 		}
 		e := tx.Get("authority_policy_migration", "current", &marker)
-		if e == nil && marker.Version >= 1 {
+		if e == nil && marker.Version >= authorityPolicyVersion {
 			return nil
 		}
 		if e != nil && !errors.Is(e, domain.ErrNotFound) {
@@ -73,7 +75,7 @@ func (s *Service) MigrateAuthorityPolicy(ctx context.Context) error {
 			v.ApprovedVersion = 0
 			v.ApprovedDigest = ""
 			v.ApprovedBaseline = nil
-			v.Detail = "authority protection migration v1 requires explicit baseline initialization; no permissions granted"
+			v.Detail = "authority protection migration v2 requires explicit baseline initialization; no permissions granted"
 			if e = tx.Put("initialization", "current", v); e != nil {
 				return e
 			}
@@ -96,9 +98,9 @@ func (s *Service) MigrateAuthorityPolicy(ctx context.Context) error {
 		}
 		if e = tx.Put("authority_policy_migration", "current", struct {
 			Version int `json:"version"`
-		}{1}); e != nil {
+		}{authorityPolicyVersion}); e != nil {
 			return e
 		}
-		return s.audit(tx, Actor{ID: "center"}, "project.authority_policy_migrated", p.ID, "v1; initialization required; no grants")
+		return s.audit(tx, Actor{ID: "center"}, "project.authority_policy_migrated", p.ID, "v2; initialization required; no grants")
 	})
 }

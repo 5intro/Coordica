@@ -366,6 +366,16 @@
         "protected": {
           "type": "boolean"
         },
+        "pull_request": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PullRequestStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "review": {
           "anyOf": [
             {
@@ -3013,6 +3023,16 @@
             "null"
           ]
         },
+        "publication": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PublicationPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "repository_url": {
           "type": "string"
         },
@@ -3104,6 +3124,124 @@
       ],
       "type": "object"
     },
+    "PublicationPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string"
+        },
+        "required_checks": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "mode",
+        "required_checks"
+      ],
+      "type": "object"
+    },
+    "PublicationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "type": "integer"
+        },
+        "policy": {
+          "$ref": "#/$defs/PublicationPolicy"
+        }
+      },
+      "required": [
+        "expected_version",
+        "policy"
+      ],
+      "type": "object"
+    },
+    "PullRequestStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/RemoteCheck"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "ci": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "head": {
+          "type": "string"
+        },
+        "merge_commit": {
+          "type": "string"
+        },
+        "merge_ready": {
+          "type": "boolean"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "review": {
+          "type": "string"
+        },
+        "reviews": {
+          "items": {
+            "$ref": "#/$defs/RemoteReview"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "state": {
+          "type": "string"
+        },
+        "sync_error": {
+          "type": "string"
+        },
+        "synced_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "number",
+        "url",
+        "branch",
+        "head",
+        "base",
+        "state",
+        "ci",
+        "review",
+        "checks",
+        "reviews",
+        "merge_commit",
+        "merge_ready",
+        "detail",
+        "synced_at"
+      ],
+      "type": "object"
+    },
     "RegisterRequest": {
       "additionalProperties": false,
       "properties": {
@@ -3151,6 +3289,64 @@
       "required": [
         "node_id",
         "token"
+      ],
+      "type": "object"
+    },
+    "RemoteCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "app_id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "state",
+        "app_id",
+        "url"
+      ],
+      "type": "object"
+    },
+    "RemoteReview": {
+      "additionalProperties": false,
+      "properties": {
+        "author": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "state": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "author",
+        "state",
+        "commit",
+        "url"
       ],
       "type": "object"
     },

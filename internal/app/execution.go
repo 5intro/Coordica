@@ -97,6 +97,9 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 				if c.State != "reviewing" || c.Review != nil || !candidateAuthority(tx, t, p, c) {
 					continue
 				}
+				if domain.GitHubPublication(p) && (c.PullRequest == nil || c.PullRequest.State != "open" || c.PullRequest.Head != c.Commit || c.PullRequest.Base != c.Main || c.PullRequest.SyncError != "") {
+					continue
+				}
 				kind = "review"
 				runBase = c.Commit
 				candidate = &c

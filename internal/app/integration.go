@@ -21,9 +21,10 @@ import (
 // Integrator is the single protected-branch executor. Git operations remain
 // separate from transactions; every resulting fact is revalidated on commit.
 type Integrator struct {
-	Service *Service
-	Git     *gitops.Client
-	mu      sync.Mutex
+	Service      *Service
+	Git          *gitops.Client
+	PullRequests PullRequestHost
+	mu           sync.Mutex
 }
 
 func (w *Integrator) repo() string { return filepath.Join(w.Service.Dir, "repository") }
@@ -89,6 +90,9 @@ func (w *Integrator) Tick(ctx context.Context) error {
 			return e
 		}
 		if !eligible {
+			if e = w.observePullRequest(ctx, c); e != nil {
+				return e
+			}
 			continue
 		}
 		switch c.State {
@@ -96,7 +100,24 @@ func (w *Integrator) Tick(ctx context.Context) error {
 			return w.prepare(ctx, c)
 		case "prechecking", "validating":
 			return w.validate(ctx, c)
+		case "reviewing":
+			if _, err := w.syncPullRequest(ctx, c, false); err != nil {
+				return err
+			}
 		case "ready_to_land":
+			p, err := s.Project(ctx)
+			if err != nil {
+				return err
+			}
+			if domain.GitHubPublication(p) {
+				c, err = w.syncPullRequest(ctx, c, false)
+				if err != nil {
+					return err
+				}
+				if c.PullRequest == nil || (!c.PullRequest.MergeReady && c.PullRequest.State != "merged") {
+					continue
+				}
+			}
 			return w.land(ctx, c)
 		}
 	}
@@ -565,7 +586,8 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 	if e != nil {
 		return e
 	}
-	if string(actual) != c.Main {
+	alreadyMerged := domain.GitHubPublication(p) && c.PullRequest != nil && c.PullRequest.State == "merged" && c.PullRequest.Head == c.Commit && c.PullRequest.MergeCommit != ""
+	if string(actual) != c.Main && !alreadyMerged {
 		return w.invalidate(ctx, c, "主线已变化，必须重建候选")
 	}
 	var goalScope *gitops.Scope
@@ -634,6 +656,11 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 		if current.Protected && current.ApprovedCommit != current.Commit {
 			return nil
 		}
+		if domain.GitHubPublication(project) {
+			if current.PullRequest == nil || current.PullRequest.Head != current.Commit || current.PullRequest.State != "merged" && current.PullRequest.Base != current.Main || (!current.PullRequest.MergeReady && current.PullRequest.State != "merged") || w.PullRequests == nil {
+				return nil
+			}
+		}
 		blockingTests, e := blockingTestFailures(tx, current.Main, current.Commit)
 		if e != nil {
 			return e
@@ -656,6 +683,10 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 			}
 		}
 		in = domain.Intent{ID: ID("op_"), CandidateID: c.ID, Expected: c.Main, Desired: c.Commit, State: "dispatching", CreatedAt: s.Now()}
+		if domain.GitHubPublication(project) {
+			in.PublicationMode = "github"
+			in.PullRequestNumber = current.PullRequest.Number
+		}
 		current.State = "landing"
 		current.Version++
 		if e = tx.Put("intent", in.ID, in); e != nil {
@@ -669,9 +700,22 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 	if e != nil || in.ID == "" {
 		return e
 	}
-	w.mu.Lock()
-	_, e = w.Git.Publish(ctx, w.repo(), p.RepositoryURL, "refs/heads/"+p.TargetBranch, gitops.OID(in.Expected), gitops.OID(in.Desired))
-	w.mu.Unlock()
+	if in.PublicationMode == "github" {
+		if !alreadyMerged {
+			var t domain.Task
+			if e = s.DB.View(ctx, func(tx *store.Tx) error { return tx.Get("task", c.TaskID, &t) }); e == nil {
+				spec := pullSpec(p, t, c, pullRequestBinding{Branch: c.PullRequest.Branch, Number: in.PullRequestNumber})
+				_, e = w.PullRequests.Merge(ctx, spec)
+			}
+		}
+	} else {
+		w.mu.Lock()
+		_, e = w.Git.Publish(ctx, w.repo(), p.RepositoryURL, "refs/heads/"+p.TargetBranch, gitops.OID(in.Expected), gitops.OID(in.Desired))
+		w.mu.Unlock()
+	}
+	if errors.Is(e, domain.ErrPublicationNotReady) {
+		return w.deferHostedMerge(ctx, in)
+	}
 	if e != nil {
 		_ = s.DB.Update(ctx, func(tx *store.Tx) error {
 			in.State = "unknown"
@@ -705,6 +749,25 @@ func (w *Integrator) reconcile(ctx context.Context, in domain.Intent) error {
 			return e
 		}
 	}
+	var hosted *domain.PullRequestStatus
+	if contains && in.PublicationMode == "github" && w.PullRequests != nil && domain.GitHubPublication(p) {
+		var c domain.Candidate
+		var t domain.Task
+		if e = s.DB.View(ctx, func(tx *store.Tx) error {
+			if err := tx.Get("candidate", in.CandidateID, &c); err != nil {
+				return err
+			}
+			return tx.Get("task", c.TaskID, &t)
+		}); e != nil {
+			return e
+		}
+		if c.PullRequest != nil {
+			if facts, err := w.PullRequests.Inspect(ctx, pullSpec(p, t, c, pullRequestBinding{Branch: c.PullRequest.Branch, Number: in.PullRequestNumber})); err == nil && facts.State == "merged" && facts.Head == in.Desired && facts.Number == in.PullRequestNumber {
+				facts.SyncedAt = s.Now()
+				hosted = &facts
+			}
+		}
+	}
 	return s.DB.Update(ctx, func(tx *store.Tx) error {
 		var c domain.Candidate
 		if e := tx.Get("candidate", in.CandidateID, &c); e != nil {
@@ -715,6 +778,9 @@ func (w *Integrator) reconcile(ctx context.Context, in domain.Intent) error {
 			return e
 		}
 		if contains {
+			if hosted != nil {
+				c.PullRequest = hosted
+			}
 			in.State = "completed"
 			c.State = "landed"
 			t.State = "integrated"
