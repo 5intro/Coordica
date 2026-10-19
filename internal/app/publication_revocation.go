@@ -18,6 +18,29 @@ type pullReviewRevocation struct {
 	NextSync    time.Time              `json:"next_sync"`
 }
 
+// Stop mutations persist this receipt before returning their ACK, even when
+// the publication worker is blocked or the center exits before its next tick.
+// An empty task selects all bindings for a project-wide authority change.
+func queueTaskPullReviewRevocations(tx *store.Tx, task string) error {
+	bindings, e := store.List[pullRequestBinding](tx, "pull_request")
+	if e != nil {
+		return e
+	}
+	for _, b := range bindings {
+		if task != "" && b.TaskID != task || b.ReviewState != "success" && b.DesiredReview != "success" {
+			continue
+		}
+		var c domain.Candidate
+		if e = tx.Get("candidate", b.CandidateID, &c); e != nil {
+			return e
+		}
+		if e = queuePullReviewRevocation(tx, c); e != nil {
+			return e
+		}
+	}
+	return nil
+}
+
 func queuePullReviewRevocation(tx *store.Tx, c domain.Candidate) error {
 	var b pullRequestBinding
 	if e := tx.Get("pull_request", c.TaskID, &b); errors.Is(e, domain.ErrNotFound) {

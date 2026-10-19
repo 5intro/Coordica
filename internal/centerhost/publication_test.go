@@ -15,6 +15,11 @@ func TestGitHubHostCredentialsRemainFixedAndOutsideSource(t *testing.T) {
 	if e := Validate(c, path); e != nil {
 		t.Fatal(e)
 	}
+	equivalent := c
+	equivalent.GitHubRepository = "EXAMPLE/RePo"
+	if e := Validate(equivalent, path); e != nil {
+		t.Fatal("equivalent GitHub repository casing rejected", e)
+	}
 	for _, change := range []func(*Config){
 		func(c *Config) { c.GitHubRepository = "other/repo" },
 		func(c *Config) { c.GitHubTokenFile = "relative-token" },

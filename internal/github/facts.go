@@ -126,7 +126,7 @@ func (c *Client) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.
 	if out.Review == "changes_requested" {
 		out.Detail = "GitHub 评审要求修改"
 	}
-	out.MergeReady = out.CI == "success" && out.Review != "changes_requested" && !p.Draft && p.Mergeable != nil && *p.Mergeable && (p.MergeableState == "clean" || p.MergeableState == "has_hooks")
+	out.MergeReady = out.CI == "success" && out.Review != "changes_requested" && !p.Draft && p.Mergeable != nil && *p.Mergeable && (p.MergeableState == "clean" || p.MergeableState == "has_hooks" || p.MergeableState == "unstable")
 	if !out.MergeReady && out.Detail == "" {
 		out.Detail = "等待 GitHub 合并条件；不追加 Coordica 人工审批"
 	}

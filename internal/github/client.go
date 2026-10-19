@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"coordica/internal/domain"
+	"coordica/internal/localfile"
 )
 
 type Client struct {
@@ -41,6 +42,9 @@ func New(repository, tokenFile string) (*Client, error) {
 }
 
 func (c *Client) token() (string, error) {
+	if e := localfile.CheckPrivate(c.tokenFile); e != nil {
+		return "", errors.New("GitHub credential file must be a private regular file")
+	}
 	f, e := os.Open(c.tokenFile)
 	if e != nil {
 		return "", errors.New("GitHub credential file unavailable")
@@ -58,7 +62,7 @@ func (c *Client) token() (string, error) {
 // Git transport, still bound by gitops to one exact HTTPS repository URL.
 func (c *Client) HTTPSAuthorization(remote string) (string, error) {
 	repository, e := domain.GitHubRepository(remote)
-	if e != nil || repository != c.repository {
+	if e != nil || !strings.EqualFold(repository, c.repository) {
 		return "", errors.New("Git credential repository mismatch")
 	}
 	token, e := c.token()
@@ -140,7 +144,7 @@ type pull struct {
 }
 
 func (c *Client) validate(spec domain.PullRequestSpec) error {
-	if spec.Repository != c.repository || !workBranch.MatchString(spec.Branch) || spec.TargetBranch == "" || strings.ContainsAny(spec.TargetBranch, "\x00\r\n") || !fullSHA.MatchString(spec.Head) || !fullSHA.MatchString(spec.Base) {
+	if !strings.EqualFold(spec.Repository, c.repository) || !workBranch.MatchString(spec.Branch) || spec.TargetBranch == "" || strings.ContainsAny(spec.TargetBranch, "\x00\r\n") || !fullSHA.MatchString(spec.Head) || !fullSHA.MatchString(spec.Base) {
 		return errors.New("GitHub request outside fixed repository or candidate")
 	}
 	return nil
@@ -148,7 +152,7 @@ func (c *Client) validate(spec domain.PullRequestSpec) error {
 func (c *Client) getPull(ctx context.Context, s domain.PullRequestSpec) (pull, error) {
 	var p pull
 	e := c.request(ctx, "GET", "/pulls/"+strconv.Itoa(s.Number), nil, &p)
-	if e == nil && (p.Number != s.Number || p.Head.Ref != s.Branch || p.Base.Ref != s.TargetBranch || p.Head.Repo.FullName != c.repository || p.Base.Repo.FullName != c.repository) {
+	if e == nil && (p.Number != s.Number || p.Head.Ref != s.Branch || p.Base.Ref != s.TargetBranch || !strings.EqualFold(p.Head.Repo.FullName, c.repository) || !strings.EqualFold(p.Base.Repo.FullName, c.repository)) {
 		e = errors.New("GitHub PR identity changed")
 	}
 	return p, e

@@ -54,7 +54,7 @@ func (c Config) TLS() bool          { return c.RunnerListen != c.ConsoleListen }
 func Validate(c Config, path string) error {
 	if c.GitHubRepository != "" || c.GitHubTokenFile != "" {
 		repository, e := domain.GitHubRepository(c.RepositoryURL())
-		if e != nil || repository != c.GitHubRepository || !filepath.IsAbs(c.GitHubTokenFile) || strings.ContainsAny(c.GitHubTokenFile, "\x00\r\n") {
+		if e != nil || !strings.EqualFold(repository, c.GitHubRepository) || !filepath.IsAbs(c.GitHubTokenFile) || strings.ContainsAny(c.GitHubTokenFile, "\x00\r\n") {
 			return errors.New("GitHub adapter needs a fixed matching repository and absolute center token file")
 		}
 	}

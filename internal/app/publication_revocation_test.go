@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -176,5 +177,85 @@ func TestGitHubPauseRevokesOnlyUnmergedApproval(t *testing.T) {
 	}
 	if h.reviewCheck != "pending" || h.ensures != ensures || h.creates != creates || h.merges != 0 {
 		t.Fatal("pause failed to downgrade approval or published new work")
+	}
+}
+
+func TestGitHubStopsPersistReviewRevocationBeforeWorker(t *testing.T) {
+	for _, kind := range []string{"project_pause", "task_pause", "task_cancel", "task_scope"} {
+		t.Run(kind, func(t *testing.T) {
+			ctx := context.Background()
+			f, h, _ := hostedRequirementFixture(t)
+			before := f.snapshot(t)
+			c := f.candidate(t)
+			stop := func(key string, version int64) error {
+				in := domain.VersionRequest{ExpectedVersion: version}
+				if kind == "project_pause" {
+					_, e := f.s.ProjectAction(ctx, f.owner, key, "pause", in)
+					return e
+				}
+				if kind == "task_scope" {
+					_, e := f.s.Scope(ctx, f.owner, key, c.TaskID, domain.ScopeRequest{ExpectedVersion: version, AllowedPaths: []string{"src/feature.txt"}, Reason: "Owner narrowed authority"})
+					return e
+				}
+				_, e := f.s.TaskAction(ctx, f.owner, key, c.TaskID, strings.TrimPrefix(kind, "task_"), in)
+				return e
+			}
+			version := before.Tasks[0].Version
+			if kind == "project_pause" {
+				version = before.Project.Version
+			}
+			if e := stop(ID("stale_"), version+100); e == nil || len(queuedReviewRevocations(t, f)) != 0 {
+				t.Fatal("rejected stop leaked a revocation")
+			}
+			statuses := h.statuses
+			key := ID("stop_")
+			if e := stop(key, version); e != nil {
+				t.Fatal(e)
+			}
+			queued := queuedReviewRevocations(t, f)
+			if len(queued) != 1 || queued[0].Spec.Head != c.Commit || h.statuses != statuses {
+				t.Fatal("stop ACK preceded durable exact-head revocation")
+			}
+			if e := stop(key, version); e != nil || len(queuedReviewRevocations(t, f)) != 1 {
+				t.Fatal("stop replay lost its receipt or duplicated work", e)
+			}
+			dir := f.s.Dir
+			if e := f.s.DB.Close(); e != nil {
+				t.Fatal(e)
+			}
+			db, e := store.Open(filepath.Join(dir, "coordica.db"))
+			if e != nil {
+				t.Fatal(e)
+			}
+			t.Cleanup(func() { db.Close() })
+			f.s = New(db, dir)
+			f.w = &Integrator{Service: f.s, Git: f.g, PullRequests: h}
+			if len(queuedReviewRevocations(t, f)) != 1 {
+				t.Fatal("restart lost the acknowledged revocation")
+			}
+			if e = f.w.Tick(ctx); e != nil {
+				t.Fatal(e)
+			}
+			after := f.snapshot(t)
+			if h.reviewCheck != "pending" || len(queuedReviewRevocations(t, f)) != 0 || h.merges != 0 || h.creates != 1 || after.Tasks[0].Retries != before.Tasks[0].Retries || after.Tasks[0].Repairs != before.Tasks[0].Repairs {
+				t.Fatal("stopped candidate retained approval or consumed a retry")
+			}
+		})
+	}
+}
+
+func TestGitHubProjectPauseRetainsLandedReviewReceipt(t *testing.T) {
+	f, h, _ := hostedRequirementFixture(t)
+	h.ci = "success"
+	refreshHosted(t, f)
+	if f.candidate(t).State != "landed" {
+		t.Fatal("fixture did not land")
+	}
+	p := f.snapshot(t).Project
+	if _, e := f.s.ProjectAction(context.Background(), f.owner, ID("pause_"), "pause", domain.VersionRequest{ExpectedVersion: p.Version}); e != nil {
+		t.Fatal(e)
+	}
+	if len(queuedReviewRevocations(t, f)) != 0 || h.reviewCheck != "success" {
+		t.Fatal("historical landed approval was revoked")
 	}
 }

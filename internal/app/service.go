@@ -475,6 +475,9 @@ func active(r domain.Run) bool {
 	return r.State == "running" || r.State == "starting" || r.State == "cancel_requested"
 }
 func requestStop(tx *store.Tx, task string) error {
+	if e := queueTaskPullReviewRevocations(tx, task); e != nil {
+		return e
+	}
 	runs, e := store.List[domain.Run](tx, "run")
 	if e != nil {
 		return e
@@ -595,6 +598,9 @@ func (s *Service) Scope(ctx context.Context, a Actor, key, id string, req domain
 		}
 		if req.Reason == "" {
 			return nil, domain.Fail("invalid_input", "范围变更需要理由")
+		}
+		if e := queueTaskPullReviewRevocations(tx, t.ID); e != nil {
+			return nil, e
 		}
 		t.AuthorizationVersion++
 		t.Version++

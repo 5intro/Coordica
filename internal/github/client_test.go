@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"unicode/utf8"
 
 	"coordica/internal/domain"
+	"coordica/internal/localfile"
 )
 
 type protocolFixture struct {
@@ -30,13 +30,17 @@ type protocolFixture struct {
 	checks                []map[string]any
 	reviews               []map[string]any
 	postLost              bool
+	headRepository        string
+	baseRepository        string
+	mergeableState        string
+	unmergeable           bool
 }
 
 func protocol(t *testing.T) *protocolFixture {
 	t.Helper()
 	f := &protocolFixture{strict: true, admins: true, checkState: "success", reviewState: "APPROVED", spec: domain.PullRequestSpec{Repository: "owner/repo", Branch: "coordica/task_" + strings.Repeat("a", 32), TargetBranch: "main", Head: strings.Repeat("b", 40), Base: strings.Repeat("c", 40), Title: "Scoped work", RequiredChecks: []string{"ci"}}}
 	path := filepath.Join(t.TempDir(), "token")
-	if e := os.WriteFile(path, []byte("test-token"), 0600); e != nil {
+	if e := localfile.WritePrivate(path, []byte("test-token")); e != nil {
 		t.Fatal(e)
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +65,17 @@ func protocol(t *testing.T) *protocolFixture {
 			if f.closed {
 				state = "closed"
 			}
-			return map[string]any{"number": 7, "state": state, "merged": false, "draft": false, "mergeable": true, "mergeable_state": "clean", "head": map[string]any{"sha": head, "ref": f.spec.Branch, "repo": map[string]string{"full_name": "owner/repo"}}, "base": map[string]any{"sha": f.spec.Base, "ref": "main", "repo": map[string]string{"full_name": "owner/repo"}}}
+			headRepository, baseRepository, mergeableState := f.headRepository, f.baseRepository, f.mergeableState
+			if headRepository == "" {
+				headRepository = "owner/repo"
+			}
+			if baseRepository == "" {
+				baseRepository = "owner/repo"
+			}
+			if mergeableState == "" {
+				mergeableState = "clean"
+			}
+			return map[string]any{"number": 7, "state": state, "merged": false, "draft": false, "mergeable": !f.unmergeable, "mergeable_state": mergeableState, "head": map[string]any{"sha": head, "ref": f.spec.Branch, "repo": map[string]string{"full_name": headRepository}}, "base": map[string]any{"sha": f.spec.Base, "ref": "main", "repo": map[string]string{"full_name": baseRepository}}}
 		}
 		switch {
 		case p == "/pulls" && r.Method == "GET":
@@ -304,5 +318,63 @@ func TestGitAuthorizationStaysBoundToConfiguredRepository(t *testing.T) {
 		if _, e = f.client.HTTPSAuthorization(remote); e == nil {
 			t.Fatal("credential allowed outside fixed repository")
 		}
+	}
+}
+
+func TestPRRepositoryCasingPreservesIdentityBoundary(t *testing.T) {
+	for _, kind := range []string{"same_repository", "other_head_owner", "other_base_repository"} {
+		t.Run(kind, func(t *testing.T) {
+			f := protocol(t)
+			f.spec.Number, f.spec.Repository = 7, "OWNER/REPO"
+			f.headRepository, f.baseRepository = "Owner/RePo", "OWNER/repo"
+			if kind == "other_head_owner" {
+				f.headRepository = "other/repo"
+			}
+			if kind == "other_base_repository" {
+				f.baseRepository = "owner/repo-extra"
+			}
+			_, e := f.client.Inspect(context.Background(), f.spec)
+			if (e == nil) != (kind == "same_repository") {
+				t.Fatal("repository identity comparison is incorrect", e)
+			}
+		})
+	}
+	f := protocol(t)
+	if _, e := f.client.HTTPSAuthorization("https://github.com/OWNER/RePo.git"); e != nil {
+		t.Fatal("equivalent repository casing rejected for Git authorization", e)
+	}
+}
+
+func TestPROptionalFailedChecksPreserveRequiredGates(t *testing.T) {
+	for _, kind := range []string{"optional_only", "required_failed", "unmergeable"} {
+		t.Run(kind, func(t *testing.T) {
+			f := protocol(t)
+			f.spec.Number, f.mergeableState = 7, "unstable"
+			conclusion := "success"
+			if kind == "required_failed" {
+				conclusion = "failure"
+			}
+			f.unmergeable = kind == "unmergeable"
+			f.checks = []map[string]any{
+				{"id": 1, "name": "ci", "status": "completed", "conclusion": conclusion, "head_sha": f.spec.Head, "app": map[string]int{"id": 42}},
+				{"id": 2, "name": "optional", "status": "completed", "conclusion": "failure", "head_sha": f.spec.Head, "app": map[string]int{"id": 42}},
+			}
+			_, e := f.client.Merge(context.Background(), f.spec)
+			if kind == "optional_only" {
+				if e != nil || f.merge != 1 {
+					t.Fatal("optional failure blocked a mergeable PR", e)
+				}
+			} else if e == nil || f.merge != 0 {
+				t.Fatal("optional-check handling bypassed required gates", e)
+			}
+		})
+	}
+}
+
+func TestPRTokenRejectsDirectory(t *testing.T) {
+	f := protocol(t)
+	f.client.tokenFile = t.TempDir()
+	if _, e := f.client.token(); e == nil || strings.Contains(e.Error(), f.client.tokenFile) {
+		t.Fatal("non-regular token accepted or path disclosed", e)
 	}
 }

@@ -782,7 +782,14 @@ func (w *Integrator) reconcile(ctx context.Context, in domain.Intent) error {
 		if e := tx.Get("task", c.TaskID, &t); e != nil {
 			return e
 		}
-		if contains {
+		if contains && in.PublicationMode == "github" && hosted == nil {
+			// Ancestry alone cannot acknowledge a hosted merge: another actor
+			// may have landed the same commit through a different PR.
+			in.State = "unknown"
+			in.Detail = "等待原 GitHub PR 的已合并凭据；主线包含代码不能替代 PR 确认"
+			c.State = "reconciling"
+			c.Detail = in.Detail
+		} else if contains {
 			if hosted != nil {
 				c.PullRequest = hosted
 			}

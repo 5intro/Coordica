@@ -278,7 +278,7 @@ coordica serve --data /private/coordica-center \
   --github-token-file /private/coordica-secrets/github.token
 ```
 
-该文件只保存原始 GitHub API token。中心可将同一凭据用于绑定到该仓库的 HTTPS Git 传输；已有 `--git-auth-file` 配置仍可单独使用。`host-config` 支持相同 GitHub 参数，统一 MCP 启动可信中心时沿用保存的配置。文件必须与中心 Owner token、交互配置和源码分开存放；令牌不会进入项目配置、导出、Runner 或安装包。Git 凭据在启动时载入，轮换后重启中心。
+该文件只保存原始 GitHub API token，必须为私密普通文件：Unix 禁止组和其他用户访问，Windows 要求当前用户持有且使用受保护的单用户 ACL。每次读取前复核权限并拒绝 FIFO 等特殊文件。中心可将同一凭据用于绑定到该仓库的 HTTPS Git 传输；已有 `--git-auth-file` 配置仍可单独使用。`host-config` 支持相同 GitHub 参数，统一 MCP 启动可信中心时沿用保存的配置。文件必须与中心 Owner token、交互配置和源码分开存放；令牌不会进入项目配置、导出、Runner 或安装包。Git 凭据在启动时载入，轮换后重启中心。
 
 GitHub 仓库需要启用分支保护：
 
