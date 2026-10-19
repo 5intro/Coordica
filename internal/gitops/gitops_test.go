@@ -694,6 +694,29 @@ func TestHTTPSCredentialBindingAndInputValidation(t *testing.T) {
 	}
 }
 
+func TestHTTPSCredentialExplicitAliasesBeforeProjectCreation(t *testing.T) {
+	g := gitClient(t)
+	withSuffix := "https://github.com/owner/repo.git"
+	withoutSuffix := "https://github.com/owner/repo"
+	auth, e := g.WithHTTPSAuthorization(withSuffix, "Bearer fixture", withoutSuffix)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, remote := range []string{withSuffix, withoutSuffix} {
+		if len(auth.authEnv(remote)) != 1 {
+			t.Fatal("fresh center omitted credential for an explicit URL form", remote)
+		}
+	}
+	for _, remote := range []string{withoutSuffix + "/other", withoutSuffix + "?token=1", "https://example.com/owner/repo", "https://github.com/other/repo"} {
+		if len(auth.authEnv(remote)) != 0 {
+			t.Fatal("credential escaped explicit allowlist")
+		}
+	}
+	if _, e = g.WithHTTPSAuthorization(withSuffix, "Bearer fixture", "http://github.com/owner/repo"); e == nil {
+		t.Fatal("unsafe alias accepted")
+	}
+}
+
 func TestContextCancellation(t *testing.T) {
 	g := gitClient(t)
 	ctx, cancel := context.WithCancel(context.Background())

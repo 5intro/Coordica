@@ -58,6 +58,11 @@ func (w *Integrator) InputBundle(ctx context.Context, r domain.Run) (string, err
 }
 func (w *Integrator) Tick(ctx context.Context) error {
 	s := w.Service
+	// Revoking a stale remote approval is a safety action, including while
+	// paused or draining. It precedes all new publication operations.
+	if pending, e := w.reconcilePullReviewRevocations(ctx); e != nil || pending {
+		return e
+	}
 	var barrier bool
 	if e := s.DB.View(ctx, func(tx *store.Tx) error { var e error; barrier, e = unknownConsultation(tx); return e }); e != nil {
 		return e
@@ -825,8 +830,19 @@ func (w *Integrator) invalidate(ctx context.Context, c domain.Candidate, reason 
 		if e := tx.Get("candidate", c.ID, &current); e != nil {
 			return e
 		}
-		if current.State == "landing" || current.State == "landed" {
+		var task domain.Task
+		if e := tx.Get("task", current.TaskID, &task); e != nil {
+			return e
+		}
+		project, e := getProject(tx)
+		if e != nil {
+			return e
+		}
+		if current.State != "reviewing" && current.State != "ready_to_land" || current.Commit != c.Commit || !candidateAuthority(tx, task, project, current) {
 			return nil
+		}
+		if e := queuePullReviewRevocation(tx, current); e != nil {
+			return e
 		}
 		current.State = "accepted"
 		current.Commit = ""

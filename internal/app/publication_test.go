@@ -27,10 +27,16 @@ type testPullHost struct {
 	reviewCheck                               string
 	base                                      string
 	gateChanged                               bool
+	onInspect                                 func()
+	onStatus                                  func(string)
+	failStatus                                bool
 }
 
 func (h *testPullHost) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.PullRequestStatus, error) {
 	h.reads++
+	if h.onInspect != nil {
+		h.onInspect()
+	}
 	if h.base != "" {
 		s.Base = h.base
 	}
@@ -58,6 +64,13 @@ func (h *testPullHost) Ensure(ctx context.Context, s domain.PullRequestSpec) (do
 func (h *testPullHost) PublishReview(_ context.Context, _ domain.PullRequestSpec, state string) error {
 	h.reviewCheck = state
 	h.statuses++
+	if h.onStatus != nil {
+		h.onStatus(state)
+	}
+	if h.failStatus {
+		h.failStatus = false
+		return errors.New("status ACK lost")
+	}
 	return nil
 }
 func (h *testPullHost) Merge(ctx context.Context, s domain.PullRequestSpec) (string, error) {
@@ -334,6 +347,33 @@ func TestGitHubAuthorityMigrationFromV1DrainsOldGrant(t *testing.T) {
 	snap := f.snapshot(t)
 	if !snap.Project.Paused || snap.Runs[0].ID != run.Run.ID || snap.Runs[0].Quiescent || snap.Runs[0].State != "cancel_requested" || !containsPaths(snap.Project.ProtectedPaths, []string{"internal/github/**"}) {
 		t.Fatal("v1 migration omitted new authority path or fabricated stop")
+	}
+}
+
+func TestGitHubV1MigrationInvalidatesEvenWhenAllPathsAlreadyExist(t *testing.T) {
+	f := newServiceFixture(t)
+	run := f.claim(t, "v1-complete-paths")
+	before := f.snapshot(t)
+	if e := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
+		return tx.Put("authority_policy_migration", "current", struct {
+			Version int `json:"version"`
+		}{1})
+	}); e != nil {
+		t.Fatal(e)
+	}
+	if e := f.s.MigrateAuthorityPolicy(context.Background()); e != nil {
+		t.Fatal(e)
+	}
+	after := f.snapshot(t)
+	if !after.Project.Paused || after.Project.PolicyVersion != before.Project.PolicyVersion+1 || after.Initialization.ApprovedBaseline != nil || after.Initialization.ApprovedVersion != 0 || after.Tasks[0].ApprovedVersion != 0 || after.Tasks[0].AuthorizationVersion <= before.Tasks[0].AuthorizationVersion || after.Runs[0].ID != run.Run.ID || after.Runs[0].State != "cancel_requested" || after.Runs[0].Quiescent {
+		t.Fatal("path equality grandfathered a v1 baseline or fabricated stop")
+	}
+	if e := f.s.MigrateAuthorityPolicy(context.Background()); e != nil {
+		t.Fatal(e)
+	}
+	again := f.snapshot(t)
+	if again.Project.Version != after.Project.Version || len(again.Events) != len(after.Events) {
+		t.Fatal("v2 migration replay is not idempotent")
 	}
 }
 func TestGitHubRemoteFailureRepairsSameTaskAndPR(t *testing.T) {

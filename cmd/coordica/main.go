@@ -158,16 +158,12 @@ func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hos
 		}
 		if *authFile == "" {
 			remote := "https://github.com/" + *githubRepository + ".git"
-			if project, err := s.Project(ctx); err == nil {
-				if repository, err := domain.GitHubRepository(project.RepositoryURL); err == nil && repository == *githubRepository {
-					remote = project.RepositoryURL
-				}
-			}
 			authorization, err := githubAdapter.HTTPSAuthorization(remote)
 			if err != nil {
 				return err
 			}
-			g, err = g.WithHTTPSAuthorization(remote, authorization)
+			// Both literal GitHub URL forms work before a project is created.
+			g, err = g.WithHTTPSAuthorization(remote, authorization, strings.TrimSuffix(remote, ".git"))
 			if err != nil {
 				return err
 			}

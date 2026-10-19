@@ -189,7 +189,10 @@ func (w *Integrator) syncPullRequest(ctx context.Context, c domain.Candidate, fo
 		return c, w.recordPullError(ctx, c, "PR 同步失败；保留原分支与 PR 绑定等待核对")
 	}
 	if facts.Head == c.Commit && facts.State == "open" {
-		state := reviewCheck(p, t, c)
+		state, allowed, err := w.reserveReviewStatus(ctx, c)
+		if err != nil || !allowed {
+			return c, err
+		}
 		if b.ReviewState != state {
 			if e = w.PullRequests.PublishReview(ctx, spec, state); e != nil {
 				return c, w.recordPullError(ctx, c, "评审状态上报失败；不能推断已通过")
@@ -204,6 +207,7 @@ func (w *Integrator) syncPullRequest(ctx context.Context, c domain.Candidate, fo
 		}
 	}
 	facts.SyncedAt = s.Now()
+	accepted := false
 	e = s.DB.Update(ctx, func(tx *store.Tx) error {
 		var current domain.Candidate
 		if e := tx.Get("candidate", c.ID, &current); e != nil {
@@ -217,7 +221,7 @@ func (w *Integrator) syncPullRequest(ctx context.Context, c domain.Candidate, fo
 		if e = tx.Get("task", t.ID, &task); e != nil {
 			return e
 		}
-		if current.Commit != c.Commit || !candidateAuthority(tx, task, project, current) {
+		if current.Commit != c.Commit || !candidateAuthority(tx, task, project, current) || current.State != "reviewing" && current.State != "ready_to_land" {
 			return nil
 		}
 		var binding pullRequestBinding
@@ -243,9 +247,10 @@ func (w *Integrator) syncPullRequest(ctx context.Context, c domain.Candidate, fo
 		if e = tx.Put("candidate", current.ID, current); e != nil {
 			return e
 		}
+		accepted = true
 		return s.audit(tx, Actor{ID: "center"}, "pull_request.synced", c.ID, fmt.Sprintf("PR #%d · %s · %s", facts.Number, facts.State, facts.CI))
 	})
-	if e != nil {
+	if e != nil || !accepted {
 		return c, e
 	}
 	if facts.State == "open" && facts.Head == c.Commit && facts.Base != c.Main {
@@ -344,8 +349,11 @@ func (w *Integrator) rejectHosted(ctx context.Context, c domain.Candidate, detai
 		if e != nil {
 			return e
 		}
-		if !candidateAuthority(tx, t, p, current) || current.Commit != c.Commit || t.CurrentRunID != "" {
+		if !candidateAuthority(tx, t, p, current) || current.Commit != c.Commit || t.CurrentRunID != "" || current.State != "reviewing" && current.State != "ready_to_land" {
 			return nil
+		}
+		if e := queuePullReviewRevocation(tx, current); e != nil {
+			return e
 		}
 		current.State, current.Detail = "rejected", detail
 		current.Version++

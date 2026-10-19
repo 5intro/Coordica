@@ -449,6 +449,11 @@ func invalidateRequirementCandidate(tx *store.Tx, t *domain.Task) error {
 	if c.TaskID != t.ID {
 		return domain.Fail("conflict", "候选与任务不匹配")
 	}
+	if c.State != "landed" {
+		if e := queuePullReviewRevocation(tx, c); e != nil {
+			return e
+		}
+	}
 	if c.State != "landed" && c.State != "rejected" && c.State != "failed" && c.State != "invalidated" {
 		c.State, c.Detail = "invalidated", "需求已修订或撤销，固定候选不再适用"
 		c.Version++
