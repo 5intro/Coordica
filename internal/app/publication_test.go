@@ -515,3 +515,46 @@ func TestPublicationConfigurationNeedsOwnerPausedQuietProject(t *testing.T) {
 		t.Fatal("stale configuration accepted")
 	}
 }
+
+func TestPublicationModeCannotChangeWithPendingCandidatesOrIntents(t *testing.T) {
+	cases := []struct {
+		candidate, intent string
+		allowed           bool
+	}{
+		{"reviewing", "", false}, {"ready_to_land", "", false}, {"accepted", "", false}, {"prechecking", "", false}, {"validating", "", false}, {"landing", "", false}, {"reconciling", "", false},
+		{"landed", "dispatching", false}, {"landed", "unknown", false}, {"landed", "prepared", false}, {"landed", "needs_attention", false},
+		{"landed", "completed", true}, {"rejected", "not_applied", true}, {"invalidated", "superseded", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.candidate+"/"+tc.intent, func(t *testing.T) {
+			ctx := context.Background()
+			f := newServiceFixture(t)
+			p := f.snapshot(t).Project
+			p.Paused, p.RepositoryURL = true, "https://github.com/owner/repo.git"
+			p.Publication = &domain.PublicationPolicy{Mode: "github", RequiredChecks: []string{"ci"}}
+			if e := f.s.DB.Update(ctx, func(tx *store.Tx) error {
+				if e := tx.Put("project", p.ID, p); e != nil {
+					return e
+				}
+				if e := tx.Put("candidate", "pending", domain.Candidate{ID: "pending", State: tc.candidate}); e != nil {
+					return e
+				}
+				if tc.intent != "" {
+					return tx.Put("intent", "pending", domain.Intent{ID: "pending", State: tc.intent, CandidateID: "pending"})
+				}
+				return nil
+			}); e != nil {
+				t.Fatal(e)
+			}
+			before := f.snapshot(t)
+			_, e := f.s.ConfigurePublication(ctx, f.owner, "change-mode", domain.PublicationRequest{ExpectedVersion: p.Version, Policy: domain.PublicationPolicy{Mode: "git"}})
+			if (e == nil) != tc.allowed {
+				t.Fatal("publication quiescence gate", tc, e)
+			}
+			after := f.snapshot(t)
+			if !tc.allowed && (after.Project.Publication.Mode != "github" || after.Project.Version != p.Version || len(after.Events) != len(before.Events)) {
+				t.Fatal("rejected configuration changed policy or audit")
+			}
+		})
+	}
+}

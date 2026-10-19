@@ -52,7 +52,7 @@ func (c *Client) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.
 		return out, nil
 	}
 	feedbackBytes := 64 << 10
-	checks, e := c.checks(ctx, s.Head, &feedbackBytes)
+	checks, e := c.evaluatedChecks(ctx, s, p.MergeCommit, &feedbackBytes)
 	if e != nil {
 		return out, e
 	}
@@ -101,6 +101,7 @@ func (c *Client) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.
 		}
 	}
 	out.CI = "success"
+requiredChecks:
 	for name, appID := range required {
 		matched := []domain.RemoteCheck{}
 		for _, check := range checks {
@@ -108,10 +109,10 @@ func (c *Client) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.
 				matched = append(matched, check)
 			}
 		}
-		if len(matched) != 1 {
+		if len(matched) == 0 {
 			out.CI = "pending"
-			out.Detail = "检查缺失或来源不唯一：" + name
-			if len(matched) == 0 && appID != nil && *appID > 0 {
+			out.Detail = "检查缺失或来源不符：" + name
+			if appID != nil && *appID > 0 {
 				for _, check := range checks {
 					if check.Name == name && check.AppID == 0 {
 						// REST commit statuses expose a creator, not a GitHub App
@@ -123,18 +124,33 @@ func (c *Client) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.
 			}
 			continue
 		}
-		if matched[0].State == "failure" {
-			out.CI = "failure"
-			out.Detail = "必需检查失败：" + name
-			break
-		}
-		if matched[0].State != "success" {
-			out.CI = "pending"
-			out.Detail = "等待必需检查：" + name
+		// Unpinned names may have both Check Runs and legacy statuses. Every
+		// matching provider must pass; one green result cannot mask another.
+		for _, check := range matched {
+			if check.State == "failure" {
+				out.CI = "failure"
+				out.Detail = "必需检查失败：" + name
+				break requiredChecks
+			}
+			if check.State != "success" {
+				out.CI = "pending"
+				out.Detail = "等待必需检查：" + name
+			}
 		}
 	}
 	if out.Review == "changes_requested" {
 		out.Detail = "GitHub 评审要求修改"
+	}
+	if p.MergeCommit != "" {
+		current, err := c.getPull(ctx, s)
+		if err != nil {
+			return out, err
+		}
+		if current.Head.SHA != s.Head || current.Base.SHA != s.Base || current.MergeCommit != p.MergeCommit || current.State != "open" || current.Merged || current.MergedAt != nil {
+			out.Detail = "PR 测试合并提交已变化，等待重新核对"
+			return out, nil
+		}
+		p = current
 	}
 	out.MergeReady = out.CI == "success" && out.Review != "changes_requested" && !p.Draft && p.Mergeable != nil && *p.Mergeable && (p.MergeableState == "clean" || p.MergeableState == "has_hooks" || p.MergeableState == "unstable")
 	if !out.MergeReady && out.Detail == "" {
@@ -143,10 +159,53 @@ func (c *Client) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.
 	return out, nil
 }
 
+// A test merge is CI evidence for the fixed head/base, never the approved
+// candidate itself. Keep each check's commit URL as its source evidence.
+func (c *Client) evaluatedChecks(ctx context.Context, s domain.PullRequestSpec, merge string, feedbackBytes *int) ([]domain.RemoteCheck, error) {
+	var evaluated []domain.RemoteCheck
+	if merge != "" {
+		if !fullSHA.MatchString(merge) || merge == s.Head || merge == s.Base {
+			return nil, errors.New("invalid GitHub test-merge identity")
+		}
+		var commit struct {
+			SHA     string `json:"sha"`
+			Parents []struct {
+				SHA string `json:"sha"`
+			} `json:"parents"`
+		}
+		if e := c.request(ctx, "GET", "/git/commits/"+merge, nil, &commit); e != nil {
+			return nil, e
+		}
+		if commit.SHA != merge || len(commit.Parents) != 2 || !(commit.Parents[0].SHA == s.Base && commit.Parents[1].SHA == s.Head || commit.Parents[0].SHA == s.Head && commit.Parents[1].SHA == s.Base) {
+			return nil, errors.New("GitHub test merge is not derived from the fixed PR head and base")
+		}
+		var e error
+		evaluated, e = c.checks(ctx, merge, feedbackBytes)
+		if e != nil {
+			return nil, e
+		}
+	}
+	head, e := c.checks(ctx, s.Head, feedbackBytes)
+	if e != nil {
+		return nil, e
+	}
+	sources := map[string]bool{}
+	key := func(check domain.RemoteCheck) string { return strconv.FormatInt(check.AppID, 10) + "/" + check.Name }
+	for _, check := range evaluated {
+		sources[key(check)] = true
+	}
+	for _, check := range head {
+		if !sources[key(check)] {
+			evaluated = append(evaluated, check)
+		}
+	}
+	return evaluated, nil
+}
+
 func (c *Client) checks(ctx context.Context, head string, feedbackBytes *int) ([]domain.RemoteCheck, error) {
 	checks := []domain.RemoteCheck{}
 	// Keep the latest run for each source/name. A different source with the same
-	// name remains distinct, so an unpinned required check cannot be spoofed.
+	// name remains distinct, so one provider cannot mask another's failure.
 	indexes := map[string]int{}
 	latestIDs := map[string]int64{}
 	for page := 1; page <= 10; page++ {

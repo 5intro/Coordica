@@ -35,6 +35,14 @@ type protocolFixture struct {
 	mergeableState        string
 	unmergeable           bool
 	reviewAppID           *int64
+	statusState           string
+	ciUnpinned            bool
+	testMerge             string
+	mergeParents          []string
+	mergeObjectSHA        string
+	mergeChecks           []map[string]any
+	mergeStatuses         []map[string]any
+	onMergeLookup         func()
 }
 
 func protocol(t *testing.T) *protocolFixture {
@@ -76,7 +84,7 @@ func protocol(t *testing.T) *protocolFixture {
 			if mergeableState == "" {
 				mergeableState = "clean"
 			}
-			return map[string]any{"number": 7, "state": state, "merged": false, "draft": false, "mergeable": !f.unmergeable, "mergeable_state": mergeableState, "head": map[string]any{"sha": head, "ref": f.spec.Branch, "repo": map[string]string{"full_name": headRepository}}, "base": map[string]any{"sha": f.spec.Base, "ref": "main", "repo": map[string]string{"full_name": baseRepository}}}
+			return map[string]any{"number": 7, "state": state, "merged": false, "draft": false, "mergeable": !f.unmergeable, "mergeable_state": mergeableState, "merge_commit_sha": f.testMerge, "head": map[string]any{"sha": head, "ref": f.spec.Branch, "repo": map[string]string{"full_name": headRepository}}, "base": map[string]any{"sha": f.spec.Base, "ref": "main", "repo": map[string]string{"full_name": baseRepository}}}
 		}
 		switch {
 		case p == "/pulls" && r.Method == "GET":
@@ -95,14 +103,49 @@ func protocol(t *testing.T) *protocolFixture {
 			}
 		case p == "/pulls/7" && r.Method == "GET":
 			write(pull())
+		case strings.HasPrefix(p, "/git/commits/") && f.testMerge != "":
+			parents := f.mergeParents
+			if parents == nil {
+				parents = []string{f.spec.Base, f.spec.Head}
+			}
+			values := []map[string]string{}
+			for _, sha := range parents {
+				values = append(values, map[string]string{"sha": sha})
+			}
+			sha := f.testMerge
+			if f.mergeObjectSHA != "" {
+				sha = f.mergeObjectSHA
+			}
+			if f.onMergeLookup != nil {
+				f.onMergeLookup()
+			}
+			write(map[string]any{"sha": sha, "parents": values})
 		case strings.HasSuffix(p, "/check-runs"):
 			checks := f.checks
+			if f.testMerge != "" && strings.Contains(p, "/commits/"+f.testMerge+"/") {
+				checks = f.mergeChecks
+				if checks == nil {
+					checks = []map[string]any{}
+				}
+			}
 			if checks == nil {
 				checks = []map[string]any{{"id": 1, "name": "ci", "status": "completed", "conclusion": f.checkState, "head_sha": f.spec.Head, "app": map[string]int{"id": 42}}}
 			}
 			write(map[string]any{"total_count": len(checks), "check_runs": checks})
 		case strings.HasSuffix(p, "/statuses"):
-			write([]any{map[string]any{"id": 9, "context": domain.ReviewCheckContext, "state": "success"}})
+			if f.testMerge != "" && strings.Contains(p, "/commits/"+f.testMerge+"/") {
+				values := f.mergeStatuses
+				if values == nil {
+					values = []map[string]any{}
+				}
+				write(values)
+			} else {
+				state := f.statusState
+				if state == "" {
+					state = "success"
+				}
+				write([]any{map[string]any{"id": 9, "context": domain.ReviewCheckContext, "state": state}})
+			}
 		case p == "/pulls/7/reviews":
 			if f.reviews != nil {
 				write(f.reviews)
@@ -110,7 +153,11 @@ func protocol(t *testing.T) *protocolFixture {
 				write([]any{map[string]any{"id": 3, "state": f.reviewState, "commit_id": f.spec.Head, "user": map[string]string{"login": "reviewer"}}})
 			}
 		case p == "/branches/main/protection":
-			write(map[string]any{"enforce_admins": map[string]bool{"enabled": f.admins}, "required_status_checks": map[string]any{"strict": f.strict, "checks": []any{map[string]any{"context": "ci", "app_id": 42}, map[string]any{"context": domain.ReviewCheckContext, "app_id": f.reviewAppID}}}})
+			var ciApp any = 42
+			if f.ciUnpinned {
+				ciApp = nil
+			}
+			write(map[string]any{"enforce_admins": map[string]bool{"enabled": f.admins}, "required_status_checks": map[string]any{"strict": f.strict, "checks": []any{map[string]any{"context": "ci", "app_id": ciApp}, map[string]any{"context": domain.ReviewCheckContext, "app_id": f.reviewAppID}}}})
 		case p == "/pulls/7/merge" && r.Method == "PUT":
 			var in map[string]string
 			if e := json.NewDecoder(r.Body).Decode(&in); e != nil {
@@ -398,5 +445,103 @@ func TestPRAppBoundLegacyStatusHasExplicitUnsupportedReason(t *testing.T) {
 	facts, e = f.client.Inspect(context.Background(), f.spec)
 	if e != nil || !facts.MergeReady {
 		t.Fatal("verifiable pinned Check Run was rejected", facts, e)
+	}
+}
+
+func TestPRUnpinnedContextRequiresAllReportingProviders(t *testing.T) {
+	for _, kind := range []string{"all_pass", "check_failed", "legacy_failed", "check_pending"} {
+		t.Run(kind, func(t *testing.T) {
+			f := protocol(t)
+			f.spec.Number = 7
+			conclusion, status := "success", "completed"
+			if kind == "check_failed" {
+				conclusion = "failure"
+			}
+			if kind == "check_pending" {
+				status = "in_progress"
+			}
+			if kind == "legacy_failed" {
+				f.statusState = "failure"
+			}
+			f.checks = []map[string]any{
+				{"id": 1, "name": "ci", "status": "completed", "conclusion": "success", "head_sha": f.spec.Head, "app": map[string]int{"id": 42}},
+				{"id": 2, "name": domain.ReviewCheckContext, "status": status, "conclusion": conclusion, "head_sha": f.spec.Head, "app": map[string]int{"id": 99}},
+			}
+			facts, e := f.client.Inspect(context.Background(), f.spec)
+			if e != nil || facts.MergeReady != (kind == "all_pass") {
+				t.Fatal("same-named providers not evaluated together", facts, e)
+			}
+			if (kind == "check_failed" || kind == "legacy_failed") && facts.CI != "failure" {
+				t.Fatal("a passing provider masked a failure", facts)
+			}
+		})
+	}
+}
+
+func TestPRChecksFollowBoundTestMergeWithoutReplacingCandidate(t *testing.T) {
+	for _, kind := range []string{"merge_only", "merge_failure", "merge_pending", "head_fallback", "merge_success_head_failure", "legacy_head_failure", "untrusted_merge_source", "merge_status_only", "invalid_identity", "wrong_check_commit", "wrong_head_parent", "wrong_base_parent", "extra_parent", "wrong_object", "changed_pr"} {
+		t.Run(kind, func(t *testing.T) {
+			f := protocol(t)
+			f.spec.Number = 7
+			f.testMerge = strings.Repeat("d", 40)
+			f.mergeChecks = []map[string]any{{"id": 11, "name": "ci", "status": "completed", "conclusion": "success", "head_sha": f.testMerge, "app": map[string]int{"id": 42}}}
+			switch kind {
+			case "merge_only":
+				f.checks = []map[string]any{}
+			case "merge_success_head_failure":
+				f.checkState = "failure"
+			case "legacy_head_failure":
+				f.statusState = "failure"
+				f.mergeChecks = append(f.mergeChecks, map[string]any{"id": 12, "name": domain.ReviewCheckContext, "status": "completed", "conclusion": "success", "head_sha": f.testMerge, "app": map[string]int{"id": 99}})
+			case "untrusted_merge_source":
+				f.mergeChecks[0]["app"] = map[string]int{"id": 99}
+			case "merge_status_only":
+				f.ciUnpinned = true
+				f.checks, f.mergeChecks = []map[string]any{}, []map[string]any{}
+				f.mergeStatuses = []map[string]any{{"id": 15, "context": "ci", "state": "success"}}
+			case "invalid_identity":
+				f.testMerge = "../invalid"
+			case "wrong_check_commit":
+				f.mergeChecks[0]["head_sha"] = strings.Repeat("e", 40)
+			case "merge_failure":
+				f.mergeChecks[0]["conclusion"] = "failure"
+			case "merge_pending":
+				f.mergeChecks[0]["status"] = "in_progress"
+			case "head_fallback":
+				f.mergeChecks = []map[string]any{}
+			case "wrong_head_parent":
+				f.mergeParents = []string{f.spec.Base, strings.Repeat("e", 40)}
+			case "wrong_base_parent":
+				f.mergeParents = []string{strings.Repeat("e", 40), f.spec.Head}
+			case "extra_parent":
+				f.mergeParents = []string{f.spec.Base, f.spec.Head, strings.Repeat("e", 40)}
+			case "wrong_object":
+				f.mergeObjectSHA = strings.Repeat("e", 40)
+			case "changed_pr":
+				f.onMergeLookup = func() { f.wrongHead = true }
+			}
+			facts, e := f.client.Inspect(context.Background(), f.spec)
+			pass := kind == "merge_only" || kind == "head_fallback" || kind == "merge_success_head_failure" || kind == "untrusted_merge_source" || kind == "merge_status_only"
+			if pass && (e != nil || !facts.MergeReady || facts.Head != f.spec.Head || facts.Base != f.spec.Base) {
+				t.Fatal("verified test-merge checks did not preserve fixed candidate", facts, e)
+			}
+			if !pass && e == nil && facts.MergeReady {
+				t.Fatal("test-merge failure or invalid provenance accepted", kind, facts)
+			}
+			if kind == "merge_only" {
+				found := false
+				for _, check := range facts.Checks {
+					if check.Name == "ci" && strings.Contains(check.URL, f.testMerge) {
+						found = true
+					}
+				}
+				if !found {
+					t.Fatal("test-merge check provenance missing")
+				}
+			}
+			if kind == "merge_failure" && (e != nil || facts.CI != "failure") {
+				t.Fatal("head success masked test-merge failure", facts, e)
+			}
+		})
 	}
 }

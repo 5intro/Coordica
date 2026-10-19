@@ -50,6 +50,8 @@ func (s *Service) ConfigurePublication(ctx context.Context, a Actor, key string,
 		if !p.Paused {
 			return nil, domain.Fail("conflict", "先暂停项目，再切换发布模式")
 		}
+		// This shared gate also rejects nonterminal candidates/publication
+		// intents and pending review revocations, not just live executions.
 		if e = initializationQuiet(tx); e != nil {
 			return nil, e
 		}
