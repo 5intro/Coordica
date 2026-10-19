@@ -111,6 +111,16 @@ func (c *Client) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.
 		if len(matched) != 1 {
 			out.CI = "pending"
 			out.Detail = "检查缺失或来源不唯一：" + name
+			if len(matched) == 0 && appID != nil && *appID > 0 {
+				for _, check := range checks {
+					if check.Name == name && check.AppID == 0 {
+						// REST commit statuses expose a creator, not a GitHub App
+						// identity. Never infer the pinned source from that creator.
+						out.Detail = "无法核验绑定 GitHub App 的 legacy commit status：" + name + "；请使用带 App 身份的 Check Run 或由 Owner 调整来源策略"
+						return out, nil
+					}
+				}
+			}
 			continue
 		}
 		if matched[0].State == "failure" {
@@ -163,7 +173,7 @@ func (c *Client) checks(ctx context.Context, head string, feedbackBytes *int) ([
 			return nil, errors.New("GitHub check history exceeds synchronization bound")
 		}
 		for _, r := range data.Runs {
-			if r.Head != head || r.Name == "" || len(r.Name) > 256 || r.ID <= 0 {
+			if r.Head != head || r.Name == "" || len(r.Name) > 256 || r.ID <= 0 || r.App.ID <= 0 {
 				return nil, errors.New("invalid GitHub check identity")
 			}
 			key := strconv.FormatInt(r.App.ID, 10) + "/" + r.Name

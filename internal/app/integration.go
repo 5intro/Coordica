@@ -572,8 +572,9 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 	if e != nil {
 		return e
 	}
+	var task domain.Task
+	var binding pullRequestBinding
 	if e = s.DB.View(ctx, func(tx *store.Tx) error {
-		var task domain.Task
 		if e := tx.Get("task", c.TaskID, &task); e != nil {
 			return e
 		}
@@ -582,6 +583,9 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 		}
 		if !candidateAuthority(tx, task, p, c) {
 			return domain.Fail("authorization_changed", "candidate baseline or authority changed")
+		}
+		if domain.GitHubPublication(p) {
+			return tx.Get("pull_request", task.ID, &binding)
 		}
 		return nil
 	}); e != nil {
@@ -592,6 +596,24 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 		return e
 	}
 	alreadyMerged := domain.GitHubPublication(p) && c.PullRequest != nil && c.PullRequest.State == "merged" && c.PullRequest.Head == c.Commit && c.PullRequest.MergeCommit != ""
+	var observed *domain.PullRequestStatus
+	if string(actual) != c.Main && !alreadyMerged && domain.GitHubPublication(p) {
+		// A remote merge can move main inside the normal sync backoff. Only
+		// inspect the fixed PR here: no branch push, create or approval replay.
+		if w.PullRequests == nil || c.PullRequest == nil || binding.Number != c.PullRequest.Number || binding.CandidateID != c.ID || binding.Desired != c.Commit {
+			return w.recordPullError(ctx, c, "等待原 GitHub PR 的主线变化核对")
+		}
+		bounded, cancel := context.WithTimeout(ctx, 60*time.Second)
+		facts, err := w.PullRequests.Inspect(bounded, pullSpec(p, task, c, binding))
+		cancel()
+		if err != nil || facts.Number != binding.Number || facts.Branch != binding.Branch || facts.Head != c.Commit || facts.State == "merged" && facts.MergeCommit == "" {
+			return w.recordPullError(ctx, c, "PR 主线变化核对失败；保留固定候选等待重试")
+		}
+		if facts.State == "merged" {
+			facts.SyncedAt = s.Now()
+			observed, alreadyMerged = &facts, true
+		}
+	}
 	if string(actual) != c.Main && !alreadyMerged {
 		return w.invalidate(ctx, c, "主线已变化，必须重建候选")
 	}
@@ -662,6 +684,16 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 			return nil
 		}
 		if domain.GitHubPublication(project) {
+			if observed != nil {
+				var bound pullRequestBinding
+				if e := tx.Get("pull_request", t.ID, &bound); e != nil {
+					return e
+				}
+				if current.Commit != c.Commit || bound.Number != observed.Number || bound.Branch != observed.Branch || bound.CandidateID != current.ID || bound.Desired != current.Commit {
+					return domain.Fail("conflict", "PR 绑定在核对期间已变化")
+				}
+				current.PullRequest = observed
+			}
 			if current.PullRequest == nil || current.PullRequest.Head != current.Commit || current.PullRequest.State != "merged" && current.PullRequest.Base != current.Main || (!current.PullRequest.MergeReady && current.PullRequest.State != "merged") || w.PullRequests == nil {
 				return nil
 			}

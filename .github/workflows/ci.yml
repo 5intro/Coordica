@@ -33,5 +33,7 @@ jobs:
       - run: go run ./cmd/contractgen
       - run: git diff --exit-code -- api/v1.schema.json web/src/api.generated.ts
       - run: go vet ./...
-      - run: python scripts/test-go.py
+      # The Windows application regressions use real Git/process boundaries;
+      # allow the full package to finish while retaining the supervisor limits.
+      - run: python scripts/test-go.py -- -race -timeout=15m ./...
       - run: go build -trimpath -o bin/coordica ./cmd/coordica

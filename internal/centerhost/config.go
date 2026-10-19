@@ -177,18 +177,44 @@ func Validate(c Config, path string) error {
 			return errors.New("Git credentials must live outside the source repository")
 		}
 	}
-	for _, asset := range append([]string{path, c.ChatProfile}, c.GitAuthFile, c.GitHubTokenFile) {
+	return ValidateCredentialPaths(c.DataDir, []string{path, c.ChatProfile, c.GitAuthFile, c.GitHubTokenFile})
+}
+
+// ValidateCredentialPaths rejects aliases of center assets before bootstrap can
+// create them. Direct serve and saved host configuration share this boundary.
+// Extra protected paths cover explicitly selected TLS files outside DataDir.
+func ValidateCredentialPaths(data string, assets []string, protected ...string) error {
+	for _, name := range []string{"owner.token", "coordica.db", "coordica.db-wal", "coordica.db-shm", "center.lock", "runner.json", "center-identity.json", "center-operation.json", "center.key", "center.crt"} {
+		protected = append(protected, filepath.Join(data, name))
+	}
+	for _, asset := range assets {
 		if asset == "" {
 			continue
 		}
-		ai, ae := os.Stat(asset)
-		if ae != nil {
-			continue
+		absolute, e := filepath.Abs(asset)
+		if e != nil {
+			return e
 		}
-		for _, name := range []string{"owner.token", "coordica.db", "runner.json", "center-identity.json", "center-operation.json", "center.key", "center.crt"} {
-			bi, be := os.Stat(filepath.Join(c.DataDir, name))
-			if be == nil && os.SameFile(ai, bi) {
-				return errors.New("host config/profile aliases a protected data asset")
+		ra, e := resolved(absolute)
+		if e != nil {
+			return e
+		}
+		ai, ae := os.Stat(absolute)
+		for _, other := range protected {
+			if other == "" {
+				continue
+			}
+			other, e = filepath.Abs(other)
+			if e != nil {
+				return e
+			}
+			rb, e := resolved(other)
+			if e != nil {
+				return e
+			}
+			bi, be := os.Stat(other)
+			if samePath(ra, rb) || ae == nil && be == nil && os.SameFile(ai, bi) {
+				return errors.New("credential or role file aliases a protected center asset")
 			}
 		}
 	}

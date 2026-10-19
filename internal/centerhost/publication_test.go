@@ -1,6 +1,7 @@
 package centerhost
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -32,5 +33,17 @@ func TestGitHubHostCredentialsRemainFixedAndOutsideSource(t *testing.T) {
 		if e := Validate(bad, path); e == nil {
 			t.Fatal("unsafe credential configuration accepted")
 		}
+	}
+}
+
+func TestGitHubCredentialRejectsProtectedAssetBeforeCreation(t *testing.T) {
+	c, path, _, _ := hostFixture(t)
+	c.TargetRepository, c.GitHubRepository = "https://github.com/example/repo.git", "example/repo"
+	c.GitHubTokenFile = filepath.Join(c.DataDir, "owner.token")
+	if e := Validate(c, path); e == nil {
+		t.Fatal("not-yet-created Owner credential accepted as GitHub token")
+	}
+	if _, e := os.Stat(c.GitHubTokenFile); !os.IsNotExist(e) {
+		t.Fatal("validation created credential", e)
 	}
 }

@@ -34,6 +34,7 @@ type protocolFixture struct {
 	baseRepository        string
 	mergeableState        string
 	unmergeable           bool
+	reviewAppID           *int64
 }
 
 func protocol(t *testing.T) *protocolFixture {
@@ -109,7 +110,7 @@ func protocol(t *testing.T) *protocolFixture {
 				write([]any{map[string]any{"id": 3, "state": f.reviewState, "commit_id": f.spec.Head, "user": map[string]string{"login": "reviewer"}}})
 			}
 		case p == "/branches/main/protection":
-			write(map[string]any{"enforce_admins": map[string]bool{"enabled": f.admins}, "required_status_checks": map[string]any{"strict": f.strict, "checks": []any{map[string]any{"context": "ci", "app_id": 42}, map[string]any{"context": domain.ReviewCheckContext, "app_id": nil}}}})
+			write(map[string]any{"enforce_admins": map[string]bool{"enabled": f.admins}, "required_status_checks": map[string]any{"strict": f.strict, "checks": []any{map[string]any{"context": "ci", "app_id": 42}, map[string]any{"context": domain.ReviewCheckContext, "app_id": f.reviewAppID}}}})
 		case p == "/pulls/7/merge" && r.Method == "PUT":
 			var in map[string]string
 			if e := json.NewDecoder(r.Body).Decode(&in); e != nil {
@@ -376,5 +377,26 @@ func TestPRTokenRejectsDirectory(t *testing.T) {
 	f.client.tokenFile = t.TempDir()
 	if _, e := f.client.token(); e == nil || strings.Contains(e.Error(), f.client.tokenFile) {
 		t.Fatal("non-regular token accepted or path disclosed", e)
+	}
+}
+
+func TestPRAppBoundLegacyStatusHasExplicitUnsupportedReason(t *testing.T) {
+	f := protocol(t)
+	f.spec.Number = 7
+	appID := int64(42)
+	f.reviewAppID = &appID
+	facts, e := f.client.Inspect(context.Background(), f.spec)
+	if e != nil || facts.MergeReady || facts.CI == "success" || !strings.Contains(facts.Detail, "legacy commit status") || !strings.Contains(facts.Detail, domain.ReviewCheckContext) {
+		t.Fatal("unknown legacy source was not explicitly rejected", facts, e)
+	}
+	// A pinned Check Run has verifiable App identity, even alongside a same-name
+	// legacy status. Unknown legacy sources cannot stand in for that App.
+	f.checks = []map[string]any{
+		{"id": 1, "name": "ci", "status": "completed", "conclusion": "success", "head_sha": f.spec.Head, "app": map[string]int{"id": 42}},
+		{"id": 2, "name": domain.ReviewCheckContext, "status": "completed", "conclusion": "success", "head_sha": f.spec.Head, "app": map[string]int{"id": 42}},
+	}
+	facts, e = f.client.Inspect(context.Background(), f.spec)
+	if e != nil || !facts.MergeReady {
+		t.Fatal("verifiable pinned Check Run was rejected", facts, e)
 	}
 }

@@ -111,15 +111,18 @@ func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hos
 	if e != nil {
 		return e
 	}
+	absolute, e := filepath.Abs(*dir)
+	if e != nil {
+		return e
+	}
+	if e = centerhost.ValidateCredentialPaths(absolute, []string{*authFile, *githubTokenFile}, *cert, *key); e != nil {
+		return e
+	}
 	var tlsPair tls.Certificate
 	if *cert != "" {
 		if tlsPair, e = tls.LoadX509KeyPair(*cert, *key); e != nil {
 			return e
 		}
-	}
-	absolute, e := filepath.Abs(*dir)
-	if e != nil {
-		return e
 	}
 	if e = os.MkdirAll(absolute, 0700); e != nil {
 		return e
