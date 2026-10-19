@@ -108,7 +108,8 @@ func identityEnv(id Identity) ([]string, error) {
 type Client struct {
 	GitPath              string
 	analysisPrivatePaths []string
-	authRemote           string
+	authRemotes          map[string]bool
+	authMatches          func(string) bool
 	authorization        string
 }
 
@@ -120,20 +121,38 @@ func New(gitPath string) *Client {
 }
 
 // WithHTTPSAuthorization returns a center-only client whose Authorization
-// header is bound to exactly one HTTPS remote. A Runner uses the plain client.
+// header is bound to an explicit list of exact HTTPS URLs. A Runner uses the plain client.
 // The header is supplied through child environment, never command arguments.
-func (g *Client) WithHTTPSAuthorization(remote, authorization string) (*Client, error) {
-	u, err := httpsRemote(remote)
-	if err != nil {
-		return nil, err
-	}
+func (g *Client) WithHTTPSAuthorization(remote, authorization string, aliases ...string) (*Client, error) {
 	if authorization == "" || strings.ContainsAny(authorization, "\r\n\x00") {
 		return nil, fmt.Errorf("invalid HTTPS Authorization value")
 	}
 	copy := *g
-	copy.authRemote = u
+	copy.authRemotes = map[string]bool{}
+	copy.authMatches = nil
+	for _, value := range append([]string{remote}, aliases...) {
+		u, err := httpsRemote(value)
+		if err != nil {
+			return nil, err
+		}
+		copy.authRemotes[u] = true
+	}
 	copy.authorization = authorization
 	return &copy, nil
+}
+
+// WithHTTPSAuthorizationMatching lets a trusted adapter recognize equivalent
+// repository URLs. It owns identity matching; Git still rejects unsafe URLs.
+func (g *Client) WithHTTPSAuthorizationMatching(remote, authorization string, matches func(string) bool) (*Client, error) {
+	bound, err := g.WithHTTPSAuthorization(remote, authorization)
+	if err != nil {
+		return nil, err
+	}
+	if matches == nil || !matches(remote) {
+		return nil, fmt.Errorf("HTTPS Authorization matcher must accept its fixed repository")
+	}
+	bound.authMatches = matches
+	return bound, nil
 }
 
 func httpsRemote(remote string) (string, error) {
@@ -150,7 +169,12 @@ func httpsRemote(remote string) (string, error) {
 	return u.String(), nil
 }
 func (g *Client) authEnv(remote string) []string {
-	if remote != g.authRemote || g.authorization == "" {
+	allowed := g.authRemotes[remote]
+	if !allowed && g.authMatches != nil {
+		_, err := httpsRemote(remote)
+		allowed = err == nil && g.authMatches(remote)
+	}
+	if !allowed || g.authorization == "" {
 		return nil
 	}
 	// Keys are added after the fixed configuration list by run.

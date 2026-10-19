@@ -28,6 +28,7 @@ import (
 	"coordica/internal/chatprofile"
 	"coordica/internal/domain"
 	"coordica/internal/filelock"
+	githubhost "coordica/internal/github"
 	"coordica/internal/gitops"
 	"coordica/internal/httpapi"
 	"coordica/internal/mcp"
@@ -97,6 +98,8 @@ func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hos
 	key := f.String("tls-key", "", "PEM private key")
 	authFile := f.String("git-auth-file", "", "Center-only file containing HTTPS Authorization header value")
 	authRemote := f.String("git-auth-remote", "", "Exact HTTPS repository URL authorized by git-auth-file")
+	githubRepository := f.String("github-repository", "", "Fixed owner/repository allowed for GitHub PR operations")
+	githubTokenFile := f.String("github-token-file", "", "Center-only absolute file containing a GitHub API token")
 	if e := f.Parse(args); e != nil {
 		return e
 	}
@@ -108,15 +111,18 @@ func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hos
 	if e != nil {
 		return e
 	}
+	absolute, e := filepath.Abs(*dir)
+	if e != nil {
+		return e
+	}
+	if e = centerhost.ValidateCredentialPaths(absolute, []string{*authFile, *githubTokenFile}, *cert, *key); e != nil {
+		return e
+	}
 	var tlsPair tls.Certificate
 	if *cert != "" {
 		if tlsPair, e = tls.LoadX509KeyPair(*cert, *key); e != nil {
 			return e
 		}
-	}
-	absolute, e := filepath.Abs(*dir)
-	if e != nil {
-		return e
 	}
 	if e = os.MkdirAll(absolute, 0700); e != nil {
 		return e
@@ -147,6 +153,26 @@ func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hos
 			return e
 		}
 	}
+	var githubAdapter *githubhost.Client
+	if *githubRepository != "" || *githubTokenFile != "" {
+		githubAdapter, e = githubhost.New(*githubRepository, *githubTokenFile)
+		if e != nil {
+			return e
+		}
+		if *authFile == "" {
+			remote := "https://github.com/" + *githubRepository + ".git"
+			authorization, err := githubAdapter.HTTPSAuthorization(remote)
+			if err != nil {
+				return err
+			}
+			// Let the adapter recognize case-equivalent forms of its fixed
+			// repository, including before the project has been created.
+			g, err = g.WithHTTPSAuthorizationMatching(remote, authorization, githubAdapter.MatchesRepositoryURL)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	if e = s.RecoverCenter(ctx); e != nil {
 		return e
 	}
@@ -155,6 +181,11 @@ func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hos
 		return e
 	}
 	privatePaths := []string{absolute}
+	for _, secret := range []string{*authFile, *githubTokenFile} {
+		if secret != "" {
+			privatePaths = append(privatePaths, secret)
+		}
+	}
 	if host != nil {
 		privatePaths = append(privatePaths, host.ChatProfile, hostPath)
 	}
@@ -164,6 +195,9 @@ func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hos
 		return e
 	}
 	integration := &app.Integrator{Service: s, Git: g}
+	if githubAdapter != nil {
+		integration.PullRequests = githubAdapter
+	}
 	api := &httpapi.Server{Service: s, Integration: integration, UI: web.FS()}
 	if host != nil {
 		manager := centerManager(hostPath)

@@ -131,6 +131,11 @@ func initializationQuiet(tx *store.Tx) error {
 	if !p.Paused {
 		return domain.Fail("pause_required", "请先暂停项目并等待所有执行停止")
 	}
+	if pending, e := publicationRevocationsPending(tx); e != nil {
+		return e
+	} else if pending {
+		return domain.Fail("busy", "GitHub 旧评审状态尚未撤销，等待发布对账")
+	}
 	runs, e := store.List[domain.Run](tx, "run")
 	if e != nil {
 		return e

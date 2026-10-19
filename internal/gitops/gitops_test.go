@@ -9,6 +9,9 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	githubhost "coordica/internal/github"
+	"coordica/internal/localfile"
 )
 
 var testIdentity = Identity{Name: "Coordica Test", Email: "test@example.invalid"}
@@ -691,6 +694,88 @@ func TestHTTPSCredentialBindingAndInputValidation(t *testing.T) {
 	}
 	if _, err := g.WithHTTPSAuthorization(remote, "value\r\nextra: header"); err == nil {
 		t.Fatal("header injection accepted")
+	}
+}
+
+func TestHTTPSCredentialExplicitAliasesBeforeProjectCreation(t *testing.T) {
+	g := gitClient(t)
+	withSuffix := "https://github.com/owner/repo.git"
+	withoutSuffix := "https://github.com/owner/repo"
+	auth, e := g.WithHTTPSAuthorization(withSuffix, "Bearer fixture", withoutSuffix)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, remote := range []string{withSuffix, withoutSuffix} {
+		if len(auth.authEnv(remote)) != 1 {
+			t.Fatal("fresh center omitted credential for an explicit URL form", remote)
+		}
+	}
+	for _, remote := range []string{withoutSuffix + "/other", withoutSuffix + "?token=1", "https://example.com/owner/repo", "https://github.com/other/repo"} {
+		if len(auth.authEnv(remote)) != 0 {
+			t.Fatal("credential escaped explicit allowlist")
+		}
+	}
+	if _, e = g.WithHTTPSAuthorization(withSuffix, "Bearer fixture", "http://github.com/owner/repo"); e == nil {
+		t.Fatal("unsafe alias accepted")
+	}
+}
+
+func TestGitHubCredentialMatcherReachesGitForEquivalentRepositoryURLs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "github-token")
+	if err := localfile.WritePrivate(path, []byte("fixture-token")); err != nil {
+		t.Fatal(err)
+	}
+	adapter, err := githubhost.New("Owner/Repo", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configured := "https://github.com/Owner/Repo.git"
+	header, err := adapter.HTTPSAuthorization(configured)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain := gitClient(t)
+	bound, err := plain.WithHTTPSAuthorizationMatching(configured, header, adapter.MatchesRepositoryURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, remote := range []string{configured, "https://github.com/owner/repo.git", "https://github.com/OWNER/RePo", "https://github.com/Owner/Repo"} {
+		if len(plain.authEnv(remote)) != 0 || len(bound.authEnv(remote)) != 1 {
+			t.Fatal("fixed repository credential missing or original client mutated", remote)
+		}
+		// Execute real Git with the same controlled environment used by clone,
+		// fetch and work-branch push, without contacting a public repository.
+		out, err := bound.run(context.Background(), "", bound.authEnv(remote), "config", "--get", "http.extraHeader")
+		if err != nil || strings.TrimSpace(string(out)) != "Authorization: "+header {
+			t.Fatal("equivalent URL omitted Git transport authorization", err)
+		}
+	}
+	for _, remote := range []string{"https://github.com/other/repo.git", "https://github.com/owner/repo-extra", "https://example.com/Owner/Repo", "https://github.com/owner/repo.git/other", "https://github.com:443/owner/repo", "https://github.com/owner/repo?x=1", "https://user@github.com/owner/repo", "file:///tmp/repo"} {
+		if len(bound.authEnv(remote)) != 0 {
+			t.Fatal("credential escaped fixed GitHub repository", remote)
+		}
+	}
+	exact, err := bound.WithHTTPSAuthorization(configured, header)
+	if err != nil || len(exact.authEnv("https://github.com/owner/repo.git")) != 0 {
+		t.Fatal("exact rebinding retained an adapter matcher", err)
+	}
+}
+
+func TestHTTPSCredentialMatcherCannotAcceptUnsafeTransportURLs(t *testing.T) {
+	g := gitClient(t)
+	bound, err := g.WithHTTPSAuthorizationMatching("https://example.com/repo", "Bearer fixture", func(string) bool { return true })
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, remote := range []string{"http://example.com/repo", "https://user@example.com/repo", "https://example.com/repo?secret=1", "https://example.com/repo#fragment", "https://example.com/repo\nextra", "file:///tmp/repo"} {
+		if len(bound.authEnv(remote)) != 0 {
+			t.Fatal("matcher bypassed HTTPS URL validation", remote)
+		}
+	}
+	for _, match := range []func(string) bool{nil, func(string) bool { return false }} {
+		if _, err := g.WithHTTPSAuthorizationMatching("https://example.com/repo", "Bearer fixture", match); err == nil {
+			t.Fatal("invalid fixed repository matcher accepted")
+		}
 	}
 }
 

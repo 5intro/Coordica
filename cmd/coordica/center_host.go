@@ -38,6 +38,10 @@ func hostConfig(args []string) error {
 	runnerURL := f.String("runner-url", "", "Fixed HTTPS URL covered by generated TLS")
 	checksFile := f.String("checks-file", "", "Optional trusted JSON array of active checks (proposed during baseline analysis, never run during init)")
 	proxy := f.String("https-proxy", "", "Optional fixed non-secret standard HTTPS proxy origin for native model network")
+	gitAuthFile := f.String("git-auth-file", "", "Optional center-only Git Authorization file")
+	gitAuthRemote := f.String("git-auth-remote", "", "Exact HTTPS remote authorized by the Git file")
+	githubRepository := f.String("github-repository", "", "Fixed owner/repository for GitHub PR operations")
+	githubTokenFile := f.String("github-token-file", "", "Center-only absolute GitHub API token file")
 	if e := f.Parse(args); e != nil {
 		return e
 	}
@@ -71,6 +75,7 @@ func hostConfig(args []string) error {
 		}
 	}
 	c := centerhost.Config{Version: 1, Role: *role, Executable: *executable, DataDir: *data, ChatProfile: *profile, Repository: *repository, TargetRepository: *target, Branch: *branch, Name: *name, ConsoleListen: *console, RunnerListen: *runner, RunnerURL: *runnerURL, CodexExecutable: *leader, RuntimePath: *runtimePath, HTTPSProxy: *proxy, Checks: checks}
+	c.GitAuthFile, c.GitAuthRemote, c.GitHubRepository, c.GitHubTokenFile = *gitAuthFile, *gitAuthRemote, *githubRepository, *githubTokenFile
 	if e := centerhost.Save(*path, c); e != nil {
 		return e
 	}
@@ -177,6 +182,12 @@ func centerServe(ctx context.Context, args []string) error {
 		return errors.New("saved center service/data identity conflicts")
 	}
 	argv := []string{"--data", c.DataDir, "--listen", c.RunnerListen, "--console-listen", c.ConsoleListen, "--leader-executable", c.CodexExecutable}
+	if c.GitAuthFile != "" {
+		argv = append(argv, "--git-auth-file", c.GitAuthFile, "--git-auth-remote", c.GitAuthRemote)
+	}
+	if c.GitHubTokenFile != "" {
+		argv = append(argv, "--github-repository", c.GitHubRepository, "--github-token-file", c.GitHubTokenFile)
+	}
 	if c.TLS() {
 		argv = append(argv, "--tls-cert", filepath.Join(c.DataDir, "center.crt"), "--tls-key", filepath.Join(c.DataDir, "center.key"))
 		u, _ := url.Parse(c.RunnerURL)

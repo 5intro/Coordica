@@ -36,6 +36,10 @@ type Config struct {
 	CodexExecutable  string         `json:"codex_executable"`
 	RuntimePath      string         `json:"runtime_path"`
 	HTTPSProxy       string         `json:"https_proxy,omitempty"`
+	GitAuthFile      string         `json:"git_auth_file,omitempty"`
+	GitAuthRemote    string         `json:"git_auth_remote,omitempty"`
+	GitHubRepository string         `json:"github_repository,omitempty"`
+	GitHubTokenFile  string         `json:"github_token_file,omitempty"`
 	Checks           []domain.Check `json:"checks"`
 }
 
@@ -48,6 +52,17 @@ func (c Config) RepositoryURL() string {
 func (c Config) ConsoleURL() string { return "http://" + c.ConsoleListen }
 func (c Config) TLS() bool          { return c.RunnerListen != c.ConsoleListen }
 func Validate(c Config, path string) error {
+	if c.GitHubRepository != "" || c.GitHubTokenFile != "" {
+		repository, e := domain.GitHubRepository(c.RepositoryURL())
+		if e != nil || !strings.EqualFold(repository, c.GitHubRepository) || !filepath.IsAbs(c.GitHubTokenFile) || strings.ContainsAny(c.GitHubTokenFile, "\x00\r\n") {
+			return errors.New("GitHub adapter needs a fixed matching repository and absolute center token file")
+		}
+	}
+	if c.GitAuthFile != "" || c.GitAuthRemote != "" {
+		if !filepath.IsAbs(c.GitAuthFile) || c.GitAuthRemote != c.RepositoryURL() || !strings.HasPrefix(c.GitAuthRemote, "https://") || strings.ContainsAny(c.GitAuthFile, "\x00\r\n") {
+			return errors.New("Git authorization must bind the fixed HTTPS repository and absolute secret file")
+		}
+	}
 	if c.Version != 1 || c.Role != "center" {
 		return errors.New("trusted center host configuration required")
 	}
@@ -97,6 +112,11 @@ func Validate(c Config, path string) error {
 	// Resolve parent symlinks before comparing assets. A configuration/profile
 	// cannot overwrite data credentials, repository source, or each other.
 	assets := []string{path, c.ChatProfile, c.Executable, c.CodexExecutable}
+	for _, secret := range []string{c.GitAuthFile, c.GitHubTokenFile} {
+		if secret != "" {
+			assets = append(assets, secret)
+		}
+	}
 	for i, a := range assets {
 		ra, e := resolved(a)
 		if e != nil {
@@ -144,15 +164,57 @@ func Validate(c Config, path string) error {
 			return errors.New("center data and repository must be separate")
 		}
 	}
-	for _, asset := range []string{path, c.ChatProfile} {
-		ai, ae := os.Stat(asset)
-		if ae != nil {
+	for _, secret := range []string{c.GitAuthFile, c.GitHubTokenFile} {
+		if secret == "" {
 			continue
 		}
-		for _, name := range []string{"owner.token", "coordica.db", "runner.json", "center-identity.json", "center-operation.json", "center.key", "center.crt"} {
-			bi, be := os.Stat(filepath.Join(c.DataDir, name))
-			if be == nil && os.SameFile(ai, bi) {
-				return errors.New("host config/profile aliases a protected data asset")
+		rs, e := resolved(secret)
+		if e != nil {
+			return e
+		}
+		rel, e := filepath.Rel(rb, rs)
+		if e == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return errors.New("Git credentials must live outside the source repository")
+		}
+	}
+	return ValidateCredentialPaths(c.DataDir, []string{path, c.ChatProfile, c.GitAuthFile, c.GitHubTokenFile})
+}
+
+// ValidateCredentialPaths rejects aliases of center assets before bootstrap can
+// create them. Direct serve and saved host configuration share this boundary.
+// Extra protected paths cover explicitly selected TLS files outside DataDir.
+func ValidateCredentialPaths(data string, assets []string, protected ...string) error {
+	for _, name := range []string{"owner.token", "coordica.db", "coordica.db-wal", "coordica.db-shm", "center.lock", "runner.json", "center-identity.json", "center-operation.json", "center.key", "center.crt"} {
+		protected = append(protected, filepath.Join(data, name))
+	}
+	for _, asset := range assets {
+		if asset == "" {
+			continue
+		}
+		absolute, e := filepath.Abs(asset)
+		if e != nil {
+			return e
+		}
+		ra, e := resolved(absolute)
+		if e != nil {
+			return e
+		}
+		ai, ae := os.Stat(absolute)
+		for _, other := range protected {
+			if other == "" {
+				continue
+			}
+			other, e = filepath.Abs(other)
+			if e != nil {
+				return e
+			}
+			rb, e := resolved(other)
+			if e != nil {
+				return e
+			}
+			bi, be := os.Stat(other)
+			if samePath(ra, rb) || ae == nil && be == nil && os.SameFile(ai, bi) {
+				return errors.New("credential or role file aliases a protected center asset")
 			}
 		}
 	}

@@ -129,3 +129,69 @@ func TestConsoleBindFailureDoesNotLeavePartialRunnerListener(t *testing.T) {
 	}
 	probe.Close()
 }
+
+func TestServeRejectsGitCredentialsAliasingCenterAssetsBeforeBootstrap(t *testing.T) {
+	for _, flag := range []string{"--github-token-file", "--git-auth-file"} {
+		for _, kind := range []string{"missing", "existing", "hardlink", "parent_alias", "tls_key"} {
+			t.Run(flag+"/"+kind, func(t *testing.T) {
+				data := filepath.Join(t.TempDir(), "center")
+				token := filepath.Join(data, "owner.token")
+				if kind != "missing" {
+					if e := os.MkdirAll(data, 0700); e != nil {
+						t.Fatal(e)
+					}
+					if e := os.WriteFile(token, []byte("synthetic-owner-secret"), 0600); e != nil {
+						t.Fatal(e)
+					}
+				}
+				protected := token
+				switch kind {
+				case "hardlink":
+					token = filepath.Join(filepath.Dir(data), "github-token")
+					if e := os.Link(protected, token); e != nil {
+						t.Skip("hardlinks unavailable", e)
+					}
+				case "parent_alias":
+					alias := filepath.Join(filepath.Dir(data), "alias")
+					if e := os.Symlink(data, alias); e != nil {
+						t.Skip("symlinks unavailable", e)
+					}
+					if e := os.Remove(protected); e != nil {
+						t.Fatal(e)
+					}
+					token = filepath.Join(alias, "owner.token")
+				case "tls_key":
+					token = filepath.Join(filepath.Dir(data), "tls-secret")
+				}
+				args := []string{"--data", data, "--listen", "127.0.0.1:0", "--console-listen", "127.0.0.1:0", flag, token}
+				if flag == "--github-token-file" {
+					args = append(args, "--github-repository", "example/repo")
+				} else {
+					args = append(args, "--git-auth-remote", "https://github.com/example/repo.git")
+				}
+				if kind == "tls_key" {
+					args = append(args, "--tls-cert", token, "--tls-key", token, "--listen", "127.0.0.1:8443", "--console-listen", "127.0.0.1:8080")
+				}
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				e := serve(ctx, args)
+				if e == nil || !strings.Contains(e.Error(), "aliases a protected center asset") {
+					t.Fatal("center credential not rejected before reading", e)
+				}
+				if _, e := os.Stat(filepath.Join(data, "coordica.db")); !os.IsNotExist(e) {
+					t.Fatal("unsafe startup created database", e)
+				}
+				if kind == "missing" || kind == "parent_alias" {
+					if _, e := os.Stat(protected); !os.IsNotExist(e) {
+						t.Fatal("unsafe startup minted Owner", e)
+					}
+				} else {
+					raw, e := os.ReadFile(protected)
+					if e != nil || string(raw) != "synthetic-owner-secret" {
+						t.Fatal("unsafe startup modified credential", e)
+					}
+				}
+			})
+		}
+	}
+}

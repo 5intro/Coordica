@@ -556,6 +556,7 @@ export interface Check {
   timeout_seconds: number;
 }
 export interface Project {
+  publication?: PublicationPolicy | null;
   id: string;
   version: number;
   name: string;
@@ -715,6 +716,7 @@ export interface CheckResult {
   duration_seconds: number;
 }
 export interface Candidate {
+  pull_request?: PullRequestStatus | null;
   preparation_stopped?: boolean;
   check_plan?: CheckPlan | null;
   check_run_id?: string;
@@ -842,6 +844,46 @@ export interface Artifact {
   sha256: string;
   size: number;
   created_at: string;
+}
+export interface PublicationPolicy {
+  mode: string;
+  required_checks: (string)[] | null;
+}
+export interface PublicationRequest {
+  expected_version: number;
+  policy: PublicationPolicy;
+}
+export interface RemoteCheck {
+  summary?: string;
+  name: string;
+  state: string;
+  app_id: number;
+  url: string;
+}
+export interface RemoteReview {
+  summary?: string;
+  id: number;
+  author: string;
+  state: string;
+  commit: string;
+  url: string;
+}
+export interface PullRequestStatus {
+  number: number;
+  url: string;
+  branch: string;
+  head: string;
+  base: string;
+  state: string;
+  ci: string;
+  review: string;
+  checks: (RemoteCheck)[] | null;
+  reviews: (RemoteReview)[] | null;
+  merge_commit: string;
+  merge_ready: boolean;
+  detail: string;
+  sync_error?: string;
+  synced_at: string;
 }
 export interface TestSuite {
   output_paths?: (string)[] | null;
