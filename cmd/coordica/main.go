@@ -165,8 +165,9 @@ func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hos
 			if err != nil {
 				return err
 			}
-			// Both literal GitHub URL forms work before a project is created.
-			g, err = g.WithHTTPSAuthorization(remote, authorization, strings.TrimSuffix(remote, ".git"))
+			// Let the adapter recognize case-equivalent forms of its fixed
+			// repository, including before the project has been created.
+			g, err = g.WithHTTPSAuthorizationMatching(remote, authorization, githubAdapter.MatchesRepositoryURL)
 			if err != nil {
 				return err
 			}

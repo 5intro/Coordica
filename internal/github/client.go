@@ -58,11 +58,17 @@ func (c *Client) token() (string, error) {
 	return token, nil
 }
 
-// HTTPSAuthorization lets the center reuse one private GitHub credential for
-// Git transport, still bound by gitops to one exact HTTPS repository URL.
-func (c *Client) HTTPSAuthorization(remote string) (string, error) {
+// MatchesRepositoryURL recognizes only this fixed GitHub repository, including
+// equivalent owner/repository casing and the two supported .git URL forms.
+func (c *Client) MatchesRepositoryURL(remote string) bool {
 	repository, e := domain.GitHubRepository(remote)
-	if e != nil || !strings.EqualFold(repository, c.repository) {
+	return e == nil && strings.EqualFold(repository, c.repository)
+}
+
+// HTTPSAuthorization lets the center reuse one private GitHub credential for
+// Git transport without accepting another repository or credential-bearing URL.
+func (c *Client) HTTPSAuthorization(remote string) (string, error) {
+	if !c.MatchesRepositoryURL(remote) {
 		return "", errors.New("Git credential repository mismatch")
 	}
 	token, e := c.token()
