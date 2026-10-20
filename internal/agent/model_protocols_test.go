@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -22,9 +23,14 @@ func fakeClaudeCatalog() {
 func fakeConfiguredACP() {
 	scanner := bufio.NewScanner(os.Stdin)
 	model, effort, mode := "model-a", "high", "code"
+	firstModel := model
+	if os.Getenv("AGENT_TEST_OPAQUE_MODEL") != "" {
+		firstModel = `["provider","reported-model"]`
+		model = firstModel
+	}
 	authenticated := false
 	options := func() []any {
-		return []any{map[string]any{"id": "opaque-mode-option", "category": "mode", "type": "select", "currentValue": mode, "options": []any{map[string]string{"value": "ask", "name": "Ask"}, map[string]string{"value": "code", "name": "Code"}}}, map[string]any{"id": "opaque-model-option", "category": "model", "type": "select", "currentValue": model, "options": []any{map[string]string{"value": "model-a", "name": "Model A"}, map[string]string{"value": "model-b", "name": "Model B"}}}, map[string]any{"id": "opaque-effort-option", "category": "thought_level", "type": "select", "currentValue": effort, "options": []any{map[string]string{"value": "high", "name": "High"}, map[string]string{"value": "max", "name": "Max"}}}}
+		return []any{map[string]any{"id": "opaque-mode-option", "category": "mode", "type": "select", "currentValue": mode, "options": []any{map[string]string{"value": "ask", "name": "Ask"}, map[string]string{"value": "code", "name": "Code"}}}, map[string]any{"id": "opaque-model-option", "category": "model", "type": "select", "currentValue": model, "options": []any{map[string]string{"value": firstModel, "name": "Model A"}, map[string]string{"value": "model-b", "name": "Model B"}}}, map[string]any{"id": "opaque-effort-option", "category": "thought_level", "type": "select", "currentValue": effort, "options": []any{map[string]string{"value": "high", "name": "High"}, map[string]string{"value": "max", "name": "Max"}}}}
 	}
 	for scanner.Scan() {
 		var request struct {
@@ -33,13 +39,36 @@ func fakeConfiguredACP() {
 			Params struct{ ConfigID, Value, MethodID, SessionID string }
 		}
 		json.Unmarshal(scanner.Bytes(), &request)
+		if path := os.Getenv("AGENT_TEST_SESSION_LOG"); path != "" {
+			f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+			if err != nil {
+				os.Exit(8)
+			}
+			_, _ = f.WriteString(request.Method + "\n")
+			_ = f.Close()
+		}
 		result := map[string]any{}
+		switch os.Getenv("AGENT_TEST_METADATA_NOISE") {
+		case "line":
+			fmt.Println("[catalog] diagnostic, not protocol facts")
+		case "flood":
+			for i := 0; i < 300; i++ {
+				fmt.Println("[catalog] diagnostic, not protocol facts")
+			}
+		case "malformed":
+			fmt.Println(`{"jsonrpc":`)
+		}
 		switch request.Method {
 		case "initialize":
 			result["protocolVersion"] = 1
+			sessions := map[string]any{"resume": map[string]any{}}
 			if os.Getenv("AGENT_TEST_CLOSE") != "missing" {
-				result["agentCapabilities"] = map[string]any{"sessionCapabilities": map[string]any{"close": map[string]any{}}}
+				sessions["close"] = map[string]any{}
 			}
+			if os.Getenv("AGENT_TEST_RESUME") == "missing" {
+				delete(sessions, "resume")
+			}
+			result["agentCapabilities"] = map[string]any{"sessionCapabilities": sessions, "loadSession": os.Getenv("AGENT_TEST_RESUME") != "missing"}
 			result["authMethods"] = []any{map[string]string{"id": "cursor_login"}}
 			if os.Getenv("AGENT_TEST_AUTH") == "missing" {
 				result["authMethods"] = []any{}
@@ -51,11 +80,38 @@ func fakeConfiguredACP() {
 			}
 			authenticated = true
 		case "session/new":
+			recordForbiddenFixtureAction("new-session")
+			if os.Getenv("AGENT_TEST_NEW_REPLY") == "lost" {
+				return
+			}
+			if mode := os.Getenv("AGENT_TEST_NEW_REPLY"); mode != "" {
+				id := request.ID
+				failure := map[string]any{"code": -32000, "message": "creation rejected"}
+				response := map[string]any{"jsonrpc": "2.0", "id": id, "error": failure}
+				if mode == "wrong-error-id" {
+					response["id"] = id + 1
+				}
+				if mode == "malformed-error" {
+					delete(failure, "code")
+				}
+				if mode == "mixed-result-error" {
+					response["result"] = map[string]string{"sessionId": "maybe-created"}
+				}
+				printJSON(response)
+				continue
+			}
 			if os.Getenv("AGENT_TEST_AUTH") != "" && !authenticated {
 				printJSON(map[string]any{"jsonrpc": "2.0", "id": request.ID, "error": map[string]any{"code": -32000, "message": "authenticate first"}})
 				continue
 			}
 			result["sessionId"] = "catalog-session"
+			result["configOptions"] = options()
+		case "session/resume", "session/load":
+			recordForbiddenFixtureAction("resume-session")
+			if request.Params.SessionID != "catalog-session" || os.Getenv("AGENT_TEST_RESUME") == "reject" {
+				printJSON(map[string]any{"jsonrpc": "2.0", "id": request.ID, "error": map[string]any{"code": -32000, "message": "resume rejected"}})
+				continue
+			}
 			result["configOptions"] = options()
 		case "session/close":
 			if request.Params.SessionID != "catalog-session" {
@@ -109,6 +165,22 @@ func TestRegisteredProtocolsDiscoverOnlyReportedModelOptions(t *testing.T) {
 				t.Fatal("guessed effort options for a different model")
 			}
 		})
+	}
+}
+
+func TestPiCatalogAndPreflightRejectModelsItsExecutionCannotParse(t *testing.T) {
+	t.Setenv("AGENT_TEST_PI_MODEL", "model@version")
+	req := fixtureRequest(t, "pi", "unused")
+	registry := DefaultRegistry()
+	def, _ := registry.Resolve("pi")
+	if models, err := readToolModels(context.Background(), def, req.Executable); err == nil || len(models) != 0 {
+		t.Fatal("discovery exposed an unexecutable Pi model", models, err)
+	}
+	for _, model := range []string{"test/model@version", `["provider","model"]`, "test/", "model"} {
+		req.Model = model
+		if err := registry.validateExecutionOptions(context.Background(), def, req); err == nil {
+			t.Fatal("preflight accepted an unparseable Pi model", model)
+		}
 	}
 }
 func TestSessionProtocolsApplyExactOptionsBeforePromptAndRejectClamping(t *testing.T) {

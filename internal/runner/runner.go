@@ -190,8 +190,17 @@ func (r *Runner) Run(ctx context.Context) error {
 			r.report("spool.capacity_failed", "", shortDetail(err))
 			return err
 		}
-		if count < r.config.Capacity {
-			assignment, clock, err := r.claim(ctx)
+		// Presence describes the Runner, not a free execution slot. Uncertain
+		// recovery records retain capacity without hiding this live process.
+		capabilities := r.capabilities(ctx)
+		if err := r.presence(ctx, capabilities); err != nil {
+			r.report("presence.failed", "", shortDetail(err))
+			var remote *apiError
+			if errors.As(err, &remote) && (remote.Status == 401 || remote.Status == 403) {
+				return err
+			}
+		} else if count < r.config.Capacity {
+			assignment, clock, err := r.claim(ctx, capabilities)
 			if err != nil {
 				r.report("claim.failed", "", shortDetail(err))
 				var remote *apiError
@@ -244,15 +253,31 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 }
 
-func (r *Runner) claim(ctx context.Context) (*domain.Assignment, responseClock, error) {
+func (r *Runner) pendingClaim(ctx context.Context, capabilities []domain.Capability) (claimPending, error) {
 	path := filepath.Join(r.config.DataDir, "claim.json")
 	var pending claimPending
 	if err := readJSON(path, &pending); errors.Is(err, os.ErrNotExist) {
-		pending = claimPending{Key: randomKey(), Request: domain.ClaimRequest{Capabilities: r.capabilities(ctx)}}
+		pending = claimPending{Key: randomKey(), Request: domain.ClaimRequest{Capabilities: capabilities}}
 		if err := writePrivateJSON(path, pending); err != nil {
-			return nil, responseClock{}, err
+			return claimPending{}, err
 		}
 	} else if err != nil {
+		return claimPending{}, err
+	}
+	return pending, nil
+}
+
+func (r *Runner) presence(ctx context.Context, capabilities []domain.Capability) error {
+	// Presence uses current cached discovery, independently of durable claims.
+	// It never creates claim.json while recovery holds every execution slot.
+	request := domain.ClaimRequest{Capabilities: capabilities}
+	_, err := r.json(ctx, "POST", "/api/v1/runner/presence", "", request, nil)
+	return err
+}
+
+func (r *Runner) claim(ctx context.Context, capabilities []domain.Capability) (*domain.Assignment, responseClock, error) {
+	pending, err := r.pendingClaim(ctx, capabilities)
+	if err != nil {
 		return nil, responseClock{}, err
 	}
 	var assignment *domain.Assignment

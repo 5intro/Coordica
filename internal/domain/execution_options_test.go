@@ -5,6 +5,26 @@ import (
 	"testing"
 )
 
+func TestOpaqueProtocolModelValuesRemainExactAndBounded(t *testing.T) {
+	id := `["provider","reported-model"]`
+	models := []ModelOption{{ID: id, ReasoningEfforts: []string{"high"}}}
+	if err := ValidateModelOptions(models); err != nil {
+		t.Fatal(err)
+	}
+	capability := Capability{Available: true, ModelDiscovery: "reported", Models: models}
+	if err := ValidateExecutionOptions(capability, id, "high"); err != nil {
+		t.Fatal(err)
+	}
+	if ValidateExecutionOptions(capability, "provider/reported-model", "high") == nil {
+		t.Fatal("opaque identifier was guessed or normalized")
+	}
+	for _, invalid := range []string{"", "--injected", " model", "model\nother", "model\x00other", string([]byte{255}), strings.Repeat("m", 129)} {
+		if ValidateModelOptions([]ModelOption{{ID: invalid}}) == nil {
+			t.Fatal("invalid model value accepted")
+		}
+	}
+}
+
 func TestModelReportsAreBoundedAndEffortsBelongToOneModel(t *testing.T) {
 	valid := []ModelOption{{ID: "sonnet[1m]", Name: "Reported model", ReasoningEfforts: []string{"high", "ultra", "0"}, DefaultReasoningEffort: "high"}}
 	if err := ValidateModelOptions(valid); err != nil {

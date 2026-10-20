@@ -282,6 +282,7 @@ func fakeACP() {
 func fixtureRequest(t *testing.T, tool, prompt string) Request {
 	t.Helper()
 	t.Setenv("COORDICA_AGENT_FIXTURE", "1")
+	t.Setenv("COORDICA_CATALOG_STATE_DIR", t.TempDir())
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)

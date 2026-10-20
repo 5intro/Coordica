@@ -3,6 +3,8 @@
 package filelock
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 	"syscall"
 )
@@ -17,6 +19,9 @@ func Acquire(path string) (func(), error) {
 	}
 	h, err := syscall.CreateFile(name, syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, nil, syscall.OPEN_ALWAYS, syscall.FILE_ATTRIBUTE_NORMAL, 0)
 	if err != nil {
+		if errors.Is(err, syscall.Errno(32)) {
+			return nil, fmt.Errorf("%w: %w", ErrBusy, err)
+		} // ERROR_SHARING_VIOLATION
 		return nil, err
 	}
 	var once sync.Once

@@ -23,6 +23,7 @@ import (
 	"time"
 	"unicode/utf16"
 
+	"coordica/internal/filelock"
 	"coordica/internal/process"
 )
 
@@ -1174,6 +1175,28 @@ func (g *Client) Fetch(ctx context.Context, repo, remote, ref string) (OID, erro
 	if err != nil {
 		return "", err
 	}
+	// Concurrent unpack-objects can collide on a new loose object on Windows.
+	// The common Git directory makes the lock shared across Client instances,
+	// worktree aliases and processes, while independent repositories stay free.
+	commonRaw, err := g.run(ctx, repo, nil, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return "", err
+	}
+	common := strings.TrimSpace(string(commonRaw))
+	if !filepath.IsAbs(common) {
+		return "", fault("fetch", ErrUnsupportedObject, "Git common directory is not absolute")
+	}
+	lockPath := filepath.Join(common, "coordica-fetch.lock")
+	if info, statErr := os.Lstat(lockPath); statErr == nil && !info.Mode().IsRegular() || statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		return "", fault("fetch", ErrUnsupportedObject, "fetch lock is not an ordinary file")
+	}
+	lockCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	release, err := filelock.AcquireContext(lockCtx, lockPath)
+	cancel()
+	if err != nil {
+		return "", err
+	}
+	defer release()
 	var nonce [12]byte
 	if _, err = rand.Read(nonce[:]); err != nil {
 		return "", err

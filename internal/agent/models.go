@@ -8,7 +8,10 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"coordica/internal/process"
 )
@@ -74,8 +77,12 @@ func (r *Registry) validateExecutionOptions(ctx context.Context, def Definition,
 	}
 	if def.Protocol == ProtocolACP || def.Protocol == ProtocolPi {
 		// The actual execution session verifies configuration before prompting.
-		if !modelID.MatchString(req.Model) || req.ReasoningEffort != "" && !effortID.MatchString(req.ReasoningEffort) {
+		if !validModelID(req.Model) || req.ReasoningEffort != "" && !effortID.MatchString(req.ReasoningEffort) {
 			return ErrProtocol
+		}
+		if def.Protocol == ProtocolPi {
+			_, _, err := splitPiModel(req.Model)
+			return err
 		}
 		return nil
 	}
@@ -92,6 +99,12 @@ func (r *Registry) validateExecutionOptions(ctx context.Context, def Definition,
 		return nil
 	}
 	return errors.New("execution model or reasoning effort is no longer supported")
+}
+
+// ACP model values can be opaque strings such as JSON-encoded provider/model
+// pairs. They remain one structured value, never shell text or extra argv.
+func validModelID(value string) bool {
+	return value != "" && len(value) <= 128 && utf8.ValidString(value) && !strings.HasPrefix(value, "-") && strings.TrimSpace(value) == value && strings.IndexFunc(value, unicode.IsControl) < 0
 }
 
 var modelID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,127}$`)

@@ -1,6 +1,11 @@
 package domain
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+	"unicode"
+	"unicode/utf8"
+)
 
 // ModelOption is a tool's reported catalog, not execution or authentication proof.
 // Model identifiers and effort values are opaque protocol data, never raw argv.
@@ -11,7 +16,10 @@ type ModelOption struct {
 	DefaultReasoningEffort string   `json:"default_reasoning_effort,omitempty"`
 }
 
-var modelIdentifier = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,127}$`)
+func validModelIdentifier(value string) bool {
+	return value != "" && len(value) <= 128 && utf8.ValidString(value) && !strings.HasPrefix(value, "-") && strings.TrimSpace(value) == value && strings.IndexFunc(value, unicode.IsControl) < 0
+}
+
 var effortIdentifier = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,63}$`)
 
 func ValidateModelOptions(models []ModelOption) error {
@@ -20,7 +28,7 @@ func ValidateModelOptions(models []ModelOption) error {
 	}
 	seen := map[string]bool{}
 	for _, model := range models {
-		if !modelIdentifier.MatchString(model.ID) || seen[model.ID] || len(model.Name) > 256 || len(model.ReasoningEfforts) > 16 {
+		if !validModelIdentifier(model.ID) || seen[model.ID] || len(model.Name) > 256 || len(model.ReasoningEfforts) > 16 {
 			return Fail("invalid_input", "invalid reported model")
 		}
 		seen[model.ID] = true
