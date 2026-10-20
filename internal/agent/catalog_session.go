@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -25,7 +26,7 @@ type catalogSession struct {
 	workDir   string
 }
 
-func lockCatalogSession(def Definition, executable string) (*catalogSession, func(), error) {
+func lockCatalogSession(ctx context.Context, def Definition, executable string) (*catalogSession, func(), error) {
 	path, err := filepath.Abs(executable)
 	if err != nil {
 		return nil, nil, err
@@ -69,7 +70,7 @@ func lockCatalogSession(def Definition, executable string) (*catalogSession, fun
 	if info, err := os.Lstat(lockPath); err == nil && !info.Mode().IsRegular() || err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, nil, errors.New("catalog lock is not a regular file")
 	}
-	unlock, err := filelock.Acquire(lockPath)
+	unlock, err := filelock.AcquireContext(ctx, lockPath)
 	if err != nil {
 		return nil, nil, err
 	}

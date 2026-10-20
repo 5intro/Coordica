@@ -2,10 +2,12 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestACPCatalogReusesOwnedSessionAcrossConnections(t *testing.T) {
@@ -85,11 +87,13 @@ func TestACPCatalogResumeFailureDoesNotCreateReplacement(t *testing.T) {
 func TestCatalogSessionLockAndCorruptionFailClosed(t *testing.T) {
 	req := fixtureRequest(t, "dsh", "unused")
 	def, _ := DefaultRegistry().Resolve("dsh")
-	state, unlock, err := lockCatalogSession(def, req.Executable)
+	state, unlock, err := lockCatalogSession(context.Background(), def, req.Executable)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, release, err := lockCatalogSession(def, req.Executable); err == nil {
+	waiting, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	if _, release, err := lockCatalogSession(waiting, def, req.Executable); err == nil {
 		release()
 		t.Fatal("two probes acquired the same persistent session")
 	}
@@ -97,7 +101,7 @@ func TestCatalogSessionLockAndCorruptionFailClosed(t *testing.T) {
 	if err := os.WriteFile(state.path, []byte(`{"version":1,"identity":"wrong","session_id":"a-user-session","pending":false}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, release, err := lockCatalogSession(def, req.Executable); err == nil {
+	if _, release, err := lockCatalogSession(context.Background(), def, req.Executable); err == nil {
 		release()
 		t.Fatal("corrupt identity adopted an arbitrary session")
 	}
@@ -172,5 +176,65 @@ func TestACPCatalogExplicitCreationRejectionCanRetryButUncertainErrorsCannot(t *
 				t.Fatal("wrong creation retry count", mode, string(data))
 			}
 		})
+	}
+}
+
+func TestACPCatalogWaitsForConcurrentProbeAndCancellationDoesNotCorruptState(t *testing.T) {
+	t.Setenv("AGENT_TEST_MODEL_PROTOCOL", "acp")
+	req := fixtureRequest(t, "dsh", "unused")
+	log := filepath.Join(t.TempDir(), "requests")
+	t.Setenv("AGENT_TEST_SESSION_LOG", log)
+	def, _ := DefaultRegistry().Resolve("dsh")
+	if _, err := readToolModels(context.Background(), def, req.Executable); err != nil {
+		t.Fatal(err)
+	}
+	_, release, err := lockCatalogSession(context.Background(), def, req.Executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		models, err := readToolModels(ctx, def, req.Executable)
+		if err == nil && len(models) != 2 {
+			err = errors.New("missing models after serialized probe")
+		}
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatal("contention became unavailability instead of waiting", err)
+	case <-time.After(40 * time.Millisecond):
+	}
+	release()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal("probe failed to resume after contention")
+	}
+	_, held, err := lockCatalogSession(context.Background(), def, req.Executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held()
+	expired, stop := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer stop()
+	if _, err := readToolModels(expired, def, req.Executable); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("catalog wait ignored caller cancellation", err)
+	}
+	held()
+	data, _ := os.ReadFile(log)
+	if strings.Count(string(data), "session/new\n") != 1 || strings.Count(string(data), def.ResumeMethod+"\n") != 1 {
+		t.Fatal("contention duplicated a probe or cancellation reached the peer", string(data))
+	}
+	if _, unlock, err := lockCatalogSession(context.Background(), def, req.Executable); err != nil {
+		t.Fatal("cancelled waiter damaged persisted session", err)
+	} else {
+		unlock()
 	}
 }

@@ -260,10 +260,14 @@ func configContains(option *acpConfigOption, value string) bool {
 	return false
 }
 func acpModels(ctx context.Context, def Definition, executable string) (models []ModelOption, err error) {
+	// Bound lock contention and protocol discovery together. A healthy peer
+	// normally releases its probe inside the per-connection metadata timeout.
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
 	if !def.Resume || def.ResumeMethod == "" {
 		return nil, errors.New("ACP catalog requires reusable sessions")
 	}
-	owned, unlock, err := lockCatalogSession(def, executable)
+	owned, unlock, err := lockCatalogSession(ctx, def, executable)
 	if err != nil {
 		return nil, err
 	}
