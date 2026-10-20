@@ -5,6 +5,22 @@ import (
 	"testing"
 )
 
+func TestTaskAdmissionRejectsDuplicateAndEmptyRequirementBindings(t *testing.T) {
+	task := Task{Title: "Work", Description: "Change", Acceptance: "Check", AllowedPaths: []string{"src/**"}, Tool: "codex", BudgetSeconds: 10, MaxRunSeconds: 10}
+	for _, ids := range [][]string{nil, {"req_a"}, {"req_a", "req_b"}} {
+		task.RequirementIDs = ids
+		if err := ValidateTask(task); err != nil {
+			t.Fatal("valid bindings rejected", ids, err)
+		}
+	}
+	for _, ids := range [][]string{{"req_a", "req_a"}, {"req_a", ""}, {" "}} {
+		task.RequirementIDs = ids
+		if err := ValidateTask(task); err == nil {
+			t.Fatal("invalid bindings admitted", ids)
+		}
+	}
+}
+
 func TestAssignmentRequirementContractRejectsMissingSwappedAndStaleContent(t *testing.T) {
 	valid := Assignment{Task: Task{RequirementIDs: []string{"req_a"}}, Run: Run{RequirementRevisions: map[string]int64{"req_a": 2}}, Requirements: []RequirementContext{{ID: "req_a", ContentRevision: 2, Title: "Title", Body: "Full acceptance"}}}
 	if err := ValidateAssignmentRequirements(valid); err != nil {

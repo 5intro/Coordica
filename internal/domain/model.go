@@ -402,6 +402,13 @@ func ValidateTask(t Task) error {
 	if err := ValidateToolID(t.Tool); err != nil {
 		return err
 	}
+	seenRequirements := map[string]bool{}
+	for _, id := range t.RequirementIDs {
+		if strings.TrimSpace(id) == "" || seenRequirements[id] {
+			return Fail("invalid_input", "任务需求 ID 不能为空或重复")
+		}
+		seenRequirements[id] = true
+	}
 	if t.BudgetSeconds <= 0 || t.BudgetSeconds > MaxTaskBudgetSeconds || t.MaxRunSeconds <= 0 || t.MaxRunSeconds > MaxRunDurationSeconds || t.MaxRunSeconds > t.BudgetSeconds || t.MaxRepairs < 0 || t.MaxRepairs > 2 || t.MaxRetries < 0 || t.MaxRetries > 2 {
 		return Fail("invalid_input", "无效的任务预算或次数限制")
 	}

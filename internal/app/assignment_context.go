@@ -9,6 +9,18 @@ func assignmentContextCompatible(req domain.ClaimRequest, t domain.Task) bool {
 	return len(t.RequirementIDs) == 0 || req.AssignmentContextVersion == domain.AssignmentContextVersion
 }
 
+func (s *Service) blockTaskContext(tx *store.Tx, a Actor, t *domain.Task, reason error) error {
+	t.HoldReason = "human_decision"
+	t.Version++
+	if err := tx.Put("task", t.ID, t); err != nil {
+		return err
+	}
+	if err := s.taskDecision(tx, *t, reason.Error()); err != nil {
+		return err
+	}
+	return s.audit(tx, a, "task.context_blocked", t.ID, reason.Error())
+}
+
 func assignedRunGoal(tx *store.Tx, r domain.Run) (*domain.GoalContext, error) {
 	if r.GoalVersion == 0 {
 		return nil, nil

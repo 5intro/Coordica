@@ -24,15 +24,10 @@ func (s *Service) cleanupPlanningDirectory(ctx context.Context, id string) error
 	}
 	dir := filepath.Clean(r.WorkingDirectory)
 	prefix := "coordica-planning-" + r.ID + "-" + fmt.Sprint(r.Generation) + "-"
-	root, err := filepath.EvalSymlinks(os.TempDir())
-	if err != nil {
-		return err
-	}
-	parent, err := filepath.EvalSymlinks(filepath.Dir(dir))
-	if err != nil {
-		return err
-	}
-	if !filepath.IsAbs(r.WorkingDirectory) || parent != root || !strings.HasPrefix(filepath.Base(dir), prefix) || filepath.Base(dir) == prefix {
+	// This path is persisted by the center immediately after MkdirTemp, never
+	// supplied by the executor. Recognize its exact Run/generation independently
+	// of this process's TMPDIR, including when the old parent is already gone.
+	if !filepath.IsAbs(r.WorkingDirectory) || !strings.HasPrefix(filepath.Base(dir), prefix) || filepath.Base(dir) == prefix {
 		return errors.New("refusing cleanup outside the recorded planning temporary directory")
 	}
 	if info, err := os.Lstat(dir); err == nil {

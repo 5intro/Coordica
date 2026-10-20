@@ -204,7 +204,14 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			contextRun := domain.Run{RequirementRevisions: copyRequirementBindings(t), GoalVersion: t.GoalVersion, GoalAuthorizationVersion: t.GoalAuthorizationVersion}
 			contextRequirements, e := assignedRequirements(tx, t, contextRun)
 			if e != nil {
-				return nil, e
+				var problem *domain.Error
+				if !errors.As(e, &problem) {
+					return nil, e
+				}
+				if err := s.blockTaskContext(tx, a, &t, e); err != nil {
+					return nil, err
+				}
+				continue
 			}
 			contextGoal, e := assignedRunGoal(tx, contextRun)
 			if e != nil {
@@ -215,15 +222,7 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 				return nil, e
 			}
 			if e = domain.ValidateAssignmentContext(domain.Assignment{Task: t, Run: contextRun, Baseline: contextBaseline.ApprovedBaseline, GoalContext: contextGoal, Requirements: contextRequirements, Project: p, Candidate: candidate}); e != nil {
-				t.HoldReason = "human_decision"
-				t.Version++
-				if err := tx.Put("task", t.ID, t); err != nil {
-					return nil, err
-				}
-				if err := s.taskDecision(tx, t, e.Error()); err != nil {
-					return nil, err
-				}
-				if err := s.audit(tx, a, "task.context_blocked", t.ID, e.Error()); err != nil {
+				if err := s.blockTaskContext(tx, a, &t, e); err != nil {
 					return nil, err
 				}
 				continue

@@ -216,3 +216,61 @@ func TestLegacyClaimStillAllowsTasksWithoutLinkedRequirements(t *testing.T) {
 		t.Fatal("unbound legacy work unnecessarily blocked")
 	}
 }
+
+func TestHistoricalDuplicateBindingsBlockOnlyTheBadTask(t *testing.T) {
+	f, req, bad := requirementFixture(t)
+	good := bad
+	good.ID, good.Title = "task_healthy_context", "Healthy later task"
+	bad.RequirementIDs = []string{req.ID, req.ID}
+	if _, err := f.s.CreateTask(context.Background(), f.owner, "reject-duplicate", bad); err == nil {
+		t.Fatal("Owner task admission accepted duplicates")
+	}
+	// Simulate a previously admitted task from before uniqueness validation.
+	if err := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
+		if err := tx.Put("task", bad.ID, bad); err != nil {
+			return err
+		}
+		return tx.Put("task", good.ID, good)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	a := f.claim(t, "past-bad-context")
+	if a == nil || a.Task.ID != good.ID {
+		t.Fatal("bad binding starved healthy work", a)
+	}
+	got := requirementTask(t, f, bad.ID)
+	if got.HoldReason != "human_decision" || got.Generation != bad.Generation || got.CurrentRunID != "" || got.UsedSeconds != bad.UsedSeconds || got.ReservedSeconds != bad.ReservedSeconds {
+		t.Fatal("bad input acquired a grant or reset accounting", got)
+	}
+	if next := f.claim(t, "bad-context-again"); next != nil {
+		t.Fatal("quarantined input dispatched")
+	}
+	snapshot := f.snapshot(t)
+	if len(snapshot.Runs) != 1 || snapshot.Project.ReservedSeconds != a.Run.GrantSeconds {
+		t.Fatal("bad input reserved resources")
+	}
+	count := 0
+	for _, event := range snapshot.Events {
+		if event.ObjectID == bad.ID && event.Kind == "task.context_blocked" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatal("repeated polls duplicated the block", count)
+	}
+}
+
+func TestLeaderTaskAdmissionRejectsDuplicateBindingsAtomically(t *testing.T) {
+	f, d, result := planningFixture(t, true)
+	proposal := &result.Tasks[0]
+	proposal.RequirementIDs = append(proposal.RequirementIDs, proposal.RequirementIDs[0])
+	scheduleTest(t, f, d, "duplicate-proposal")
+	w := &PlanningWorker{Service: f.s, Executor: resultExecutor(result)}
+	if err := w.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := f.snapshot(t)
+	if len(snapshot.Tasks) != 1 || snapshot.PlanningRuns[0].State != "blocked" {
+		t.Fatal("duplicate proposal partially admitted", snapshot.PlanningRuns)
+	}
+}

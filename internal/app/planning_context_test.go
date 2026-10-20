@@ -358,3 +358,65 @@ func TestStoppedLeaderCleanupRetriesAndRejectsForeignPaths(t *testing.T) {
 		t.Fatal("restart did not finish cleanup")
 	}
 }
+
+func TestRecoveredLeaderCleanupSurvivesChangedAndMissingTempRoots(t *testing.T) {
+	for _, missing := range []bool{false, true} {
+		t.Run(fmt.Sprint(missing), func(t *testing.T) {
+			f, d, result := planningFixture(t, true)
+			r := scheduleTest(t, f, d, "old-root")
+			oldRoot, err := os.MkdirTemp("", "cleanup-old-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { os.RemoveAll(oldRoot) })
+			newRoot, err := os.MkdirTemp("", "cleanup-new-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { os.RemoveAll(newRoot) })
+			dir, err := os.MkdirTemp(oldRoot, "coordica-planning-"+r.ID+"-"+fmt.Sprint(r.Generation)+"-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "private-context"), []byte("old material"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
+				r.TreeStopped, r.Settled, r.State, r.WorkingDirectory = true, true, "stopped", dir
+				return tx.Put("planning_run", r.ID, r)
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if missing {
+				if err := os.RemoveAll(oldRoot); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, key := range []string{"TMPDIR", "TMP", "TEMP"} {
+				t.Setenv(key, newRoot)
+			}
+			if err := os.WriteFile(filepath.Join(newRoot, "untouched"), []byte("keep"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			next := scheduleTest(t, f, d, "new-root")
+			w := &PlanningWorker{Service: f.s, Executor: resultExecutor(result)}
+			if err := w.Tick(context.Background()); err != nil {
+				t.Fatal("old temporary root blocked planning", err)
+			}
+			if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("old directory retained", err)
+			}
+			if data, err := os.ReadFile(filepath.Join(newRoot, "untouched")); err != nil || string(data) != "keep" {
+				t.Fatal("unrelated files changed", err)
+			}
+			for _, plan := range f.snapshot(t).PlanningRuns {
+				if plan.ID == r.ID && plan.WorkingDirectory != "" {
+					t.Fatal("recovered path retained")
+				}
+				if plan.ID == next.ID && plan.State != "succeeded" {
+					t.Fatal("later planning was starved", plan.State)
+				}
+			}
+		})
+	}
+}
