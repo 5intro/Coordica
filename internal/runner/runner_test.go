@@ -204,20 +204,20 @@ func TestLostClaimACKPreservesRequestAcrossRestart(t *testing.T) {
 	}))
 	defer server.Close()
 	r := testRunner(t, server)
-	if err := r.presence(context.Background()); err != nil {
+	if err := r.presence(context.Background(), r.capabilities(context.Background())); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := r.claim(context.Background()); err == nil {
+	if _, _, err := r.claim(context.Background(), r.capabilities(context.Background())); err == nil {
 		t.Fatal("lost claim ACK looked successful")
 	}
 	restarted, err := New(r.Config())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := restarted.presence(context.Background()); err != nil {
+	if err := restarted.presence(context.Background(), restarted.capabilities(context.Background())); err != nil {
 		t.Fatal(err)
 	}
-	a, _, err := restarted.claim(context.Background())
+	a, _, err := restarted.claim(context.Background(), restarted.capabilities(context.Background()))
 	if err != nil || a == nil || a.Run.ID != "run_test" {
 		t.Fatalf("a=%+v err=%v", a, err)
 	}
@@ -553,13 +553,13 @@ func TestPresenceRefreshesCapabilitiesWithoutChangingInFlightClaim(t *testing.T)
 	}))
 	defer server.Close()
 	r := testRunner(t, server)
-	if err := r.presence(context.Background()); err != nil {
+	if err := r.presence(context.Background(), r.capabilities(context.Background())); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(r.config.DataDir, "claim.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("presence created a claim")
 	}
-	if _, _, err := r.claim(context.Background()); err == nil {
+	if _, _, err := r.claim(context.Background(), r.capabilities(context.Background())); err == nil {
 		t.Fatal("blocked claim succeeded")
 	}
 	exe, err := os.Executable()
@@ -567,10 +567,10 @@ func TestPresenceRefreshesCapabilitiesWithoutChangingInFlightClaim(t *testing.T)
 		t.Fatal(err)
 	}
 	r.config.Executables["codex"] = exe // Installed fixture binary; no real Agent or prompt.
-	if err := r.presence(context.Background()); err != nil {
+	if err := r.presence(context.Background(), r.capabilities(context.Background())); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := r.claim(context.Background()); err == nil {
+	if _, _, err := r.claim(context.Background(), r.capabilities(context.Background())); err == nil {
 		t.Fatal("blocked retry succeeded")
 	}
 	installed := func(in domain.ClaimRequest) bool {

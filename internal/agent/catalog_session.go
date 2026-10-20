@@ -49,6 +49,9 @@ func lockCatalogSession(ctx context.Context, def Definition, executable string) 
 		}
 		root = filepath.Join(root, "Coordica", "catalog-sessions")
 	}
+	if !filepath.IsAbs(root) {
+		return nil, nil, errors.New("catalog state directory must be absolute")
+	}
 	root, err = filepath.Abs(root)
 	if err != nil {
 		return nil, nil, err
