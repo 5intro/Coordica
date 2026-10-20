@@ -3,11 +3,13 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
 
 	"coordica/internal/domain"
+	"coordica/internal/gitops"
 	"coordica/internal/store"
 )
 
@@ -149,5 +151,68 @@ func TestOversizedContextBlocksBeforeAllocationAndDoesNotStarveOtherTasks(t *tes
 	}
 	if count != 1 {
 		t.Fatal("polling duplicated context blockers", count)
+	}
+}
+
+func TestRequirementAssignmentsFenceLegacyAndUnknownContextProtocols(t *testing.T) {
+	for _, version := range []int{0, -1, domain.AssignmentContextVersion + 1} {
+		t.Run(fmt.Sprint(version), func(t *testing.T) {
+			f, _, task := requirementFixture(t)
+			ctx := context.Background()
+			before := f.snapshot(t)
+			request := domain.ClaimRequest{AssignmentContextVersion: version, Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}}}
+			// No compatible work must reach Git preflight either.
+			w := &Integrator{Service: f.s, Git: gitops.New("missing-git-must-not-start")}
+			raw, err := w.Claim(ctx, f.node, "old-context", request)
+			if got := decodeTest[*domain.Assignment](t, raw, err); got != nil {
+				t.Fatal("incompatible claimant received requirement-bound work", got)
+			}
+			after := f.snapshot(t)
+			if !reflect.DeepEqual(before.Tasks, after.Tasks) || !reflect.DeepEqual(before.Runs, after.Runs) || !reflect.DeepEqual(before.Project, after.Project) {
+				t.Fatal("protocol mismatch allocated, held or charged work")
+			}
+			// A null legacy claim stays null, even after an upgraded claimant wins.
+			a := f.claim(t, "new-context")
+			if a == nil || a.Task.ID != task.ID || len(a.Requirements) != 1 {
+				t.Fatal("compatible Runner could not claim untouched work", a)
+			}
+			raw, err = f.s.Claim(ctx, f.node, "old-context", request, strings.Repeat("a", 40))
+			if got := decodeTest[*domain.Assignment](t, raw, err); got != nil {
+				t.Fatal("legacy replay received upgraded assignment")
+			}
+			// The same gate applies to fixed-candidate code review.
+			if err := f.s.DB.Update(ctx, func(tx *store.Tx) error {
+				var current domain.Task
+				if err := tx.Get("task", task.ID, &current); err != nil {
+					return err
+				}
+				current.CurrentRunID, current.State = "", "awaiting_integration"
+				current.CurrentCandidateID = "candidate-context"
+				if err := tx.Delete("run", a.Run.ID); err != nil {
+					return err
+				}
+				if err := tx.Put("task", current.ID, current); err != nil {
+					return err
+				}
+				return tx.Put("candidate", "candidate-context", domain.Candidate{ID: "candidate-context", TaskID: task.ID, State: "reviewing", Commit: strings.Repeat("c", 40), BaselineVersion: task.BaselineVersion, BaselineDigest: task.BaselineDigest, AuthorizationVersion: task.AuthorizationVersion, PolicyVersion: a.Project.PolicyVersion})
+			}); err != nil {
+				t.Fatal(err)
+			}
+			raw, err = f.s.Claim(ctx, f.node, "legacy-review", request, strings.Repeat("a", 40))
+			if got := decodeTest[*domain.Assignment](t, raw, err); got != nil {
+				t.Fatal("legacy reviewer received work")
+			}
+			if got := f.claim(t, "new-review"); got == nil || got.Run.Kind != "review" || len(got.Requirements) != 1 {
+				t.Fatal("compatible review was blocked", got)
+			}
+		})
+	}
+}
+
+func TestLegacyClaimStillAllowsTasksWithoutLinkedRequirements(t *testing.T) {
+	f := newServiceFixture(t)
+	raw, err := f.s.Claim(context.Background(), f.node, "legacy-unbound", domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true}}}, strings.Repeat("a", 40))
+	if a := decodeTest[*domain.Assignment](t, raw, err); a == nil || a.Task.ID != f.task.ID {
+		t.Fatal("unbound legacy work unnecessarily blocked")
 	}
 }

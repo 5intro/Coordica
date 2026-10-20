@@ -300,8 +300,13 @@ type RegisterResponse struct {
 	NodeID string `json:"node_id"`
 	Token  string `json:"token"`
 }
+
+// AssignmentContextVersion binds a claimant to the pinned requirement contract.
+const AssignmentContextVersion = 1
+
 type ClaimRequest struct {
-	Capabilities []Capability `json:"capabilities"`
+	Capabilities             []Capability `json:"capabilities"`
+	AssignmentContextVersion int          `json:"assignment_context_version,omitempty"`
 }
 type Assignment struct {
 	Requirements     []RequirementContext `json:"requirements,omitempty"`

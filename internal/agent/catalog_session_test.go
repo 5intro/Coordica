@@ -238,3 +238,20 @@ func TestACPCatalogWaitsForConcurrentProbeAndCancellationDoesNotCorruptState(t *
 		unlock()
 	}
 }
+
+func TestCatalogStateRejectsRelativeOverridesBeforeSessionCreation(t *testing.T) {
+	t.Setenv("AGENT_TEST_MODEL_PROTOCOL", "acp")
+	req := fixtureRequest(t, "dsh", "unused")
+	log := filepath.Join(t.TempDir(), "requests")
+	t.Setenv("AGENT_TEST_SESSION_LOG", log)
+	for _, root := range []string{"relative-catalog", ".", "../catalog"} {
+		t.Setenv("COORDICA_CATALOG_STATE_DIR", root)
+		def, _ := DefaultRegistry().Resolve("dsh")
+		if _, err := readToolModels(context.Background(), def, req.Executable); err == nil || !strings.Contains(err.Error(), "must be absolute") {
+			t.Fatal("relative state accepted", root, err)
+		}
+	}
+	if data, err := os.ReadFile(log); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("invalid root started a harness", string(data), err)
+	}
+}

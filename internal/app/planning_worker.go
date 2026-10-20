@@ -508,6 +508,9 @@ func (w *PlanningWorker) record(ctx context.Context, original domain.PlanningRun
 	if e != nil {
 		return e
 	}
+	if e := s.cleanupPlanningDirectory(ctx, original.ID); e != nil {
+		return e
+	}
 	return w.apply(ctx, original.ID)
 }
 
@@ -651,6 +654,11 @@ func (w *PlanningWorker) reconcile(ctx context.Context, restart bool) error {
 		return e
 	}
 	for _, r := range runs {
+		if r.TreeStopped && r.WorkingDirectory != "" {
+			if e := w.Service.cleanupPlanningDirectory(ctx, r.ID); e != nil {
+				return e
+			}
+		}
 		if r.State == "pending_result" {
 			if e := w.apply(ctx, r.ID); e != nil {
 				return e

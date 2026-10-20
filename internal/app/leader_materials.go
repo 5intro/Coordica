@@ -117,7 +117,7 @@ type leaderMaterials struct {
 
 // These files are data in a fresh read-only Leader directory, never repository
 // inputs, a credentials directory, a shared memory store or a new transport.
-func writeLeaderMaterials(dir string, r domain.PlanningRun, tasks []domain.Task, requirements []domain.Requirement, requests []domain.ScopeAssessment, messages []domain.LeaderMessage) (leaderMaterials, error) {
+func writeLeaderMaterials(dir string, r domain.PlanningRun, tasks []domain.Task, requirements []domain.Requirement, requests []domain.ScopeAssessment, messages []domain.LeaderMessage, impacts []domain.RequirementImpact) (leaderMaterials, error) {
 	out := leaderMaterials{Version: 1, RunID: r.ID, Generation: r.Generation, GoalVersion: r.DocumentVersion, AuthorizationVersion: r.AuthorizationVersion, BaselineVersion: r.BaselineVersion, BaselineDigest: r.BaselineDigest, RequirementRevisions: r.RequirementRevisions, Files: []leaderMaterialFile{}}
 	if err := localfile.Protect(dir); err != nil {
 		return out, err
@@ -129,13 +129,21 @@ func writeLeaderMaterials(dir string, r domain.PlanningRun, tasks []domain.Task,
 		return out, err
 	}
 	var err error
-	for _, source := range []struct {
+	sources := []struct {
 		name  string
 		rows  int
 		value any
 	}{
 		{"tasks.jsonl", len(tasks), tasks}, {"requirements.jsonl", len(requirements), requirements}, {"scope-requests.jsonl", len(requests), requests}, {"history.jsonl", len(messages), messages},
-	} {
+	}
+	if len(impacts) != 0 {
+		sources = append(sources, struct {
+			name  string
+			rows  int
+			value any
+		}{"requirement-impacts.jsonl", len(impacts), impacts})
+	}
+	for _, source := range sources {
 		// Typed encoding below keeps one source record per line for targeted reads.
 		var data []byte
 		switch v := source.value.(type) {
@@ -146,6 +154,8 @@ func writeLeaderMaterials(dir string, r domain.PlanningRun, tasks []domain.Task,
 		case []domain.ScopeAssessment:
 			data, err = encodeLeaderRows(v)
 		case []domain.LeaderMessage:
+			data, err = encodeLeaderRows(v)
+		case []domain.RequirementImpact:
 			data, err = encodeLeaderRows(v)
 		}
 		if err != nil {

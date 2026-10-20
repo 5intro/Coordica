@@ -129,7 +129,7 @@ func newIntentFixture(t *testing.T) *intentFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err = f.s.Claim(ctx, f.node, "claim", domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Review: true, Cancel: true}}}, base.String())
+	b, err = f.s.Claim(ctx, f.node, "claim", domain.ClaimRequest{AssignmentContextVersion: domain.AssignmentContextVersion, Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Review: true, Cancel: true}}}, base.String())
 	var assignment domain.Assignment
 	decode(b, err, &assignment)
 	if assignment.Run.ID == "" || assignment.GoalContext == nil {

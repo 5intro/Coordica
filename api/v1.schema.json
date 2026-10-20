@@ -1344,6 +1344,9 @@
     "ClaimRequest": {
       "additionalProperties": false,
       "properties": {
+        "assignment_context_version": {
+          "type": "integer"
+        },
         "capabilities": {
           "items": {
             "$ref": "#/$defs/Capability"

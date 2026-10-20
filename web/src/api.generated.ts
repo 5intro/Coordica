@@ -790,6 +790,7 @@ export interface RegisterResponse {
 }
 export interface ClaimRequest {
   capabilities: (Capability)[] | null;
+  assignment_context_version?: number;
 }
 export interface Assignment {
   requirements?: (RequirementContext)[] | null;

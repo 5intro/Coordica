@@ -157,7 +157,7 @@ func (f *boundaryFixture) runningAssignment(t *testing.T) domain.Assignment {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body, err = f.server.Service.Claim(ctx, node, "claim", domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}}}, strings.Repeat("a", 40))
+	body, err = f.server.Service.Claim(ctx, node, "claim", domain.ClaimRequest{AssignmentContextVersion: domain.AssignmentContextVersion, Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}}}, strings.Repeat("a", 40))
 	if err != nil {
 		t.Fatal(err)
 	}

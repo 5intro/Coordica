@@ -463,7 +463,7 @@ func (s *Service) ResolveDecision(ctx context.Context, a Actor, key, id string, 
 	if e := owner(a); e != nil {
 		return nil, e
 	}
-	return s.mutate(ctx, a, key, "decision.resolve."+id, req, func(tx *store.Tx) (any, error) {
+	result, err := s.mutate(ctx, a, key, "decision.resolve."+id, req, func(tx *store.Tx) (any, error) {
 		var v domain.Decision
 		if e := tx.Get("decision", id, &v); e != nil {
 			return nil, e
@@ -542,6 +542,13 @@ func (s *Service) ResolveDecision(ctx context.Context, a Actor, key, id string, 
 		}
 		return v, s.audit(tx, a, "decision.resolved", id, v.Resolution)
 	})
+	if err == nil && req.Action == "confirm_stopped" {
+		var decision domain.Decision
+		if err = json.Unmarshal(result, &decision); err == nil && decision.SourceKind == "planning_run" {
+			err = s.cleanupPlanningDirectory(ctx, decision.SourceID)
+		}
+	}
+	return result, err
 }
 func (s *Service) ConfigureNode(ctx context.Context, a Actor, key, id string, req domain.NodeConfigureRequest) (json.RawMessage, error) {
 	if e := owner(a); e != nil {

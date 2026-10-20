@@ -76,6 +76,9 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			return nil, e
 		}
 		for _, t := range tasks {
+			if !assignmentContextCompatible(req, t) {
+				continue
+			}
 			if t.Verification != nil {
 				continue
 			} // program verification is claimed by the center verifier

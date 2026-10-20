@@ -1,9 +1,11 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -188,5 +190,171 @@ func TestLeaderMaterialBoundsDoNotLeaveTruncatedSuccess(t *testing.T) {
 	data, err := encodeLeaderRows([]domain.LeaderMessage{{Text: strings.Repeat("x", leaderMaterialLimit)}})
 	if err == nil || data != nil {
 		t.Fatal("partial oversized material accepted")
+	}
+}
+
+func TestRequirementContextDefersCompleteFixedImpactSnapshots(t *testing.T) {
+	f, req, task := requirementFixture(t)
+	ctx := context.Background()
+	task.Description = strings.Repeat("FIXED_IMPACT_PROSE中", 20000)
+	task.Acceptance = "FIXED_IMPACT_ACCEPTANCE"
+	if err := f.s.DB.Update(ctx, func(tx *store.Tx) error { return tx.Put("task", task.ID, task) }); err != nil {
+		t.Fatal(err)
+	}
+	change := reviseRequirement(t, f, req, "revise")
+	if len(change.Impacts) != 1 {
+		t.Fatal("missing impact fixture", change)
+	}
+	// The persisted impact is a historical contract, distinct from current work.
+	if err := f.s.DB.Update(ctx, func(tx *store.Tx) error {
+		var current domain.Task
+		if err := tx.Get("task", task.ID, &current); err != nil {
+			return err
+		}
+		current.Description = "CURRENT_TASK_PROSE"
+		return tx.Put("task", current.ID, current)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	w := &PlanningWorker{Service: f.s}
+	if err := w.queueRequirementChanges(ctx); err != nil {
+		t.Fatal(err)
+	}
+	r, _, _, err := w.reserve(ctx)
+	if err != nil || r.RequirementChangeID != change.ID {
+		t.Fatal("change not reserved", r, err)
+	}
+	dir := t.TempDir()
+	prompt, err := w.requirementPrompt(ctx, r, dir)
+	if err != nil || len(prompt) > leaderPromptLimit || strings.Contains(prompt, "FIXED_IMPACT_PROSE") || strings.Contains(prompt, "CURRENT_TASK_PROSE") {
+		t.Fatal("impact prose remained inline", err)
+	}
+	_, raw, ok := strings.Cut(prompt, " Input: ")
+	var input struct {
+		Change    requirementChangeContext `json:"change"`
+		Materials leaderMaterials          `json:"materials"`
+	}
+	if !ok || json.Unmarshal([]byte(raw), &input) != nil {
+		t.Fatal("invalid context")
+	}
+	index := input.Change.Impacts[0]
+	want := change.Impacts[0]
+	if len(input.Change.Impacts) != len(change.Impacts) || index.Task.ID != want.Task.ID || index.Task.Version != want.Task.Version || index.Task.BudgetSeconds != want.Task.BudgetSeconds || !reflect.DeepEqual(index.Task.AllowedPaths, want.Task.AllowedPaths) || index.Shared != want.Shared || index.NeedsStop != want.NeedsStop || index.Integrated != want.Integrated || index.PublicationBusy != want.PublicationBusy || index.Direct != want.Direct {
+		t.Fatal("fixed impact contracts/flags lost", index)
+	}
+	found := false
+	for _, file := range input.Materials.Files {
+		if file.Path != "context/requirement-impacts.jsonl" {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(file.Path)))
+		var impact domain.RequirementImpact
+		if err != nil || json.Unmarshal(bytes.TrimSpace(data), &impact) != nil || !reflect.DeepEqual(impact, want) || Hash(string(data)) != file.SHA256 || file.Bytes != len(data) || file.Records != 1 {
+			t.Fatal("fixed snapshot changed or truncated", err)
+		}
+		found = true
+	}
+	if !found {
+		t.Fatal("missing deferred impact snapshot")
+	}
+}
+
+func TestLeaderMaterialsReclaimedOnlyAfterBoundStopProof(t *testing.T) {
+	for _, proof := range []string{"owner", "late_receipt"} {
+		t.Run(proof, func(t *testing.T) {
+			f, d, _ := planningFixture(t, true)
+			scheduleTest(t, f, d, "uncertain-materials")
+			ctx := context.Background()
+			var dir string
+			w := &PlanningWorker{Service: f.s, Executor: planningExecFunc(func(_ context.Context, work, _ string) (PlanningOutcome, error) {
+				dir = work
+				return PlanningOutcome{TreeStopped: false}, nil
+			})}
+			if err := w.Tick(ctx); err != nil {
+				t.Fatal(err)
+			}
+			before := f.snapshot(t)
+			r := before.PlanningRuns[0]
+			if r.State != "unknown_live" || r.WorkingDirectory != dir {
+				t.Fatal("missing uncertain snapshot", r)
+			}
+			path := filepath.Join(dir, "context", "manifest.json")
+			if _, err := os.Stat(path); err != nil {
+				t.Fatal("uncertain process lost its files", err)
+			}
+			bad := PlanningOutcome{Generation: r.Generation + 1, DocumentVersion: r.DocumentVersion, TreeStopped: true}
+			bindPlanningOutcome(&bad, r)
+			if err := w.record(ctx, r, bad); err == nil {
+				t.Fatal("stale proof accepted")
+			}
+			if _, err := os.Stat(path); err != nil {
+				t.Fatal("stale proof deleted files", err)
+			}
+			if proof == "owner" {
+				decision := before.Decisions[0]
+				in := domain.DecisionResolveRequest{ExpectedVersion: decision.Version, ExpectedSourceVersion: decision.SourceVersion, Action: "confirm_stopped", Evidence: "operator verified the entire original tree stopped"}
+				for i := 0; i < 2; i++ {
+					if _, err := f.s.ResolveDecision(ctx, f.owner, "stop-materials", decision.ID, in); err != nil {
+						t.Fatal(err)
+					}
+				}
+			} else {
+				out := PlanningOutcome{Generation: r.Generation, DocumentVersion: r.DocumentVersion, TreeStopped: true}
+				bindPlanningOutcome(&out, r)
+				data, _ := json.Marshal(out)
+				if err := os.WriteFile(w.receipt(r.ID), data, 0600); err != nil {
+					t.Fatal(err)
+				}
+				for i := 0; i < 2; i++ {
+					if err := w.Recover(ctx); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			after := f.snapshot(t)
+			if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("stopped process left materials", err)
+			}
+			if got := after.PlanningRuns[0]; got.WorkingDirectory != "" || !got.TreeStopped || got.State != "stopped" || got.GrantSeconds != r.GrantSeconds || after.Project.UsedSeconds != before.Project.UsedSeconds {
+				t.Fatal("cleanup changed accounting or retained path", got)
+			}
+		})
+	}
+}
+
+func TestStoppedLeaderCleanupRetriesAndRejectsForeignPaths(t *testing.T) {
+	f, d, _ := planningFixture(t, true)
+	r := scheduleTest(t, f, d, "cleanup-retry")
+	dir, err := os.MkdirTemp("", "coordica-planning-"+r.ID+"-"+fmt.Sprint(r.Generation)+"-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	foreign := t.TempDir()
+	if err := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
+		r.TreeStopped, r.State, r.WorkingDirectory = true, "stopped", foreign
+		return tx.Put("planning_run", r.ID, r)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	w := &PlanningWorker{Service: f.s}
+	if err := w.Recover(context.Background()); err == nil {
+		t.Fatal("foreign cleanup path accepted")
+	}
+	if _, err := os.Stat(foreign); err != nil {
+		t.Fatal("unowned directory removed")
+	}
+	if err := f.s.DB.Update(context.Background(), func(tx *store.Tx) error { r.WorkingDirectory = dir; return tx.Put("planning_run", r.ID, r) }); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a crash after removal but before clearing the persisted path.
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Recover(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.snapshot(t).PlanningRuns[0]; got.WorkingDirectory != "" {
+		t.Fatal("restart did not finish cleanup")
 	}
 }

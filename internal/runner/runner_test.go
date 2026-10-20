@@ -204,20 +204,20 @@ func TestLostClaimACKPreservesRequestAcrossRestart(t *testing.T) {
 	}))
 	defer server.Close()
 	r := testRunner(t, server)
-	if err := r.presence(context.Background()); err != nil {
+	if err := r.presence(context.Background(), r.capabilities(context.Background())); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := r.claim(context.Background()); err == nil {
+	if _, _, err := r.claim(context.Background(), r.capabilities(context.Background())); err == nil {
 		t.Fatal("lost claim ACK looked successful")
 	}
 	restarted, err := New(r.Config())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := restarted.presence(context.Background()); err != nil {
+	if err := restarted.presence(context.Background(), restarted.capabilities(context.Background())); err != nil {
 		t.Fatal(err)
 	}
-	a, _, err := restarted.claim(context.Background())
+	a, _, err := restarted.claim(context.Background(), restarted.capabilities(context.Background()))
 	if err != nil || a == nil || a.Run.ID != "run_test" {
 		t.Fatalf("a=%+v err=%v", a, err)
 	}
@@ -553,13 +553,13 @@ func TestPresenceRefreshesCapabilitiesWithoutChangingInFlightClaim(t *testing.T)
 	}))
 	defer server.Close()
 	r := testRunner(t, server)
-	if err := r.presence(context.Background()); err != nil {
+	if err := r.presence(context.Background(), r.capabilities(context.Background())); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(r.config.DataDir, "claim.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("presence created a claim")
 	}
-	if _, _, err := r.claim(context.Background()); err == nil {
+	if _, _, err := r.claim(context.Background(), r.capabilities(context.Background())); err == nil {
 		t.Fatal("blocked claim succeeded")
 	}
 	exe, err := os.Executable()
@@ -567,10 +567,10 @@ func TestPresenceRefreshesCapabilitiesWithoutChangingInFlightClaim(t *testing.T)
 		t.Fatal(err)
 	}
 	r.config.Executables["codex"] = exe // Installed fixture binary; no real Agent or prompt.
-	if err := r.presence(context.Background()); err != nil {
+	if err := r.presence(context.Background(), r.capabilities(context.Background())); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := r.claim(context.Background()); err == nil {
+	if _, _, err := r.claim(context.Background(), r.capabilities(context.Background())); err == nil {
 		t.Fatal("blocked retry succeeded")
 	}
 	installed := func(in domain.ClaimRequest) bool {
@@ -586,5 +586,39 @@ func TestPresenceRefreshesCapabilitiesWithoutChangingInFlightClaim(t *testing.T)
 	}
 	if len(claims) != 2 || claims[0] != claims[1] || keys[0] == "" || keys[0] != keys[1] {
 		t.Fatal("refresh altered a possibly acknowledged claim")
+	}
+}
+
+func TestUpgradedRunnerPreservesLegacyClaimBeforeAdvertisingContextProtocol(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var requests []domain.ClaimRequest
+	var keys []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/api/v1/runner/claim" {
+			var in domain.ClaimRequest
+			if err := json.NewDecoder(req.Body).Decode(&in); err != nil {
+				t.Error(err)
+			}
+			requests = append(requests, in)
+			keys = append(keys, req.Header.Get("Idempotency-Key"))
+			if len(requests) == 2 {
+				cancel()
+			}
+		}
+		respond(w, nil)
+	}))
+	defer server.Close()
+	r := testRunner(t, server)
+	r.config.PollInterval = time.Millisecond
+	legacy := claimPending{Key: "pre-upgrade-claim", Request: domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "legacy", Version: "frozen"}}}}
+	if err := writePrivateJSON(filepath.Join(r.config.DataDir, "claim.json"), legacy); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(requests) != 2 || keys[0] != legacy.Key || requests[0].AssignmentContextVersion != 0 || len(requests[0].Capabilities) != 1 || requests[0].Capabilities[0].Tool != "legacy" || keys[1] == legacy.Key || requests[1].AssignmentContextVersion != domain.AssignmentContextVersion {
+		t.Fatal("upgrade mutated a durable old claim or omitted the new protocol", requests, keys)
 	}
 }

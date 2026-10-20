@@ -5,6 +5,10 @@ import (
 	"coordica/internal/store"
 )
 
+func assignmentContextCompatible(req domain.ClaimRequest, t domain.Task) bool {
+	return len(t.RequirementIDs) == 0 || req.AssignmentContextVersion == domain.AssignmentContextVersion
+}
+
 func assignedRunGoal(tx *store.Tx, r domain.Run) (*domain.GoalContext, error) {
 	if r.GoalVersion == 0 {
 		return nil, nil

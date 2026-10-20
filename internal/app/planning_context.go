@@ -103,7 +103,7 @@ func buildPlanningContext(dir string, r domain.PlanningRun, facts planningFacts,
 	facts.Document.LeaderResult, facts.Document.LeaderSession = nil, ""
 	history := currentLeaderHistory(messages, facts.Document.Version)
 	var err error
-	facts.Materials, err = writeLeaderMaterials(dir, r, facts.Tasks, facts.Requirements, facts.Requests, history)
+	facts.Materials, err = writeLeaderMaterials(dir, r, facts.Tasks, facts.Requirements, facts.Requests, history, nil)
 	if err != nil {
 		return "", err
 	}

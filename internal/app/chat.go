@@ -251,7 +251,7 @@ func (s *Service) ConfirmConsultationStopped(ctx context.Context, a Actor, key, 
 	if e := owner(a); e != nil {
 		return nil, e
 	}
-	return s.mutate(ctx, a, key, "chat.confirm_stopped."+id, in, func(tx *store.Tx) (any, error) {
+	result, err := s.mutate(ctx, a, key, "chat.confirm_stopped."+id, in, func(tx *store.Tx) (any, error) {
 		var r domain.PlanningRun
 		if e := tx.Get("planning_run", id, &r); e != nil {
 			return nil, e
@@ -273,6 +273,10 @@ func (s *Service) ConfirmConsultationStopped(ctx context.Context, a Actor, key, 
 		}
 		return r, s.audit(tx, a, "chat.stop_confirmed", id, in.Evidence)
 	})
+	if err == nil {
+		err = s.cleanupPlanningDirectory(ctx, id)
+	}
+	return result, err
 }
 
 // Redaction is applied to text as well as selecting safe DTO fields. Structured
