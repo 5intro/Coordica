@@ -34,11 +34,23 @@ class QualityCommandTests(unittest.TestCase):
             self.assertIn("--working-tree", run.call_args.args[0])
 
     def test_unknown_initial_push_cannot_self_baseline(self):
-        with patch.dict(quality.os.environ, {"QUALITY_BASE": "0" * 40}, clear=True), \
+        with patch.dict(quality.os.environ, {"QUALITY_BASE": "0" * 40, "CI": "true"}, clear=True), \
+                patch.object(quality.subprocess, "check_output", side_effect=subprocess.CalledProcessError(1, "git")), \
                 patch.object(quality.subprocess, "run") as run:
             with self.assertRaises(SystemExit):
                 quality.main()
             run.assert_not_called()
+
+    def test_new_branch_push_uses_target_main_not_its_own_head(self):
+        with patch.dict(quality.os.environ, {"QUALITY_BASE": "0" * 40, "CI": "true"}, clear=True), \
+                patch.object(quality.subprocess, "check_output", side_effect=["a" * 40, "b" * 40]), \
+                patch.object(quality.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            with self.assertRaises(SystemExit):
+                quality.main()
+            args = run.call_args.args[0]
+            self.assertEqual(args[args.index("--base") + 1], "a" * 40)
+            self.assertEqual(args[args.index("--candidate") + 1], "b" * 40)
 
 
 if __name__ == "__main__":

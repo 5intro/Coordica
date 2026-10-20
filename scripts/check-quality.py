@@ -13,10 +13,13 @@ def main():
     env.setdefault("GOPATH", str(root / ".cache" / "gopath"))
     base = env.get("QUALITY_BASE")
     if base and set(base) == {"0"}:
-        raise SystemExit("Quality gate requires an explicit existing baseline commit")
+        base = None  # A newly pushed branch has no previous branch commit.
     if not base:
         # Include already committed branch work, not only edits since HEAD.
-        for ref in ("refs/remotes/origin/main", "refs/heads/main", "HEAD"):
+        refs = ["refs/remotes/origin/main", "refs/heads/main"]
+        if not env.get("CI"):
+            refs.append("HEAD")
+        for ref in refs:
             try:
                 base = subprocess.check_output(
                     ["git", "rev-parse", "--verify", ref + "^{commit}"],
