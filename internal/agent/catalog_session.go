@@ -53,7 +53,7 @@ func lockCatalogSession(def Definition, executable string) (*catalogSession, fun
 	}
 	dir := filepath.Join(root, id)
 	for _, name := range []string{root, dir, filepath.Join(dir, "workspace")} {
-		if err = os.MkdirAll(name, 0700); err != nil {
+		if err = localfile.MkdirAllDurable(name, 0700); err != nil {
 			return nil, nil, err
 		}
 		info, statErr := os.Lstat(name)

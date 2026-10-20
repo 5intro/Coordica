@@ -404,6 +404,12 @@ func piModels(ctx context.Context, def Definition, executable string) (models []
 	}
 	for _, m := range catalog.Models {
 		option := ModelOption{ID: m.Provider + "/" + m.ID, Name: m.Name, ReasoningEfforts: []string{}}
+		// Pi executes separate provider/model fields. Validate their exact
+		// round trip here rather than advertising values execution rejects.
+		provider, id, parseErr := splitPiModel(option.ID)
+		if parseErr != nil || provider != m.Provider || id != m.ID {
+			return nil, ErrProtocol
+		}
 		if state.Model != nil && state.Model.ID == m.ID && state.Model.Provider == m.Provider {
 			option.ReasoningEfforts = levels.Levels
 			option.DefaultReasoningEffort = state.ThinkingLevel

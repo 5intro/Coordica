@@ -151,6 +151,22 @@ func TestRegisteredProtocolsDiscoverOnlyReportedModelOptions(t *testing.T) {
 		})
 	}
 }
+
+func TestPiCatalogAndPreflightRejectModelsItsExecutionCannotParse(t *testing.T) {
+	t.Setenv("AGENT_TEST_PI_MODEL", "model@version")
+	req := fixtureRequest(t, "pi", "unused")
+	registry := DefaultRegistry()
+	def, _ := registry.Resolve("pi")
+	if models, err := readToolModels(context.Background(), def, req.Executable); err == nil || len(models) != 0 {
+		t.Fatal("discovery exposed an unexecutable Pi model", models, err)
+	}
+	for _, model := range []string{"test/model@version", `["provider","model"]`, "test/", "model"} {
+		req.Model = model
+		if err := registry.validateExecutionOptions(context.Background(), def, req); err == nil {
+			t.Fatal("preflight accepted an unparseable Pi model", model)
+		}
+	}
+}
 func TestSessionProtocolsApplyExactOptionsBeforePromptAndRejectClamping(t *testing.T) {
 	for _, tool := range []string{"kimi", "pi", "claude"} {
 		t.Run(tool, func(t *testing.T) {

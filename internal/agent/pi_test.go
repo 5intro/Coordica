@@ -17,6 +17,9 @@ func fakePi() {
 	}
 	scenario := ""
 	model, effort := "test-model", "high"
+	if value := os.Getenv("AGENT_TEST_PI_MODEL"); value != "" {
+		model = value
+	}
 	for scanner.Scan() {
 		var msg struct{ ID, Type, Message, ModelID, Provider, Level string }
 		if json.Unmarshal(scanner.Bytes(), &msg) != nil {
@@ -27,7 +30,7 @@ func fakePi() {
 		}
 		switch msg.Type {
 		case "get_available_models":
-			response(map[string]any{"models": []any{map[string]string{"id": "test-model", "provider": "test", "name": "Test model"}}})
+			response(map[string]any{"models": []any{map[string]string{"id": model, "provider": "test", "name": "Test model"}}})
 		case "get_available_thinking_levels":
 			response(map[string]any{"levels": []string{"high", "max"}})
 		case "set_model":

@@ -13,6 +13,10 @@ import (
 
 var kernel32 = syscall.NewLazyDLL("kernel32.dll")
 
+// Windows does not support POSIX directory fsync. File replacement uses the
+// write-through MoveFileExW path below; do not try FlushFileBuffers on a folder.
+func syncDirectory(string) error { return nil }
+
 // Protect sets the current process user as owner with a protected user-only
 // DACL. Directory ACEs inherit that specific user SID, independent of an
 // elevated token's default Administrators owner. Protect children explicitly

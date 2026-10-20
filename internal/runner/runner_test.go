@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -203,11 +204,17 @@ func TestLostClaimACKPreservesRequestAcrossRestart(t *testing.T) {
 	}))
 	defer server.Close()
 	r := testRunner(t, server)
+	if err := r.presence(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := r.claim(context.Background()); err == nil {
 		t.Fatal("lost claim ACK looked successful")
 	}
 	restarted, err := New(r.Config())
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := restarted.presence(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	a, _, err := restarted.claim(context.Background())
@@ -266,6 +273,68 @@ func TestPresenceContinuesWhileProjectAdmissionBlocksClaims(t *testing.T) {
 	}
 	if count, err := r.occupiedSlots(); err != nil || count != 0 {
 		t.Fatal("blocked claim started local work", count, err)
+	}
+}
+
+func TestPresenceContinuesWhenUncertainRecoveryFillsCapacity(t *testing.T) {
+	for _, denied := range []bool{false, true} {
+		t.Run(fmt.Sprint("denied=", denied), func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			var mu sync.Mutex
+			presence, claims := 0, 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				mu.Lock()
+				defer mu.Unlock()
+				switch req.URL.Path {
+				case "/api/v1/runner/presence":
+					presence++
+					if denied {
+						w.WriteHeader(http.StatusUnauthorized)
+						respond(w, domain.Problem{Code: "unauthorized", Message: "revoked node"})
+						return
+					}
+					respond(w, nil)
+					if presence == 3 {
+						cancel()
+					}
+				case "/api/v1/runner/claim":
+					claims++
+					t.Error("uncertain recovery must retain its capacity fence")
+					respond(w, nil)
+				case "/api/v1/runs/run_test", "/api/v1/runs/run_test/complete":
+					respond(w, domain.Run{ID: "run_test", Generation: 7, State: "lost"})
+				default:
+					t.Error("unexpected operation", req.URL.Path)
+				}
+			}))
+			defer server.Close()
+			r := testRunner(t, server)
+			r.config.Capacity = 1
+			r.config.PollInterval = 10 * time.Millisecond
+			record := testRecord()
+			record.Request.Quiescent = false
+			record.Acknowledged = true
+			if err := writePrivateJSON(r.spoolPath("run_test"), record); err != nil {
+				t.Fatal(err)
+			}
+			err := r.Run(ctx)
+			if denied != (err != nil) {
+				t.Fatal("presence authentication was not enforced", err)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			want := 3
+			if denied {
+				want = 1
+			}
+			if presence != want || claims != 0 {
+				t.Fatal("full recovery suppressed liveness or claimed work", presence, claims)
+			}
+			if slots, err := r.occupiedSlots(); err != nil || slots != 1 {
+				t.Fatal("presence freed an uncertain execution slot", slots, err)
+			}
+		})
 	}
 }
 
@@ -334,7 +403,7 @@ func TestRunnerSurfacesFailureAndUnavailableCapabilities(t *testing.T) {
 		if event.Kind == "capability" && strings.Contains(event.Detail, "available=false") {
 			capabilities++
 		}
-		if event.Kind == "claim.failed" && strings.Contains(event.Detail, "401") {
+		if event.Kind == "presence.failed" && strings.Contains(event.Detail, "401") {
 			failed = true
 		}
 	}

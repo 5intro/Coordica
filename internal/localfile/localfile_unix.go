@@ -25,7 +25,11 @@ func Replace(source, dest string) error {
 	if err := os.Rename(source, dest); err != nil {
 		return err
 	}
-	dir, err := os.Open(filepath.Dir(dest))
+	return syncDirectory(filepath.Dir(dest))
+}
+
+func syncDirectory(path string) error {
+	dir, err := os.Open(path)
 	if err != nil {
 		return err
 	}

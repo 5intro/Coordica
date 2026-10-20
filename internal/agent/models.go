@@ -80,6 +80,10 @@ func (r *Registry) validateExecutionOptions(ctx context.Context, def Definition,
 		if !validModelID(req.Model) || req.ReasoningEffort != "" && !effortID.MatchString(req.ReasoningEffort) {
 			return ErrProtocol
 		}
+		if def.Protocol == ProtocolPi {
+			_, _, err := splitPiModel(req.Model)
+			return err
+		}
 		return nil
 	}
 	models, err := readToolModels(ctx, def, req.Executable)

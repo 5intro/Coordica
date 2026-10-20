@@ -190,7 +190,15 @@ func (r *Runner) Run(ctx context.Context) error {
 			r.report("spool.capacity_failed", "", shortDetail(err))
 			return err
 		}
-		if count < r.config.Capacity {
+		// Presence describes the Runner, not a free execution slot. Uncertain
+		// recovery records retain capacity without hiding this live process.
+		if err := r.presence(ctx); err != nil {
+			r.report("presence.failed", "", shortDetail(err))
+			var remote *apiError
+			if errors.As(err, &remote) && (remote.Status == 401 || remote.Status == 403) {
+				return err
+			}
+		} else if count < r.config.Capacity {
 			assignment, clock, err := r.claim(ctx)
 			if err != nil {
 				r.report("claim.failed", "", shortDetail(err))
@@ -244,21 +252,35 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 }
 
-func (r *Runner) claim(ctx context.Context) (*domain.Assignment, responseClock, error) {
+func (r *Runner) pendingClaim(ctx context.Context) (claimPending, error) {
 	path := filepath.Join(r.config.DataDir, "claim.json")
 	var pending claimPending
 	if err := readJSON(path, &pending); errors.Is(err, os.ErrNotExist) {
 		pending = claimPending{Key: randomKey(), Request: domain.ClaimRequest{Capabilities: r.capabilities(ctx)}}
 		if err := writePrivateJSON(path, pending); err != nil {
-			return nil, responseClock{}, err
+			return claimPending{}, err
 		}
 	} else if err != nil {
-		return nil, responseClock{}, err
+		return claimPending{}, err
+	}
+	return pending, nil
+}
+
+func (r *Runner) presence(ctx context.Context) error {
+	pending, err := r.pendingClaim(ctx)
+	if err != nil {
+		return err
 	}
 	// Presence is independent of the baseline/goal gates on Claim. Reuse the
 	// persisted capability report so retries do not spawn discovery processes
 	// or change the body/key of a potentially acknowledged work claim.
-	if _, err := r.json(ctx, "POST", "/api/v1/runner/presence", "", pending.Request, nil); err != nil {
+	_, err = r.json(ctx, "POST", "/api/v1/runner/presence", "", pending.Request, nil)
+	return err
+}
+
+func (r *Runner) claim(ctx context.Context) (*domain.Assignment, responseClock, error) {
+	pending, err := r.pendingClaim(ctx)
+	if err != nil {
 		return nil, responseClock{}, err
 	}
 	var assignment *domain.Assignment
