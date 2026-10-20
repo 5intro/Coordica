@@ -55,3 +55,16 @@ func TestAssignmentPromptIncludesAuthorizedGoalConstraints(t *testing.T) {
 		}
 	}
 }
+
+func TestAssignmentPromptKeepsCompleteBaselineAndPinnedRequirements(t *testing.T) {
+	a := domain.Assignment{Run: domain.Run{ID: "run", Kind: "implement", RequirementRevisions: map[string]int64{"req": 2}}, Task: domain.Task{RequirementIDs: []string{"req"}, Acceptance: "TASK_ACCEPTANCE", AllowedPaths: []string{"src/**"}}, Baseline: &domain.Baseline{Requirements: "SHARED_REQUIREMENTS", Functionality: "KNOWN_FUNCTIONALITY", Risks: "KNOWN_RISK", AllowedRoots: []string{"src"}, Checks: []domain.Check{{Name: "REQUIRED_CHECK", Command: "test"}}}, Requirements: []domain.RequirementContext{{ID: "req", ContentRevision: 2, Title: "Linked", Body: "EXACT_REQUIREMENT_BODY"}}}
+	if err := domain.ValidateAssignmentRequirements(a); err != nil {
+		t.Fatal(err)
+	}
+	prompt := assignmentPrompt(a, "runner")
+	for _, value := range []string{"TASK_ACCEPTANCE", "src/**", "SHARED_REQUIREMENTS", "KNOWN_FUNCTIONALITY", "KNOWN_RISK", "REQUIRED_CHECK", "EXACT_REQUIREMENT_BODY", `"content_revision":2`, "on demand", "never permission to broaden scope"} {
+		if !strings.Contains(prompt, value) {
+			t.Fatal("fixed contract lost", value)
+		}
+	}
+}

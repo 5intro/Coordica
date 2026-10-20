@@ -474,3 +474,11 @@ HTTP chat routes are precisely GET `/api/v1/chat/{overview,identity}` and bounde
 Node-chat can submit ordinary requirements into the shared pool and read safe shared project/requirement/task/block facts. The server stamps SourceNodeID alongside chat client/session/message provenance. Normal authorized planning may later adopt pool requirements; this is not direct Leader chat. Runtime Run/agent queries on a Runner host expose only its authenticated node's safe facts: Run ID/state/tool/timings/limits/quiet status and truthful observed capabilities/LastSeen. No command, machine path, SDK session, private output, candidate content or full Project object is exposed. A historical Run cannot reveal its task's later assignment on another node or updated goal; task title/text accompanies runtime facts only while that exact current Run and authority remain bound. There is **no live developer messaging or runtime mailbox** in this implementation. Redirects and remote plaintext HTTP are refused.
 
 Chat DTOs exclude repository/local paths, raw command lines, executable definitions, secrets, credentials, raw process outcomes, and Owner configuration. Task scopes contain only safe relative repository patterns. Natural-language fields receive token/path/command redaction; do not intentionally submit unrelated secrets as requirements or advisory context. Revocation is rechecked transactionally before reads and before idempotency replay. Backups retain advisory records/accounting and supervised receipts under the existing private backup policy while removing credentials and cached credential responses. Public JSON schema/TypeScript and the embedded advisory output schema are generated with `go run ./cmd/contractgen`.
+
+### 分层执行上下文
+
+Leader 的普通规划与需求影响分析会携带精确的已确认共享基线、目标版本、权限、任务索引及累计用量。长任务正文和同目标版本历史保存在每次只读执行独立的 `context/*.jsonl`，清单记录 Run、代际、基线、需求修订、文件摘要与记录数，可按需读取；旧 Leader 输出和原生会话标识不会重复充当目标规则。资料单文件上限 4 MiB，规划提示按 JSON 编码后的实际字节限制在 256 KiB；历史省略会标明，完整权限、验收和需求影响集合超限时明确阻断。
+
+开发与审查任务收到关联需求的固定修订正文，不继承其他 Agent 的对话或私有经验。源码按需读取自固定私有工作区，审查仍须覆盖固定候选的完整差异。身份、共享基线或需求版本变化后，不能把新合同交给旧 Run。只读 Leader 资料复用既有进程退出和临时目录回收流程；无法确认进程停止时保留现场和原有阻断。
+
+手动升级时先升级中心，再升级 Runner。中心只向明确声明支持当前固定需求上下文协议的 Runner 派发关联需求的开发和审查任务；旧 Runner 仍可报告在线状态，在升级前不会领取这些任务或占用其预算。新版 Runner 遇到关联需求缺少正文的旧中心会明确拒绝执行，避免仅凭需求 ID 猜测合同；这不自动升级、启动或批准任何项目。

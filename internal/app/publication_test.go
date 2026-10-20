@@ -211,7 +211,7 @@ func TestGitHubCandidateUsesOneReviewAndExactLanding(t *testing.T) {
 			f, h := hostedFixture(t)
 			h.lostMerge = lost
 			f.implement(t, "src/feature.txt")
-			b, e := f.s.Claim(context.Background(), f.node, ID("before_pr_"), domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "claude", Available: true, Structured: true, Cancel: true, Review: true}}}, string(f.b))
+			b, e := f.s.Claim(context.Background(), f.node, ID("before_pr_"), domain.ClaimRequest{AssignmentContextVersion: domain.AssignmentContextVersion, Capabilities: []domain.Capability{{Tool: "claude", Available: true, Structured: true, Cancel: true, Review: true}}}, string(f.b))
 			if e != nil || string(b) != "null" {
 				t.Fatal("review claimed before PR binding", string(b), e)
 			}

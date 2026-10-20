@@ -76,6 +76,9 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			return nil, e
 		}
 		for _, t := range tasks {
+			if !assignmentContextCompatible(req, t) {
+				continue
+			}
 			if t.Verification != nil {
 				continue
 			} // program verification is claimed by the center verifier
@@ -196,6 +199,34 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 				}
 				continue
 			}
+			// Reject unusable fixed inputs before acquiring resources, reserving
+			// time or minting a Run. Other compatible work may still proceed.
+			contextRun := domain.Run{RequirementRevisions: copyRequirementBindings(t), GoalVersion: t.GoalVersion, GoalAuthorizationVersion: t.GoalAuthorizationVersion}
+			contextRequirements, e := assignedRequirements(tx, t, contextRun)
+			if e != nil {
+				var problem *domain.Error
+				if !errors.As(e, &problem) {
+					return nil, e
+				}
+				if err := s.blockTaskContext(tx, a, &t, e); err != nil {
+					return nil, err
+				}
+				continue
+			}
+			contextGoal, e := assignedRunGoal(tx, contextRun)
+			if e != nil {
+				return nil, e
+			}
+			contextBaseline, e := initialization(tx)
+			if e != nil {
+				return nil, e
+			}
+			if e = domain.ValidateAssignmentContext(domain.Assignment{Task: t, Run: contextRun, Baseline: contextBaseline.ApprovedBaseline, GoalContext: contextGoal, Requirements: contextRequirements, Project: p, Candidate: candidate}); e != nil {
+				if err := s.blockTaskContext(tx, a, &t, e); err != nil {
+					return nil, err
+				}
+				continue
+			}
 			for _, id := range t.HotResources {
 				if e = tx.Put("resource", id, domain.Resource{ID: id, TaskID: t.ID}); e != nil {
 					return nil, e
@@ -237,7 +268,7 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			if e = s.audit(tx, a, "run.claimed", r.ID, kind+":"+tool); e != nil {
 				return nil, e
 			}
-			goalContext, e := assignedGoalContext(tx)
+			goalContext, e := assignedRunGoal(tx, r)
 			if e != nil {
 				return nil, e
 			}
@@ -245,7 +276,11 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			if e != nil {
 				return nil, e
 			}
-			return domain.Assignment{Baseline: v.ApprovedBaseline, GoalContext: goalContext, Run: r, Task: t, Project: p, Candidate: candidate, InputURL: "/api/v1/runs/" + r.ID + "/input.bundle", HeartbeatSeconds: 10}, nil
+			requirements, e := assignedRequirements(tx, t, r)
+			if e != nil {
+				return nil, e
+			}
+			return domain.Assignment{Requirements: requirements, Baseline: v.ApprovedBaseline, GoalContext: goalContext, Run: r, Task: t, Project: p, Candidate: candidate, InputURL: "/api/v1/runs/" + r.ID + "/input.bundle", HeartbeatSeconds: 10}, nil
 		}
 		return nil, nil
 	})
@@ -706,12 +741,19 @@ func (s *Service) AssignmentRun(ctx context.Context, a Actor, id string) (domain
 // RunContext exposes only an execution's task context to its owning node.
 func (s *Service) RunContext(ctx context.Context, a Actor, id string) (domain.Assignment, error) {
 	var out domain.Assignment
-	r, e := s.AssignmentRun(ctx, a, id)
-	if e != nil {
-		return out, e
-	}
-	out.Run = r
-	e = s.DB.View(ctx, func(tx *store.Tx) error {
+	e := s.DB.View(ctx, func(tx *store.Tx) error {
+		// Authentication and material read share one snapshot; revocation
+		// cannot race a second transaction that reads newly broadened facts.
+		if _, e := nodeConsoleActor(tx, a); e != nil {
+			return e
+		}
+		if e := tx.Get("run", id, &out.Run); e != nil {
+			return e
+		}
+		r := out.Run
+		if a.Role != "node" || r.NodeID != a.NodeID {
+			return domain.Fail("forbidden", "无权读取此Run")
+		}
 		if e := tx.Get("task", r.TaskID, &out.Task); e != nil {
 			return e
 		}
@@ -719,12 +761,19 @@ func (s *Service) RunContext(ctx context.Context, a Actor, id string) (domain.As
 		if e = baselineRun(tx, r); e != nil {
 			return e
 		}
+		if e = requirementTaskGate(tx, out.Task); e != nil {
+			return e
+		}
+		out.Requirements, e = assignedRequirements(tx, out.Task, r)
+		if e != nil {
+			return e
+		}
 		v, e := initialization(tx)
 		if e != nil {
 			return e
 		}
 		out.Baseline = v.ApprovedBaseline
-		out.GoalContext, e = assignedGoalContext(tx)
+		out.GoalContext, e = assignedRunGoal(tx, r)
 		if e != nil {
 			return e
 		}

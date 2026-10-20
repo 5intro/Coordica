@@ -300,18 +300,24 @@ type RegisterResponse struct {
 	NodeID string `json:"node_id"`
 	Token  string `json:"token"`
 }
+
+// AssignmentContextVersion binds a claimant to the pinned requirement contract.
+const AssignmentContextVersion = 1
+
 type ClaimRequest struct {
-	Capabilities []Capability `json:"capabilities"`
+	Capabilities             []Capability `json:"capabilities"`
+	AssignmentContextVersion int          `json:"assignment_context_version,omitempty"`
 }
 type Assignment struct {
-	Baseline         *Baseline    `json:"baseline,omitempty"`
-	GoalContext      *GoalContext `json:"goal_context,omitempty"`
-	Run              Run          `json:"run"`
-	Task             Task         `json:"task"`
-	Project          Project      `json:"project"`
-	Candidate        *Candidate   `json:"candidate,omitempty"`
-	InputURL         string       `json:"input_url"`
-	HeartbeatSeconds int          `json:"heartbeat_seconds"`
+	Requirements     []RequirementContext `json:"requirements,omitempty"`
+	Baseline         *Baseline            `json:"baseline,omitempty"`
+	GoalContext      *GoalContext         `json:"goal_context,omitempty"`
+	Run              Run                  `json:"run"`
+	Task             Task                 `json:"task"`
+	Project          Project              `json:"project"`
+	Candidate        *Candidate           `json:"candidate,omitempty"`
+	InputURL         string               `json:"input_url"`
+	HeartbeatSeconds int                  `json:"heartbeat_seconds"`
 }
 type HeartbeatRequest struct {
 	Generation     int64  `json:"generation"`
@@ -395,6 +401,13 @@ func ValidateTask(t Task) error {
 	}
 	if err := ValidateToolID(t.Tool); err != nil {
 		return err
+	}
+	seenRequirements := map[string]bool{}
+	for _, id := range t.RequirementIDs {
+		if strings.TrimSpace(id) == "" || seenRequirements[id] {
+			return Fail("invalid_input", "任务需求 ID 不能为空或重复")
+		}
+		seenRequirements[id] = true
 	}
 	if t.BudgetSeconds <= 0 || t.BudgetSeconds > MaxTaskBudgetSeconds || t.MaxRunSeconds <= 0 || t.MaxRunSeconds > MaxRunDurationSeconds || t.MaxRunSeconds > t.BudgetSeconds || t.MaxRepairs < 0 || t.MaxRepairs > 2 || t.MaxRetries < 0 || t.MaxRetries > 2 {
 		return Fail("invalid_input", "无效的任务预算或次数限制")

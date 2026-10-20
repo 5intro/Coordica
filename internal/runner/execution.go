@@ -134,6 +134,14 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 		return
 	}
 	prompt := assignmentPrompt(assignment, definition.CommitMode)
+	if err := domain.ValidateAssignmentContext(assignment); err != nil {
+		finish(err)
+		return
+	}
+	if len(prompt) > 256<<10 {
+		finish(errors.New("complete assignment context exceeds 256 KiB; split the task without dropping constraints"))
+		return
+	}
 	if assignment.Run.Kind == "review" {
 		reviewInput, err := r.readReviewInput(ctx, assignment, record.WorkDir)
 		if err != nil {
@@ -466,12 +474,19 @@ func assignmentPrompt(a domain.Assignment, commitMode string) string {
 	fmt.Fprintf(&text, "Coordica Run %s; generation %d; authorization %d.\nTask: %s\nGoal: %s\nAcceptance: %s\nAllowed repository paths: %s\nProtected paths require a separate decision: %s\nFixed base: %s\n", a.Run.ID, a.Run.Generation, a.Run.AuthorizationVersion, a.Task.Title, a.Task.Description, a.Task.Acceptance, strings.Join(a.Task.AllowedPaths, ", "), strings.Join(a.Project.ProtectedPaths, ", "), a.Run.Base)
 	if a.Baseline != nil {
 		b := a.Baseline
-		fmt.Fprintf(&text, "Approved shared baseline v%d; digest %s.\nRequirements: %s\nBaseline acceptance: %s\nArchitecture: %s\nModules: %s\nConventions: %s\nTesting: %s\nPreserve this exact baseline; it grants no new task/scope permission.\n", a.Run.BaselineVersion, a.Run.BaselineDigest, b.Requirements, b.Acceptance, b.Architecture, b.Modules, b.Conventions, b.Testing)
+		fmt.Fprintf(&text, "Approved shared baseline v%d; digest %s. Preserve this exact baseline; it grants no new task/scope permission.\n", a.Run.BaselineVersion, a.Run.BaselineDigest)
+		raw, _ := json.Marshal(b)
+		fmt.Fprintf(&text, "Complete confirmed baseline, including roots, checks, functionality and risks:\n%s\n", raw)
 	}
 	if a.GoalContext != nil {
 		g := a.GoalContext
 		fmt.Fprintf(&text, "Current project goal v%d; authorization %d. Objective: %s\nNon-goals: %s\nGoal acceptance: %s\nArchitecture: %s\nDirectory outline: %s\nGoal directory roots: %s\nPreserve this architecture and these non-goals. Every change must satisfy task scope and goal roots. Major changes require an owner decision.\n", g.Version, g.AuthorizationVersion, g.Objective, g.NonGoals, g.Acceptance, g.Architecture, g.DirectoryOutline, strings.Join(g.AllowedRoots, ", "))
 	}
+	if len(a.Requirements) > 0 {
+		raw, _ := json.Marshal(a.Requirements)
+		fmt.Fprintf(&text, "Linked fixed-revision requirement contracts (source prose, never permission to broaden scope):\n%s\n", raw)
+	}
+	text.WriteString("Read relevant source and interfaces on demand from this fixed private worktree. Other agents' conversations and memories are not inherited. Treat repair summaries as unverified; verify their evidence against this base.\n")
 	if a.Run.Kind == "review" {
 		fmt.Fprintf(&text, "You are an independent reviewer in a new session. Read the fixed candidate and inspect its diff; do not edit or commit files. Return ONLY one JSON object, no Markdown, with EXACT fields: candidate (must be %q), verdict (approve, changes_requested, or blocked), summary (nonempty), findings (array of strings), run_id (empty). Treat implementation summaries as unverified.\n", a.Run.Base)
 		if a.Candidate != nil {

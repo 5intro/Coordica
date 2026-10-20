@@ -61,6 +61,9 @@ func (w *Integrator) Claim(ctx context.Context, a Actor, key string, req domain.
 			return e
 		}
 		for _, t := range tasks {
+			if !assignmentContextCompatible(req, t) {
+				continue
+			}
 			_, _, optionsValid := nodeExecution(n, t.Tool)
 			if optionsValid && t.State == "ready" && t.ApprovedVersion > 0 && t.HoldReason == "" && t.CurrentRunID == "" && available(req.Capabilities, t.Tool) {
 				if goalGate(tx, &t, false) != nil || !nodeAllows(n, t.Tool, "implement") {

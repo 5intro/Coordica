@@ -790,8 +790,10 @@ export interface RegisterResponse {
 }
 export interface ClaimRequest {
   capabilities: (Capability)[] | null;
+  assignment_context_version?: number;
 }
 export interface Assignment {
+  requirements?: (RequirementContext)[] | null;
   baseline?: Baseline | null;
   goal_context?: GoalContext | null;
   run: Run;
@@ -945,6 +947,13 @@ export interface RequirementLinkRequest {
   expected_version: number;
   other_expected_version: number;
   other_id: string;
+}
+export interface RequirementContext {
+  id: string;
+  content_revision: number;
+  state: string;
+  title: string;
+  body: string;
 }
 export interface RequirementEdit {
   expected_version: number;

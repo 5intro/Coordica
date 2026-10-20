@@ -588,3 +588,37 @@ func TestPresenceRefreshesCapabilitiesWithoutChangingInFlightClaim(t *testing.T)
 		t.Fatal("refresh altered a possibly acknowledged claim")
 	}
 }
+
+func TestUpgradedRunnerPreservesLegacyClaimBeforeAdvertisingContextProtocol(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var requests []domain.ClaimRequest
+	var keys []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/api/v1/runner/claim" {
+			var in domain.ClaimRequest
+			if err := json.NewDecoder(req.Body).Decode(&in); err != nil {
+				t.Error(err)
+			}
+			requests = append(requests, in)
+			keys = append(keys, req.Header.Get("Idempotency-Key"))
+			if len(requests) == 2 {
+				cancel()
+			}
+		}
+		respond(w, nil)
+	}))
+	defer server.Close()
+	r := testRunner(t, server)
+	r.config.PollInterval = time.Millisecond
+	legacy := claimPending{Key: "pre-upgrade-claim", Request: domain.ClaimRequest{Capabilities: []domain.Capability{{Tool: "legacy", Version: "frozen"}}}}
+	if err := writePrivateJSON(filepath.Join(r.config.DataDir, "claim.json"), legacy); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(requests) != 2 || keys[0] != legacy.Key || requests[0].AssignmentContextVersion != 0 || len(requests[0].Capabilities) != 1 || requests[0].Capabilities[0].Tool != "legacy" || keys[1] == legacy.Key || requests[1].AssignmentContextVersion != domain.AssignmentContextVersion {
+		t.Fatal("upgrade mutated a durable old claim or omitted the new protocol", requests, keys)
+	}
+}
