@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"coordica/internal/agent"
+	"coordica/internal/domain"
 	"coordica/internal/filelock"
 	"coordica/internal/runner"
 )
@@ -46,6 +47,12 @@ func idleRunnerCenter(t *testing.T) (*httptest.Server, <-chan struct{}) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method + " " + r.URL.Path {
+		case "POST /api/v1/runner/presence":
+			var report domain.ClaimRequest
+			if err := json.NewDecoder(r.Body).Decode(&report); err != nil || domain.ValidateCapabilities(report.Capabilities) != nil || len(report.Capabilities) != len(agent.BuiltinDefinitions()) || r.Header.Get("Idempotency-Key") != "" {
+				t.Error("invalid independent presence report", err)
+			}
+			_, _ = io.WriteString(w, "null")
 		case "POST /api/v1/runner/claim":
 			_, _ = io.WriteString(w, "null")
 			select {

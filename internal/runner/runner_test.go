@@ -175,6 +175,10 @@ func TestLostClaimACKPreservesRequestAcrossRestart(t *testing.T) {
 	var bodies, keys []string
 	var mu sync.Mutex
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/api/v1/runner/presence" {
+			respond(w, nil)
+			return
+		}
 		raw, _ := io.ReadAll(req.Body)
 		mu.Lock()
 		bodies = append(bodies, string(raw))
@@ -187,6 +191,11 @@ func TestLostClaimACKPreservesRequestAcrossRestart(t *testing.T) {
 				t.Error(err)
 				return
 			}
+			// A truncated response body reaches the caller even when the
+			// preceding presence request made this a reusable connection.
+			// Closing before headers lets net/http safely retry an idempotent
+			// request itself and would no longer simulate a lost claim ACK.
+			_, _ = io.WriteString(conn, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n{")
 			conn.Close()
 			return
 		}
@@ -209,6 +218,54 @@ func TestLostClaimACKPreservesRequestAcrossRestart(t *testing.T) {
 	defer mu.Unlock()
 	if len(bodies) != 2 || bodies[0] != bodies[1] || keys[0] != keys[1] {
 		t.Fatal("claim changed after Runner restart")
+	}
+}
+
+func TestPresenceContinuesWhileProjectAdmissionBlocksClaims(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	var mu sync.Mutex
+	var paths, bodies, keys []string
+	claims := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		raw, _ := io.ReadAll(req.Body)
+		mu.Lock()
+		defer mu.Unlock()
+		paths = append(paths, req.URL.Path)
+		bodies = append(bodies, string(raw))
+		keys = append(keys, req.Header.Get("Idempotency-Key"))
+		switch req.URL.Path {
+		case "/api/v1/runner/presence":
+			respond(w, nil)
+		case "/api/v1/runner/claim":
+			claims++
+			w.WriteHeader(http.StatusConflict)
+			respond(w, domain.Problem{Code: "initialization_required", Message: "baseline approval required"})
+			if claims == 3 {
+				cancel()
+			}
+		default:
+			t.Error("unexpected operation", req.URL.Path)
+		}
+	}))
+	defer server.Close()
+	r := testRunner(t, server)
+	r.config.PollInterval = 10 * time.Millisecond
+	if err := r.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if claims != 3 || len(paths) != 6 {
+		t.Fatal("presence stopped after claim rejection", paths)
+	}
+	for i := 0; i < len(paths); i += 2 {
+		if paths[i] != "/api/v1/runner/presence" || paths[i+1] != "/api/v1/runner/claim" || keys[i] != "" || keys[i+1] == "" || keys[i+1] != keys[1] || bodies[i] != bodies[0] || bodies[i+1] != bodies[0] {
+			t.Fatal("presence altered the pending work claim", paths, keys)
+		}
+	}
+	if count, err := r.occupiedSlots(); err != nil || count != 0 {
+		t.Fatal("blocked claim started local work", count, err)
 	}
 }
 

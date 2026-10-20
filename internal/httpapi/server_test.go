@@ -313,6 +313,7 @@ func TestRunnerRuntimeRoutesKeepNodeIdentityAndRunOwnership(t *testing.T) {
 	for _, handler := range []http.Handler{f.server.RunnerHandler(), f.server.Handler()} {
 		for _, route := range []struct{ method, path string }{
 			{"POST", "/api/v1/runner/claim"},
+			{"POST", "/api/v1/runner/presence"},
 			{"GET", "/api/v1/runner/state"},
 			{"POST", "/api/v1/runner/requirements"},
 			{"GET", "/api/v1/runs/" + a.Run.ID},

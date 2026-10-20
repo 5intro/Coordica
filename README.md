@@ -113,6 +113,10 @@ coordica ctl --center http://127.0.0.1:8080 --token-file /chosen/runtime/center/
 
 共享基线是所有任务、claim、上下文、Run、候选验证和 landing 的必需门禁；没有 Goal 也不能绕过。Goal 存在时仍要独立批准。普通代码提交不要求每次重新初始化，初始证据保持固定；重新初始化会使旧任务授权和结果失效，且拒绝活跃/未知存活进程、规划或候选。每个分析尝试使用请求登记时 Owner 保存的 `PlanningTimeoutSeconds`（默认 300 秒，1–604800 秒），重试使用 `PlanningMaxRetries`（默认两次，0–2），停止后输入核验另有 10 秒上限。Owner 可在 `system/automation` 设置较长有限分析超时（规划累计预算须不少于该超时），无需启用自动化；初始化不受项目生命周期额度限制。没有停止证据时保留未知存活与预留支出；重启不推断停止。Owner 实际核验后可使用 `initialization/confirm-stopped`，在线取消用 `initialization/cancel`。项目累计统计不是生命周期额度。
 
+Runner 在既有领取循环中先通过 `POST /api/v1/runner/presence` 上报节点活动和能力快照，再请求领取。该接口使用与 claim 相同的 `{capabilities:[...]}` 请求体，只接受当前已配对且未撤销的节点身份，不需要幂等键；暂停或等待基线确认时仍可上报。上报不能批准基线、创建任务、续租或证明旧进程停止；能力快照也不等于工具已通过原生执行验收。升级时先升级中心再升级 Runner；旧 Runner 仍可通过原有 claim/Run 心跳上报，但等待基线确认时须升级 Runner 才能独立刷新活动时间。
+
+模型目录探测不提交提示词。ACP 工具需要会话才能返回模型选项时，复用每个本机工具启动配置独有的探测会话，并在查询后关闭运行资源；`session/close` 不等于删除对话历史。会话身份和固定空工作目录存于系统用户配置目录的 `Coordica/catalog-sessions/`，可由可信本机环境变量 `COORDICA_CATALOG_STATE_DIR` 指定；多进程互斥，普通缓存过期或重启不会另建会话。工具须实际公布恢复/加载能力；恢复失败、创建回执丢失或状态损坏时标记目录不可用，不自动新建替代、不接管用户会话，工具默认执行仍由其原有执行能力决定。不要把该目录当一次性缓存删除；其中的状态用于避免重复创建持久对话。Codex 只初始化及查询模型目录，Claude 与 pi 的探测保持不保存会话。
+
 0.2.3-dev 首次打开旧数据库执行一次版本化、原子审计的 authority policy migration v1，补齐 `internal/mcp/**`、`internal/mcpconfig/**`、`internal/chatprofile/**`、`internal/centerhost/**` 等必需平台保护。若有变化，暂停项目、请求旧活动停止、使旧任务/共享基线失效，保留项目身份、历史和实际支出；不自动批准旧库或复活旧授权。原生目标部署与真实模型验收由 Owner 另行完成；跨编译不是原生部署证明。
 
 有限聊天的初始化读、请求、原始回答及幂等重放统一使用脱敏应用投影：凭据、本机 workspace 路径、检查命令和参数不返回。原始回答与完整检查政策私有保留给 Owner 审阅；聊天不能用脱敏投影批准规范。profile 的固定端点与 CA 在发送 token 前与启动配置 / 已登记 Runner 核对，然后在相同加载 profile 上验证服务器持久化的身份与范围。兼容独立 chat launcher 在启动时固定既有 profile 端点与 CA，不借用 Owner/node 凭据。

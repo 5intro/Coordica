@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"coordica/internal/process"
 	"encoding/json"
@@ -18,6 +19,7 @@ type metadataPeer struct {
 	cancel           context.CancelFunc
 	rpc              *rpcProcess
 	dir              string
+	tempDir          string
 	count, bytes, id int
 }
 
@@ -34,12 +36,12 @@ func newMetadataPeer(parent context.Context, executable string, args []string) (
 		os.RemoveAll(dir)
 		return nil, err
 	}
-	return &metadataPeer{ctx: ctx, cancel: cancel, rpc: rpc, dir: dir}, nil
+	return &metadataPeer{ctx: ctx, cancel: cancel, rpc: rpc, dir: dir, tempDir: dir}, nil
 }
 func (p *metadataPeer) close() error {
 	defer p.cancel()
 	defer p.rpc.stopWriter()
-	defer os.RemoveAll(p.dir)
+	defer os.RemoveAll(p.tempDir)
 	p.rpc.process.Stop()
 	for range p.rpc.process.Output() {
 	}
@@ -69,6 +71,12 @@ func (p *metadataPeer) read() (json.RawMessage, error) {
 				continue
 			}
 			if !json.Valid(line.Line) {
+				// Some CLI profiles emit plain diagnostics on stdout before a
+				// JSON-RPC response. Ignore only bounded non-object noise; no
+				// facts are parsed from it. A malformed protocol object fails.
+				if raw := bytes.TrimSpace(line.Line); len(raw) == 0 || raw[0] != '{' {
+					continue
+				}
 				return nil, ErrProtocol
 			}
 			return json.RawMessage(line.Line), nil
@@ -100,8 +108,11 @@ func (p *metadataPeer) call(method string, params any) (json.RawMessage, error) 
 			}
 			continue
 		}
-		if reply.ID != p.id || len(reply.Result) == 0 || len(reply.Error) > 0 && string(reply.Error) != "null" {
-			return nil, ErrProtocol
+		if len(reply.Error) > 0 && string(reply.Error) != "null" {
+			return nil, fmt.Errorf("metadata %s: %w", method, rpcError(reply.Error))
+		}
+		if reply.ID != p.id || len(reply.Result) == 0 {
+			return nil, fmt.Errorf("%w: metadata %s reply", ErrProtocol, method)
 		}
 		return reply.Result, nil
 	}
@@ -147,7 +158,7 @@ func validateModels(models []ModelOption) error {
 	}
 	seen := map[string]bool{}
 	for _, model := range models {
-		if !modelID.MatchString(model.ID) || seen[model.ID] || len(model.Name) > 256 || len(model.ReasoningEfforts) > 16 {
+		if !validModelID(model.ID) || seen[model.ID] || len(model.Name) > 256 || len(model.ReasoningEfforts) > 16 {
 			return ErrProtocol
 		}
 		seen[model.ID] = true
@@ -230,10 +241,19 @@ func configContains(option *acpConfigOption, value string) bool {
 	return false
 }
 func acpModels(ctx context.Context, def Definition, executable string) (models []ModelOption, err error) {
+	if !def.Resume || def.ResumeMethod == "" {
+		return nil, errors.New("ACP catalog requires reusable sessions")
+	}
+	owned, unlock, err := lockCatalogSession(def, executable)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	p, err := newMetadataPeer(ctx, executable, def.StartArgs)
 	if err != nil {
 		return nil, err
 	}
+	p.dir = owned.workDir
 	sessionID := ""
 	canClose := false
 	defer func() {
@@ -252,7 +272,8 @@ func acpModels(ctx context.Context, def Definition, executable string) (models [
 	}
 	var init struct {
 		AgentCapabilities struct {
-			Sessions map[string]json.RawMessage `json:"sessionCapabilities"`
+			LoadSession bool                       `json:"loadSession"`
+			Sessions    map[string]json.RawMessage `json:"sessionCapabilities"`
 		} `json:"agentCapabilities"`
 		ProtocolVersion int
 		AuthMethods     []struct {
@@ -263,6 +284,13 @@ func acpModels(ctx context.Context, def Definition, executable string) (models [
 		return nil, ErrProtocol
 	}
 	_, canClose = init.AgentCapabilities.Sessions["close"]
+	_, canResume := init.AgentCapabilities.Sessions["resume"]
+	if def.ResumeMethod == "session/load" {
+		canResume = init.AgentCapabilities.LoadSession
+	}
+	if !canResume {
+		return nil, errors.New("ACP peer does not advertise reusable catalog sessions")
+	}
 	if def.AuthMethod != "" {
 		advertised := false
 		for _, method := range init.AuthMethods {
@@ -275,7 +303,20 @@ func acpModels(ctx context.Context, def Definition, executable string) (models [
 			return nil, err
 		}
 	}
-	raw, err = p.call("session/new", map[string]any{"cwd": p.dir, "mcpServers": []any{}})
+	params := map[string]any{"cwd": p.dir, "mcpServers": []any{}}
+	method := "session/new"
+	if owned.SessionID != "" {
+		method = def.ResumeMethod
+		params["sessionId"] = owned.SessionID
+	} else {
+		// Persist before creating: a lost reply/crash must not cause the next
+		// poll to create another session with an unknown previous outcome.
+		owned.Pending = true
+		if err := owned.save(); err != nil {
+			return nil, err
+		}
+	}
+	raw, err = p.call(method, params)
 	if err != nil {
 		return nil, err
 	}
@@ -283,10 +324,24 @@ func acpModels(ctx context.Context, def Definition, executable string) (models [
 		SessionID     string
 		ConfigOptions []acpConfigOption
 	}
-	if json.Unmarshal(raw, &session) != nil || session.SessionID == "" {
+	if json.Unmarshal(raw, &session) != nil {
 		return nil, ErrProtocol
 	}
-	sessionID = session.SessionID
+	if method != "session/new" {
+		sessionID = owned.SessionID
+		if session.SessionID != "" && session.SessionID != sessionID {
+			return nil, ErrProtocol
+		}
+	} else {
+		if session.SessionID == "" || len(session.SessionID) > 512 {
+			return nil, ErrProtocol
+		}
+		sessionID = session.SessionID
+		owned.SessionID, owned.Pending = sessionID, false
+		if err := owned.save(); err != nil {
+			return nil, err
+		}
+	}
 	model := configOption(session.ConfigOptions, "model")
 	if model == nil {
 		return nil, ErrProtocol

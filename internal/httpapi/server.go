@@ -127,7 +127,7 @@ func runnerRoute(r *http.Request) bool {
 	if r.Method == http.MethodGet && (path == "runner/state" || path == "runner/local-entry") {
 		return true
 	}
-	if r.Method == http.MethodPost && (path == "runner/register" || path == "runner/claim" || path == "runner/requirements" || path == "runner/chat-credentials") {
+	if r.Method == http.MethodPost && (path == "runner/register" || path == "runner/claim" || path == "runner/presence" || path == "runner/requirements" || path == "runner/chat-credentials") {
 		return true
 	}
 	parts := strings.Split(path, "/")
@@ -457,6 +457,11 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		var in domain.VersionRequest
 		if err = decode(r, &in); err == nil {
 			result, err = s.Service.ApproveCandidate(ctx, a, key, parts[1], in)
+		}
+	case path == "runner/presence":
+		var in domain.ClaimRequest
+		if err = decode(r, &in); err == nil {
+			err = s.Service.ReportNodePresence(ctx, a, in)
 		}
 	case path == "runner/claim":
 		var in domain.ClaimRequest

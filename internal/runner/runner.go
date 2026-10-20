@@ -255,6 +255,12 @@ func (r *Runner) claim(ctx context.Context) (*domain.Assignment, responseClock, 
 	} else if err != nil {
 		return nil, responseClock{}, err
 	}
+	// Presence is independent of the baseline/goal gates on Claim. Reuse the
+	// persisted capability report so retries do not spawn discovery processes
+	// or change the body/key of a potentially acknowledged work claim.
+	if _, err := r.json(ctx, "POST", "/api/v1/runner/presence", "", pending.Request, nil); err != nil {
+		return nil, responseClock{}, err
+	}
 	var assignment *domain.Assignment
 	clock, err := r.json(ctx, "POST", "/api/v1/runner/claim", pending.Key, pending.Request, &assignment)
 	return assignment, clock, err
