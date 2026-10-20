@@ -304,14 +304,15 @@ type ClaimRequest struct {
 	Capabilities []Capability `json:"capabilities"`
 }
 type Assignment struct {
-	Baseline         *Baseline    `json:"baseline,omitempty"`
-	GoalContext      *GoalContext `json:"goal_context,omitempty"`
-	Run              Run          `json:"run"`
-	Task             Task         `json:"task"`
-	Project          Project      `json:"project"`
-	Candidate        *Candidate   `json:"candidate,omitempty"`
-	InputURL         string       `json:"input_url"`
-	HeartbeatSeconds int          `json:"heartbeat_seconds"`
+	Requirements     []RequirementContext `json:"requirements,omitempty"`
+	Baseline         *Baseline            `json:"baseline,omitempty"`
+	GoalContext      *GoalContext         `json:"goal_context,omitempty"`
+	Run              Run                  `json:"run"`
+	Task             Task                 `json:"task"`
+	Project          Project              `json:"project"`
+	Candidate        *Candidate           `json:"candidate,omitempty"`
+	InputURL         string               `json:"input_url"`
+	HeartbeatSeconds int                  `json:"heartbeat_seconds"`
 }
 type HeartbeatRequest struct {
 	Generation     int64  `json:"generation"`

@@ -87,6 +87,15 @@
         "project": {
           "$ref": "#/$defs/Project"
         },
+        "requirements": {
+          "items": {
+            "$ref": "#/$defs/RequirementContext"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "run": {
           "$ref": "#/$defs/Run"
         },
@@ -3491,6 +3500,34 @@
         "task_ids",
         "detail",
         "created_at"
+      ],
+      "type": "object"
+    },
+    "RequirementContext": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "content_revision": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "content_revision",
+        "state",
+        "title",
+        "body"
       ],
       "type": "object"
     },

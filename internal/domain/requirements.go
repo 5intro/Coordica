@@ -2,6 +2,16 @@ package domain
 
 import "time"
 
+// RequirementContext carries only the linked, pinned content contract. It
+// excludes chat provenance, private summaries and unrelated requirements.
+type RequirementContext struct {
+	ID              string `json:"id"`
+	ContentRevision int64  `json:"content_revision"`
+	State           string `json:"state"`
+	Title           string `json:"title"`
+	Body            string `json:"body"`
+}
+
 // ContentRevision changes with the requirement contract, independently of
 // Version, which also covers relationship and metadata edits.
 func RequirementRevisionNumber(r Requirement) int64 {
