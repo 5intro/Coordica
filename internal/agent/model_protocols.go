@@ -83,6 +83,14 @@ func (p *metadataPeer) read() (json.RawMessage, error) {
 		}
 	}
 }
+
+// A rejected call is known only after validating the response envelope and
+// request ID. Lost, malformed or mismatched replies remain uncertain.
+type metadataRejection struct{ cause error }
+
+func (e *metadataRejection) Error() string { return e.cause.Error() }
+func (e *metadataRejection) Unwrap() error { return e.cause }
+
 func (p *metadataPeer) call(method string, params any) (json.RawMessage, error) {
 	p.id++
 	if err := p.rpc.send(map[string]any{"jsonrpc": "2.0", "id": p.id, "method": method, "params": params}); err != nil {
@@ -94,10 +102,11 @@ func (p *metadataPeer) call(method string, params any) (json.RawMessage, error) 
 			return nil, err
 		}
 		var reply struct {
-			ID     int             `json:"id"`
-			Method string          `json:"method"`
-			Result json.RawMessage `json:"result"`
-			Error  json.RawMessage `json:"error"`
+			JSONRPC string          `json:"jsonrpc"`
+			ID      int             `json:"id"`
+			Method  string          `json:"method"`
+			Result  json.RawMessage `json:"result"`
+			Error   json.RawMessage `json:"error"`
 		}
 		if json.Unmarshal(raw, &reply) != nil {
 			return nil, ErrProtocol
@@ -108,10 +117,20 @@ func (p *metadataPeer) call(method string, params any) (json.RawMessage, error) 
 			}
 			continue
 		}
-		if len(reply.Error) > 0 && string(reply.Error) != "null" {
-			return nil, fmt.Errorf("metadata %s: %w", method, rpcError(reply.Error))
+		if reply.JSONRPC != "2.0" || reply.ID != p.id {
+			return nil, ErrProtocol
 		}
-		if reply.ID != p.id || len(reply.Result) == 0 {
+		if len(reply.Error) > 0 && string(reply.Error) != "null" {
+			var failure struct {
+				Code    *int    `json:"code"`
+				Message *string `json:"message"`
+			}
+			if len(reply.Result) != 0 || json.Unmarshal(reply.Error, &failure) != nil || failure.Code == nil || failure.Message == nil {
+				return nil, ErrProtocol
+			}
+			return nil, &metadataRejection{cause: fmt.Errorf("metadata %s: %w", method, rpcError(reply.Error))}
+		}
+		if len(reply.Result) == 0 {
 			return nil, fmt.Errorf("%w: metadata %s reply", ErrProtocol, method)
 		}
 		return reply.Result, nil
@@ -311,13 +330,18 @@ func acpModels(ctx context.Context, def Definition, executable string) (models [
 	} else {
 		// Persist before creating: a lost reply/crash must not cause the next
 		// poll to create another session with an unknown previous outcome.
-		owned.Pending = true
+		owned.Pending, owned.Retryable = true, false
 		if err := owned.save(); err != nil {
 			return nil, err
 		}
 	}
 	raw, err = p.call(method, params)
 	if err != nil {
+		var rejection *metadataRejection
+		if method == "session/new" && errors.As(err, &rejection) {
+			owned.Pending, owned.Retryable = false, true
+			err = errors.Join(err, owned.save())
+		}
 		return nil, err
 	}
 	var session struct {
@@ -337,7 +361,7 @@ func acpModels(ctx context.Context, def Definition, executable string) (models [
 			return nil, ErrProtocol
 		}
 		sessionID = session.SessionID
-		owned.SessionID, owned.Pending = sessionID, false
+		owned.SessionID, owned.Pending, owned.Retryable = sessionID, false, false
 		if err := owned.save(); err != nil {
 			return nil, err
 		}

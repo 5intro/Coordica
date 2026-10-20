@@ -331,6 +331,9 @@ func TestPresenceContinuesWhenUncertainRecoveryFillsCapacity(t *testing.T) {
 			if presence != want || claims != 0 {
 				t.Fatal("full recovery suppressed liveness or claimed work", presence, claims)
 			}
+			if _, err := os.Stat(filepath.Join(r.config.DataDir, "claim.json")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("presence froze an unissued claim", err)
+			}
 			if slots, err := r.occupiedSlots(); err != nil || slots != 1 {
 				t.Fatal("presence freed an uncertain execution slot", slots, err)
 			}
@@ -525,5 +528,63 @@ func TestWorkerRequiresAgentCommitAndPreservesDirtyWorkspace(t *testing.T) {
 	}
 	if contents, err := os.ReadFile(filepath.Join(record.WorkDir, "code.txt")); err != nil || string(contents) != "uncommitted" {
 		t.Fatal("private changes were discarded")
+	}
+}
+
+func TestPresenceRefreshesCapabilitiesWithoutChangingInFlightClaim(t *testing.T) {
+	var presence []domain.ClaimRequest
+	var claims []string
+	var keys []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		raw, _ := io.ReadAll(req.Body)
+		if req.URL.Path == "/api/v1/runner/presence" {
+			var body domain.ClaimRequest
+			if err := json.Unmarshal(raw, &body); err != nil {
+				t.Error(err)
+			}
+			presence = append(presence, body)
+			respond(w, nil)
+		} else {
+			claims = append(claims, string(raw))
+			keys = append(keys, req.Header.Get("Idempotency-Key"))
+			w.WriteHeader(http.StatusConflict)
+			respond(w, domain.Problem{Code: "initialization_required", Message: "blocked"})
+		}
+	}))
+	defer server.Close()
+	r := testRunner(t, server)
+	if err := r.presence(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(r.config.DataDir, "claim.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("presence created a claim")
+	}
+	if _, _, err := r.claim(context.Background()); err == nil {
+		t.Fatal("blocked claim succeeded")
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.config.Executables["codex"] = exe // Installed fixture binary; no real Agent or prompt.
+	if err := r.presence(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := r.claim(context.Background()); err == nil {
+		t.Fatal("blocked retry succeeded")
+	}
+	installed := func(in domain.ClaimRequest) bool {
+		for _, c := range in.Capabilities {
+			if c.Tool == "codex" {
+				return c.Installed
+			}
+		}
+		return false
+	}
+	if len(presence) != 2 || installed(presence[0]) || !installed(presence[1]) {
+		t.Fatal("presence stayed frozen", presence)
+	}
+	if len(claims) != 2 || claims[0] != claims[1] || keys[0] == "" || keys[0] != keys[1] {
+		t.Fatal("refresh altered a possibly acknowledged claim")
 	}
 }

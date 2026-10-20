@@ -20,6 +20,7 @@ type catalogSession struct {
 	Identity  string `json:"identity"`
 	SessionID string `json:"session_id"`
 	Pending   bool   `json:"pending"`
+	Retryable bool   `json:"retryable,omitempty"`
 	path      string
 	workDir   string
 }
@@ -86,7 +87,7 @@ func lockCatalogSession(def Definition, executable string) (*catalogSession, fun
 			err = jsoninput.Decode(data, session, 4096)
 		}
 	}
-	if err != nil || session.Version != 1 || session.Identity != id || len(session.SessionID) > 512 || session.Pending || session.SessionID == "" {
+	if err != nil || session.Version != 1 || session.Identity != id || len(session.SessionID) > 512 || session.Pending || session.SessionID == "" && !session.Retryable || session.SessionID != "" && session.Retryable {
 		unlock()
 		return nil, nil, errors.New("catalog session needs recovery; refusing another persistent session")
 	}

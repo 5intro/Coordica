@@ -138,3 +138,39 @@ func TestACPCatalogAndExecutionPreserveOpaqueModelValues(t *testing.T) {
 		t.Fatal("reported opaque model could not be selected", result, err)
 	}
 }
+
+func TestACPCatalogExplicitCreationRejectionCanRetryButUncertainErrorsCannot(t *testing.T) {
+	for _, mode := range []string{"reject", "wrong-error-id", "malformed-error", "mixed-result-error", "lost"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Setenv("AGENT_TEST_MODEL_PROTOCOL", "acp")
+			req := fixtureRequest(t, "dsh", "unused")
+			log := filepath.Join(t.TempDir(), "requests")
+			t.Setenv("AGENT_TEST_SESSION_LOG", log)
+			t.Setenv("AGENT_TEST_NEW_REPLY", mode)
+			def, _ := DefaultRegistry().Resolve("dsh")
+			if _, err := readToolModels(context.Background(), def, req.Executable); err == nil {
+				t.Fatal("rejected creation succeeded")
+			}
+			t.Setenv("AGENT_TEST_NEW_REPLY", "")
+			models, err := readToolModels(context.Background(), def, req.Executable)
+			if mode == "reject" {
+				if err != nil || len(models) != 2 {
+					t.Fatal("explicit rejection permanently disabled catalog", models, err)
+				}
+				if _, err := readToolModels(context.Background(), def, req.Executable); err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil {
+				t.Fatal("uncertain response permitted a replacement session")
+			}
+			data, _ := os.ReadFile(log)
+			want := 1
+			if mode == "reject" {
+				want = 2
+			}
+			if strings.Count(string(data), "session/new\n") != want {
+				t.Fatal("wrong creation retry count", mode, string(data))
+			}
+		})
+	}
+}

@@ -2,12 +2,15 @@ package gitops
 
 import (
 	"context"
+	"coordica/internal/filelock"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestFetchRetainsDistinctObservedObjectsWithoutPollingRefLeak(t *testing.T) {
@@ -41,7 +44,7 @@ func TestFetchRetainsDistinctObservedObjectsWithoutPollingRefLeak(t *testing.T) 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			got, err := g.Fetch(ctx, cache, remote, "refs/heads/main")
+			got, err := New(g.GitPath).Fetch(ctx, cache, remote, "refs/heads/main")
 			if err != nil {
 				failures <- err
 			} else if got != next {
@@ -118,5 +121,38 @@ func TestFetchNeverOverwritesMismatchedObservationPin(t *testing.T) {
 	}
 	if got := strings.TrimSpace(string(mustRun(t, g, cache, "rev-parse", pin))); got != string(base) {
 		t.Fatal("immutable reference overwritten")
+	}
+}
+
+func TestFetchWaitsForObjectStoreLockAndCancellationLeavesItIntact(t *testing.T) {
+	g := gitClient(t)
+	repo, base := newRepo(t, g)
+	remote := filepath.Join(t.TempDir(), "remote.git")
+	ctx := context.Background()
+	if err := g.Init(ctx, remote, true); err != nil {
+		t.Fatal(err)
+	}
+	mustRun(t, g, repo, "push", "--", remote, string(base)+":refs/heads/main")
+	cache := filepath.Join(t.TempDir(), "cache")
+	if err := g.Clone(ctx, remote, cache); err != nil {
+		t.Fatal(err)
+	}
+	release, err := filelock.Acquire(filepath.Join(cache, ".git", "coordica-fetch.lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	waiting, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	if _, err := g.Fetch(waiting, cache, remote, "refs/heads/main"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("contending fetch did not cancel", err)
+	}
+	refs := string(mustRun(t, g, cache, "for-each-ref", "--format=%(refname)", "refs/coordica"))
+	if strings.TrimSpace(refs) != "" {
+		t.Fatal("cancelled waiter mutated fetch refs", refs)
+	}
+	release()
+	if got, err := g.Fetch(ctx, cache, remote, "refs/heads/main"); err != nil || got != base {
+		t.Fatal("lock not reusable after cancellation", got, err)
 	}
 }

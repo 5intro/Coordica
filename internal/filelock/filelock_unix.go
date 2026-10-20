@@ -5,6 +5,8 @@
 package filelock
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"sync"
 	"syscall"
@@ -20,6 +22,9 @@ func Acquire(path string) (func(), error) {
 	}
 	if err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		f.Close()
+		if errors.Is(err, syscall.EWOULDBLOCK) {
+			return nil, fmt.Errorf("%w: %w", ErrBusy, err)
+		}
 		return nil, err
 	}
 	var once sync.Once

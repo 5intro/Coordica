@@ -267,14 +267,10 @@ func (r *Runner) pendingClaim(ctx context.Context) (claimPending, error) {
 }
 
 func (r *Runner) presence(ctx context.Context) error {
-	pending, err := r.pendingClaim(ctx)
-	if err != nil {
-		return err
-	}
-	// Presence is independent of the baseline/goal gates on Claim. Reuse the
-	// persisted capability report so retries do not spawn discovery processes
-	// or change the body/key of a potentially acknowledged work claim.
-	_, err = r.json(ctx, "POST", "/api/v1/runner/presence", "", pending.Request, nil)
+	// Presence uses current cached discovery, independently of durable claims.
+	// It never creates claim.json while recovery holds every execution slot.
+	request := domain.ClaimRequest{Capabilities: r.capabilities(ctx)}
+	_, err := r.json(ctx, "POST", "/api/v1/runner/presence", "", request, nil)
 	return err
 }
 

@@ -84,6 +84,22 @@ func fakeConfiguredACP() {
 			if os.Getenv("AGENT_TEST_NEW_REPLY") == "lost" {
 				return
 			}
+			if mode := os.Getenv("AGENT_TEST_NEW_REPLY"); mode != "" {
+				id := request.ID
+				failure := map[string]any{"code": -32000, "message": "creation rejected"}
+				response := map[string]any{"jsonrpc": "2.0", "id": id, "error": failure}
+				if mode == "wrong-error-id" {
+					response["id"] = id + 1
+				}
+				if mode == "malformed-error" {
+					delete(failure, "code")
+				}
+				if mode == "mixed-result-error" {
+					response["result"] = map[string]string{"sessionId": "maybe-created"}
+				}
+				printJSON(response)
+				continue
+			}
 			if os.Getenv("AGENT_TEST_AUTH") != "" && !authenticated {
 				printJSON(map[string]any{"jsonrpc": "2.0", "id": request.ID, "error": map[string]any{"code": -32000, "message": "authenticate first"}})
 				continue
