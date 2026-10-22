@@ -45,5 +45,6 @@ func (m *metrics) goSource(f File) error {
 			m.add(f.Path, start, "function_lines", name, end-start+1, MaxFunction)
 		}
 	}
+	m.goLiterals(f, set, root)
 	return nil
 }

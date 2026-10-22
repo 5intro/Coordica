@@ -3,8 +3,6 @@ package gitops
 import (
 	"context"
 	"errors"
-	"strconv"
-	"strings"
 )
 
 type SourceReader struct{ Git *Client }
@@ -40,41 +38,9 @@ func (r SourceReader) Read(
 	if err != nil {
 		return err
 	}
-	entries := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
-	if len(entries) > 20000 {
-		return &SourceInventoryError{Cause: ErrOutputLimit}
+	entries, err := sourceManifest(string(out), include)
+	if err != nil {
+		return err
 	}
-	total := 0
-	for _, entry := range entries {
-		if entry == "" {
-			continue
-		}
-		header, path, ok := strings.Cut(entry, "\t")
-		fields := strings.Fields(header)
-		if !ok || len(fields) != 4 || ValidatePath(path) != nil || path == "." {
-			return &SourceInventoryError{Cause: ErrUnsupportedObject}
-		}
-		if !include(path) {
-			continue
-		}
-		if fields[0] != "100644" && fields[0] != "100755" || fields[1] != "blob" {
-			return &SourceInventoryError{Cause: ErrUnsupportedObject}
-		}
-		size, err := strconv.Atoi(fields[3])
-		if err != nil || size < 0 || size > 2<<20 || total+size > 64<<20 {
-			return &SourceInventoryError{Cause: ErrOutputLimit}
-		}
-		blob, err := g.run(ctx, repo, nil, "cat-file", "blob", fields[2])
-		if err != nil {
-			return err
-		}
-		total += len(blob)
-		if len(blob) > 2<<20 || total > 64<<20 {
-			return &SourceInventoryError{Cause: ErrOutputLimit}
-		}
-		if err := consume(path, string(blob)); err != nil {
-			return errors.Join(errors.New("immutable source consumer rejected "+path), err)
-		}
-	}
-	return nil
+	return r.readSourceBatch(ctx, repo, entries, consume)
 }

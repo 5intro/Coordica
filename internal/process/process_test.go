@@ -18,6 +18,8 @@ import (
 func TestMain(m *testing.M) {
 	if len(os.Args) > 2 && os.Args[1] == "process-helper" {
 		switch os.Args[2] {
+		case "duplex":
+			os.Exit(duplexInputHelper())
 		case "stdin":
 			input, err := io.ReadAll(os.Stdin)
 			if err != nil {

@@ -7,9 +7,6 @@ import (
 )
 
 var classBlock = regexp.MustCompile(`\bclass\s+([A-Za-z_$][\w$]*)[^;{}]*\{`)
-var namedFunction = regexp.MustCompile(`\bfunction\s*([A-Za-z_$][\w$]*)?\s*\([^{};]*\)[^{};]*\{`)
-var arrowFunction = regexp.MustCompile(`=>\s*\{`)
-var classMethod = regexp.MustCompile(`([A-Za-z_$][\w$]*)\s*\([^;{}]*\)[^;{}=]*\{`)
 var pythonDeclaration = regexp.MustCompile(`^(?:async\s+)?(class|def)\s+([A-Za-z_]\w*)`)
 
 func (m *metrics) structuredSource(f File) {
@@ -18,8 +15,16 @@ func (m *metrics) structuredSource(f File) {
 		return
 	}
 	switch strings.ToLower(path.Ext(f.Path)) {
-	case ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".java", ".cs", ".kt", ".swift":
-		m.braceSource(f)
+	case ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx":
+		m.javaScriptSource(f)
+	case ".java", ".cs", ".kt", ".swift", ".rs", ".c", ".cc", ".cpp", ".h", ".hpp", ".php":
+		m.nativeBraceSource(f)
+	case ".rb":
+		m.rubySource(f)
+	case ".sh", ".ps1", ".scss":
+		m.commandSource(f)
+	case ".html", ".vue", ".svelte":
+		m.embeddedSource(f)
 	}
 }
 
@@ -93,71 +98,11 @@ func braceEnds(text string) map[int]int {
 
 func lineAt(text string, offset int) int { return strings.Count(text[:offset], "\n") + 1 }
 
-func (m *metrics) braceSource(f File) {
-	text := maskedSource(f.Text, false, nil)
-	switch strings.ToLower(path.Ext(f.Path)) {
-	case ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx":
-		m.javaScriptSource(f)
-		return
-	}
-	ends := braceEnds(text)
-	for _, match := range classBlock.FindAllStringSubmatchIndex(text, -1) {
-		open := match[1] - 1
-		end, ok := ends[open]
-		if !ok {
-			continue // Native syntax validation must reject incomplete programs.
-		}
-		name := text[match[2]:match[3]]
-		m.add(f.Path, lineAt(text, match[0]), "class_lines", name,
-			lineAt(text, end)-lineAt(text, match[0])+1, MaxClass)
-		m.classMembers(f.Path, text, name, open, end, ends)
-	}
-	for _, match := range namedFunction.FindAllStringSubmatchIndex(text, -1) {
-		name := "anonymous"
-		if match[2] >= 0 {
-			name = text[match[2]:match[3]]
-		}
-		m.blockFunction(f.Path, text, name, match[0], match[1]-1, ends)
-	}
-	for _, match := range arrowFunction.FindAllStringIndex(text, -1) {
-		m.blockFunction(f.Path, text, "arrow", match[0], match[1]-1, ends)
-	}
-}
-
 func (m *metrics) blockFunction(file, text, name string, start, open int, ends map[int]int) {
 	if end, ok := ends[open]; ok {
 		m.add(file, lineAt(text, start), "function_lines", name,
 			lineAt(text, end)-lineAt(text, start)+1, MaxFunction)
 	}
-}
-
-func (m *metrics) classMembers(file, text, class string, open, end int, ends map[int]int) {
-	count, cursor := 0, open+1
-	walked, depth := open+1, 0
-	for _, match := range classMethod.FindAllStringSubmatchIndex(text[open+1:end], -1) {
-		start, body := open+1+match[0], open+match[1]
-		if start < cursor {
-			continue
-		}
-		for walked < start {
-			if text[walked] == '{' {
-				depth++
-			} else if text[walked] == '}' {
-				depth--
-			}
-			walked++
-		}
-		if depth != 0 {
-			continue
-		}
-		name := text[open+1+match[2] : open+1+match[3]]
-		if close, ok := ends[body]; ok {
-			count++
-			m.blockFunction(file, text, class+"."+name, start, body, ends)
-			cursor = close + 1
-		}
-	}
-	m.add(file, lineAt(text, open), "class_methods", class, count, MaxMethods)
 }
 
 func (m *metrics) pythonSource(f File) {

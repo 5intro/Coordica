@@ -24,17 +24,14 @@ func TestJavaScriptBalancedFunctionAndMethodSignatures(t *testing.T) {
 	}
 }
 
-func TestDestructuringMethodsCountWithoutCountingNestedCallsOrFields(t *testing.T) {
+func TestDestructuringMethodsAndCallableFieldsCountWithoutNestedCalls(t *testing.T) {
 	var methods, fields strings.Builder
 	for i := 0; i <= MaxMethods; i++ {
 		fmt.Fprintf(&methods, "run%d({value}, [first]) { return call({value}, first); }\n", i)
 		fmt.Fprintf(&fields, "field%d = function work({value}) { return value; };\n", i)
 	}
 	expectRules(t, []File{{"src/work.ts", "class Work {\n" + methods.String() + "}\n"}}, "class_methods")
-	findings, err := Measure([]File{{"src/work.ts", "class Work {\n" + fields.String() + "}\n"}})
-	if err != nil || len(findings) != 0 {
-		t.Fatal("function-valued fields were counted as class methods", findings, err)
-	}
+	expectRules(t, []File{{"src/work.ts", "class Work {\n" + fields.String() + "}\n"}}, "class_methods")
 }
 
 func TestTypeOverloadsAndShortDestructuringDeclarationsRemainWithinLimits(t *testing.T) {
