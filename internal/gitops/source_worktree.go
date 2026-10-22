@@ -2,9 +2,6 @@ package gitops
 
 import (
 	"context"
-	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -17,7 +14,7 @@ func (r SourceReader) Worktree(
 	if err := r.Git.guardRepo(ctx, repo); err != nil {
 		return err
 	}
-	out, err := r.Git.run(ctx, repo, nil, "ls-files", "--cached", "--others", "--exclude-standard", "-z")
+	out, err := r.Git.run(ctx, repo, nil, "ls-files", "-v", "--cached", "--others", "--exclude-standard", "-z")
 	if err != nil {
 		return err
 	}
@@ -26,30 +23,26 @@ func (r SourceReader) Worktree(
 		return ErrOutputLimit
 	}
 	total := 0
-	for _, name := range paths {
-		if name == "" || !include(name) {
+	for _, entry := range paths {
+		if entry == "" {
+			continue
+		}
+		if len(entry) < 3 || entry[1] != ' ' {
+			return ErrUnsupportedObject
+		}
+		name, sparse := entry[2:], entry[0] == 'S' || entry[0] == 's'
+		if !include(name) {
 			continue
 		}
 		if ValidatePath(name) != nil || name == "." {
 			return ErrUnsupportedObject
 		}
-		file := filepath.Join(repo, filepath.FromSlash(name))
-		info, err := os.Lstat(file)
-		if errors.Is(err, os.ErrNotExist) {
-			continue // Locally deleted source.
-		}
+		data, exists, err := r.localSource(ctx, repo, name, sparse)
 		if err != nil {
 			return err
 		}
-		if !info.Mode().IsRegular() {
-			return ErrUnsupportedObject
-		}
-		if info.Size() > 2<<20 {
-			return ErrOutputLimit
-		}
-		data, err := os.ReadFile(file)
-		if err != nil {
-			return err
+		if !exists {
+			continue
 		}
 		total += len(data)
 		if len(data) > 2<<20 || total > 64<<20 {

@@ -97,7 +97,8 @@ func (m *metrics) braceSource(f File) {
 	text := maskedSource(f.Text, false, nil)
 	switch strings.ToLower(path.Ext(f.Path)) {
 	case ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx":
-		text = maskedJavaScript(f.Text)
+		m.javaScriptSource(f)
+		return
 	}
 	ends := braceEnds(text)
 	for _, match := range classBlock.FindAllStringSubmatchIndex(text, -1) {

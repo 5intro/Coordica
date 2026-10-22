@@ -12,8 +12,8 @@ import (
 	"coordica/internal/gitops"
 )
 
-// A failed scan is not evidence of defective source. Preserve the fixed
-// candidate, review and finite repair allowance until the scan can complete.
+// Operational scan faults do not consume a repair allowance. Deterministic
+// candidate inventory defects are rejected just like structural violations.
 func candidateQualityFailure(ctx context.Context, w *Integrator, c domain.Candidate, err error) error {
 	var finding *domain.Error
 	if errors.As(err, &finding) && finding.Code == "maintainability" {
@@ -33,10 +33,18 @@ func checkCandidateQuality(ctx context.Context, w *Integrator, c domain.Candidat
 	}
 	next, err := qualitySource(ctx, w.Git, w.repo(), c.Commit)
 	if err != nil {
+		var inventory *gitops.SourceInventoryError
+		if errors.As(err, &inventory) {
+			return domain.Fail("maintainability", err.Error())
+		}
 		return err
 	}
 	findings, err := codequality.Regressions(base, next)
 	if err != nil {
+		var candidate *codequality.CandidateError
+		if errors.As(err, &candidate) {
+			return domain.Fail("maintainability", err.Error())
+		}
 		return err
 	}
 	if len(findings) == 0 {
