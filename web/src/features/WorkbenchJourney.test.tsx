@@ -103,6 +103,7 @@ it.each(['missing', 'skipped', 'running'] as const)('测试中心不把 %s 当�
   expect(screen.queryByText('评审通过')).toBeNull();
   dock('测试中心');
   await screen.findByRole('heading', { name: '测试中心' });
+  fireEvent.click(screen.getByRole('button', { name: '套件与执行' }));
   expect(screen.getByText('尚未查询此提交；未运行、跳过或取消均不算通过。')).toBeTruthy();
   if (state === 'missing') expect(screen.getByText('尚无验证执行记录。')).toBeTruthy();
   else expect(screen.getByText('未记录检查结果，不算通过。')).toBeTruthy();
@@ -120,6 +121,7 @@ it('实际创建验证请求被拒绝后显示错误，保留输入且不宣称�
   await screen.findByRole('heading', { name: centerSnapshot.project!.name });
   dock('测试中心');
   await screen.findByRole('heading', { name: '测试中心' });
+  fireEvent.click(screen.getByRole('button', { name: '套件与执行' }));
   fireEvent.change(screen.getByLabelText('完整提交 SHA'), { target: { value: sha } });
   fireEvent.change(screen.getByLabelText('执行套件'), { target: { value: suite.id } });
   await waitFor(() => expect(screen.getByRole('button', { name: '创建验证任务' })).toHaveProperty('disabled', false));

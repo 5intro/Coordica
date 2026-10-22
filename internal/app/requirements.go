@@ -80,7 +80,7 @@ func requirementTaskGate(tx *store.Tx, t domain.Task) error {
 			return domain.Fail("requirement_changed", "需求已修订或撤销，任务需要重新规划")
 		}
 	}
-	return nil
+	return testSupplementGate(tx, t)
 }
 
 func pendingRequirementChange(tx *store.Tx, taskID, except string) (bool, error) {
