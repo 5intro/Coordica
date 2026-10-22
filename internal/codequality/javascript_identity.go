@@ -1,6 +1,7 @@
 package codequality
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"sort"
@@ -22,10 +23,13 @@ func scriptHeaderStart(text string, at int, starts map[int]int) int {
 
 // Binding/call-site headers and enclosing scopes distinguish anonymous
 // functions without using mutable line numbers or body length as identity.
-func scriptIdentity(original, text string, start, headerEnd int, ends map[int]int) string {
+func scriptIdentity(ctx context.Context, original, text string, start, headerEnd int, ends map[int]int) string {
 	starts := map[int]int{}
 	var scopes []int
 	for open, close := range ends {
+		if ctx != nil && ctx.Err() != nil {
+			return ""
+		}
 		starts[close] = open
 		if text[open] == '{' && open < start && close >= headerEnd {
 			scopes = append(scopes, open)
@@ -34,6 +38,9 @@ func scriptIdentity(original, text string, start, headerEnd int, ends map[int]in
 	sort.Ints(scopes)
 	var context strings.Builder
 	for _, open := range append(scopes, headerEnd) {
+		if ctx != nil && ctx.Err() != nil {
+			return ""
+		}
 		begin := scriptHeaderStart(text, open, starts)
 		context.WriteString(strings.Join(strings.Fields(original[begin:open]), " "))
 		context.WriteByte(0)
@@ -42,11 +49,11 @@ func scriptIdentity(original, text string, start, headerEnd int, ends map[int]in
 }
 
 func (m *metrics) scriptFunctionFinding(f File, text, name string, start, headerEnd, end int, ends map[int]int) {
-	value := lineAt(text, end) - lineAt(text, start) + 1
+	value := m.lineAt(end) - m.lineAt(start) + 1
 	if value <= MaxFunction {
 		return
 	}
-	m.add(f.Path, lineAt(text, start), "function_lines", name, value, MaxFunction)
+	m.add(f.Path, m.lineAt(start), "function_lines", name, value, MaxFunction)
 	finding := &m.findings[len(m.findings)-1]
-	finding.key += "\x00" + scriptIdentity(f.Text, text, start, headerEnd, ends)
+	finding.key += "\x00" + scriptIdentity(m.ctx, f.Text, text, start, headerEnd, ends)
 }

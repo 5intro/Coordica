@@ -1,6 +1,7 @@
 package codequality
 
 import (
+	"context"
 	"path"
 	"regexp"
 	"strings"
@@ -44,7 +45,7 @@ func nativeFunctionBody(text string, at int, ends map[int]int) int {
 	return -1
 }
 
-func nativeFunctions(text, extension string, ends map[int]int) []nativeBlock {
+func nativeFunctions(ctx context.Context, text, extension string, ends map[int]int) []nativeBlock {
 	var blocks []nativeBlock
 	matches := nativeFunction.FindAllStringSubmatchIndex(text, -1)
 	keyword := extension == ".rs" || extension == ".swift" || extension == ".kt" || extension == ".php"
@@ -52,6 +53,9 @@ func nativeFunctions(text, extension string, ends map[int]int) []nativeBlock {
 		matches = scriptSignature.FindAllStringSubmatchIndex(text, -1)
 	}
 	for _, match := range matches {
+		if ctx != nil && ctx.Err() != nil {
+			return nil
+		}
 		name, at := "anonymous", match[1]
 		if match[2] >= 0 {
 			name, at = text[match[2]:match[3]], match[3]
@@ -90,11 +94,17 @@ func (m *metrics) nativeBraceSource(f File) {
 	text := nativeMaskedSource(f.Text, extension)
 	ends := braceEnds(text)
 	pairs := scriptPairs(text)
-	functions := nativeFunctions(text, extension, pairs)
+	functions := nativeFunctions(m.ctx, text, extension, pairs)
 	for _, fn := range functions {
+		if m.cancelled() {
+			return
+		}
 		m.blockFunction(f.Path, text, fn.name, fn.start, fn.body, ends)
 	}
 	for _, match := range nativeClass.FindAllStringSubmatchIndex(text, -1) {
+		if m.cancelled() {
+			return
+		}
 		open := match[1] - 1
 		close, ok := ends[open]
 		if !ok {
@@ -102,11 +112,14 @@ func (m *metrics) nativeBraceSource(f File) {
 		}
 		name, methods := text[match[2]:match[3]], 0
 		for _, fn := range functions {
+			if m.cancelled() {
+				return
+			}
 			if enclosingBrace(ends, fn.start) == open {
 				methods++
 			}
 		}
-		m.add(f.Path, lineAt(text, match[0]), "class_lines", name, lineAt(text, close)-lineAt(text, match[0])+1, MaxClass)
-		m.add(f.Path, lineAt(text, open), "class_methods", name, methods, MaxMethods)
+		m.add(f.Path, m.lineAt(match[0]), "class_lines", name, m.lineAt(close)-m.lineAt(match[0])+1, MaxClass)
+		m.add(f.Path, m.lineAt(open), "class_methods", name, methods, MaxMethods)
 	}
 }

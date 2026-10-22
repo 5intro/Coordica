@@ -10,10 +10,10 @@ import (
 
 func TestCompareRefusesNewViolations(t *testing.T) {
 	next := []codequality.File{{Path: "src/file.ts", Text: strings.Repeat("x", codequality.MaxLine+1)}}
-	if err := compare(nil, next); err == nil {
+	if err := compare(context.Background(), nil, next); err == nil {
 		t.Fatal("new structural violation passed command gate")
 	}
-	if err := compare(next, next); err != nil {
+	if err := compare(context.Background(), next, next); err != nil {
 		t.Fatal("existing debt blocked incremental adoption", err)
 	}
 }

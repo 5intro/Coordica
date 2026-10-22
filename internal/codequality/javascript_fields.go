@@ -1,13 +1,19 @@
 package codequality
 
-import "strings"
+import (
+	"context"
+	"strings"
+)
 
 // Callable fields own class behavior just as prototype methods do. Skip
 // complete initializers and nested bodies so their local callbacks are not
 // mistaken for additional members of the enclosing class.
-func scriptCallableFields(original, text string, open, end int, ends map[int]int) int {
+func scriptCallableFields(ctx context.Context, original, text string, open, end int, ends map[int]int) int {
 	count := 0
 	for at := open + 1; at < end; {
+		if ctx != nil && ctx.Err() != nil {
+			return count
+		}
 		if close, ok := ends[at]; ok {
 			at = close + 1
 			continue
