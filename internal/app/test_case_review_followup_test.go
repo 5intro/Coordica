@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -56,7 +57,7 @@ func TestCatalogDuplicateSinglePlatformIsVerifiable(t *testing.T) {
 	if err := f.s.DB.View(context.Background(), func(tx *store.Tx) error { return tx.Get("test_suite", v.SuiteID, &suite) }); err != nil {
 		t.Fatal(err)
 	}
-	suite.Platforms = []string{"darwin", "darwin"}
+	suite.Platforms = []string{runtime.GOOS, runtime.GOOS}
 	if _, err := f.s.SaveTestSuite(context.Background(), f.owner, "duplicate-platform",
 		domain.TestSuiteSave{ExpectedVersion: suite.Version, Suite: suite}); err != nil {
 		t.Fatal(err)

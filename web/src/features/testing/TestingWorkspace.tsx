@@ -16,7 +16,7 @@ export function Testing(props: TestingProps) {
       {([['cases', '测试条目'], ['acceptance', '需求验收与补测'], ['execution', '套件与执行']] as const).map(([id, label]) =>
         <button key={id} aria-pressed={current === id} onClick={() => setTab(id, id === 'execution' ? [] : ['run'])}>{label}</button>)}
     </nav>
-    <div hidden={current !== 'cases'}><TestCases {...props} /></div>
+    <div hidden={current !== 'cases'}><TestCases {...props} active={current === 'cases'} /></div>
     <div hidden={current !== 'acceptance'}><RequirementAcceptance {...props} /></div>
     <div className="test-legacy" hidden={current !== 'execution'}><SuiteTesting {...props} /></div>
   </div>;

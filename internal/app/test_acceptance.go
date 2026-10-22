@@ -92,6 +92,15 @@ func (c TestCatalog) Coverage(ctx context.Context, a Actor, id, commit string) (
 }
 
 func acceptanceCoverage(tx *store.Tx, id, commit string) (domain.AcceptanceCoverage, error) {
+	return newCoverageReader(tx).read(id, commit)
+}
+
+func (reader *coverageReader) read(id, commit string) (domain.AcceptanceCoverage, error) {
+	key := id + "\x00" + commit
+	if cached, ok := reader.cache[key]; ok {
+		return cached, nil
+	}
+	tx := reader.tx
 	out := domain.AcceptanceCoverage{Commit: commit, Criteria: []domain.CriterionCoverage{}, Gaps: []domain.TestGap{}}
 	if err := tx.Get("requirement", id, &out.Requirement); err != nil {
 		return out, err
@@ -108,7 +117,7 @@ func acceptanceCoverage(tx *store.Tx, id, commit string) (domain.AcceptanceCover
 	out.Verified = out.Current && len(out.Plan.Criteria) > 0
 	evidence := map[string]domain.CaseEvidence{}
 	for _, criterion := range out.Plan.Criteria {
-		item, err := criterionCoverage(tx, out.Plan, criterion, cases, commit, out.Current, evidence)
+		item, err := reader.criterionCoverage(out.Plan, criterion, cases, commit, out.Current, evidence)
 		if err != nil {
 			return out, err
 		}
@@ -124,11 +133,17 @@ func acceptanceCoverage(tx *store.Tx, id, commit string) (domain.AcceptanceCover
 	basis := out
 	basis.Requirement = domain.Requirement{ID: out.Requirement.ID, ContentRevision: domain.RequirementRevisionNumber(out.Requirement),
 		State: out.Requirement.State}
+	pins, err := coverageSuitePins(tx, cases, commit)
+	if err != nil {
+		return out, err
+	}
 	bytes, _ := json.Marshal(struct {
 		Coverage domain.AcceptanceCoverage
 		Cases    []domain.TestCase
-	}{basis, cases})
+		Suites   []coverageSuitePin
+	}{basis, cases, pins})
 	out.Digest = Hash(string(bytes))
+	reader.cache[key] = out
 	return out, nil
 }
 

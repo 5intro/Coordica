@@ -9,7 +9,7 @@ import (
 	"coordica/internal/testreport"
 )
 
-func criterionCoverage(tx *store.Tx, plan domain.AcceptancePlan, criterion domain.AcceptanceCriterion,
+func (reader *coverageReader) criterionCoverage(plan domain.AcceptancePlan, criterion domain.AcceptanceCriterion,
 	cases []domain.TestCase, commit string, current bool,
 	cache map[string]domain.CaseEvidence,
 ) (domain.CriterionCoverage, error) {
@@ -23,7 +23,7 @@ func criterionCoverage(tx *store.Tx, plan domain.AcceptancePlan, criterion domai
 		evidence, found := cache[v.ID]
 		if !found {
 			var err error
-			evidence, err = caseEvidence(tx, v, commit)
+			evidence, err = reader.caseEvidence(v, commit)
 			if err != nil {
 				return out, err
 			}
@@ -48,7 +48,8 @@ func criterionCoverage(tx *store.Tx, plan domain.AcceptancePlan, criterion domai
 	return out, nil
 }
 
-func caseEvidence(tx *store.Tx, v domain.TestCase, commit string) (domain.CaseEvidence, error) {
+func (reader *coverageReader) caseEvidence(v domain.TestCase, commit string) (domain.CaseEvidence, error) {
+	tx := reader.tx
 	out := domain.CaseEvidence{Case: domain.TestCaseSummary{ID: v.ID, Version: v.Version, Name: v.Name}, State: "unrun"}
 	if !v.Implemented {
 		out.State = "unimplemented"
@@ -77,12 +78,16 @@ func caseEvidence(tx *store.Tx, v domain.TestCase, commit string) (domain.CaseEv
 	if run.TestReport != nil {
 		out.Platform = run.TestReport.Platform
 	}
+	gateErr := requirementTaskGateWithCoverage(tx, task, reader)
+	if errors.Is(gateErr, errCoverageCycle) {
+		return out, gateErr
+	}
 	var pin domain.TestCatalogPin
 	if err := tx.Get("test_catalog_pin", task.ID, &pin); err != nil && !errors.Is(err, domain.ErrNotFound) {
 		return out, err
 	}
 	if pin.Versions[v.ID] != v.Version || task.Verification == nil || task.Verification.Digest != suiteDigest(suite) ||
-		requirementTaskGate(tx, task) != nil || !reportMatchesSuite(run, suite, commit) {
+		gateErr != nil || !reportMatchesSuite(run, suite, commit) {
 		out.State = "stale"
 		return out, nil
 	}

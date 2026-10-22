@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -24,7 +25,7 @@ func seedCatalogEvidence(t *testing.T, f *itFixture, v domain.TestCase) domain.T
 	run := domain.Run{ID: "accepted_test", TaskID: task.ID, State: "succeeded", Generation: 1, AuthorizationVersion: 1,
 		NodeID: "center", Tool: "program", Kind: "verification", Base: f.b.String(), Quiescent: true,
 		TestReport: &domain.TestReport{Commit: f.b.String(), SuiteID: suite.ID, SuiteVersion: suite.Version,
-			Digest: suiteDigest(suite), Platform: "darwin", Checks: []domain.CheckResult{{Name: v.CheckName, Passed: true, Output: output}}}}
+			Digest: suiteDigest(suite), Platform: runtime.GOOS, Checks: []domain.CheckResult{{Name: v.CheckName, Passed: true, Output: output}}}}
 	if err := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
 		if err := tx.Put("task", task.ID, task); err != nil {
 			return err

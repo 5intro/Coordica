@@ -45,6 +45,10 @@ func requirementBindings(tx *store.Tx, ids []string) (map[string]int64, error) {
 // Every execution gate uses this same content fence. Legacy grants correspond
 // to revision one; a metadata/link Version increment does not stale work.
 func requirementTaskGate(tx *store.Tx, t domain.Task) error {
+	return requirementTaskGateWithCoverage(tx, t, newCoverageReader(tx))
+}
+
+func requirementTaskGateWithCoverage(tx *store.Tx, t domain.Task, reader *coverageReader) error {
 	if pending, e := pendingRequirementChange(tx, t.ID, ""); e != nil {
 		return e
 	} else if pending {
@@ -80,7 +84,7 @@ func requirementTaskGate(tx *store.Tx, t domain.Task) error {
 			return domain.Fail("requirement_changed", "需求已修订或撤销，任务需要重新规划")
 		}
 	}
-	return testSupplementGate(tx, t)
+	return reader.taskGate(t)
 }
 
 func pendingRequirementChange(tx *store.Tx, taskID, except string) (bool, error) {

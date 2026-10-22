@@ -7,8 +7,8 @@ import { Feedback, Field } from '../../components/ui';
 import { useAction } from '../../hooks/useAction';
 import { CaseAcceptanceLinks } from './CaseAcceptanceLinks';
 
-type Props = { original: TestCase; snapshot: Snapshot; client: ApiClient; onSaved: (value: TestCase) => void };
-export function TestCaseEditor({ original, snapshot, client, onSaved }: Props) {
+type Props = { original: TestCase; snapshot: Snapshot; client: ApiClient; onSaved: (value: TestCase) => void; active?: boolean };
+export function TestCaseEditor({ original, snapshot, client, onSaved, active = true }: Props) {
   const [draft, setDraft] = useState(original);
   const action = useAction(() => {});
   const change = (value: Partial<TestCase>) => setDraft((v) => ({ ...v, ...value }));
@@ -37,7 +37,7 @@ export function TestCaseEditor({ original, snapshot, client, onSaved }: Props) {
       <label><input type="checkbox" checked={draft.implemented}
         onChange={(e) => change({ implemented: e.target.checked })} />已实现</label></div>
     {draft.implemented && <CaseExecution draft={draft} snapshot={snapshot} change={change} />}
-    <CaseAcceptanceLinks draft={draft} snapshot={snapshot} client={client} change={change} />
+    <CaseAcceptanceLinks draft={draft} snapshot={snapshot} client={client} change={change} active={active} />
     <Feedback error={action.error} notice={action.notice} />
     <button className="primary" disabled={action.busy || !draft.categories?.length}>{action.busy ? '正在保存…' : '保存条目'}</button>
   </form>;

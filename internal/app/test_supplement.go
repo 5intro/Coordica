@@ -129,35 +129,3 @@ func linkSupplementRequirement(tx *store.Tx, source, next domain.Requirement) er
 	}
 	return tx.Put("requirement", next.ID, next)
 }
-
-func testSupplementGate(tx *store.Tx, task domain.Task) error {
-	for _, id := range task.RequirementIDs {
-		var plan domain.TestSupplementPlan
-		if err := tx.Get("test_supplement", id, &plan); errors.Is(err, domain.ErrNotFound) {
-			continue
-		} else if err != nil {
-			return err
-		}
-		var source domain.Requirement
-		var acceptance domain.AcceptancePlan
-		if err := tx.Get("requirement", plan.SourceID, &source); err != nil {
-			return err
-		}
-		if err := tx.Get("acceptance_plan", plan.SourceID, &acceptance); err != nil {
-			return err
-		}
-		if !domain.RequirementActive(source) || domain.RequirementRevisionNumber(source) != plan.SourceRevision ||
-			acceptance.Version != plan.PlanVersion || acceptance.Revision != plan.SourceRevision {
-			return domain.Fail("requirement_changed", "补测来源或验收计划已变化，需要重新规划")
-		}
-		var change domain.RequirementChange
-		if err := tx.Get("requirement_change", requirementRevisionID(source.ID, plan.SourceRevision), &change); err == nil {
-			if change.State != "applied" && change.State != "superseded" {
-				return domain.Fail("requirement_changed", "补测来源的需求变更尚未完成规划")
-			}
-		} else if !errors.Is(err, domain.ErrNotFound) {
-			return err
-		}
-	}
-	return nil
-}

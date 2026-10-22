@@ -6,7 +6,7 @@ import { Feedback, Field } from '../../components/ui';
 import type { TestingProps } from '../Testing';
 import { TestCaseEditor } from './TestCaseEditor';
 
-export function TestCases({ snapshot, client, refresh }: TestingProps) {
+export function TestCases({ snapshot, client, refresh, active = true }: TestingProps & { active?: boolean }) {
   const [category, setCategory] = useState('');
   const [after, setAfter] = useState('');
   const [page, setPage] = useState<TestCasePage>();
@@ -53,7 +53,7 @@ export function TestCases({ snapshot, client, refresh }: TestingProps) {
           {page?.next && <button className="secondary" onClick={() => setAfter(page.next)}>下一批</button>}
         </div>
       </div>
-      {selected ? <TestCaseEditor key={`${selected.id}:${selected.version}`} original={selected} snapshot={snapshot} client={client}
+      {selected ? <TestCaseEditor key={`${selected.id}:${selected.version}`} original={selected} snapshot={snapshot} client={client} active={active}
         onSaved={(value) => { setSelected(value); setRevision((n) => n + 1); refresh(); }} />
         : <div className="catalog-placeholder">选择一个条目查看步骤、断言与验收关联。</div>}
     </div>
