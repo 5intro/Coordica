@@ -2,6 +2,7 @@ package app
 
 import (
 	"coordica/internal/domain"
+	"coordica/internal/gitops"
 	"coordica/internal/store"
 )
 
@@ -9,12 +10,16 @@ import (
 // requirement bindings as execution. Catalog pins are persisted by the caller
 // in that transaction; they are not added to every runtime snapshot.
 func verificationTask(tx *store.Tx, s *Service, in domain.VerificationRequest, suite domain.TestSuite) (domain.Task, error) {
+	commit, err := gitops.ParseOID(in.Commit)
+	if err != nil {
+		return domain.Task{}, domain.Fail("invalid_input", "full fixed commit required")
+	}
 	t := domain.Task{ID: ID("task_"), Version: 1, Title: "验证 · " + suite.Name,
 		Description: suite.Description, Acceptance: "Every configured check passes on the pinned commit with the process tree stopped",
 		RequirementIDs: in.RequirementIDs, Tool: "program", State: "ready", ApprovedVersion: 1,
 		AuthorizationVersion: 1, BudgetSeconds: in.BudgetSeconds, MaxRunSeconds: in.MaxRunSeconds,
 		MaxRetries: in.MaxRetries, CreatedAt: s.Now(),
-		Verification: &domain.VerificationSpec{Suite: suite, Commit: in.Commit, Digest: suiteDigest(suite)}}
+		Verification: &domain.VerificationSpec{Suite: suite, Commit: string(commit), Digest: suiteDigest(suite)}}
 	if len(t.RequirementIDs) == 0 {
 		t.RequirementIDs = suite.RequirementIDs
 	}

@@ -86,24 +86,32 @@ func caseEvidence(tx *store.Tx, v domain.TestCase, commit string) (domain.CaseEv
 		!run.Quiescent || (run.State != "succeeded" && run.State != "failed") {
 		return out, nil
 	}
+	out.State = reportedCaseState(v, task, run, suite)
+	return out, nil
+}
+
+func reportedCaseState(v domain.TestCase, task domain.Task, run domain.Run, suite domain.TestSuite) string {
+	index := slices.IndexFunc(run.TestReport.Checks, func(c domain.CheckResult) bool { return c.Name == v.CheckName })
+	if index < 0 {
+		return "unrun"
+	}
+	check := run.TestReport.Checks[index]
 	if run.State == "failed" {
-		out.State = "failed"
-		return out, nil
+		if !check.Passed || check.ExitCode != 0 {
+			return "failed"
+		}
+		return "incomplete_suite"
 	}
 	if task.State != "verified" || !domain.ChecksPassed(suite.Checks, run.TestReport.Checks) {
-		return out, nil
+		return "unrun"
 	}
 	if len(suite.Platforms) > 1 {
-		out.State = "platform_gap"
-		return out, nil
+		return "platform_gap"
 	}
-	out.State = "unreported"
-	for _, check := range run.TestReport.Checks {
-		if check.Name == v.CheckName && v.ReportFormat == "go-json" {
-			out.State = testreport.GoCase(check.Output, v.ExternalID)
-		}
+	if v.ReportFormat == "go-json" {
+		return testreport.GoCase(check.Output, v.ExternalID)
 	}
-	return out, nil
+	return "unreported"
 }
 
 func reportMatchesSuite(r domain.Run, suite domain.TestSuite, commit string) bool {
@@ -140,8 +148,11 @@ func criterionGaps(item domain.CriterionCoverage) []domain.TestGap {
 		} else if evidence.State == "stale" || evidence.State == "suite_disabled" {
 			action = "review_test_binding"
 		}
-		gaps = append(gaps, domain.TestGap{CriterionID: item.Criterion.ID, CaseID: evidence.Case.ID,
-			RunID: evidence.RunID, Reason: evidence.State, Action: action})
+		gap := domain.TestGap{CriterionID: item.Criterion.ID, CaseID: evidence.Case.ID, Reason: evidence.State, Action: action}
+		if action == "repair_test_or_code" {
+			gap.RunID = evidence.RunID
+		}
+		gaps = append(gaps, gap)
 	}
 	return gaps
 }

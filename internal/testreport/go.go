@@ -33,11 +33,20 @@ func GoCase(output, externalID string) string {
 			continue
 		}
 		if event.Test == "" {
+			if event.Action == "start" {
+				finished = false
+			}
 			if event.Action == "fail" || event.Action == "skip" {
 				return "failed"
 			}
 			finished = finished || event.Action == "pass"
-		} else if event.Test == parts[1] {
+		} else {
+			// Another stream/test invalidates the prior package terminal,
+			// including activity for other tests in this package.
+			finished = false
+			if event.Test != parts[1] {
+				continue
+			}
 			switch event.Action {
 			case "run":
 				started++

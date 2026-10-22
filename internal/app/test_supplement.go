@@ -19,21 +19,22 @@ func (c TestCatalog) Supplement(ctx context.Context, a Actor, key string, in dom
 	if err := owner(a); err != nil {
 		return nil, err
 	}
-	if _, err := gitops.ParseOID(in.Commit); err != nil || !domain.ChatIdentifier.MatchString(in.RequirementID) ||
+	commit, err := gitops.ParseOID(in.Commit)
+	if err != nil || !domain.ChatIdentifier.MatchString(in.RequirementID) ||
 		len(in.ExpectedDigest) != 64 {
 		return nil, domain.Fail("invalid_input", "需要固定提交、需求及覆盖摘要")
 	}
 	return c.Service.mutate(ctx, a, key, "tests.supplement", in, func(tx *store.Tx) (any, error) {
 		var previous domain.TestSupplementPlan
 		if err := tx.Get("test_supplement_digest", in.ExpectedDigest, &previous); err == nil {
-			if previous.SourceID != in.RequirementID || previous.Commit != in.Commit {
+			if previous.SourceID != in.RequirementID || previous.Commit != string(commit) {
 				return nil, domain.Fail("version_conflict", "补测摘要与请求不一致")
 			}
 			return previous, nil
 		} else if !errors.Is(err, domain.ErrNotFound) {
 			return nil, err
 		}
-		coverage, err := acceptanceCoverage(tx, in.RequirementID, in.Commit)
+		coverage, err := acceptanceCoverage(tx, in.RequirementID, string(commit))
 		if err != nil {
 			return nil, err
 		}
@@ -45,7 +46,7 @@ func (c TestCatalog) Supplement(ctx context.Context, a Actor, key string, in dom
 		}
 		plan := domain.TestSupplementPlan{SourceID: in.RequirementID,
 			SourceRevision: coverage.Plan.Revision, PlanVersion: coverage.Plan.Version,
-			Commit: in.Commit, Digest: coverage.Digest, Gaps: coverage.Gaps}
+			Commit: string(commit), Digest: coverage.Digest, Gaps: coverage.Gaps}
 		title := []rune(coverage.Requirement.Title)
 		if len(title) > 150 {
 			title = title[:150]

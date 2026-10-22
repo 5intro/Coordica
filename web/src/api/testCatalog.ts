@@ -13,6 +13,7 @@ export const evidenceLabel = (state: string) => ({
   passed: '通过', test_gap: '待补充', missing_case: '未关联测试', manual_required: '待人工验收', stale: '版本已变化',
   unrun: '未运行', unimplemented: '待实现', unreported: '缺少条目报告', failed: '失败', skipped: '已跳过',
   suite_disabled: '套件已停用', platform_gap: '缺少其他平台证据', acceptance_outdated: '待定义验收',
+  incomplete_suite: '套件未完整通过',
 }[state] ?? '状态未知');
 export const gapActionLabel = (action: string) => ({
   write_test: '补写测试或条目报告', run_test: '执行测试', repair_test_or_code: '分析失败并修复',

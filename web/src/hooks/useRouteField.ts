@@ -13,10 +13,11 @@ export function useRouteField(page: string, name: string, fallback = '') {
     for (const event of ['hashchange', 'popstate', routeEvent]) window.addEventListener(event, restore);
     return () => { for (const event of ['hashchange', 'popstate', routeEvent]) window.removeEventListener(event, restore); };
   }, [page, name, fallback]);
-  function update(next: string) {
+  function update(next: string, remove: string[] = []) {
     setValue(next);
     if (routeName() !== page) return;
     const params = routeParams();
+    remove.forEach((key) => params.delete(key));
     if (next === fallback && name !== 'id') params.delete(name); else params.set(name, next);
     const query = params.toString();
     window.history.replaceState({ ...window.history.state, scroll: window.scrollY }, '');

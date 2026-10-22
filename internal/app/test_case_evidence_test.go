@@ -140,6 +140,7 @@ func TestCatalogFailedEvidenceSuppliesExistingRepairRun(t *testing.T) {
 			return err
 		}
 		r.State = "failed"
+		r.TestReport.Checks[0].Passed, r.TestReport.Checks[0].ExitCode = false, 1
 		return tx.Put("run", r.ID, r)
 	}); err != nil {
 		t.Fatal(err)

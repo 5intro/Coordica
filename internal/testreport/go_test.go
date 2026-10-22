@@ -31,3 +31,23 @@ func TestGoCaseRequiresCompleteActualResults(t *testing.T) {
 		})
 	}
 }
+
+func TestGoCaseRequiresTheLastStreamToFinish(t *testing.T) {
+	start := `{"Action":"start","Package":"p"}` + "\n"
+	run := `{"Action":"run","Package":"p","Test":"TestA"}` + "\n"
+	pass := `{"Action":"pass","Package":"p","Test":"TestA"}` + "\n"
+	end := `{"Action":"pass","Package":"p"}` + "\n"
+	first := start + run + pass + end
+	for _, tc := range []struct{ name, second, want string }{
+		{"clipped next stream", start + run + pass, "unreported"},
+		{"next test without start", run + pass, "unreported"},
+		{"next unrelated test", start + `{"Action":"run","Package":"p","Test":"TestB"}`, "unreported"},
+		{"complete second", start + run + pass + end, "passed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := GoCase(first+tc.second, "p#TestA"); got != tc.want {
+				t.Fatalf("got %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
