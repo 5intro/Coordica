@@ -218,7 +218,7 @@ func (w *Integrator) prepare(ctx context.Context, c domain.Candidate) error {
 	c.Commit = string(candidate.Commit)
 	plan, e := candidateCheckPlan(ctx, w, p, c)
 	if e != nil {
-		return w.reject(ctx, c, e, !errors.Is(e, process.ErrTreeNotStopped))
+		return candidateCheckFailure(ctx, w, c, e)
 	}
 	c.CheckPlan = &plan
 	c.State = "prechecking"
@@ -576,7 +576,7 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 	// Check authority before any new I/O, then gate legacy ready candidates
 	// too. Approval or successful project tests cannot waive structural rules.
 	if err := checkCandidateQuality(ctx, w, c); err != nil {
-		return w.reject(ctx, c, err, !errors.Is(err, process.ErrTreeNotStopped))
+		return candidateQualityFailure(ctx, w, c, err)
 	}
 	actual, e := w.Git.Query(ctx, p.RepositoryURL, "refs/heads/"+p.TargetBranch)
 	if e != nil {

@@ -5,31 +5,38 @@ from pathlib import Path
 import subprocess
 
 
+def resolve_base(root, env):
+    base = env.get("QUALITY_BASE")
+    if base and set(base) != {"0"}:
+        return base
+
+    def read(*args):
+        return subprocess.check_output(
+            ["git", *args], cwd=root, text=True, timeout=10,
+            stderr=subprocess.DEVNULL
+        ).strip()
+
+    try:
+        return read("rev-parse", "--verify", "refs/remotes/origin/main^{commit}")
+    except subprocess.CalledProcessError:
+        pass
+    if not env.get("CI"):
+        try:
+            current = read("symbolic-ref", "--quiet", "HEAD")
+            if current != "refs/heads/main":
+                return read("rev-parse", "--verify", "refs/heads/main^{commit}")
+        except subprocess.CalledProcessError:
+            pass
+    raise SystemExit("Quality gate requires target main or an explicit QUALITY_BASE; refusing to self-baseline HEAD")
+
+
 def main():
     root = Path(__file__).resolve().parent.parent
     env = os.environ.copy()
     env.setdefault("GOCACHE", str(root / ".cache" / "go-build"))
     env.setdefault("GOMODCACHE", str(root / ".cache" / "mod"))
     env.setdefault("GOPATH", str(root / ".cache" / "gopath"))
-    base = env.get("QUALITY_BASE")
-    if base and set(base) == {"0"}:
-        base = None  # A newly pushed branch has no previous branch commit.
-    if not base:
-        # Include already committed branch work, not only edits since HEAD.
-        refs = ["refs/remotes/origin/main", "refs/heads/main"]
-        if not env.get("CI"):
-            refs.append("HEAD")
-        for ref in refs:
-            try:
-                base = subprocess.check_output(
-                    ["git", "rev-parse", "--verify", ref + "^{commit}"],
-                    cwd=root, text=True, timeout=10, stderr=subprocess.DEVNULL
-                ).strip()
-                break
-            except subprocess.CalledProcessError:
-                continue
-        if not base:
-            raise SystemExit("Quality gate requires an existing baseline commit")
+    base = resolve_base(root, env)
     go = root / ".tools" / "go" / "bin" / ("go.exe" if os.name == "nt" else "go")
     command = [str(go) if go.is_file() else "go", "run", "./cmd/qualitycheck", "--base", base]
     if env.get("CI"):

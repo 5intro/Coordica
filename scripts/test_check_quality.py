@@ -52,6 +52,18 @@ class QualityCommandTests(unittest.TestCase):
             self.assertEqual(args[args.index("--base") + 1], "a" * 40)
             self.assertEqual(args[args.index("--candidate") + 1], "b" * 40)
 
+    def test_local_check_refuses_missing_target_and_current_main(self):
+        missing = subprocess.CalledProcessError(1, "git")
+        for replies in ([missing, "refs/heads/main", "a" * 40], [missing, missing, missing]):
+            with self.subTest(replies=replies), \
+                    patch.dict(quality.os.environ, {}, clear=True), \
+                    patch.object(quality.subprocess, "check_output", side_effect=replies), \
+                    patch.object(quality.subprocess, "run") as run:
+                with self.assertRaises(SystemExit) as result:
+                    quality.main()
+                self.assertNotEqual(result.exception.code, 0)
+                run.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

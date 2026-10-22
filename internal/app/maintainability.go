@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,6 +11,16 @@ import (
 	"coordica/internal/domain"
 	"coordica/internal/gitops"
 )
+
+// A failed scan is not evidence of defective source. Preserve the fixed
+// candidate, review and finite repair allowance until the scan can complete.
+func candidateQualityFailure(ctx context.Context, w *Integrator, c domain.Candidate, err error) error {
+	var finding *domain.Error
+	if errors.As(err, &finding) && finding.Code == "maintainability" {
+		return w.reject(ctx, c, err, true)
+	}
+	return err
+}
 
 // This mandatory gate is owned by the center binary, not a candidate's scripts
 // or allowlist. Both snapshots are fixed objects; no project code is executed.

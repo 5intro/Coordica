@@ -13,11 +13,11 @@ var classMethod = regexp.MustCompile(`([A-Za-z_$][\w$]*)\s*\([^;{}]*\)[^;{}=]*\{
 var pythonDeclaration = regexp.MustCompile(`^(?:async\s+)?(class|def)\s+([A-Za-z_]\w*)`)
 
 func (m *metrics) structuredSource(f File) {
-	if path.Ext(f.Path) == ".py" {
+	if strings.EqualFold(path.Ext(f.Path), ".py") {
 		m.pythonSource(f)
 		return
 	}
-	switch path.Ext(f.Path) {
+	switch strings.ToLower(path.Ext(f.Path)) {
 	case ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".java", ".cs", ".kt", ".swift":
 		m.braceSource(f)
 	}
@@ -26,7 +26,7 @@ func (m *metrics) structuredSource(f File) {
 // Token masking preserves source positions. These non-Go measurements are
 // lexical checks, not language type-checking; native linters and independent
 // cohesion review remain required (especially overloads and metaprogramming).
-func maskedSource(text string, python bool) string {
+func maskedSource(text string, python bool, stringEnds map[int]int) string {
 	out := []byte(text)
 	blank := func(start, end int) {
 		for i := start; i < end; i++ {
@@ -66,6 +66,12 @@ func maskedSource(text string, python bool) string {
 			continue
 		}
 		blank(start, i)
+		if python && (text[start] == '\'' || text[start] == '"') {
+			// A standalone string is a statement, including at module scope.
+			// Preserve its opening position and complete multiline extent.
+			out[start] = '0'
+			stringEnds[lineAt(text, start)] = lineAt(text, i-1)
+		}
 	}
 	return string(out)
 }
@@ -88,7 +94,11 @@ func braceEnds(text string) map[int]int {
 func lineAt(text string, offset int) int { return strings.Count(text[:offset], "\n") + 1 }
 
 func (m *metrics) braceSource(f File) {
-	text := maskedSource(f.Text, false)
+	text := maskedSource(f.Text, false, nil)
+	switch strings.ToLower(path.Ext(f.Path)) {
+	case ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx":
+		text = maskedJavaScript(f.Text)
+	}
 	ends := braceEnds(text)
 	for _, match := range classBlock.FindAllStringSubmatchIndex(text, -1) {
 		open := match[1] - 1
@@ -150,7 +160,8 @@ func (m *metrics) classMembers(file, text, class string, open, end int, ends map
 }
 
 func (m *metrics) pythonSource(f File) {
-	lines := strings.Split(maskedSource(f.Text, true), "\n")
+	stringEnds := map[int]int{}
+	lines := strings.Split(maskedSource(f.Text, true, stringEnds), "\n")
 	original := strings.Split(f.Text, "\n")
 	for start, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -158,7 +169,7 @@ func (m *metrics) pythonSource(f File) {
 		if decl == nil {
 			continue
 		}
-		end, methods := pythonRegion(lines, original, start)
+		end, methods := pythonRegion(lines, original, stringEnds, start)
 		if decl[1] == "class" {
 			m.add(f.Path, start+1, "class_lines", decl[2], end-start+1, MaxClass)
 			m.add(f.Path, start+1, "class_methods", decl[2], methods, MaxMethods)
@@ -168,7 +179,7 @@ func (m *metrics) pythonSource(f File) {
 	}
 }
 
-func pythonRegion(lines, original []string, start int) (int, int) {
+func pythonRegion(lines, original []string, stringEnds map[int]int, start int) (int, int) {
 	indent := indentation(lines[start])
 	headerEnd, depth := start, 0
 header:
@@ -197,9 +208,10 @@ header:
 			if bodyIndent == -1 || d < bodyIndent {
 				bodyIndent = d
 			}
+			end = max(end, i, stringEnds[i+1]-1)
 		}
-		if strings.TrimSpace(original[i]) != "" {
-			end = i
+		if strings.TrimSpace(original[i]) != "" && indentation(original[i]) > indent {
+			end = max(end, i)
 		}
 	}
 	methods := 0

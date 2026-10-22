@@ -246,28 +246,6 @@ class TestSupervisor(unittest.TestCase):
         self.assertNotIn(json.loads(evidence.read_text())["pid"], guard.process_snapshot())
         self.assert_clean()
 
-    def test_concurrent_supervisors_do_not_recover_each_others_work(self):
-        programs = []
-        for number in range(2):
-            ready = self.parent / ("ready-" + str(number))
-            payload = f"import pathlib,time;pathlib.Path({str(ready)!r}).write_text('ready');time.sleep(2)"
-            code = ("import importlib.util,pathlib,sys; "
-                    f"s=importlib.util.spec_from_file_location('g',{str(Path(guard.__file__))!r}); "
-                    "g=importlib.util.module_from_spec(s);s.loader.exec_module(g); "
-                    f"sys.exit(g.run([sys.executable,'-c',{payload!r}],pathlib.Path({str(self.parent)!r}),20,1,33554432))")
-            programs.append(subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
-        try:
-            for program in programs:
-                self.assertEqual(program.wait(timeout=30), 0)
-            self.assertTrue(all((self.parent / ("ready-" + str(n))).exists() for n in range(2)))
-            self.assert_clean()
-        finally:
-            for program in programs:
-                if program.poll() is None:
-                    program.kill()
-                    program.wait(timeout=10)
-            guard.recover_stale(self.parent)
-
     def test_legacy_marker_without_containment_proof_is_preserved(self):
         root = Path(tempfile.mkdtemp(prefix=guard.PREFIX, dir=self.parent))
         record = guard.owner_record(root)

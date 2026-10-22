@@ -6,12 +6,13 @@ import (
 
 	"coordica/internal/domain"
 	"coordica/internal/gitops"
+	"coordica/internal/process"
 	"coordica/internal/store"
 )
 
 func candidateCheckPlan(ctx context.Context, w *Integrator, p domain.Project, c domain.Candidate) (domain.CheckPlan, error) {
 	if err := checkCandidateQuality(ctx, w, c); err != nil {
-		return domain.CheckPlan{}, err
+		return domain.CheckPlan{}, &qualityScanFailure{err}
 	}
 	var suites []domain.TestSuite
 	err := w.Service.DB.View(ctx, func(tx *store.Tx) error {
@@ -33,6 +34,18 @@ func candidateCheckPlan(ctx context.Context, w *Integrator, p domain.Project, c 
 		paths = append(paths, change.Paths()...)
 	}
 	return mergeCheckPlan(p, suites, paths, c.Protected)
+}
+
+type qualityScanFailure struct{ error }
+
+func (e *qualityScanFailure) Unwrap() error { return e.error }
+
+func candidateCheckFailure(ctx context.Context, w *Integrator, c domain.Candidate, err error) error {
+	var scan *qualityScanFailure
+	if errors.As(err, &scan) {
+		return candidateQualityFailure(ctx, w, c, scan.error)
+	}
+	return w.reject(ctx, c, err, !errors.Is(err, process.ErrTreeNotStopped))
 }
 
 // Keep the read snapshot separate from Git I/O; land rechecks this version in

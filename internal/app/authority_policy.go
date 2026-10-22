@@ -9,7 +9,7 @@ import (
 )
 
 var authorityPaths = []string{
-	"AGENTS.md", "AGENT.md", "QUALITY.md", ".github/**", "cmd/coordica/**", "cmd/qualitycheck/**",
+	"AGENTS.md", "AGENT.md", "QUALITY.md", "Makefile", ".github/**", "cmd/coordica/**", "cmd/qualitycheck/**",
 	"internal/app/**", "internal/domain/**", "internal/httpapi/**", "internal/localhttp/**",
 	"internal/nodeconsole/**", "internal/gitops/**", "internal/github/**", "internal/process/**",
 	"internal/store/**", "internal/agent/**", "internal/runner/**", "internal/onboarding/**",
@@ -18,9 +18,9 @@ var authorityPaths = []string{
 	"scripts/check-quality.py", "api/**",
 }
 
-const authorityPolicyVersion = 3
-const authorityMigrationDetail = "authority protection migration v3 requires explicit baseline initialization; no permissions granted"
-const authorityMigrationAudit = "v3; initialization required; no grants"
+const authorityPolicyVersion = 4
+const authorityMigrationDetail = "authority protection migration v4 requires explicit baseline initialization; no permissions granted"
+const authorityMigrationAudit = "v4; initialization required; no grants"
 
 // MigrateAuthorityPolicy applies the mandatory authority-protection
 // migration. It preserves project identity/history, never grandfathering a

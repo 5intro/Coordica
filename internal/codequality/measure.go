@@ -42,7 +42,7 @@ func Measure(files []File) ([]Finding, error) {
 			return nil, fmt.Errorf("source is not UTF-8 text: %s", f.Path)
 		}
 		m.text(f)
-		if path.Ext(f.Path) == ".go" {
+		if strings.EqualFold(path.Ext(f.Path), ".go") {
 			if err := m.goSource(f); err != nil {
 				return nil, err
 			}
@@ -53,6 +53,11 @@ func Measure(files []File) ([]Finding, error) {
 	for key, methods := range m.methods {
 		f := methods[0]
 		m.add(f.Path, f.Line, "receiver_methods", key, len(methods), MaxMethods)
+		if len(methods) > MaxMethods {
+			// Location is diagnostic only; receiver debt belongs to its package
+			// and type, even after its first method/file is removed.
+			m.findings[len(m.findings)-1].key = "receiver_methods\x00" + key
+		}
 	}
 	sort.Slice(m.findings, func(i, j int) bool {
 		a, b := m.findings[i], m.findings[j]
