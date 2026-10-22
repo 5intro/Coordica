@@ -17,7 +17,8 @@ export function RequirementAcceptance({ snapshot, client, refresh }: TestingProp
   const [loading, setLoading] = useState(false);
   const [revision, setRevision] = useState(0);
   const requirement = snapshot.requirements?.find((v) => v.id === id);
-  const requirementVersion = requirement?.version;
+  const contentRevision = requirement ? Math.max(1, requirement.content_revision ?? 1) : undefined;
+  const requirementState = requirement?.state;
   useEffect(() => {
     setPlan(undefined); setCoverage(undefined); setError(''); setEditing(false);
     if (!id) return;
@@ -26,7 +27,7 @@ export function RequirementAcceptance({ snapshot, client, refresh }: TestingProp
       .then((v) => { if (!controller.signal.aborted) setPlan(checked(v, isAcceptancePlan)); })
       .catch((e) => { if (!controller.signal.aborted) setError(messageOf(e)); });
     return () => controller.abort();
-  }, [client, id, revision, requirementVersion]);
+  }, [client, id, revision, contentRevision, requirementState]);
   useEffect(() => { setCoverage(undefined); setError(''); }, [commit]);
   const validCommit = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(commit) && !/^0+$/.test(commit);
   async function query() {
@@ -34,10 +35,13 @@ export function RequirementAcceptance({ snapshot, client, refresh }: TestingProp
     try {
       const v = checked(await client.read<unknown>(`/tests/acceptance?requirement_id=${encodeURIComponent(id)}&commit=${commit}`), isCoverage);
       if (v.requirement.id !== id || v.commit !== commit) throw new Error('覆盖报告与查询条件不一致，请重试。');
+      setPlan(v.plan);
       setCoverage(v);
     } catch (e) { setError(messageOf(e)); } finally { setLoading(false); }
   }
-  const currentCoverage = coverage && coverage.requirement.version === requirementVersion && coverage.commit === commit ? coverage : undefined;
+  const currentCoverage = coverage && requirementState !== 'withdrawn' && coverage.requirement.id === id && coverage.commit === commit &&
+    Math.max(1, coverage.requirement.content_revision ?? 1) === contentRevision &&
+    coverage.plan.version === plan?.version && coverage.plan.revision === plan?.revision ? coverage : undefined;
   return <section className="catalog-section" aria-label="需求验收与补测">
     <div className="testing-query"><Field label="关联需求"><select value={id} disabled={loading}
       onChange={(e) => setID(e.target.value)}><option value="">选择需求</option>

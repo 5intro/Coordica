@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
+import { useState } from 'react';
 import type { AcceptanceCoverage, AcceptancePlan, TestCase } from '../../api.generated';
 import { ApiClient, ApiError } from '../../api/client';
 import { centerSnapshot } from '../../test/connectionInfo';
@@ -93,4 +94,48 @@ it('manual-only gaps stay with the Owner instead of generating developer work', 
   render(<CoverageDetails coverage={{ ...coverage, gaps: [{ criterion_id: 'once', case_id: '',
     reason: 'manual_required', action: 'owner_acceptance' }] }} client={client} refresh={vi.fn()} />);
   expect(screen.getByRole('button', { name: '生成补测需求' })).toHaveProperty('disabled', true);
+});
+
+it('retains supplement feedback after relationship refresh but fences content edits', async () => {
+  const client = new ApiClient('owner');
+  vi.spyOn(client, 'read').mockImplementation(async (path) => path.startsWith('/tests/acceptance/plan') ? plan : coverage);
+  const write = vi.spyOn(client, 'write').mockResolvedValue({ requirement_id: 'supplement', source_id: 'req', source_revision: 1,
+    plan_version: 1, commit: coverage.commit, digest: coverage.digest, gaps: coverage.gaps });
+  function Workspace() {
+    const [current, setCurrent] = useState(requirement);
+    return <><RequirementAcceptance snapshot={{ ...snapshot, requirements: [current] }} client={client}
+      refresh={() => setCurrent({ ...requirement, version: 3 })} />
+      <button onClick={() => setCurrent({ ...current, version: 4, content_revision: 2 })}>修改需求正文</button></>;
+  }
+  render(<Workspace />);
+  fireEvent.change(screen.getByLabelText('关联需求'), { target: { value: 'req' } });
+  await waitFor(() => expect(screen.getByRole('button', { name: '编辑验收条款' })).toHaveProperty('disabled', false));
+  fireEvent.change(screen.getByLabelText('验收固定提交'), { target: { value: coverage.commit } });
+  fireEvent.click(screen.getByRole('button', { name: '检查覆盖并预览补测' }));
+  fireEvent.click(await screen.findByRole('button', { name: '生成补测需求' }));
+  expect(await screen.findByText('补测计划已进入需求池。')).toBeTruthy();
+  expect(screen.getByRole('link', { name: '查看补测需求' }).getAttribute('href')).toBe('#requirements?id=supplement');
+  fireEvent.click(screen.getByRole('button', { name: '编辑验收条款' }));
+  fireEvent.click(screen.getByRole('button', { name: '保存验收条款' }));
+  await waitFor(() => expect(write).toHaveBeenCalledWith('/tests/acceptance', {
+    expected_requirement_version: 3, expected_version: 1, plan,
+  }));
+  fireEvent.click(screen.getByRole('button', { name: '修改需求正文' }));
+  await waitFor(() => expect(screen.queryByRole('link', { name: '查看补测需求' })).toBeNull());
+});
+
+it('adopts the queried plan version and hides coverage when a requirement is withdrawn', async () => {
+  const client = new ApiClient('owner');
+  const latest = { ...coverage, plan: { ...plan, version: 2 } };
+  vi.spyOn(client, 'read').mockImplementation(async (path) => path.startsWith('/tests/acceptance/plan') ? plan : latest);
+  const { rerender } = render(<RequirementAcceptance snapshot={snapshot} client={client} refresh={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText('关联需求'), { target: { value: 'req' } });
+  await waitFor(() => expect(screen.getByRole('button', { name: '编辑验收条款' })).toHaveProperty('disabled', false));
+  fireEvent.change(screen.getByLabelText('验收固定提交'), { target: { value: coverage.commit } });
+  fireEvent.click(screen.getByRole('button', { name: '检查覆盖并预览补测' }));
+  expect(await screen.findByRole('button', { name: '生成补测需求' })).toBeTruthy();
+  expect(screen.getByText(/验收 v2/)).toBeTruthy();
+  rerender(<RequirementAcceptance snapshot={{ ...snapshot, requirements: [{ ...requirement, version: 3, state: 'withdrawn' }] }}
+    client={client} refresh={vi.fn()} />);
+  expect(screen.queryByRole('button', { name: '生成补测需求' })).toBeNull();
 });

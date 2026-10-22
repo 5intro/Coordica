@@ -23,7 +23,7 @@ func GoCase(output, externalID string) string {
 	}
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	scanner.Buffer(make([]byte, 4096), 256<<10)
-	started, passed, bad, finished := 0, 0, "", false
+	started, passed, bad, finished, packageFailed := 0, 0, "", false, false
 	for scanner.Scan() {
 		var event goEvent
 		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil || event.Action == "" || event.Package == "" {
@@ -36,10 +36,8 @@ func GoCase(output, externalID string) string {
 			if event.Action == "start" {
 				finished = false
 			}
-			if event.Action == "fail" || event.Action == "skip" {
-				return "failed"
-			}
-			finished = finished || event.Action == "pass"
+			finished = finished || event.Action == "pass" || event.Action == "fail" || event.Action == "skip"
+			packageFailed = packageFailed || event.Action == "fail" || event.Action == "skip"
 		} else {
 			// Another stream/test invalidates the prior package terminal,
 			// including activity for other tests in this package.
@@ -61,11 +59,17 @@ func GoCase(output, externalID string) string {
 			}
 		}
 	}
-	if scanner.Err() != nil || !finished || started == 0 || started != passed && bad == "" {
+	if scanner.Err() != nil || !finished || started != passed && bad == "" || started == 0 && passed > 0 {
 		return "unreported"
+	}
+	if started == 0 {
+		return "unrun"
 	}
 	if bad != "" {
 		return bad
+	}
+	if packageFailed {
+		return "incomplete_suite"
 	}
 	return "passed"
 }

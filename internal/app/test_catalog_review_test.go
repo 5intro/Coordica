@@ -59,6 +59,7 @@ func TestCatalogFailureOnlyBelongsToTheExecutedCheck(t *testing.T) {
 					r.TestReport.Checks = []domain.CheckResult{{Name: "earlier-check", ExitCode: 1}}
 				} else if tc.mode == "failed" {
 					r.TestReport.Checks[0].Passed, r.TestReport.Checks[0].ExitCode = false, 1
+					r.TestReport.Checks[0].Output = strings.ReplaceAll(r.TestReport.Checks[0].Output, `"Action":"pass"`, `"Action":"fail"`)
 				}
 				return tx.Put("run", r.ID, r)
 			}); err != nil {

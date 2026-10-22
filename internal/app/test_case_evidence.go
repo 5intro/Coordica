@@ -62,6 +62,10 @@ func caseEvidence(tx *store.Tx, v domain.TestCase, commit string) (domain.CaseEv
 		out.State = "suite_disabled"
 		return out, nil
 	}
+	if !slices.ContainsFunc(suite.Checks, func(check domain.Check) bool { return check.Name == v.CheckName }) {
+		out.State = "stale"
+		return out, nil
+	}
 	task, run, err := store.LatestVerification(tx, suite.ID, commit)
 	if errors.Is(err, domain.ErrNotFound) {
 		return out, nil
@@ -96,22 +100,23 @@ func reportedCaseState(v domain.TestCase, task domain.Task, run domain.Run, suit
 		return "unrun"
 	}
 	check := run.TestReport.Checks[index]
+	state := "unreported"
+	if v.ReportFormat == "go-json" {
+		state = testreport.GoCase(check.Output, v.ExternalID)
+	}
 	if run.State == "failed" {
-		if !check.Passed || check.ExitCode != 0 {
-			return "failed"
+		if state == "passed" {
+			return "incomplete_suite"
 		}
-		return "incomplete_suite"
+		return state
 	}
 	if task.State != "verified" || !domain.ChecksPassed(suite.Checks, run.TestReport.Checks) {
 		return "unrun"
 	}
-	if len(suite.Platforms) > 1 {
+	if len(slices.Compact(slices.Sorted(slices.Values(suite.Platforms)))) > 1 {
 		return "platform_gap"
 	}
-	if v.ReportFormat == "go-json" {
-		return testreport.GoCase(check.Output, v.ExternalID)
-	}
-	return "unreported"
+	return state
 }
 
 func reportMatchesSuite(r domain.Run, suite domain.TestSuite, commit string) bool {
