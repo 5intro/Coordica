@@ -112,7 +112,7 @@ func TestLeaderHeadsPreservePurposeDefaults(t *testing.T) {
 		{"planning", "evaluation", ""}, {"planning", "consultation", "consultation"}, {"initialization", "init", "initialization"},
 	} {
 		err := db.View(ctx, func(tx *Tx) error {
-			heads, err := LeaderExecutionHeads(tx, test.kind, test.id)
+			heads, err := LeaderExecutionHeads(tx, test.kind, test.id, "")
 			if err == nil && (len(heads) != 1 || heads[0].Purpose != test.purpose) {
 				t.Fatal("wrong execution purpose", heads)
 			}
@@ -146,6 +146,28 @@ func TestLeaderInitialSmallHistoryMarksRetentionLoss(t *testing.T) {
 		page, err := ReadLeaderActivity(tx, domain.LeaderActivityQuery{Limit: 100}, []domain.LeaderExecutionRef{ref})
 		if err == nil && (!page.Truncated || len(page.Events) != 10) {
 			t.Fatalf("small incomplete history presented as complete: %+v", page)
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLeaderHeadsPreserveScopeRequestSource(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := db.Update(context.Background(), func(tx *Tx) error {
+		return tx.Put("planning_run", "scope", domain.PlanningRun{ID: "scope", ScopeRequestID: "scope_request"})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.View(context.Background(), func(tx *Tx) error {
+		heads, err := LeaderExecutionHeads(tx, "planning", "scope", "")
+		if err == nil && (len(heads) != 1 || heads[0].SourceID != "scope_request" || heads[0].SourceKind != "scope_request") {
+			t.Fatal("scope source identity omitted", heads)
 		}
 		return err
 	}); err != nil {

@@ -2433,6 +2433,9 @@
         "source_id": {
           "type": "string"
         },
+        "source_kind": {
+          "type": "string"
+        },
         "state": {
           "type": "string"
         },

@@ -15,7 +15,12 @@ function event(value: unknown): value is LeaderActivityEvent {
 function execution(value: unknown): value is LeaderExecution {
   return object(value) && binding(value.ref) && number(value.version) && typeof value.purpose === 'string'
     && typeof value.source_id === 'string' && typeof value.state === 'string'
+    && (value.source_kind === undefined || ['', 'conversation', 'requirement_change', 'scope_request'].includes(String(value.source_kind)))
     && typeof value.tree_stopped === 'boolean' && typeof value.settled === 'boolean';
+}
+
+export class ActivityStreamError extends Error {
+  constructor(public readonly code: string, message: string) { super(message); }
 }
 export function activityPage(value: unknown): LeaderActivityPage {
   if (!object(value) || value.version !== 1 || !number(value.cursor) || !number(value.oldest)
@@ -34,6 +39,12 @@ export async function followActivity(token: string, after: number, signal: Abort
   const response = await fetch(`/api/v1/leader/activity/stream?after=${after}`, {
     headers: { Accept: 'text/event-stream', Authorization: `Bearer ${token}` }, signal,
   });
+  if (!response.ok) {
+    const value: unknown = await response.json().catch(() => undefined);
+    const code = object(value) && typeof value.code === 'string' ? value.code : 'activity_unavailable';
+    throw new ActivityStreamError(code, code === 'invalid_cursor'
+      ? '活动游标已失效，请重新连接。' : '活动连接不可用，请检查权限或重新连接。');
+  }
   if (!response.ok || !response.headers.get('Content-Type')?.startsWith('text/event-stream') || !response.body) {
     throw new Error('活动连接不可用，请检查权限或重新连接。');
   }

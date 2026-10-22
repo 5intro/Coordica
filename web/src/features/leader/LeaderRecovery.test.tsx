@@ -51,3 +51,34 @@ it('opens planning controls for an existing run deep link', () => {
   render(<Planning client={client} snapshot={preparationSnapshot} refresh={vi.fn()} initialId="linked-run" />);
   expect(screen.getByText('目标、咨询与规划操作').parentElement).toHaveProperty('open', true);
 });
+
+it('labels scope assessments distinctly from ordinary goal planning', () => {
+  const client = new ApiClient('owner');
+  let receive!: (v: LeaderActivityPage) => void;
+  vi.spyOn(client, 'followLeader').mockImplementation(async (_after, _signal, next) => { receive = next; });
+  render(<LeaderActivityPanel client={client} />);
+  const value = page();
+  value.executions = [{ ...value.executions![1], source_id: 'scope-request', source_kind: 'scope_request' }];
+  act(() => receive(value));
+  expect(screen.getByRole('option', { name: /范围申请评估/ })).toBeTruthy();
+  expect(screen.queryByRole('option', { name: /目标规划/ })).toBeNull();
+});
+
+it('recovers from a restored-database cursor error through the real HTTP client', async () => {
+  const stream = (value: LeaderActivityPage) => new Response(`data: ${JSON.stringify(value)}\n\n`, {
+    headers: { 'Content-Type': 'text/event-stream' },
+  });
+  const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(stream(page()))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ code: 'invalid_cursor' }), { status: 400 }))
+    .mockResolvedValueOnce(stream({ ...page(), cursor: 0, oldest: 0, events: [] }));
+  render(<LeaderActivityPanel client={new ApiClient('owner')} />);
+  await screen.findByText(/活动连接已断开/);
+  fireEvent.click(screen.getByRole('button', { name: '重新连接' }));
+  await screen.findByText(/活动游标已失效/);
+  fireEvent.click(screen.getByRole('button', { name: '重新连接' }));
+  await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
+  expect(fetcher.mock.calls.map((call) => call[0])).toEqual([
+    '/api/v1/leader/activity/stream?after=0', '/api/v1/leader/activity/stream?after=10', '/api/v1/leader/activity/stream?after=0',
+  ]);
+  expect(screen.queryByText('当前规划工作')).toBeNull();
+});
