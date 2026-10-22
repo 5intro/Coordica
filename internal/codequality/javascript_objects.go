@@ -27,6 +27,9 @@ func scriptObjectPrefix(text string, at int) bool {
 
 func (m *metrics) scriptObjectMethods(f File, text string, ends map[int]int, seen map[int]bool) {
 	for _, match := range scriptSignature.FindAllStringSubmatchIndex(text, -1) {
+		if m.cancelled() {
+			return
+		}
 		name := text[match[2]:match[3]]
 		switch name {
 		case "if", "for", "while", "switch", "catch", "with", "function":

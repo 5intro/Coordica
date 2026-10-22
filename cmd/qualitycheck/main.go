@@ -63,11 +63,11 @@ func check(ctx context.Context, repo, base, candidate string, working bool) erro
 	if err != nil {
 		return err
 	}
-	return compare(old, next)
+	return compare(ctx, old, next)
 }
 
-func compare(old, next []codequality.File) error {
-	findings, err := codequality.Regressions(old, next)
+func compare(ctx context.Context, old, next []codequality.File) error {
+	findings, err := codequality.RegressionsContext(ctx, old, next)
 	if err != nil {
 		return err
 	}
