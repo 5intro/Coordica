@@ -1,11 +1,11 @@
 import type { Project, ProjectPolicyRequest } from '../api.generated';
 
-export type PolicyDraft = { version: number; checks: string; protectedPaths: Project['protected_paths'] };
-export type PendingPolicy = { key: string; body: ProjectPolicyRequest };
+export type PolicyDraft = { version: number; policyVersion: number; checks: string; protectedPaths: Project['protected_paths'] };
+export type PendingPolicy = { key: string; policyVersion: number; body: ProjectPolicyRequest };
 type PolicyState = { draft: PolicyDraft; pending: PendingPolicy | null };
 
 export function projectPolicyDraft(project: Project): PolicyDraft {
-  return { version: project.version, checks: JSON.stringify(project.checks ?? [], null, 2),
+  return { version: project.version, policyVersion: project.policy_version, checks: JSON.stringify(project.checks ?? [], null, 2),
     protectedPaths: project.protected_paths ? [...project.protected_paths] : null };
 }
 

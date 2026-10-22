@@ -29,12 +29,12 @@ export function useInitializationPolicy({ project, client, action }: Preparation
     setError('');
     const ok = await action.execute(async () => {
       const request = existing ?? session.begin(project.id, draft, {
-        key: crypto.randomUUID(), body: { expected_version: draft.version,
+        key: crypto.randomUUID(), policyVersion: draft.policyVersion, body: { expected_version: draft.version,
           checks: parseChecks(draft.checks), protected_paths: draft.protectedPaths },
       });
       try {
         const value = await client.write('/project/policy', request.body, request.key);
-        if (!validPolicyReceipt(value, project.id, request.body)) {
+        if (!validPolicyReceipt(value, project.id, request.body, request.policyVersion)) {
           throw new ApiError('invalid_response', '政策回执不完整，原始政策已保留，请使用同一请求重试。', 200);
         }
         session.settle(project.id, request.key, true);

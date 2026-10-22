@@ -4,8 +4,8 @@ import { ApiClient } from './client';
 it('isolates policy drafts by project and credentials and fences late receipts', () => {
   const client = new ApiClient('owner');
   const session = client.initializationPolicies;
-  const draft = { version: 1, checks: '[private]', protectedPaths: ['private/**'] };
-  const first = { key: 'first', body: { expected_version: 1, checks: [], protected_paths: ['private/**'] } };
+  const draft = { version: 1, policyVersion: 1, checks: '[private]', protectedPaths: ['private/**'] };
+  const first = { key: 'first', policyVersion: 1, body: { expected_version: 1, checks: [], protected_paths: ['private/**'] } };
   session.begin('project', draft, first);
   expect(session.read('another')).toBeUndefined();
   expect(new ApiClient('other').initializationPolicies.read('project')).toBeUndefined();

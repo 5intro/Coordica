@@ -1,3 +1,4 @@
+import { acceptedAnswer } from '../test/answerReceipt';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { ApiClient } from '../api/client';
@@ -7,7 +8,7 @@ import { ProjectInitialization } from './ProjectInitialization';
 
 it.each([true, false])('pins a selected-only question after route remount, reused ID: %s', async (reusedID) => {
   const client = new ApiClient('owner');
-  const write = vi.spyOn(client, 'write').mockResolvedValue(readyInitialization);
+  const write = vi.spyOn(client, 'write').mockImplementation(async (_path, body) => acceptedAnswer(body));
   const question = { id: 'architecture', text: '原先问题', prerequisites: [] };
   const original = { ...readyInitialization, status: 'interview', result: {
     ...readyInitialization.result!, questions: [question], ready: false,

@@ -1,3 +1,4 @@
+import { acceptedAnswer } from '../test/answerReceipt';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { ApiClient, ApiError } from '../api/client';
@@ -7,7 +8,7 @@ import { ProjectInitialization } from './ProjectInitialization';
 
 function controls() {
   const client = new ApiClient('owner');
-  return { client, write: vi.spyOn(client, 'write').mockResolvedValue(readyInitialization), refresh: vi.fn() };
+  return { client, write: vi.spyOn(client, 'write').mockImplementation(async (_path, body) => acceptedAnswer(body)), refresh: vi.fn() };
 }
 
 it('shows the confirmed agreement rather than labelling it an unapproved draft', () => {
@@ -44,7 +45,7 @@ it('keeps an unsent answer attached to its original question version across MCP 
 
 it('retries an uncertain answer with the same body and identity after the center advances', async () => {
   const { client, write, refresh } = controls();
-  write.mockRejectedValueOnce(new ApiError('network_error', '回执丢失')).mockResolvedValue(readyInitialization);
+  write.mockRejectedValueOnce(new ApiError('network_error', '回执丢失')).mockImplementation(async (_path, body) => acceptedAnswer(body));
   const view = render(<ProjectInitialization snapshot={snapshot} client={client} refresh={refresh} />);
   fireEvent.change(screen.getByLabelText('原始回答 / 反馈'), { target: { value: '原始回答' } });
   fireEvent.click(screen.getByRole('button', { name: '保存原文并继续访谈' }));

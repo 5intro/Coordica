@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore } from 'react';
 import type { Initialization } from '../../api.generated';
 import { ApiError } from '../../api/client';
-import { initializationReply } from '../../api/initialization';
+import { answerReceipt } from '../../api/answerReceipt';
 import type { PreparationControls } from './types';
 
 export function useInitializationAnswer(projectID: string, current: Initialization, { client, action }: PreparationControls) {
@@ -39,7 +39,7 @@ export function useInitializationAnswer(projectID: string, current: Initializati
     setError('');
     const ok = await action.execute(async () => {
       try {
-        const value = initializationReply(await client.write('/initialization/answer', request.body, request.key));
+        const value = answerReceipt(await client.write('/initialization/answer', request.body, request.key), request.body);
         if (!value) throw new ApiError('invalid_response', '初始化回执不完整，原始回答已保留，请使用同一请求重试。', 200);
         return value;
       }

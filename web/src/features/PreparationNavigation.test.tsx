@@ -1,3 +1,4 @@
+import { acceptedAnswer } from '../test/answerReceipt';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { ApiClient, ApiError } from '../api/client';
@@ -13,7 +14,7 @@ const failures = [
 
 it.each(failures)('recovers the exact uncertain answer after route unmount: $code', async (failure) => {
   const client = new ApiClient('owner');
-  const write = vi.spyOn(client, 'write').mockRejectedValueOnce(failure).mockResolvedValue(readyInitialization);
+  const write = vi.spyOn(client, 'write').mockRejectedValueOnce(failure).mockImplementation(async (_path, body) => acceptedAnswer(body));
   const props = { client, refresh: vi.fn() };
   const view = render(<ProjectInitialization {...props} snapshot={snapshot} />);
   fireEvent.change(screen.getByLabelText('原始回答 / 反馈'), { target: { value: '原始私有回答' } });
@@ -34,8 +35,8 @@ it.each(failures)('recovers the exact uncertain answer after route unmount: $cod
 
 it('does not leave a duplicate draft when an in-flight answer succeeds after navigation', async () => {
   const client = new ApiClient('owner');
-  let accept!: () => void;
-  const receipt = new Promise((resolve) => { accept = () => resolve(readyInitialization); });
+  let accept!: (body: unknown) => void;
+  const receipt = new Promise((resolve) => { accept = (body) => resolve(acceptedAnswer(body)); });
   const write = vi.spyOn(client, 'write').mockReturnValue(receipt);
   const props = { client, refresh: vi.fn(), snapshot };
   const view = render(<ProjectInitialization {...props} />);
@@ -45,7 +46,7 @@ it('does not leave a duplicate draft when an in-flight answer succeeds after nav
   view.unmount();
   render(<ProjectInitialization {...props} />);
   expect(screen.getByLabelText('原始回答 / 反馈')).toHaveProperty('disabled', true);
-  await act(async () => { accept(); await receipt; });
+  await act(async () => { accept(write.mock.calls[0][1]); await receipt; });
   await waitFor(() => expect(screen.getByLabelText('原始回答 / 反馈')).toHaveProperty('value', ''));
   expect(screen.queryByRole('button', { name: '重试待确认回答' })).toBeNull();
   expect(write).toHaveBeenCalledTimes(1);
@@ -67,7 +68,7 @@ it('retains an unsent answer and its old version after leaving the preparation p
 
 it('keeps an incomplete JSON receipt uncertain and can retry it after navigation', async () => {
   const client = new ApiClient('owner');
-  const write = vi.spyOn(client, 'write').mockResolvedValueOnce({}).mockResolvedValue(readyInitialization);
+  const write = vi.spyOn(client, 'write').mockResolvedValueOnce({}).mockImplementation(async (_path, body) => acceptedAnswer(body));
   const props = { client, refresh: vi.fn(), snapshot };
   const view = render(<ProjectInitialization {...props} />);
   fireEvent.change(screen.getByLabelText('原始回答 / 反馈'), { target: { value: '不能丢弃的原文' } });
@@ -86,7 +87,7 @@ it.each(['operation_id', 'operation_generation', 'operation_version', 'operation
     const receipt: Record<string, unknown> = { ...readyInitialization, status: 'analyzing', result: null };
     delete receipt[field];
     const client = new ApiClient('owner');
-    const write = vi.spyOn(client, 'write').mockResolvedValueOnce(receipt).mockResolvedValue(readyInitialization);
+    const write = vi.spyOn(client, 'write').mockResolvedValueOnce(receipt).mockImplementation(async (_path, body) => acceptedAnswer(body));
     const props = { client, refresh: vi.fn(), snapshot };
     const view = render(<ProjectInitialization {...props} />);
     fireEvent.change(screen.getByLabelText('原始回答 / 反馈'), { target: { value: '原始回答必须保留' } });
