@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LeaderActivityEvent, LeaderActivityPage } from '../../api.generated';
 import { activityPage } from '../../api/leaderActivity';
-import { ApiClient, messageOf } from '../../api/client';
+import { ApiClient, ApiError, messageOf } from '../../api/client';
 
 export function mergeActivity(previous: LeaderActivityEvent[], page: LeaderActivityPage): LeaderActivityEvent[] {
   const merged = new Map(previous.map((event) => [event.sequence, event]));
@@ -18,6 +18,7 @@ export function useLeaderActivity(client: ApiClient) {
   const [connected, setConnected] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const cursor = useRef(0);
+  const invalidCursor = useRef(false);
   useEffect(() => {
     const controller = new AbortController();
     setConnected(false);
@@ -33,11 +34,23 @@ export function useLeaderActivity(client: ApiClient) {
       setEvents(retained.current);
       setConnected(true);
     }).catch((failure) => {
-      if (!controller.signal.aborted) { setError(messageOf(failure)); setConnected(false); }
+      if (!controller.signal.aborted) {
+        invalidCursor.current = failure instanceof ApiError && failure.code === 'invalid_cursor';
+        setError(messageOf(failure)); setConnected(false);
+      }
     });
     return () => controller.abort();
   }, [client, attempt]);
-  return { page, events, truncated, error, connected, reconnect: () => setAttempt((value) => value + 1) };
+  function reconnect() {
+    if (invalidCursor.current) {
+      cursor.current = 0;
+      retained.current = [];
+      setEvents([]); setPage(undefined); setTruncated(false);
+      invalidCursor.current = false;
+    }
+    setAttempt((value) => value + 1);
+  }
+  return { page, events, truncated, error, connected, reconnect };
 }
 
 // Selecting an older execution performs one bounded history read, without

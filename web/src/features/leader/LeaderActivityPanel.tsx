@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { LeaderExecution } from '../../api.generated';
+import type { LeaderActivityEvent, LeaderExecution } from '../../api.generated';
 import { ApiClient } from '../../api/client';
 import { Status, time } from '../../components/ui';
 import { mergeActivity, useLeaderActivity, useLeaderHistory } from './useLeaderActivity';
@@ -9,11 +9,19 @@ function executionTitle(execution: LeaderExecution) {
     ? '咨询与建议' : execution.source_id ? '需求变更评估' : '目标规划';
 }
 
+function defaultExecution(executions: LeaderExecution[], events: LeaderActivityEvent[]) {
+  const priority = (v: LeaderExecution) => ['running', 'unknown_live', 'cancel_requested'].includes(v.state) ? 2 : v.state === 'queued' ? 1 : 0;
+  const latest = (v: LeaderExecution) => events.reduce((seq, e) => e.execution.id === v.ref.id ? Math.max(seq, e.sequence) : seq, 0);
+  return [...executions].sort((a, b) => priority(b) - priority(a) || latest(b) - latest(a)
+    || Number(b.ref.kind === 'planning') - Number(a.ref.kind === 'planning'))[0];
+}
+
 export function LeaderActivityPanel({ client }: { client: ApiClient }) {
   const activity = useLeaderActivity(client);
   const [selected, setSelected] = useState('');
   const executions = activity.page?.executions ?? [];
-  const current = executions.find((item) => item.ref.id === selected) ?? (!selected ? executions[0] : undefined);
+  const current = executions.find((item) => item.ref.id === selected)
+    ?? (!selected ? defaultExecution(executions, activity.events) : undefined);
   const history = useLeaderHistory(client, selected, current?.ref.kind ?? '');
   const records = history.history
     ? mergeActivity(activity.events.filter((event) => event.execution.id === selected), history.history) : activity.events;

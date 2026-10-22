@@ -123,3 +123,32 @@ func TestLeaderHeadsPreservePurposeDefaults(t *testing.T) {
 		}
 	}
 }
+
+func TestLeaderInitialSmallHistoryMarksRetentionLoss(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "activity.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ref := domain.LeaderExecutionRef{Kind: "planning", ID: "old", Generation: 1, InputVersion: 1}
+	events := []domain.LeaderActivityEvent{}
+	for i := 0; i < domain.MaxLeaderEvents+40; i++ {
+		current := ref
+		if i >= 50 {
+			current.ID = "new"
+		}
+		events = append(events, domain.LeaderActivityEvent{Execution: current, Key: fmt.Sprint(i), Kind: "message", Text: "activity"})
+	}
+	if err := db.Update(context.Background(), func(tx *Tx) error { return AppendLeaderActivity(tx, events) }); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.View(context.Background(), func(tx *Tx) error {
+		page, err := ReadLeaderActivity(tx, domain.LeaderActivityQuery{Limit: 100}, []domain.LeaderExecutionRef{ref})
+		if err == nil && (!page.Truncated || len(page.Events) != 10) {
+			t.Fatalf("small incomplete history presented as complete: %+v", page)
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+}

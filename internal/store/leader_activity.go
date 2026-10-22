@@ -47,7 +47,7 @@ func ReadLeaderActivity(tx *Tx, query domain.LeaderActivityQuery, refs []domain.
 	if query.After > latest {
 		return page, domain.Fail("invalid_cursor", "activity cursor is ahead of this center; reconnect from recent history")
 	}
-	page.Truncated = query.After > 0 && oldest > query.After+1
+	page.Truncated = oldest > query.After+1
 	if len(refs) == 0 {
 		return page, nil
 	}

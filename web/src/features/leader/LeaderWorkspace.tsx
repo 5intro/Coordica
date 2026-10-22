@@ -16,7 +16,7 @@ export function Planning(props: Props) {
         <LeaderActivityPanel key={props.snapshot.project?.id ?? 'empty'} client={props.client} />
         <LeaderQuestions snapshot={props.snapshot} client={props.client} refresh={props.refresh} />
       </div>
-      <details className="panel leader-controls">
+      <details className="panel leader-controls" open={!!props.initialId}>
         <summary>目标、咨询与规划操作</summary>
         <PlanningControls {...props} />
       </details>
