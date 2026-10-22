@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-var classBlock = regexp.MustCompile(`\bclass\s+([A-Za-z_$][\w$]*)[^;{}]*\{`)
+var classBlock = regexp.MustCompile(`\bclass(?:\s+([A-Za-z_$][\w$]*))?[^;{}]*\{`)
 var pythonDeclaration = regexp.MustCompile(`^(?:async\s+)?(class|def)\s+([A-Za-z_]\w*)`)
 
 func (m *metrics) structuredSource(f File) {
@@ -33,6 +33,7 @@ func (m *metrics) structuredSource(f File) {
 // cohesion review remain required (especially overloads and metaprogramming).
 func maskedSource(text string, python bool, stringEnds map[int]int) string {
 	out := []byte(text)
+	lineOffsets := sourceLineOffsets(text)
 	blank := func(start, end int) {
 		for i := start; i < end; i++ {
 			if out[i] != '\n' {
@@ -75,7 +76,7 @@ func maskedSource(text string, python bool, stringEnds map[int]int) string {
 			// A standalone string is a statement, including at module scope.
 			// Preserve its opening position and complete multiline extent.
 			out[start] = '0'
-			stringEnds[lineAt(text, start)] = lineAt(text, i-1)
+			stringEnds[indexedLine(lineOffsets, start)] = indexedLine(lineOffsets, i-1)
 		}
 	}
 	return string(out)
@@ -96,12 +97,10 @@ func braceEnds(text string) map[int]int {
 	return ends
 }
 
-func lineAt(text string, offset int) int { return strings.Count(text[:offset], "\n") + 1 }
-
 func (m *metrics) blockFunction(file, text, name string, start, open int, ends map[int]int) {
 	if end, ok := ends[open]; ok {
-		m.add(file, lineAt(text, start), "function_lines", name,
-			lineAt(text, end)-lineAt(text, start)+1, MaxFunction)
+		m.add(file, m.lineAt(start), "function_lines", name,
+			m.lineAt(end)-m.lineAt(start)+1, MaxFunction)
 	}
 }
 
@@ -109,7 +108,11 @@ func (m *metrics) pythonSource(f File) {
 	stringEnds := map[int]int{}
 	lines := strings.Split(maskedSource(f.Text, true, stringEnds), "\n")
 	original := strings.Split(f.Text, "\n")
+	pythonLambdas(m, f)
 	for start, line := range lines {
+		if m.cancelled() {
+			return
+		}
 		trimmed := strings.TrimSpace(line)
 		decl := pythonDeclaration.FindStringSubmatch(trimmed)
 		if decl == nil {
