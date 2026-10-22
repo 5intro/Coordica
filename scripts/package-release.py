@@ -127,12 +127,9 @@ def common_entries():
 def start_here(version, platform, binary):
     instructions = f"""Coordica v{version} — {platform}
 
-这是 v{version} 开发预览版。
-Owner 独立验证并发布后的版本页：https://github.com/5intro/Coordica/releases/tag/v{version}
-既有 v0.2.0-dev macOS 本机 Phase B 端到端验收已通过；多机 Phase B 与 Linux 原生部署仍待验证。
-实际可下载版本与对应验证记录见 Releases/Actions；Owner 独立验证后部署与发布。
+版本说明与下载：https://github.com/5intro/Coordica/releases/tag/v{version}
+源码与发布包可能对应不同提交，请以所用版本的说明为准。
 检出或更新源码不会自动安装、发布或部署。
-源码回归不代表本版本真实模型验收或目标系统原生部署认证。
 中心、MCP 与 Runner 使用同一个可执行文件，无需单独安装 Runner 或构建源码。
 
 许可：仅个人非商业使用及私人本地修改免费。商业用途、团队或公司使用、
@@ -153,17 +150,17 @@ Owner 独立验证并发布后的版本页：https://github.com/5intro/Coordica/
    也可自行提供真实中心 HTTPS 地址、配对码和必要的公共 CA 绝对路径。
 6. 在中心“运行与节点”核对后续心跳。关闭 MCP 会话不影响独立 Runner。
 
-0.2.3-dev 新增必需项目初始化：所有旧数据库与无 Goal 项目也需要 Leader 只读分析和 Owner 确认精确基线。
+项目初始化：所有旧数据库与无 Goal 项目也需要 Leader 只读分析和 Owner 确认精确基线。
 中心主机先用 host-config 保存可信固定角色/路径，再 setup --host-role center --host-config 固定配置 --runner-data 独立固定Runner目录；initialize_center/start_center/get_host_status 均无路径参数。
 同一个中心 MCP 保留 initialize_runner，无第二个入口；中心 limited profile 保持原身份，不发送到提供的其它配对端点。
 checks-file 可省略，先建立暂停的空检查草案并访谈；Owner 保存真实非空检查政策后重新分析确认，空检查不能执行。
 初始化捕获 Owner 的 PlanningTimeoutSeconds 与 PlanningMaxRetries；默认300秒、两次重试，无需开启自动化。
 原始回答、覆盖和源 SHA 保留；new 访谈可以在首次提交前开始。分析不执行检查、不生成开发任务、不启用自动化。
 Owner token 不经 MCP 返回；受限 MCP 不隔离聊天的其它工具。
-源码版本不意味着已经发布或原生部署通过。
 
-安装与 MCP 初始化：README.md 的“统一 MCP 初始化（主要接入方式）”
-中心首次启动及局域网证书：README.md 的“本机启动”和“两台电脑通过局域网连接”
+开始使用与控制台：README.md 的“开始使用”（#getting-started）。
+可信中心与 MCP 初始化：README.md 的“可信中心、项目初始化与 MCP 安装”（#setup-reference）。
+跨机接入及局域网证书：README.md 的“Runner 本机页面与局域网接入”（#network-reference）。
 中心统一管理入口只在中心电脑打开，默认 http://127.0.0.1:8080；
 需求池、任务池、运行与节点及政策均在这里。登录后打开 /#connection，
 可在建项目前查看实际部署与公共 CA，为每个远端节点分别生成一次性接入配置。
@@ -184,17 +181,9 @@ Owner token 不经 MCP 返回；受限 MCP 不隔离聊天的其它工具。
 能力变化在客户端活动时通知；不支持动态刷新时手动重新发现或重连。
 dsh 只迁移安装器生成的文件；已加载旧 overlay 须自行从启动命令移除。
 固定 Run MCP 仍仅有 get_context/report_block/request_scope，无主机管理或对话权限。
-开发者邮箱、索引集成、模型/effort/并发设置与资源扩展均属后续功能。
-既有 v0.2.2-dev 统一 MCP 实现及评审修复已独立通过完整 macOS Go race 套件，包括全部监听测试。
-v0.2.2-dev 真实原生可执行文件 stdio 与隔离双监听中心验收通过：同一 MCP 进程从缺失 profile 获得十一项中心工具；
-节点 profile 仅七项工具，不能访问 Leader/全局任务池；Run 仅三项范围内工具并拒绝跨角色调用。
-中心实际重启时 MCP 进程保持存活；凭据撤销后缓存读取与需求提交被拒绝。
-实际原生 Codex CLI 配置安装迁移为唯一 coordica，保留路径、启用/禁用状态、超时、无关设置、备份和幂等性。
-评审修复覆盖 TOML 末尾分隔/无关表、项目级 MCP 名称状态、隐式目录环境/文件别名和本机 Runner 保留中心 profile。
-开发侧离线 stdio 与五项 Python 打包测试通过；fixtures 不代表所有客户端或平台原生验收。
-v0.2.2-dev 验收没有运行模型，没有派发开发、规划 Run 或任务；节点注册为逻辑 fixture，没有激活用户服务。
-CLI 配置安装已测试；GUI 动态工具刷新取决于客户端支持。该 v0.2.2-dev 验收未新增 Windows/Linux 原生部署认证。
-v0.2.3-dev 的原生服务、统一 MCP 与只读 Leader 就绪验证记录以对应 Releases 的发布说明为准，由 Owner 独立验证后记录。
+当前源码已支持按工具实际报告选择 Agent 模型与思考强度，并配置节点容量；
+具体功能与权限边界见 README.md 的“目标授权、需求生命周期与工作台”（#workflow-reference）；
+获取对应版本请参阅“版本与下载”（#validation-reference）。
 可执行文件、数据和私有 profile 使用稳定绝对路径；setup 后重新加载或重启对应客户端。
 中心凭据仅在中心回环地址允许 Leader 咨询；节点凭据仅允许安全公共事实、需求及本节点 Agent/Run。
 节点不能查询全局任务、阻断、Leader 对话或其他节点执行上下文。凭据范围由中心持久化记录决定。
@@ -204,32 +193,19 @@ Leader 纯咨询/建议不创建任务或修改授权；页面切换保留未确
 开发/评审/规划/咨询单 Run 最多七天；任务/目标内规划累计最多 365 天且不少于单 Run，重试仍有限。
 旧 budget 阻断不自动迁移；Owner 核对停止结算、剩余额度和当前授权后以当前任务版本恢复。
 恢复不清零支出，不绕过重试上限，不改变已有发布意图；具体兼容步骤见 README.md。
-需求版本化撤销/编辑与实时开发者邮箱尚未实现。
+当前源码已支持需求内容修订与撤回，按固定修订冻结、停止核对和重排相关工作；
+暂停或自动化关闭时只排队，重大决定仍由 Owner 处理。
 工具注册示例：examples/tools/custom-acp.json
 独立验收小项目：examples/acceptance
 Windows batch 路径限制：internal/process/README.md
 
 包内不含个人凭据、中心地址或配对信息。解压不会自动安装或启动系统服务；
 initialize_center 请求启动所选中心用户服务；initialize_runner 配对并请求启动 Runner 用户服务。
-已完成 Mac 中心与 Windows 节点连接、Windows dsh 实现及 Claude 独立评审的小项目闭环。
-运行中取消的 Phase A 验收已通过；该 Phase A 的实际 Agent 验收事实限于 Claude / dsh。
-既有 v0.2.0-dev macOS 本机 Phase B 实测：原生 Codex gpt-6.1-sol Leader 规划 → 自动授权一个任务 →
-原生 Codex scope_requested 且无编辑 → 实际进程停止 → Leader 在目标字面允许根目录内
-自动批准普通范围 → 同一任务以新授权恢复并保留累计支出 → 原生 Codex 开发 →
-独立本机 Claude 节点只读评审 → 中心对不可变固定候选执行 node:test 验证 →
-精确固定候选条件更新本地测试 Git 的 main。Owner 仅批准目标一次，没有手动批准范围
-或提交替代请求。结束时所有 Run 进程树均已停止，项目与目标预留预算均为零。
-既有 v0.2.0-dev 原生 Leader 运行中取消验收也已通过：观察到结构化会话，取消前确认真实存活 PID，
-取消后确认进程消失、静止与结算，保留实际耗时支出。
-本机 Claude 与 dsh 原生协议冒烟测试已通过，不代表完整 Phase B dsh 协作或多机部署已通过。
-完整测试与各平台 CI 结果以当前发布版本关联的 GitHub checks 为准，本地局部检查不替代完整测试或平台 CI。
-普通 LAN 测试不覆盖断线、重启、重复消息、旧租约及进程树停止语义。
-跨平台编译不等于目标系统原生认证；仅取得实际测量证据后标记通过。
-
-Phase B：在中心本机 Owner 页面建立项目与需求，保存完整目标、非目标、验收、
+开始协作：在中心本机 Owner 页面建立项目与需求，保存完整目标、非目标、验收、
 关联需求、架构、目录大纲、字面允许根目录及有限累计预算，再由 Owner 一次授权。
 “目标规划与 Leader”的评估通过持久化原生 Codex 只读执行完成；Leader 是配置的
-CLI 执行，不是桌面聊天会话。所有受管 Codex 显式使用 gpt-6.1-sol，无模型回退。
+CLI 执行，不是桌面聊天会话。默认模型为 gpt-6.1-sol；Owner 可选择工具实际报告的模型
+与思考强度，选择固定到新 Run，不静默回退。
 目标准入后，中心本机“系统自动化”开关才允许边界内普通任务与范围自动授权；默认关闭。
 新目标、架构、检查、受保护变化与外部权限仍需 Owner 批准，测试不替代授权。
 原生严格执行意图协议 v1（native execution intent v1）最终输出仅为严格 JSON：

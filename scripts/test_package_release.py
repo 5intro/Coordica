@@ -1,6 +1,7 @@
 """Public release wording and archive safety regression checks."""
 import importlib.util
 from pathlib import Path
+import re
 import tempfile
 import unittest
 
@@ -10,32 +11,63 @@ spec.loader.exec_module(release)
 
 
 class ReleaseTests(unittest.TestCase):
-    def test_phase_b_start_here_for_every_platform(self):
+    def assert_readme_references(self, text, readme):
+        references = re.findall(r'“([^”]+)”（#([a-z0-9-]+)）', text)
+        self.assertTrue(references, 'START-HERE has no anchored README references')
+        for title, anchor in references:
+            marker = f'<a id="{anchor}"></a>'
+            self.assertIn(marker, readme, f'Missing README anchor: {anchor}')
+            section = readme.split(marker, 1)[1].split('<a id="', 1)[0]
+            headings = re.findall(r'^#{1,6} (.+)$', section, re.MULTILINE)
+            headings += re.findall(r'<summary><strong>([^<]+)</strong></summary>', section)
+            self.assertIn(title, headings, f'Wrong README title at #{anchor}: {title}')
+
+    def test_start_here_readme_references_for_every_platform(self):
+        readme = (release.ROOT / 'README.md').read_text(encoding='utf-8')
         for platform, _, binary, _ in release.PLATFORMS:
             with self.subTest(platform=platform):
-                text = release.start_here('0.2.3-dev', platform, binary).decode()
-                for expected in ('Coordica v0.2.3-dev', '/releases/tag/v0.2.3-dev',
-                                 'gpt-6.1-sol', '默认关闭', '测试不替代授权',
-                                 'macOS 本机 Phase B 端到端验收已通过', '进程树停止证据',
-                                 '原生 Leader 运行中取消验收也已通过',
-                                 '结构化会话', '真实存活 PID', '保留实际耗时支出',
-                                 'Owner 仅批准目标一次', '没有手动批准范围',
-                                 '所有 Run 进程树均已停止', '项目与目标预留预算均为零',
-                                 '同一任务以新授权恢复并保留累计支出',
-                                 'node:test', '本地测试 Git 的 main',
-                                 '不代表完整 Phase B dsh 协作或多机部署已通过',
-                                 '当前发布版本关联的 GitHub checks',
-                                 '多机 Phase B 与 Linux 原生部署仍待验证',
-                                 '运行中取消的 Phase A 验收已通过', 'Claude / dsh',
-                                 'coordica-chat', '--interaction', '唯一的 coordica', '--runner-data', '稳定绝对路径',
-                                 '完整 macOS Go race 套件', '包括全部监听测试', '隔离双监听中心',
-                                 '十一项中心工具', '七项工具', '没有运行模型', '没有激活用户服务',
-                                 'GUI 动态工具刷新取决于客户端支持', 'fixtures 不代表',
-                                 '重新加载或重启', '七天', '365 天', '旧 budget 阻断不自动迁移',
-                                 '忽略的弃用字段', '尚未实现', 'Owner 独立验证后部署与发布'):
+                text = release.start_here('0.2.5-dev', platform, binary).decode()
+                self.assert_readme_references(text, readme)
+
+    def test_readme_references_reject_missing_anchor_or_wrong_section(self):
+        text = 'README.md 的“开始使用”（#getting-started）。'
+        valid = '<a id="getting-started"></a>\n## 开始使用\n'
+        self.assert_readme_references(text, valid)
+        invalid = (
+            valid.replace('getting-started', 'renamed'),
+            valid.replace('## 开始使用', '## 新标题'),
+            '<a id="other"></a>\n## 开始使用\n'
+            '<a id="getting-started"></a>\n## 新标题\n',
+            valid.replace('## 开始使用', '正文提及开始使用，不是章节标题'),
+        )
+        for readme in invalid:
+            with self.subTest(readme=readme), self.assertRaises(AssertionError):
+                self.assert_readme_references(text, readme)
+
+    def test_readme_references_require_anchored_navigation(self):
+        with self.assertRaises(AssertionError):
+            self.assert_readme_references('README.md 的“旧标题”', '## 旧标题')
+
+    def test_start_here_usage_and_safety_for_every_platform(self):
+        for platform, _, binary, _ in release.PLATFORMS:
+            with self.subTest(platform=platform):
+                text = release.start_here('0.2.5-dev', platform, binary).decode()
+                for expected in ('Coordica v0.2.5-dev', '/releases/tag/v0.2.5-dev',
+                                 '源码与发布包可能对应不同提交', 'gpt-6.1-sol',
+                                 '默认关闭', '测试不替代授权', '进程树停止证据',
+                                 '个人非商业使用', '不是 OSI 批准的开源许可',
+                                 'setup 预览', 'setup --apply', '已安装并登录',
+                                 'HTTPS', '公共 CA', 'TLS 证书 SAN',
+                                 'Owner token 不经 MCP 返回', '不可放入源码或公开包',
+                                 '解压不会自动安装或启动系统服务', '稳定绝对路径',
+                                 '冲突保留', '旧无范围凭据须显式 --renew',
+                                 '重试使用原内容与同一键', '恢复不清零支出',
+                                 '不绕过重试上限', '重大决定仍由 Owner 处理'):
                     self.assertIn(expected, text)
-                self.assertNotIn('端到端验证正在进行', text)
-                self.assertNotIn('取消与断线等故障场景仍待实测', text)
+                for internal_status in ('尚未', '待验证', '仍待', '后续功能',
+                                        '验收已通过', '验收通过', 'Phase A', 'Phase B',
+                                        'fixtures', '真实存活 PID', 'macOS Go race 套件'):
+                    self.assertNotIn(internal_status, text)
 
     def test_public_execution_intent_boundary(self):
         documents = {'README.md': (release.ROOT / 'README.md').read_text(encoding='utf-8')}
