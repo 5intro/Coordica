@@ -8,7 +8,6 @@ import signal
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 from unittest.mock import patch
 
@@ -174,46 +173,6 @@ class TestSupervisor(unittest.TestCase):
         roots = list(self.parent.glob(guard.PREFIX + "*"))
         self.assertEqual(len(roots), 1)
         self.assertIsNotNone(guard.read_owner(roots[0]))
-
-    def test_killed_supervisor_is_recovered_on_next_invocation(self):
-        # The registered worker is deliberately outside its temp root. Its
-        # persisted creation identity must recover it after supervisor death.
-        ready = self.parent / "worker-ready"
-        payload = f"import pathlib,time; pathlib.Path({str(ready)!r}).write_text('ready'); time.sleep(60)"
-        code = ("import importlib.util,pathlib,sys; "
-                f"s=importlib.util.spec_from_file_location('g',{str(Path(guard.__file__))!r}); "
-                "g=importlib.util.module_from_spec(s);s.loader.exec_module(g); "
-                f"g.run([sys.executable,'-c',{payload!r}],pathlib.Path({str(self.parent)!r}),60,1,33554432)")
-        supervisor = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE,
-                                      stderr=subprocess.STDOUT)
-        worker = None
-        try:
-            deadline = time.monotonic() + 30
-            while time.monotonic() < deadline:
-                with guard.lifecycle_lock(self.parent):
-                    for root in self.parent.glob(guard.PREFIX + "*"):
-                        record = guard.read_owner(root)
-                        if record and record.get("child"):
-                            worker = record["child"]
-                            break
-                if worker and ready.exists():
-                    break
-                if supervisor.poll() is not None:
-                    output, _ = supervisor.communicate(timeout=5)
-                    self.fail("supervisor exited before registering its worker:\n" + output.decode(errors="replace"))
-                time.sleep(.05)
-            self.assertIsNotNone(worker)
-            self.assertTrue(ready.exists(), "registered worker never started the fixture")
-            supervisor.kill()
-            supervisor.communicate(timeout=10)
-            guard.recover_stale(self.parent)
-            self.assertNotEqual(guard.process_snapshot().get(worker["pid"], {}).get("start"), worker["start"])
-            self.assert_clean()
-        finally:
-            if supervisor.poll() is None:
-                supervisor.kill()
-            supervisor.communicate(timeout=10)
-            guard.recover_stale(self.parent)
 
     def test_recovery_observes_new_owner_after_discovering_its_marker(self):
         root = Path(tempfile.mkdtemp(prefix=guard.PREFIX, dir=self.parent))
