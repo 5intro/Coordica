@@ -70,12 +70,18 @@ have lexical class/function checks; Python has lexical indentation checks.
 Lexical checks are not full language parsers or semantic cohesion proofs.
 Native language syntax/lint checks and independent structural review remain
 required, especially for unsupported syntax, overloads and metaprogramming.
+JavaScript/TypeScript signatures use balanced delimiters; expression-bodied
+arrows and object methods are included. Function debt also binds to declaration,
+binding/call-site and enclosing-scope headers, independently of line numbers.
 
 Fixed artifact conventions exclude `.git`, `node_modules`, `vendor`,
 `third_party`, `dist`, `*.generated.ts` and `*.pb.go`. A generated-file comment
 does not grant an exemption. Review must reject relocating authored behavior
 to these paths to hide it. Repository-supplied ignore rules do not exclude
 tracked blobs from center/CI analysis.
+Local sparse checkouts read absent skip-worktree content from its pinned index
+blob; an actual local deletion remains a deletion. Required Python entrypoints
+run in isolated import mode so repository modules cannot replace stdlib imports.
 
 Inventory limits are 20,000 tree entries, 2 MiB per included source file and
 64 MiB included source per tree. Non-UTF-8 source, duplicate inventory paths,

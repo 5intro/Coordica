@@ -15,6 +15,12 @@ import (
 
 func qualityCandidate(t *testing.T, f *itFixture) domain.Candidate {
 	t.Helper()
+	text := "export const value = '" + strings.Repeat("x", codequality.MaxLine+1) + "';\n"
+	return qualityCandidateSource(t, f, "src/feature.js", []byte(text))
+}
+
+func qualityCandidateSource(t *testing.T, f *itFixture, path string, text []byte) domain.Candidate {
+	t.Helper()
 	ctx := context.Background()
 	a := f.claim(t, "implement")
 	bundle, err := f.w.InputBundle(ctx, a.Run)
@@ -25,8 +31,7 @@ func qualityCandidate(t *testing.T, f *itFixture) domain.Candidate {
 	if err = f.g.CloneSnapshot(ctx, bundle, gitops.OID(a.Run.Base), dir); err != nil {
 		t.Fatal(err)
 	}
-	text := "export const value = '" + strings.Repeat("x", codequality.MaxLine+1) + "';\n"
-	if err = os.WriteFile(filepath.Join(dir, "src", "feature.js"), []byte(text), 0600); err != nil {
+	if err = os.WriteFile(filepath.Join(dir, filepath.FromSlash(path)), text, 0600); err != nil {
 		t.Fatal(err)
 	}
 	head, err := f.g.CommitAll(ctx, dir, "oversized source", gitops.Identity{})

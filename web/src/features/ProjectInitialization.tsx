@@ -29,7 +29,7 @@ function ProjectPreparation({ snapshot, client, refresh }: Props) {
           {current && (
             <>
               <BaselineView current={current} />
-              <InitializationInterview current={current} client={client} action={action} />
+              <InitializationInterview projectID={project.id} current={current} client={client} action={action} />
               <InitializationConfirmation current={current} project={project} client={client} action={action} />
               <PreparationEvidence current={current} />
             </>

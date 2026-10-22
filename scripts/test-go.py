@@ -289,6 +289,14 @@ def allocated_bytes(root):
     return total
 
 
+def publish_registration(root, record, child_identity):
+    with lifecycle_lock(root.parent):
+        record["child"] = child_identity
+        pending = root / (MARKER + ".pending")
+        pending.write_text(json.dumps(record))
+        pending.replace(root / MARKER)
+
+
 def run(command, parent, timeout, min_free, max_temp):
     parent = parent.resolve()
     recover_stale(parent)
@@ -329,10 +337,7 @@ def run(command, parent, timeout, min_free, max_temp):
             if identity["session"] != child.pid:
                 raise RuntimeError("test worker did not establish an independent session")
             child_identity["session"] = child.pid
-        record["child"] = child_identity
-        pending = root / (MARKER + ".pending")
-        pending.write_text(json.dumps(record))
-        pending.replace(root / MARKER)
+        publish_registration(root, record, child_identity)
         child.stdin.write(b"G")
         child.stdin.flush()
         deadline = time.monotonic() + timeout

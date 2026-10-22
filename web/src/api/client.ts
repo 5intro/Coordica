@@ -1,4 +1,5 @@
-import { validInitialization } from './initialization';
+import { initializationReply } from './initialization';
+import { InitializationAnswers } from './initializationAnswers';
 import type { Snapshot, Problem, ConversationInput, Initialization } from '../api.generated';
 
 export type PendingConsultation = { kind: 'consult' | 'propose'; body: ConversationInput; key: string };
@@ -11,6 +12,7 @@ export class ApiError extends Error {
 }
 
 export class ApiClient {
+  readonly initializationAnswers = new InitializationAnswers();
   private readonly uncertainWrites = new Map<string, string>();
   // Private prose lives only in this credential/session's memory. Project IDs
   // isolate envelopes; route remounts reuse the same ApiClient instance.
@@ -82,7 +84,11 @@ export class ApiClient {
         .every((key) => snapshot[key] === null || Array.isArray(snapshot[key]))) {
       throw new ApiError('incompatible_response', '中心契约不兼容，请更新工作台。');
     }
-    if (snapshot.initialization != null && !validInitialization(snapshot.initialization)) throw new ApiError('incompatible_response', '初始化契约不兼容，请更新中心与工作台。');
+    if (snapshot.initialization != null) {
+      const value = initializationReply(snapshot.initialization);
+      if (!value) throw new ApiError('incompatible_response', '初始化契约不兼容，请更新中心与工作台。');
+      snapshot.initialization = value;
+    }
     return snapshot;
   }
 
@@ -108,7 +114,11 @@ export class ApiClient {
     }
   }
 
-  async initialization(signal?: AbortSignal): Promise<Initialization> { const value = await this.read<unknown>('/initialization', signal); if (!validInitialization(value)) throw new ApiError('incompatible_response', '初始化契约不兼容。'); return value; }
+  async initialization(signal?: AbortSignal): Promise<Initialization> {
+    const value = initializationReply(await this.read<unknown>('/initialization', signal));
+    if (!value) throw new ApiError('incompatible_response', '初始化契约不兼容。');
+    return value;
+  }
 
   export(): Promise<Snapshot> { return this.request<Snapshot>('/export'); }
 }

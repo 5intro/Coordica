@@ -3,9 +3,9 @@ import { Feedback, Field } from '../../components/ui';
 import { useInitializationAnswer } from './useInitializationAnswer';
 import type { PreparationControls } from './types';
 
-export function InitializationInterview(props: PreparationControls & { current: Initialization }) {
-  const { current, action } = props;
-  const answer = useInitializationAnswer(current, props);
+export function InitializationInterview(props: PreparationControls & { projectID: string; current: Initialization }) {
+  const { current, action, projectID } = props;
+  const answer = useInitializationAnswer(projectID, current, props);
   const canAnswer = current.status === 'interview' || current.status === 'awaiting_owner';
   if (!canAnswer && !answer.pending) return null;
   const questions = current.result?.questions ?? [];

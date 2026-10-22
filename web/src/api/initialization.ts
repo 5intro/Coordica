@@ -57,3 +57,10 @@ export function validInitialization(value: unknown): value is Initialization {
   return !(current.status === 'awaiting_owner' || current.status === 'initialized')
     || answer.ready && answer.questions?.length === 0 && /^[a-f0-9]{64}$/.test(current.digest);
 }
+
+// Older centers encoded an empty omissions slice as null. Normalize that
+// transport representation only; never rewrite its stored confirmation digest.
+export function initializationReply(value: unknown): Initialization | undefined {
+  const normalized = object(value) && value.omissions === null ? { ...value, omissions: [] } : value;
+  return validInitialization(normalized) ? normalized : undefined;
+}

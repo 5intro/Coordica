@@ -36,10 +36,12 @@ func maskedJavaScript(text string) string {
 		case c == '\'' || c == '"' || c == '`':
 			i = scriptQuoteEnd(text, i)
 			blank(start, i)
+			out[start] = '0'
 			canRegex, previous = false, "literal"
 		case c == '/' && canRegex && scriptRegexEnd(text, i) > i:
 			i = scriptRegexEnd(text, i)
 			blank(start, i)
+			out[start] = '0'
 			canRegex, previous = false, "literal"
 		case scriptWord(c):
 			for i < len(text) && scriptWord(text[i]) {

@@ -17,11 +17,11 @@ test:
 	$(PYTHON) scripts/test-go.py --go "$(GO)"
 	npm --prefix web test
 check:
-	$(PYTHON) scripts/check-quality.py
+	$(PYTHON) -I scripts/check-quality.py
 	$(GO) vet ./...
 	npm --prefix web run typecheck
 quality:
-	$(PYTHON) scripts/check-quality.py
+	$(PYTHON) -I scripts/check-quality.py
 # Package the three existing bin/ binaries; this does not build or publish them.
 package:
 	python3 scripts/package-release.py

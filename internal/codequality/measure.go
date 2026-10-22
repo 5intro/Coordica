@@ -96,7 +96,7 @@ func Regressions(base, candidate []File) ([]Finding, error) {
 	}
 	next, err := Measure(candidate)
 	if err != nil {
-		return nil, fmt.Errorf("candidate quality inventory: %w", err)
+		return nil, &CandidateError{Cause: err}
 	}
 	allowances := map[string][]int{}
 	for _, f := range old {
