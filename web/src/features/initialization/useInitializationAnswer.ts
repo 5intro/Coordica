@@ -10,12 +10,13 @@ export function useInitializationAnswer(projectID: string, current: Initializati
   const draft = state?.draft ?? { version: current.version, question: '', text: '' };
   const pending = state?.pending ?? null;
   const [error, setError] = useState('');
-  const stale = !!draft.text && draft.version !== current.version;
+  const bound = !!draft.text || !!draft.question;
+  const stale = bound && draft.version !== current.version;
   function change(text: string) {
-    session.edit(projectID, { ...draft, text, version: draft.text ? draft.version : current.version });
+    session.edit(projectID, { ...draft, text, version: bound ? draft.version : current.version });
   }
   function select(question: string) {
-    session.edit(projectID, { ...draft, question, version: draft.text ? draft.version : current.version });
+    session.edit(projectID, { ...draft, question, version: bound ? draft.version : current.version });
   }
   function reload() {
     const exists = current.result?.questions?.some((question) => question.id === draft.question);

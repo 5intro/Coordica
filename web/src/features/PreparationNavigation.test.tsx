@@ -80,3 +80,23 @@ it('keeps an incomplete JSON receipt uncertain and can retry it after navigation
   await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
   expect(write.mock.calls[1]).toEqual(original);
 });
+
+it.each(['operation_id', 'operation_generation', 'operation_version', 'operation_state'])(
+  'retains the original answer when an analyzing receipt lacks %s', async (field) => {
+    const receipt: Record<string, unknown> = { ...readyInitialization, status: 'analyzing', result: null };
+    delete receipt[field];
+    const client = new ApiClient('owner');
+    const write = vi.spyOn(client, 'write').mockResolvedValueOnce(receipt).mockResolvedValue(readyInitialization);
+    const props = { client, refresh: vi.fn(), snapshot };
+    const view = render(<ProjectInitialization {...props} />);
+    fireEvent.change(screen.getByLabelText('原始回答 / 反馈'), { target: { value: '原始回答必须保留' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存原文并继续访谈' }));
+    await screen.findByRole('alert');
+    const original = write.mock.calls[0];
+    view.unmount();
+    render(<ProjectInitialization {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: '重试待确认回答' }));
+    await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
+    expect(write.mock.calls[1]).toEqual(original);
+  },
+);

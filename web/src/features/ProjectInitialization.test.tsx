@@ -31,12 +31,22 @@ describe('project initialization', () => {
 });
 
 it('keeps blank draft analyzable and makes actual Owner checks a separate policy action', async () => {
-  const client = new ApiClient('owner'); const write = vi.spyOn(client, 'write').mockResolvedValue(snapshot.project);
-  render(<ProjectInitialization snapshot={{ ...snapshot, project: { ...snapshot.project!, checks: [] }, initialization: { ...readyInitialization, status: 'draft' } }} client={client} refresh={() => undefined} />);
+  const client = new ApiClient('owner');
+  const checks = [{ name: 'Go tests', command: 'go', args: ['test', './...'], timeout_seconds: 600 }];
+  const write = vi.spyOn(client, 'write').mockResolvedValue({
+    ...snapshot.project, version: 2, policy_version: 2, checks,
+  });
+  render(<ProjectInitialization snapshot={{ ...snapshot,
+    project: { ...snapshot.project!, checks: [] },
+    initialization: { ...readyInitialization, status: 'draft' },
+  }} client={client} refresh={() => undefined} />);
   expect(screen.getByText(/当前尚无有效检查/)).toBeTruthy();
-  expect((screen.getByRole('button', { name: '打开项目并请求只读初始化' }) as HTMLButtonElement).disabled).toBe(false);
-  fireEvent.change(screen.getByLabelText(/实际检查 JSON/), { target: { value: JSON.stringify([{ name: 'Go tests', command: 'go', args: ['test', './...'], timeout_seconds: 600 }]) } });
+  expect(screen.getByRole('button', { name: '打开项目并请求只读初始化' })).toHaveProperty('disabled', false);
+  fireEvent.change(screen.getByLabelText(/实际检查 JSON/), { target: { value: JSON.stringify(checks) } });
   fireEvent.click(screen.getByRole('button', { name: '保存 Owner 检查政策' }));
-  await waitFor(() => expect(write).toHaveBeenCalledWith('/project/policy', { expected_version: 1, checks: [{ name: 'Go tests', command: 'go', args: ['test', './...'], timeout_seconds: 600 }], protected_paths: ['internal/app/**'] }));
+  await waitFor(() => expect(write).toHaveBeenCalledWith('/project/policy', {
+    expected_version: 1, checks, protected_paths: ['internal/app/**'],
+  }, expect.any(String)));
+  await waitFor(() => expect(client.initializationPolicies.read('project')).toBeUndefined());
   expect(write).not.toHaveBeenCalledWith('/initialization/confirm', expect.anything());
 });

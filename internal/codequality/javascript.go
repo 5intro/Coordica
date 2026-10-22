@@ -9,14 +9,18 @@ func maskedJavaScript(text string) string {
 	out := []byte(text)
 	canRegex, previous := true, ""
 	var controls []bool
-	blank := func(start, end int) {
-		for i := start; i < end; i++ {
-			if out[i] != '\n' {
-				out[i] = ' '
-			}
-		}
-	}
+	var interpolations []int
+	template := false
 	for i := 0; i < len(text); {
+		if template {
+			var expression bool
+			i, expression = maskScriptTemplate(text, out, i)
+			template, canRegex, previous = false, expression, "literal"
+			if expression {
+				interpolations = append(interpolations, 0)
+			}
+			continue
+		}
 		start, c := i, text[i]
 		switch {
 		case strings.ContainsRune(" \r\n\t", rune(c)):
@@ -25,22 +29,24 @@ func maskedJavaScript(text string) string {
 			for i < len(text) && text[i] != '\n' {
 				i++
 			}
-			blank(start, i)
+			scriptBlank(out, start, i)
 		case strings.HasPrefix(text[i:], "/*"):
 			i += 2
 			for i < len(text) && !strings.HasPrefix(text[i:], "*/") {
 				i++
 			}
 			i = min(len(text), i+2)
-			blank(start, i)
-		case c == '\'' || c == '"' || c == '`':
+			scriptBlank(out, start, i)
+		case c == '`':
+			out[i], i, template = '0', i+1, true
+		case c == '\'' || c == '"':
 			i = scriptQuoteEnd(text, i)
-			blank(start, i)
+			scriptBlank(out, start, i)
 			out[start] = '0'
 			canRegex, previous = false, "literal"
 		case c == '/' && canRegex && scriptRegexEnd(text, i) > i:
 			i = scriptRegexEnd(text, i)
-			blank(start, i)
+			scriptBlank(out, start, i)
 			out[start] = '0'
 			canRegex, previous = false, "literal"
 		case scriptWord(c):
@@ -50,6 +56,18 @@ func maskedJavaScript(text string) string {
 			previous = text[start:i]
 			canRegex = scriptPrefix(previous)
 		default:
+			if len(interpolations) > 0 {
+				top := len(interpolations) - 1
+				if c == '}' && interpolations[top] == 0 {
+					interpolations, template, i = interpolations[:top], true, i+1
+					continue
+				}
+				if c == '{' {
+					interpolations[top]++
+				} else if c == '}' {
+					interpolations[top]--
+				}
+			}
 			canRegex, controls = scriptPunctuation(c, previous, canRegex, controls)
 			previous = string(c)
 			i++

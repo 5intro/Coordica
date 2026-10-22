@@ -75,6 +75,8 @@ func scriptExpressionEnd(original, text string, start int, ends map[int]int) int
 			end := scriptQuoteEnd(original, i)
 			if original[i] == '/' {
 				end = scriptRegexEnd(original, i)
+			} else if original[i] == '`' {
+				end = scriptTemplateEnd(original, i, ends)
 			}
 			last, i, previous = end-1, end, "value"
 			continue

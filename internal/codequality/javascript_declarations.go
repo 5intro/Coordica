@@ -183,5 +183,6 @@ func (m *metrics) scriptMembers(f File, text, class string, open, end int, ends 
 			cursor = close + 1
 		}
 	}
+	count += scriptCallableFields(f.Text, text, open, end, ends)
 	m.add(f.Path, lineAt(text, open), "class_methods", class, count, MaxMethods)
 }

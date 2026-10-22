@@ -25,12 +25,26 @@ function feedback(value: unknown): boolean {
 
 function result(value: unknown): boolean {
   if (!object(value) || typeof value.ready !== 'boolean' || !baseline(value.baseline)
+    || !Number.isSafeInteger(value.generation) || Number(value.generation) < 1
+    || !Number.isSafeInteger(value.initialization_version) || Number(value.initialization_version) < 1
+    || typeof value.operation_id !== 'string' || !value.operation_id.trim() || typeof value.source_sha !== 'string'
     || !strings(value.inspected_paths) || !strings(value.suggestions)
     || !Array.isArray(value.facts) || !Array.isArray(value.questions)) return false;
   return value.facts.every((fact: unknown) => object(fact)
     && typeof fact.path === 'string' && typeof fact.fact === 'string')
     && value.questions.every((question: unknown) => object(question)
       && typeof question.id === 'string' && typeof question.text === 'string' && strings(question.prerequisites));
+}
+
+function operation(value: Partial<Initialization>): boolean {
+  if (typeof value.operation_id !== 'string' || typeof value.operation_state !== 'string'
+    || !Number.isSafeInteger(value.operation_generation) || !Number.isSafeInteger(value.operation_version)) return false;
+  if (!value.operation_id) return value.status === 'draft' && value.operation_generation === 0
+    && value.operation_version === 0 && value.operation_state === '';
+  const states = ['queued', 'running', 'unknown_live', 'cancel_requested',
+    'completed', 'failed', 'rejected', 'cancelled', 'stopped'];
+  return !!value.operation_id.trim() && Number(value.operation_generation) > 0
+    && Number(value.operation_version) > 0 && states.includes(value.operation_state);
 }
 
 function confirmed(value: Partial<Initialization>): boolean {
@@ -44,7 +58,10 @@ export function validInitialization(value: unknown): value is Initialization {
   if (!object(value)) return false;
   const current = value as Partial<Initialization>;
   const statuses = ['draft', 'analyzing', 'interview', 'awaiting_owner', 'initialized'];
-  if (!Number.isSafeInteger(current.version) || !statuses.includes(current.status ?? '')
+  if (!Number.isSafeInteger(current.version) || Number(current.version) < 0 || !statuses.includes(current.status ?? '')
+    || !operation(current) || typeof current.kind !== 'string' || typeof current.policy_digest !== 'string'
+    || typeof current.detail !== 'string' || !Number.isSafeInteger(current.approved_version)
+    || typeof current.approved_digest !== 'string'
     || typeof current.digest !== 'string' || typeof current.source_sha !== 'string'
     || !strings(current.available_paths) || !strings(current.covered_paths) || !strings(current.omissions)
     || !Array.isArray(current.feedback) || !current.feedback.every(feedback) || !confirmed(current)) return false;

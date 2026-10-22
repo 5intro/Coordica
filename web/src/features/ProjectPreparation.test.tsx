@@ -108,7 +108,7 @@ it('does not save an old policy draft or protection paths against a new project 
   fireEvent.click(screen.getByRole('button', { name: '保存 Owner 检查政策' }));
   await waitFor(() => expect(write).toHaveBeenCalledWith('/project/policy', {
     expected_version: 2, checks: JSON.parse(checks), protected_paths: ['new/**'],
-  }));
+  }, expect.any(String)));
 });
 
 it('does not reuse stop evidence after the recorded operation version changes', () => {

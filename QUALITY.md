@@ -64,14 +64,18 @@ retained; privileged manual pushes are not a permitted quality-policy bypass.
 ## Measurement coverage and exclusions
 
 The built-in policy is versioned as `maintainability-v1`. File/line limits apply
-to recognized source extensions, including tests. Go functions and receiver
-methods use `go/parser` syntax trees. JS/TS and common brace-class languages
-have lexical class/function checks; Python has lexical indentation checks.
+to recognized source extensions, including tests. Go declarations, function
+literals and receiver methods use `go/parser` syntax trees. JS/TS, C-family
+languages, Rust, Kotlin, Swift, PHP, Ruby, shell, PowerShell and SCSS have
+language-specific lexical class/function checks. HTML, Vue and Svelte script
+regions use JS/TS checks; inert JSON and markup remain text. Plain CSS has no
+authored function/class declarations. Python uses lexical indentation checks.
 Lexical checks are not full language parsers or semantic cohesion proofs.
 Native language syntax/lint checks and independent structural review remain
 required, especially for unsupported syntax, overloads and metaprogramming.
 JavaScript/TypeScript signatures use balanced delimiters; expression-bodied
-arrows and object methods are included. Function debt also binds to declaration,
+arrows, executable template interpolations, object methods and callable class
+fields are included. Function debt also binds to declaration,
 binding/call-site and enclosing-scope headers, independently of line numbers.
 
 Fixed artifact conventions exclude `.git`, `node_modules`, `vendor`,
@@ -87,7 +91,9 @@ Inventory limits are 20,000 tree entries, 2 MiB per included source file and
 64 MiB included source per tree. Non-UTF-8 source, duplicate inventory paths,
 unsupported selected Git objects and malformed Go source are rejected. Large
 repositories need an explicit reviewed extension of this bounded reader;
-they must not be silently truncated and reported as passed.
+they must not be silently truncated and reported as passed. Immutable blobs
+are read in one bounded managed batch per tree, preserving object IDs and
+framing without launching a subprocess for each source file.
 
 ## Verification commands
 
