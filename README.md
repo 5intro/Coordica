@@ -111,6 +111,10 @@ coordica ctl --center http://127.0.0.1:8080 --token-file /chosen/runtime/center/
 
 确认文件是 `{"expected_version":1,"digest":"读取并实际审阅的当前64位摘要"}`。`initialization/analyze`、`initialization/answer` 为相同 Owner API；普通聊天仅能在 `chat/initialization`、`chat/initialization/analyze`、`chat/initialization/answer` 使用有限对应方法，没有确认接口。检查与保护路径须与当前实际政策一致；Owner 可在暂停且安全静止时通过 `project/policy` 明确改变政策并重新分析，建议不会隐式改变有效检查。
 
+底部 Dock 的“Leader 活动”是独立对话追踪页，首页也有入口。页面展示公开消息、工具摘要、中心记录的执行状态，并集中回答初始化/规划问题；授权、范围与停止证明仍走对应决策流程。活动断线可手动续读，回答丢回执时保留原文和同一请求身份。暂停期间保存规划回答只排队，不恢复施工。历史执行没有问题关联时须重新评估后回答。
+
+活动与业务审计分开：全局保留最近 4096 条、单条最多 2048 字节；不会回填升级前的活动。Owner 在 loopback 使用 `GET leader/activity` 和 `GET leader/activity/stream`；中心聊天通过 `read_leader_activity` 读取有界页面（`limit` 1–100，可带 `after` 或准确 `kind`/`id`/`generation`）。节点聊天和远程 Runner 监听没有 Leader 活动入口。工具回合结束不能作为完成、授权或停止证明。
+
 共享基线是所有任务、claim、上下文、Run、候选验证和 landing 的必需门禁；没有 Goal 也不能绕过。Goal 存在时仍要独立批准。普通代码提交不要求每次重新初始化，初始证据保持固定；重新初始化会使旧任务授权和结果失效，且拒绝活跃/未知存活进程、规划或候选。每个分析尝试使用请求登记时 Owner 保存的 `PlanningTimeoutSeconds`（默认 300 秒，1–604800 秒），重试使用 `PlanningMaxRetries`（默认两次，0–2），停止后输入核验另有 10 秒上限。Owner 可在 `system/automation` 设置较长有限分析超时（规划累计预算须不少于该超时），无需启用自动化；初始化不受项目生命周期额度限制。没有停止证据时保留未知存活与预留支出；重启不推断停止。Owner 实际核验后可使用 `initialization/confirm-stopped`，在线取消用 `initialization/cancel`。项目累计统计不是生命周期额度。
 
 Runner 在既有领取循环中先通过 `POST /api/v1/runner/presence` 上报节点活动和能力快照，再请求领取。该接口使用与 claim 相同的 `{capabilities:[...]}` 请求体，只接受当前已配对且未撤销的节点身份，不需要幂等键；暂停、等待基线确认或旧执行尚未确认停止并占满容量时仍可上报。上报不能批准基线、创建任务、续租或证明旧进程停止；能力快照也不等于工具已通过原生执行验收。升级时先升级中心再升级 Runner；旧 Runner 仍可通过原有 claim/Run 心跳上报，但等待基线确认时须升级 Runner 才能独立刷新活动时间。

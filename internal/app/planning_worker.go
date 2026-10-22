@@ -237,80 +237,9 @@ func (w *PlanningWorker) Tick(ctx context.Context) error {
 		}
 
 	}
-	execCtx, cancel := context.WithDeadline(ctx, r.Deadline)
-	defer cancel()
-	watchDone := make(chan struct{})
-	watchExited := make(chan struct{})
-	defer func() { close(watchDone); cancel(); <-watchExited }()
-	go func() {
-		defer close(watchExited)
-		ticker := time.NewTicker(250 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-watchDone:
-				return
-			case <-execCtx.Done():
-				return
-			case <-ticker.C:
-				err := w.Service.DB.Update(execCtx, func(tx *store.Tx) error {
-					var current domain.PlanningRun
-					if e := tx.Get("planning_run", r.ID, &current); e != nil {
-						return e
-					}
-					var doc domain.PlanningDocument
-					if current.Purpose == domain.ConsultationPurpose {
-						var e error
-						doc, e = goalDocument(tx)
-						if e != nil {
-							return e
-						}
-						if !consultationCurrent(tx, current) {
-							return context.Canceled
-						}
-					} else if e := tx.Get("planning_document", "current", &doc); e != nil {
-						return e
-					}
-					p, e := getProject(tx)
-					if e != nil {
-						return e
-					}
-					baseline, initErr := initialization(tx)
-					if initErr != nil {
-						return initErr
-					}
-					if current.Purpose != domain.ConsultationPurpose && (baselineGate(tx, nil, false) != nil || current.BaselineVersion != baseline.ApprovedVersion || current.BaselineDigest != baseline.ApprovedDigest) {
-						return context.Canceled
-					}
-					if current.State != "running" || current.Generation != r.Generation || doc.Version != r.DocumentVersion || p.Paused || !w.Service.Now().Before(current.LeaseUntil) || current.Purpose != domain.ConsultationPurpose && !requirementPlanCurrent(tx, current) {
-						return context.Canceled
-					}
-					current.LeaseUntil = w.Service.Now().Add(w.Service.Lease)
-					if current.Deadline.Before(current.LeaseUntil) {
-						current.LeaseUntil = current.Deadline
-					}
-					return tx.Put("planning_run", r.ID, current)
-				})
-				if err != nil {
-					cancel()
-					return
-				}
-			}
-		}
-	}()
-	outcome, err := w.Executor.Execute(execCtx, dir, prompt, func(pid int) error {
-		return w.Service.DB.Update(execCtx, func(tx *store.Tx) error {
-			var current domain.PlanningRun
-			if e := tx.Get("planning_run", r.ID, &current); e != nil {
-				return e
-			}
-			if current.State != "running" || current.Generation != r.Generation || current.Purpose == domain.ConsultationPurpose && !consultationCurrent(tx, current) {
-				return domain.Fail("stale_run", "planning authority changed before process-start receipt")
-			}
-			current.ProcessID = pid
-			return tx.Put("planning_run", r.ID, current)
-		})
-	})
+	execCtx, finish := startPlanningWatch(ctx, w, r)
+	defer finish()
+	outcome, err := executePlanningLeader(execCtx, w, r, dir, prompt)
 	if outcome.TreeStopped {
 		defer os.RemoveAll(dir)
 	}
@@ -583,12 +512,7 @@ func (w *PlanningWorker) apply(ctx context.Context, id string) error {
 			if e = s.derivePlan(tx, &r, &d, *r.PendingResult); e != nil {
 				return e
 			}
-			d.LeaderResult = r.PendingResult
-			d.LeaderSession = r.SessionID
-			d.MissingItems = append(append(documentMissing(d), r.PendingResult.MissingItems...), r.PendingResult.Clarifications...)
-			r.State = "succeeded"
-			m := domain.LeaderMessage{ID: ID("msg_"), DocumentVersion: d.Version, Role: "leader", Text: r.PendingResult.Reply, CreatedAt: s.Now()}
-			if e = tx.Put("leader_message", m.ID, m); e != nil {
+			if e := recordLeaderAnswer(tx, s, &r, &d); e != nil {
 				return e
 			}
 		}

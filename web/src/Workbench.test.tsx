@@ -99,18 +99,18 @@ it('shows genuine system write failure and unsaved state without enabling automa
   expect(screen.getByText(/当前中心设置 v/).textContent).toContain('关闭');
 });
 
-it('keeps eight Dock destinations and arrow/Home/End keyboard focus', async () => {
+it('keeps nine Dock destinations and arrow/Home/End keyboard focus', async () => {
   start('#overview');
   await screen.findByRole('heading', { name: centerSnapshot.project!.name });
   const dock = screen.getByRole('navigation', { name: '工作台页面' });
   const buttons = within(dock).getAllByRole('button');
-  expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual(['总览', '需求池', '任务池', '审查池', '阻断池', 'Agent 管理', '测试中心', '设置']);
+  expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual(['总览', '需求池', '任务池', '审查池', '阻断池', 'Agent 管理', 'Leader 活动', '测试中心', '设置']);
   // jsdom has no layout. Supply visibility for the keyboard handler only.
   buttons.forEach((button) => vi.spyOn(button, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList));
   buttons[0].focus(); fireEvent.keyDown(buttons[0], { key: 'ArrowRight' });
   expect(document.activeElement).toBe(buttons[1]);
-  fireEvent.keyDown(buttons[1], { key: 'End' }); expect(document.activeElement).toBe(buttons[7]);
-  fireEvent.keyDown(buttons[7], { key: 'Home' }); expect(document.activeElement).toBe(buttons[0]);
+  fireEvent.keyDown(buttons[1], { key: 'End' }); expect(document.activeElement).toBe(buttons[8]);
+  fireEvent.keyDown(buttons[8], { key: 'Home' }); expect(document.activeElement).toBe(buttons[0]);
   expect(buttons[0].getAttribute('aria-current')).toBe('page');
 });
 
@@ -119,7 +119,7 @@ it('keeps all pools reachable from the compact Dock without a duplicate pool swi
   start('#requirements?id=r1');
   await screen.findByRole('heading', { name: '原始需求甲' });
   const dock = within(screen.getByRole('navigation', { name: '工作台页面' }));
-  expect(dock.getAllByRole('button')).toHaveLength(8);
+  expect(dock.getAllByRole('button')).toHaveLength(9);
   expect(dock.getByRole('button', { name: '需求池' }).getAttribute('aria-current')).toBe('page');
   expect(screen.queryByRole('navigation', { name: '工作池切换' })).toBeNull();
   fireEvent.click(dock.getByRole('button', { name: '审查池' }));
@@ -151,4 +151,16 @@ it('restores a block history link and filters historical evidence without presen
   fireEvent.change(screen.getByLabelText('搜索阻断'), { target: { value: 'missing' } });
   expect(screen.queryByText('处理：process tree stopped')).toBeNull();
   expect(screen.getByText('没有匹配阻断')).toBeTruthy();
+});
+
+it('opens Leader directly from the Dock without entering settings', async () => {
+  vi.spyOn(ApiClient.prototype, 'followLeader').mockResolvedValue();
+  start('#overview');
+  await screen.findByRole('heading', { name: centerSnapshot.project!.name });
+  fireEvent.click(screen.getByRole('button', { name: 'Leader 活动' }));
+  await screen.findByRole('heading', { name: 'Leader 对话追踪' });
+  expect(window.location.hash).toBe('#planning');
+  expect(screen.queryByRole('navigation', { name: '管理与设置' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '返回设置' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Leader 活动' }).getAttribute('aria-current')).toBe('page');
 });

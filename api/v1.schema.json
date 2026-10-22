@@ -2332,6 +2332,152 @@
       ],
       "type": "object"
     },
+    "LeaderActivityEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "execution": {
+          "$ref": "#/$defs/LeaderExecutionRef"
+        },
+        "key": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "time": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sequence",
+        "execution",
+        "key",
+        "kind",
+        "text",
+        "time"
+      ],
+      "type": "object"
+    },
+    "LeaderActivityPage": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": "integer"
+        },
+        "events": {
+          "items": {
+            "$ref": "#/$defs/LeaderActivityEvent"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "executions": {
+          "items": {
+            "$ref": "#/$defs/LeaderExecution"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "has_more": {
+          "type": "boolean"
+        },
+        "oldest": {
+          "type": "integer"
+        },
+        "queried_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "events",
+        "executions",
+        "cursor",
+        "oldest",
+        "truncated",
+        "has_more",
+        "queried_at"
+      ],
+      "type": "object"
+    },
+    "LeaderExecution": {
+      "additionalProperties": false,
+      "properties": {
+        "purpose": {
+          "type": "string"
+        },
+        "ref": {
+          "$ref": "#/$defs/LeaderExecutionRef"
+        },
+        "settled": {
+          "type": "boolean"
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "tree_stopped": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ref",
+        "version",
+        "purpose",
+        "source_id",
+        "state",
+        "tree_stopped",
+        "settled"
+      ],
+      "type": "object"
+    },
+    "LeaderExecutionRef": {
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "input_version": {
+          "type": "integer"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "generation",
+        "input_version"
+      ],
+      "type": "object"
+    },
     "LeaderMessage": {
       "additionalProperties": false,
       "properties": {
@@ -2663,6 +2809,26 @@
       ],
       "type": "object"
     },
+    "PlanningAnswerReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "$ref": "#/$defs/LeaderMessage"
+        },
+        "reply_to_run_id": {
+          "type": "string"
+        },
+        "run": {
+          "$ref": "#/$defs/PlanningRun"
+        }
+      },
+      "required": [
+        "reply_to_run_id",
+        "run",
+        "message"
+      ],
+      "type": "object"
+    },
     "PlanningDocument": {
       "additionalProperties": false,
       "properties": {
@@ -2713,6 +2879,9 @@
               "type": "null"
             }
           ]
+        },
+        "leader_run_id": {
+          "type": "string"
         },
         "leader_session": {
           "type": "string"
@@ -2790,6 +2959,12 @@
       "properties": {
         "expected_version": {
           "type": "integer"
+        },
+        "question": {
+          "type": "string"
+        },
+        "reply_to_run_id": {
+          "type": "string"
         },
         "text": {
           "type": "string"

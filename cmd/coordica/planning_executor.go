@@ -4,6 +4,7 @@ import (
 	"context"
 	"coordica/internal/agent"
 	"coordica/internal/app"
+	"coordica/internal/domain"
 	_ "embed"
 	"encoding/json"
 	"errors"
@@ -66,6 +67,9 @@ func (e CodexPlanningExecutor) Execute(ctx context.Context, dir, prompt string, 
 			if persistenceErr != nil {
 				cancel()
 			}
+		}
+		if activity, ok := agent.CodexPublicActivity(event); ok {
+			app.ReportLeaderActivity(execCtx, domain.LeaderActivitySignal{Key: activity.Key, Kind: activity.Kind, Text: activity.Text})
 		}
 	})
 	err = errors.Join(err, persistenceErr)
