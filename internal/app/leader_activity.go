@@ -34,6 +34,7 @@ func (l LeaderActivities) Read(ctx context.Context, actor Actor, query domain.Le
 			refs = append(refs, head.Ref)
 		}
 		page, err = store.ReadLeaderActivity(tx, query, refs)
+		projectLeaderActivityAudience(actor, &page)
 		page.Executions = heads
 		page.QueriedAt = l.Service.Now()
 		return err

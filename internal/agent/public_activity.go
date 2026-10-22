@@ -7,8 +7,9 @@ import (
 	"strings"
 )
 
-// PublicActivity is a deliberately small projection of Codex JSONL. Never
-// forward reasoning, command arguments, tool output, raw JSON or approvals.
+// PublicActivity projects Codex protocol event categories. Message prose is
+// Owner-only input: the application must choose a safe chat audience projection.
+// Never forward reasoning, command arguments, tool output, raw JSON or approvals.
 type PublicActivity struct{ Key, Kind, Text string }
 
 func CodexPublicActivity(event Event) (PublicActivity, bool) {
