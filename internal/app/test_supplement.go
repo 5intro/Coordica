@@ -24,6 +24,12 @@ func (c TestCatalog) Supplement(ctx context.Context, a Actor, key string, in dom
 		len(in.ExpectedDigest) != 64 {
 		return nil, domain.Fail("invalid_input", "需要固定提交、需求及覆盖摘要")
 	}
+	if raw, found, err := readMutationReplay(ctx, c.Service, a, key, "tests.supplement", in); err != nil || found {
+		return raw, err
+	}
+	if err := c.requireSupplementCommit(ctx, commit); err != nil {
+		return nil, err
+	}
 	return c.Service.mutate(ctx, a, key, "tests.supplement", in, func(tx *store.Tx) (any, error) {
 		var previous domain.TestSupplementPlan
 		if err := tx.Get("test_supplement_digest", in.ExpectedDigest, &previous); err == nil {

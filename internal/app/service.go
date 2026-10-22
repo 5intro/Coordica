@@ -62,14 +62,10 @@ func (s *Service) mutate(ctx context.Context, a Actor, key, action string, input
 	return s.mutateWithCheck(ctx, a, key, action, input, nil, fn)
 }
 func (s *Service) mutateWithCheck(ctx context.Context, a Actor, key, action string, input any, check func(*store.Tx) error, fn func(*store.Tx) (any, error)) (json.RawMessage, error) {
-	if key == "" || len(key) > 200 {
-		return nil, domain.Fail("invalid_input", "写操作需要 Idempotency-Key")
-	}
-	b, err := json.Marshal(input)
+	digest, err := mutationDigest(key, action, input)
 	if err != nil {
 		return nil, err
 	}
-	digest := Hash(action + "\x00" + string(b))
 	var result json.RawMessage
 	err = s.DB.Update(ctx, func(tx *store.Tx) error {
 		if check != nil {

@@ -14,6 +14,9 @@ import (
 func catalogDefinition(t *testing.T, f *itFixture) (TestCatalog, domain.AcceptancePlan, domain.TestCase) {
 	t.Helper()
 	c := TestCatalog{Service: f.s}
+	if _, err := f.w.Base(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	p, err := f.s.Project(context.Background())
 	if err != nil {
 		t.Fatal(err)
