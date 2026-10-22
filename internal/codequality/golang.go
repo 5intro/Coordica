@@ -29,6 +29,9 @@ func (m *metrics) goSource(f File) error {
 		return fmt.Errorf("Go structural analysis %s: %w", f.Path, err)
 	}
 	for _, decl := range root.Decls {
+		if m.cancelled() {
+			return m.ctx.Err()
+		}
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok {
 			continue

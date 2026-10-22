@@ -14,9 +14,12 @@ type rubyBlock struct {
 }
 
 func (m *metrics) rubySource(f File) {
-	text := maskedSource(f.Text, true, map[int]int{})
+	text := maskedRuby(f.Text)
 	var stack []rubyBlock
 	for line, source := range strings.Split(text, "\n") {
+		if m.cancelled() {
+			return
+		}
 		loop := false
 		for _, token := range rubyToken.FindAllStringIndex(source, -1) {
 			word := source[token[0]:token[1]]

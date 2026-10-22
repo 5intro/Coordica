@@ -20,6 +20,7 @@ type LeaderExecution struct {
 	Version     int64              `json:"version"`
 	Purpose     string             `json:"purpose"`
 	SourceID    string             `json:"source_id"`
+	SourceKind  string             `json:"source_kind,omitempty"`
 	State       string             `json:"state"`
 	TreeStopped bool               `json:"tree_stopped"`
 	Settled     bool               `json:"settled"`

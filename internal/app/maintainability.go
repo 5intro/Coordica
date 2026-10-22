@@ -39,7 +39,7 @@ func checkCandidateQuality(ctx context.Context, w *Integrator, c domain.Candidat
 		}
 		return err
 	}
-	findings, err := codequality.Regressions(base, next)
+	findings, err := codequality.RegressionsContext(ctx, base, next)
 	if err != nil {
 		var candidate *codequality.CandidateError
 		if errors.As(err, &candidate) {

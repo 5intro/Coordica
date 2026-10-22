@@ -130,15 +130,21 @@ func (m *metrics) javaScriptSource(f File) {
 	ends := scriptPairs(text)
 	seen := map[int]bool{}
 	for _, match := range classBlock.FindAllStringSubmatchIndex(text, -1) {
+		if m.cancelled() {
+			return
+		}
 		open := match[1] - 1
 		if end, ok := ends[open]; ok {
-			name := text[match[2]:match[3]]
-			m.add(f.Path, lineAt(text, match[0]), "class_lines", name,
-				lineAt(text, end)-lineAt(text, match[0])+1, MaxClass)
+			name := scriptClassName(m.ctx, f.Text, text, match, open, ends)
+			m.add(f.Path, m.lineAt(match[0]), "class_lines", name,
+				m.lineAt(end)-m.lineAt(match[0])+1, MaxClass)
 			m.scriptMembers(f, text, name, open, end, ends, seen)
 		}
 	}
 	for _, match := range scriptFunction.FindAllStringSubmatchIndex(text, -1) {
+		if m.cancelled() {
+			return
+		}
 		name := "anonymous"
 		if match[2] >= 0 {
 			name = text[match[2]:match[3]]
@@ -157,6 +163,9 @@ func (m *metrics) javaScriptSource(f File) {
 func (m *metrics) scriptMembers(f File, text, class string, open, end int, ends map[int]int, seen map[int]bool) {
 	count, cursor, walked, depth := 0, open+1, open+1, 0
 	for _, match := range scriptSignature.FindAllStringSubmatchIndex(text[open+1:end], -1) {
+		if m.cancelled() {
+			return
+		}
 		start := open + 1 + match[0]
 		if start < cursor {
 			continue
@@ -183,6 +192,6 @@ func (m *metrics) scriptMembers(f File, text, class string, open, end int, ends 
 			cursor = close + 1
 		}
 	}
-	count += scriptCallableFields(f.Text, text, open, end, ends)
-	m.add(f.Path, lineAt(text, open), "class_methods", class, count, MaxMethods)
+	count += scriptCallableFields(m.ctx, f.Text, text, open, end, ends)
+	m.add(f.Path, m.lineAt(open), "class_methods", class, count, MaxMethods)
 }

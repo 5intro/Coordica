@@ -1028,6 +1028,7 @@ export interface LeaderExecution {
   version: number;
   purpose: string;
   source_id: string;
+  source_kind?: string;
   state: string;
   tree_stopped: boolean;
   settled: boolean;

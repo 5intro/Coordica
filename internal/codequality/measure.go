@@ -1,15 +1,18 @@
 package codequality
 
 import (
+	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
-	"path"
 	"sort"
 	"strings"
 	"unicode/utf8"
 )
 
 type metrics struct {
+	ctx      context.Context
+	lines    []int
 	findings []Finding
 	methods  map[string][]Finding
 }
@@ -26,10 +29,17 @@ func (m *metrics) add(file string, line int, rule, subject string, value, limit 
 // Measure returns only violations. Errors fail closed rather than silently
 // skipping malformed or unbounded source. It does not execute a formatter.
 func Measure(files []File) ([]Finding, error) {
-	m := metrics{methods: map[string][]Finding{}}
+	return MeasureContext(context.Background(), files)
+}
+
+func MeasureContext(ctx context.Context, files []File) ([]Finding, error) {
+	m := metrics{ctx: ctx, methods: map[string][]Finding{}}
 	total := 0
 	seen := map[string]bool{}
 	for _, f := range files {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if !Included(f.Path) {
 			continue
 		}
@@ -41,16 +51,14 @@ func Measure(files []File) ([]Finding, error) {
 		if !utf8.ValidString(f.Text) || strings.ContainsRune(f.Text, 0) {
 			return nil, fmt.Errorf("source is not UTF-8 text: %s", f.Path)
 		}
-		m.text(f)
-		if strings.EqualFold(path.Ext(f.Path), ".go") {
-			if err := m.goSource(f); err != nil {
-				return nil, err
-			}
-		} else {
-			m.structuredSource(f)
+		if err := measureSource(&m, f); err != nil {
+			return nil, err
 		}
 	}
 	for key, methods := range m.methods {
+		if m.cancelled() {
+			return nil, ctx.Err()
+		}
 		f := methods[0]
 		m.add(f.Path, f.Line, "receiver_methods", key, len(methods), MaxMethods)
 		if len(methods) > MaxMethods {
@@ -69,7 +77,7 @@ func Measure(files []File) ([]Finding, error) {
 		}
 		return a.key < b.key
 	})
-	return m.findings, nil
+	return m.findings, ctx.Err()
 }
 
 func (m *metrics) text(f File) {
@@ -79,6 +87,9 @@ func (m *metrics) text(f File) {
 	}
 	m.add(f.Path, 1, "file_lines", "file", len(lines), MaxFile)
 	for i, line := range lines {
+		if m.cancelled() {
+			return
+		}
 		line = strings.TrimSuffix(line, "\r")
 		// Content identity makes exemptions survive a line-number shift, while
 		// edited/duplicated long lines must be fixed instead of inheriting debt.
@@ -90,12 +101,19 @@ func (m *metrics) text(f File) {
 // Regressions freezes each known violation against actual fixed main source.
 // A duplicate finding consumes a separate allowance. Renaming is new debt.
 func Regressions(base, candidate []File) ([]Finding, error) {
-	old, err := Measure(base)
+	return RegressionsContext(context.Background(), base, candidate)
+}
+
+func RegressionsContext(ctx context.Context, base, candidate []File) ([]Finding, error) {
+	old, err := MeasureContext(ctx, base)
 	if err != nil {
 		return nil, fmt.Errorf("baseline quality inventory: %w", err)
 	}
-	next, err := Measure(candidate)
+	next, err := MeasureContext(ctx, candidate)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
 		return nil, &CandidateError{Cause: err}
 	}
 	allowances := map[string][]int{}
@@ -104,6 +122,9 @@ func Regressions(base, candidate []File) ([]Finding, error) {
 	}
 	var failures []Finding
 	for _, f := range next {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		values := allowances[f.key]
 		match := -1
 		for i, value := range values {

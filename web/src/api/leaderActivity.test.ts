@@ -40,3 +40,11 @@ it('treats stream EOF as disconnected, never as finished execution', async () =>
   vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } }));
   await expect(followActivity('owner', 0, new AbortController().signal, vi.fn())).rejects.toThrow('连接已断开');
 });
+
+it('retains an invalid-cursor code from the actual HTTP stream response', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+    code: 'invalid_cursor', message: 'cursor is ahead of restored database',
+  }), { status: 400, headers: { 'Content-Type': 'application/json' } }));
+  await expect(followActivity('owner', 50, new AbortController().signal, vi.fn()))
+    .rejects.toMatchObject({ code: 'invalid_cursor' });
+});

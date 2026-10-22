@@ -7,8 +7,15 @@ func (m *metrics) scriptArrows(f File, text string, ends map[int]int) {
 	for open, close := range ends {
 		starts[close] = open
 	}
+	types := scriptTypeRegions(m.ctx, text, ends)
 	for at := 0; at < len(text)-1; at++ {
+		if m.cancelled() {
+			return
+		}
 		if !strings.HasPrefix(text[at:], "=>") {
+			continue
+		}
+		if inScriptType(types, at) {
 			continue
 		}
 		start := scriptArrowStart(text, at, starts)

@@ -43,11 +43,15 @@ func (l LeaderActivities) Read(ctx context.Context, actor Actor, query domain.Le
 
 func readableLeaderHeads(tx *store.Tx, actor Actor, query domain.LeaderActivityQuery) ([]domain.LeaderExecution, error) {
 	result := []domain.LeaderExecution{}
+	clientID := ""
+	if actor.Role != "owner" {
+		clientID = actor.ID
+	}
 	for _, kind := range []string{"initialization", "planning"} {
 		if query.Kind != "" && query.Kind != kind {
 			continue
 		}
-		heads, err := store.LeaderExecutionHeads(tx, kind, query.ID)
+		heads, err := store.LeaderExecutionHeads(tx, kind, query.ID, clientID)
 		if err != nil {
 			return nil, err
 		}

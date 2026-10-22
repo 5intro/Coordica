@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LeaderActivityEvent, LeaderActivityPage } from '../../api.generated';
-import { activityPage } from '../../api/leaderActivity';
+import { activityPage, ActivityStreamError } from '../../api/leaderActivity';
 import { ApiClient, ApiError, messageOf } from '../../api/client';
 
 export function mergeActivity(previous: LeaderActivityEvent[], page: LeaderActivityPage): LeaderActivityEvent[] {
@@ -35,7 +35,7 @@ export function useLeaderActivity(client: ApiClient) {
       setConnected(true);
     }).catch((failure) => {
       if (!controller.signal.aborted) {
-        invalidCursor.current = failure instanceof ApiError && failure.code === 'invalid_cursor';
+        invalidCursor.current = (failure instanceof ApiError || failure instanceof ActivityStreamError) && failure.code === 'invalid_cursor';
         setError(messageOf(failure)); setConnected(false);
       }
     });

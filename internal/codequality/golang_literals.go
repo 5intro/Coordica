@@ -62,6 +62,9 @@ func goLiteralScope(set *token.FileSet, node ast.Node) string {
 func (m *metrics) goLiterals(f File, set *token.FileSet, root *ast.File) {
 	var stack []ast.Node
 	ast.Inspect(root, func(node ast.Node) bool {
+		if m.cancelled() {
+			return false
+		}
 		if node == nil {
 			stack = stack[:len(stack)-1]
 			return false
