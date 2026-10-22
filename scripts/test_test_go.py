@@ -184,32 +184,35 @@ class TestSupervisor(unittest.TestCase):
                 f"s=importlib.util.spec_from_file_location('g',{str(Path(guard.__file__))!r}); "
                 "g=importlib.util.module_from_spec(s);s.loader.exec_module(g); "
                 f"g.run([sys.executable,'-c',{payload!r}],pathlib.Path({str(self.parent)!r}),60,1,33554432)")
-        supervisor = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.DEVNULL,
-                                      stderr=subprocess.DEVNULL)
+        supervisor = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE,
+                                      stderr=subprocess.STDOUT)
         worker = None
         try:
             deadline = time.monotonic() + 30
             while time.monotonic() < deadline:
-                for root in self.parent.glob(guard.PREFIX + "*"):
-                    record = guard.read_owner(root)
-                    if record and record.get("child"):
-                        worker = record["child"]
-                        break
+                with guard.lifecycle_lock(self.parent):
+                    for root in self.parent.glob(guard.PREFIX + "*"):
+                        record = guard.read_owner(root)
+                        if record and record.get("child"):
+                            worker = record["child"]
+                            break
                 if worker and ready.exists():
                     break
                 if supervisor.poll() is not None:
-                    self.fail("supervisor exited before registering its worker")
+                    output, _ = supervisor.communicate(timeout=5)
+                    self.fail("supervisor exited before registering its worker:\n" + output.decode(errors="replace"))
                 time.sleep(.05)
             self.assertIsNotNone(worker)
+            self.assertTrue(ready.exists(), "registered worker never started the fixture")
             supervisor.kill()
-            supervisor.wait(timeout=10)
+            supervisor.communicate(timeout=10)
             guard.recover_stale(self.parent)
             self.assertNotEqual(guard.process_snapshot().get(worker["pid"], {}).get("start"), worker["start"])
             self.assert_clean()
         finally:
             if supervisor.poll() is None:
                 supervisor.kill()
-                supervisor.wait(timeout=10)
+            supervisor.communicate(timeout=10)
             guard.recover_stale(self.parent)
 
     def test_recovery_observes_new_owner_after_discovering_its_marker(self):
