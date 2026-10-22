@@ -48,7 +48,7 @@ export function LeaderActivityPanel({ client }: { client: ApiClient }) {
         </li>)}
       </ol>
       {!events.length && <p className="muted">{current ? '此执行尚无公开活动记录。' : 'Leader 开始工作后，公开活动会显示在这里。'}</p>}
-      {activity.page?.truncated && <small>仅保留最近的活动，早期记录已省略。</small>}
+      {(activity.truncated || history.history?.truncated) && <small>仅保留最近的活动，早期记录已省略。</small>}
       <footer className="muted">公开消息与工具摘要；执行结果以中心状态为准。
         {activity.page && <small> 更新于 {time(activity.page.queried_at)}</small>}
       </footer>

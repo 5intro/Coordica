@@ -89,3 +89,37 @@ func TestStoreSubscriptionsWakeOnlyAfterCommit(t *testing.T) {
 		t.Fatal("commit wake lost")
 	}
 }
+
+func TestLeaderHeadsPreservePurposeDefaults(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	err = db.Update(ctx, func(tx *Tx) error {
+		for id, purpose := range map[string]string{"evaluation": "", "consultation": "consultation"} {
+			if err := tx.Put("planning_run", id, domain.PlanningRun{ID: id, Purpose: purpose}); err != nil {
+				return err
+			}
+		}
+		return tx.Put("initialization_operation", "init", domain.InitializationOperation{ID: "init"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct{ kind, id, purpose string }{
+		{"planning", "evaluation", ""}, {"planning", "consultation", "consultation"}, {"initialization", "init", "initialization"},
+	} {
+		err := db.View(ctx, func(tx *Tx) error {
+			heads, err := LeaderExecutionHeads(tx, test.kind, test.id)
+			if err == nil && (len(heads) != 1 || heads[0].Purpose != test.purpose) {
+				t.Fatal("wrong execution purpose", heads)
+			}
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}

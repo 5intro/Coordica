@@ -10,11 +10,15 @@ func LeaderExecutionHeads(tx *Tx, kind, id string) ([]domain.LeaderExecution, er
 		recordKind, input = "initialization_operation", "initialization_version"
 	}
 	query := `SELECT id,COALESCE(json_extract(data,'$.generation'),0),COALESCE(json_extract(data,'$.` + input + `'),0),
- COALESCE(json_extract(data,'$.version'),0),COALESCE(json_extract(data,'$.purpose'),'initialization'),
+ COALESCE(json_extract(data,'$.version'),0),COALESCE(json_extract(data,'$.purpose'),?),
  COALESCE(NULLIF(json_extract(data,'$.conversation_id'),''),NULLIF(json_extract(data,'$.requirement_change_id'),''),''),
  COALESCE(json_extract(data,'$.state'),''),COALESCE(json_extract(data,'$.tree_stopped'),0),
  COALESCE(json_extract(data,'$.settled'),0) FROM records WHERE kind=?`
-	args := []any{recordKind}
+	purpose := ""
+	if kind == "initialization" {
+		purpose = "initialization"
+	}
+	args := []any{purpose, recordKind}
 	if id != "" {
 		query += " AND id=?"
 		args = append(args, id)

@@ -12,6 +12,8 @@ export function mergeActivity(previous: LeaderActivityEvent[], page: LeaderActiv
 export function useLeaderActivity(client: ApiClient) {
   const [page, setPage] = useState<LeaderActivityPage>();
   const [events, setEvents] = useState<LeaderActivityEvent[]>([]);
+  const [truncated, setTruncated] = useState(false);
+  const retained = useRef<LeaderActivityEvent[]>([]);
   const [error, setError] = useState('');
   const [connected, setConnected] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -25,14 +27,17 @@ export function useLeaderActivity(client: ApiClient) {
       if (next.cursor < cursor.current) throw new Error('活动游标已改变，请重新载入页面。');
       cursor.current = next.cursor;
       setPage(next);
-      setEvents((previous) => mergeActivity(previous, next));
+      const count = new Set([...retained.current, ...(next.events ?? [])].map((event) => event.sequence)).size;
+      retained.current = mergeActivity(retained.current, next);
+      if (next.truncated || count > retained.current.length) setTruncated(true);
+      setEvents(retained.current);
       setConnected(true);
     }).catch((failure) => {
       if (!controller.signal.aborted) { setError(messageOf(failure)); setConnected(false); }
     });
     return () => controller.abort();
   }, [client, attempt]);
-  return { page, events, error, connected, reconnect: () => setAttempt((value) => value + 1) };
+  return { page, events, truncated, error, connected, reconnect: () => setAttempt((value) => value + 1) };
 }
 
 // Selecting an older execution performs one bounded history read, without
