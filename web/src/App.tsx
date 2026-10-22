@@ -34,7 +34,7 @@ import { WorkspaceSearch } from './features/WorkspaceSearch';
 export type Page = 'initialization' | 'planning' | 'automation' | 'blocks' | 'agents' | 'overview' | 'requirements' | 'tasks' | 'runs' | 'candidates' | 'audit' | 'settings' | 'connection' | 'testing';
 const pages: { id: Page; label: string; number: string }[] = [
   { id: 'testing', label: '测试中心', number: '' },
-  { id: 'initialization', label: '项目初始化', number: '00' },
+  { id: 'initialization', label: '项目准备', number: '00' },
   { id: 'planning', label: '目标规划与 Leader', number: 'B1' }, { id: 'automation', label: '系统自动化', number: 'B2' },
   { id: 'overview', label: '项目概览', number: '01' }, { id: 'requirements', label: '需求池', number: '02' },
   { id: 'tasks', label: '任务池', number: '03' }, { id: 'runs', label: '运行与节点', number: '04' },
@@ -44,7 +44,8 @@ const pages: { id: Page; label: string; number: string }[] = [
 ];
 const managementPages: { id: Page; label: string }[] = [
   { id: 'settings', label: '项目' }, { id: 'automation', label: '系统' }, { id: 'connection', label: '接入' },
-  { id: 'initialization', label: '项目初始化' }, { id: 'planning', label: 'Leader 规划与咨询' }, { id: 'runs', label: '运行与恢复' }, { id: 'audit', label: '审计记录' },
+  { id: 'initialization', label: '项目准备' }, { id: 'planning', label: 'Leader 规划与咨询' },
+  { id: 'runs', label: '运行与恢复' }, { id: 'audit', label: '审计记录' },
 ];
 const dockPages: DockItem[] = [
   { id: 'overview', name: '总览', icon: 'home' }, { id: 'requirements', name: '需求池', icon: 'idea' },

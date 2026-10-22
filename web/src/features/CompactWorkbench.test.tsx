@@ -37,7 +37,9 @@ it('offers three primary settings segments and four additional management routes
   expect(within(screen.getByRole('navigation', { name: '管理与设置' })).getAllByRole('button').map((button) => button.textContent)).toEqual(['项目', '系统', '接入']);
   const links = within(screen.getByRole('navigation', { name: '更多项目设置' }));
   expect(links.getAllByRole('button')).toHaveLength(4);
-  for (const [label, hash] of [['项目初始化', 'initialization'], ['Leader 规划与咨询', 'planning'], ['运行与恢复', 'runs'], ['审计记录', 'audit']]) {
+  for (const [label, hash] of [
+    ['项目准备', 'initialization'], ['Leader 规划与咨询', 'planning'], ['运行与恢复', 'runs'], ['审计记录', 'audit'],
+  ]) {
     fireEvent.click(screen.getByRole('button', { name: label }));
     expect(window.location.hash).toBe(`#${hash}`);
     expect(screen.getByRole('button', { name: '设置' }).getAttribute('aria-current')).toBe('page');
