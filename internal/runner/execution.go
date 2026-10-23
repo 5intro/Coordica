@@ -138,7 +138,7 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 		finish(err)
 		return
 	}
-	if len(prompt) > 256<<10 {
+	if len(prompt) > maxAssignmentPromptBytes {
 		finish(errors.New("complete assignment context exceeds 256 KiB; split the task without dropping constraints"))
 		return
 	}
@@ -505,6 +505,9 @@ func assignmentPrompt(a domain.Assignment, commitMode string) string {
 				fmt.Fprintf(&text, "Previous review: %s\n", raw)
 			}
 		}
+	}
+	if a.Run.Kind != "review" {
+		text.WriteString(repairCheckEvidence(a.Candidate, maxAssignmentPromptBytes-text.Len()))
 	}
 	return text.String()
 }
