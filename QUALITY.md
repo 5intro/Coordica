@@ -34,6 +34,9 @@ retain or reduce an existing measurement but may not increase it or introduce
 a new violation. Edited long lines must be brought within the limit; unchanged
 long lines survive line-number shifts, and duplicates consume separate counts.
 Renaming a violating file/type does not transfer its exemption.
+Malformed Go or invalid text in a frozen baseline can be corrected or deleted.
+Candidates must contain valid source; unmeasurable baseline declarations grant
+no structural allowance. Inventory bounds and operational failures stay strict.
 
 For new projects there is no inherited debt. For existing projects, Leader
 records the affected hotspots and includes bounded cleanup tasks. Coordica's

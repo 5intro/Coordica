@@ -33,6 +33,10 @@ func Measure(files []File) ([]Finding, error) {
 }
 
 func MeasureContext(ctx context.Context, files []File) ([]Finding, error) {
+	return measureInventory(ctx, files, false)
+}
+
+func measureInventory(ctx context.Context, files []File, baseline bool) ([]Finding, error) {
 	m := metrics{ctx: ctx, methods: map[string][]Finding{}}
 	total := 0
 	seen := map[string]bool{}
@@ -49,10 +53,17 @@ func MeasureContext(ctx context.Context, files []File) ([]Finding, error) {
 		}
 		seen[f.Path] = true
 		if !utf8.ValidString(f.Text) || strings.ContainsRune(f.Text, 0) {
-			return nil, fmt.Errorf("source is not UTF-8 text: %s", f.Path)
+			if !baseline {
+				return nil, &SourceError{Cause: fmt.Errorf("source is not UTF-8 text: %s", f.Path)}
+			}
+			m.text(f)
+			continue
 		}
 		if err := measureSource(&m, f); err != nil {
-			return nil, err
+			var source *SourceError
+			if !baseline || !errors.As(err, &source) {
+				return nil, err
+			}
 		}
 	}
 	for key, methods := range m.methods {
@@ -105,7 +116,7 @@ func Regressions(base, candidate []File) ([]Finding, error) {
 }
 
 func RegressionsContext(ctx context.Context, base, candidate []File) ([]Finding, error) {
-	old, err := MeasureContext(ctx, base)
+	old, err := measureInventory(ctx, base, true)
 	if err != nil {
 		return nil, fmt.Errorf("baseline quality inventory: %w", err)
 	}
