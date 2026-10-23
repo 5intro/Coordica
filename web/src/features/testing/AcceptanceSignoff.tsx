@@ -33,19 +33,24 @@ export function AcceptanceSignoffPanel(props: Props) {
   const { coverage, client } = props;
   const { view, action, error, save, reload } = useSignoff(props);
   const pending = client.acceptanceSignoffs.pending(coverage.requirement.id, coverage.commit);
-  const [editing, setEditing] = useState(!!pending);
+  const [editing, setEditing] = useState<AcceptanceSignoffRequest['action'] | undefined>(pending?.body.action);
   const state = view?.accepted ? '已验收' : view?.receipt?.state === 'revoked' ? '已撤销验收'
     : view?.receipt ? '原验收已过期' : view ? '待人工验收' : error ? '验收记录未加载' : '正在读取验收…';
-  const revoke = view?.receipt?.state === 'accepted';
+  const revocable = view?.receipt?.state === 'accepted';
   return <section className="panel signoff-panel" aria-label="人工验收">
     <div className="testing-heading"><h2>人工验收</h2><span role="status">{state}</span></div>
     {view?.receipt && <p className="signoff-note">{view.receipt.note}</p>}
     {error && <button className="secondary" onClick={reload}>重新读取</button>}
-    {!editing && !pending && <button className="secondary" disabled={!view || !view.can_accept && !revoke}
-      onClick={() => setEditing(true)}>{revoke ? '撤销验收' : '记录验收'}</button>}
-    {view && !view.can_accept && !revoke && <small>先补齐当前版本的自动测试证据。</small>}
-    {(editing || pending) && <SignoffForm key={pending?.key ?? `${view?.receipt?.version ?? 0}:${revoke}`}
-      coverage={coverage} client={client} view={view} busy={action.busy} save={save} onDone={() => setEditing(false)} />}
+    {!editing && !pending && <div className="signoff-actions">
+      {!view?.accepted && <button className="secondary" disabled={!view?.can_accept}
+        onClick={() => setEditing('accept')}>记录验收</button>}
+      {revocable && <button className="secondary" onClick={() => setEditing('revoke')}>
+        {!view?.accepted && view?.can_accept ? '撤销旧验收' : '撤销验收'}</button>}
+    </div>}
+    {view && !view.can_accept && !revocable && <small>先补齐当前版本的自动测试证据。</small>}
+    {(editing || pending) && <SignoffForm key={pending?.key ?? `${coverage.digest}:${view?.receipt?.version ?? 0}:${editing}`}
+      coverage={coverage} client={client} view={view} mode={editing ?? pending!.body.action}
+      busy={action.busy} save={save} onDone={() => setEditing(undefined)} />}
     <Feedback error={action.error || error} notice={action.notice} />
     {!!view?.recent?.length && <details><summary>最近验收记录</summary><ol className="signoff-history">
       {view.recent?.map((r) => <li key={r.version}><span>{r.state === 'accepted' ? '签收' : '撤销'} · 需求修订 {r.revision} · 验收 v{r.plan_version} ·
@@ -55,15 +60,17 @@ export function AcceptanceSignoffPanel(props: Props) {
 }
 
 type FormProps = Omit<Props, 'refresh' | 'onAccepted'> & { view?: AcceptanceSignoffStatus; busy: boolean;
-  save: (body: AcceptanceSignoffRequest) => Promise<boolean>; onDone: () => void };
+  mode: AcceptanceSignoffRequest['action']; save: (body: AcceptanceSignoffRequest) => Promise<boolean>; onDone: () => void };
 
-function SignoffForm({ coverage, client, view, busy, save, onDone }: FormProps) {
+function SignoffForm({ coverage, client, view, mode, busy, save, onDone }: FormProps) {
   const pending = client.acceptanceSignoffs.pending(coverage.requirement.id, coverage.commit);
   const [note, setNote] = useState(pending?.body.note ?? '');
   const [confirmed, setConfirmed] = useState<string[]>(pending?.body.manual_criteria ?? []);
-  const revoke = pending ? pending.body.action === 'revoke' : view?.receipt?.state === 'accepted';
+  const revoke = (pending?.body.action ?? mode) === 'revoke';
   const clauses = pending?.clauses ?? (coverage.criteria ?? []).filter((v) => v.criterion.method === 'manual').map((v) => v.criterion);
-  const ready = pending || view && (revoke || view.can_accept) && !!note.trim() && (revoke || clauses.every((v) => confirmed.includes(v.id)));
+  const oversized = new TextEncoder().encode(note).length > 4096;
+  const ready = pending || view && (revoke || view.can_accept) && !!note.trim() && !oversized
+    && (revoke || clauses.every((v) => confirmed.includes(v.id)));
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!ready || busy) return;
@@ -80,6 +87,7 @@ function SignoffForm({ coverage, client, view, busy, save, onDone }: FormProps) 
     </fieldset>}
     <Field label={revoke ? '撤销原因' : '验收说明'}><textarea required rows={3} maxLength={4096} value={note} disabled={busy || !!pending}
       onChange={(e) => setNote(e.target.value)} /></Field>
+    {oversized && <small role="alert">说明不能超过 4096 UTF-8 字节，请缩短后提交。</small>}
     <div className="signoff-actions"><button className="primary" disabled={busy || !ready}>
       {busy ? '正在保存…' : pending ? '确认原提交结果' : revoke ? '确认撤销' : '签收当前版本'}</button>
       {!pending && <button className="text-button" type="button" disabled={busy} onClick={onDone}>收起</button>}</div>
