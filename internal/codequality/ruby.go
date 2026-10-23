@@ -20,6 +20,7 @@ func (m *metrics) rubySource(f File) {
 	for start, end := range literals {
 		pairs[start] = end
 	}
+	rubyBraceBlocks(m, f, text, pairs)
 	var stack []rubyBlock
 	skipUntil := -1
 	for line, source := range strings.Split(text, "\n") {
