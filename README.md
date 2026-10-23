@@ -1,20 +1,135 @@
-# Coordica
+<p align="center">
+  <img src="web/public/favicon.svg" width="64" height="64" alt="Coordica" />
+</p>
 
-多电脑、多 Agent 开发协调底座。采用 Go 中心与 Runner、SQLite、React/TypeScript 控制台；Web 产物嵌入中心二进制，无 Redis、消息队列或额外后台运行时。
+<h1 align="center">Coordica</h1>
 
-当前源码版本是 **0.2.5-dev 开发预览版**。已实现固定 Git 候选、独立评审、分层测试与条件发布闭环，以及四池、底部 Dock、Agent 管理和测试中心工作台；实际可下载版本与对应验证记录见 [Releases](https://github.com/5intro/Coordica/releases) 和 [GitHub Actions](https://github.com/5intro/Coordica/actions)。协议模拟测试、跨平台编译和托管 CI 不代表用户电脑上的真实部署验收。
+<p align="center"><strong>把多台电脑上的 AI 编程 Agent，组织成一条可追溯的开发流程。</strong></p>
 
-## 许可与下载
+<p align="center">需求 · 规划 · 开发 · 检查 · 独立评审 · 条件集成</p>
 
-**源码可见，个人非商业使用免费。** 允许个人非商业修改并在自己的设备上使用；个人商业用途、团队或公司使用及二次开发、向他人发布修改版均须事先另获书面授权。这不是 MIT 或 OSI 开源许可。正式条款见 [LICENSE](LICENSE)，授权申请可向本仓库维护者提交 Issue。
+<p align="center">
+  <a href="https://github.com/5intro/Coordica/releases">下载</a> ·
+  <a href="#getting-started">开始使用</a> ·
+  <a href="#handbook">配置手册</a> ·
+  <a href="https://github.com/5intro/Coordica/issues">反馈</a>
+</p>
 
-第三方组件保留各自许可，见 [第三方声明](THIRD_PARTY_NOTICES.md)。本许可不会仅因使用 Coordica 就要求你公开独立开发的项目。
+[![checks](https://github.com/5intro/Coordica/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/5intro/Coordica/actions/workflows/ci.yml)
 
-检出或更新源码不会自动安装、发布、部署或更新已安装服务。预编译包由 Owner 完成独立验证后另行发布；实际可下载版本以 Releases 为准。`coordica setup --apply` 注册本机唯一的 Coordica MCP；中心角色先保存可信主机配置，节点角色沿用所选 Runner 目录。Windows 分发包附 `coordica.exe` 与 dsh 模板；分发包附 `SHA256SUMS`。
+Coordica 是面向多电脑、多 Agent 协作的开发工作台。一个中心管理需求、目标、任务和 Git 候选，各台电脑上的 Runner 调用本机 Agent 执行工作；你在同一个控制台查看进展、处理阻断，并决定关键授权。
+
+**当前源码：0.2.5-dev · 开发预览版。** 可下载版本以 [Releases](https://github.com/5intro/Coordica/releases) 为准。项目采用[个人非商业源码可见许可](#许可与下载)，并非 OSI 开源许可。
+
+## 为什么使用 Coordica
+
+| 你需要的协作能力 | Coordica 的做法 |
+| --- | --- |
+| 把分散的工作放到一起 | 需求、任务、审查、阻断四池，配合主机活动、Agent 管理和测试中心 |
+| 让 Agent 在明确边界内推进 | Owner 确认基线与目标，Leader 规划；范围、预算和执行参数按版本固定 |
+| 让代码交付有据可查 | 固定 Git 候选、快速检查、独立 Agent 评审，再按条件集成 |
+| 需求变了，后续工作跟着变 | 内容修订与历史保留；受影响工作冻结、停止核对后重排 |
+| 中断后仍能核对发生了什么 | 持久化任务、执行、审计和累计支出，按实际停止证据恢复 |
+| 沿用已有工具与电脑 | Runner 使用本机官方 CLI；统一 MCP 接入，工具能力以实际报告为准 |
+
+### 一条受控的开发流程
+
+1. **明确需求**：保存原始输入、修订与来源。
+2. **批准目标**：确认共享基线、架构、验收标准、允许范围和有限预算。
+3. **规划与执行**：Leader 评估，Runner 在已获授权的范围内开发。
+4. **检查与评审**：中心检查固定候选，由独立 Agent 评审。
+5. **条件集成**：通过所需检查与授权后，按本地 Git 或 GitHub PR 模式集成。
+
+自动化默认关闭。启用后也只在已批准边界内推进；新目标、重大变化、受保护候选与外部权限仍需要明确授权。模型说“完成”不算交付证据。
+
+## 轻量中心，分布式执行
+
+| 组件 | 职责 |
+| --- | --- |
+| **Center** | 单项目协调、SQLite 持久化、授权与调度、候选检查和集成 |
+| **Runner** | 每台执行电脑的节点身份、本机工具发现、受管执行与结果回传 |
+| **Web 控制台** | Owner 本机管理入口；各 Runner 另有本机活动页 |
+| **统一 MCP** | 熟悉的聊天客户端中的受限查询、需求提交、接入与咨询 |
+
+Go 中心与 Runner，React / TypeScript 控制台。Web 产物嵌入二进制；无需 Redis、消息队列或额外 Web 服务。Node 只用于构建前端。
+
+Leader 与开发使用原生 Codex，默认模型为 `gpt-6.1-sol`。Owner 可选择 Runner 工具实际报告的模型与思考强度；其他 Agent 按已允许角色和实际能力参与。工具安装、模型目录发现和真实任务验收是不同状态。
+
+<a id="getting-started"></a>
+
+## 开始使用
+
+### 1. 获取程序
+
+从 [Releases](https://github.com/5intro/Coordica/releases) 选择对应平台的包，阅读包内 `START-HERE.txt`，并核对 `SHA256SUMS`。预编译包与源码开发版本可能不同；下载后不会自动安装或启动服务。
+
+也可以从源码构建。需要 **Go 1.26+、Node 24、npm、Git**；当前 CI 使用 Go 1.27.2。
+
+```sh
+git clone https://github.com/5intro/Coordica.git
+cd Coordica
+make build
+./bin/coordica version
+```
+
+源码当前应输出 `0.2.5-dev`。Windows 的 PowerShell 构建步骤、测试要求与打包说明见[构建参考](#build-reference)。
+
+### 2. 前台查看控制台
+
+源码构建后，可用一个**新的、独立的数据目录**前台启动中心：
+
+```sh
+./bin/coordica serve --data .coordica-center
+```
+
+在同一台电脑打开 [本机控制台](http://127.0.0.1:8080)，将 `.coordica-center/owner.token` 中的令牌输入登录页。不要把 Owner 令牌发给 Agent、写入仓库或公开日志；已有安装请沿用其已确认的固定路径，不要覆盖旧实例。
+
+这一步只启动中心，不会自动配置 Leader、配对 Runner、批准目标或开始开发。完成查看后按 Ctrl+C 结束前台服务，再按下一步配置固定路径与用户级服务，避免两个中心占用同一端口。
+
+### 3. 配置中心，接入执行电脑
+
+- **中心设置**：选择固定可执行文件、项目仓库、数据目录与原生 Codex 路径，完成[可信中心与项目初始化](#setup-reference)。
+- **接入 Runner**：先预览 `coordica setup`，确认后使用 `--apply` 注册统一 MCP；在中心生成每台电脑的一次性接入指令。跨机连接使用 HTTPS 与公共 CA。
+- **开始协作**：配置非空真实检查，确认共享基线与目标，再按需要启用有限自动化。完整授权流程见[开发与工作台参考](#workflow-reference)。
+
+一个中心只登记一个项目。建议先用隔离仓库中的[独立小项目](examples/acceptance/README.md)核验接入，避免直接以重要项目试运行。
+
+## 当前状态与边界
+
+- **已有实现**：四池工作台、需求修订/撤回、Agent 模型与强度配置、分层测试、固定候选评审和 Git / GitHub PR 集成。
+- **已有验收记录**：macOS 本机 Phase B 闭环，以及限定范围的 Mac 中心与 Windows 节点 Phase A 测试。各次版本与工具覆盖见[验证记录](#validation-reference)。
+- **仍待验证**：多机 Phase B、Linux 原生部署，以及未明确记录的工具/平台组合。GitHub PR 集成的协议夹具测试不等于真实账号与仓库规则验收。
+- **后续功能**：实时开发者邮箱、索引集成、资源扩展与公网中转。
+
+[GitHub Actions](https://github.com/5intro/Coordica/actions) 记录托管 CI，不能替代你的电脑上的原生部署验收。源码更新或代码合并不会自动升级正在运行的中心与 Runner。
+
+<a id="handbook"></a>
+
+## 配置手册
+
+按需展开下面的参考章节。安装路径、授权边界、恢复条件与历史验收细节保留在这里，首次阅读可以先完成上面的入门流程。
+
+| 你要做什么 | 参考 |
+| --- | --- |
+| 构建、测试或打包 | [构建参考](#build-reference) |
+| 初始化中心、配置 MCP 与本机权限 | [安装与初始化](#setup-reference) |
+| 管理目标、需求、Agent 与测试 | [开发与工作台](#workflow-reference) |
+| 核对某个版本实际验证了什么 | [验证记录](#validation-reference) |
+| 接入另一台电脑 | [Runner 与局域网](#network-reference) |
+| 配置 GitHub PR 集成及发布凭据 | [GitHub 集成](#github-reference) |
+| 查询 API、CLI 与受限 MCP 协议 | [接口参考](#interface-reference) |
+| 暂停、备份、恢复或升级 | [运行维护](#operations-reference) |
+
+<a id="build-reference"></a>
+
+<details>
+<summary><strong>构建、测试与打包</strong></summary>
 
 ## 构建
 
-需要 Go 1.26+（本次使用 1.27.2）、Node 24、npm、Git。Node 只用于构建 Web；部署只需要对应系统的二进制、Git 和各 Agent 官方 CLI。
+检出或更新源码不会自动安装、发布、部署或更新已安装服务。预编译包由 Owner 完成独立验证后另行发布；实际可下载版本以 Releases 为准。`coordica setup --apply` 注册本机唯一的 Coordica MCP；中心角色先保存可信主机配置，节点角色沿用所选 Runner 目录。Windows 分发包附 `coordica.exe` 与 dsh 模板；分发包附 `SHA256SUMS`。
+
+需要 Go 1.26+（当前 CI 使用 1.27.2）、Node 24、npm、Git。Node 只用于构建 Web；部署只需要对应系统的二进制、Git 和各 Agent 官方 CLI。
 
 ```sh
 make build
@@ -42,6 +157,13 @@ Windows 默认使用 CI 的 `RUNNER_TEMP` 或用户目录中的短前缀测试�
 构建后运行 `./bin/coordica version` 应输出 `0.2.5-dev`；各 MCP 角色的初始化元数据也使用同一发布版本。
 
 维护者准备好 `bin/coordica`（macOS arm64）、`bin/coordica-windows-amd64.exe` 和 `bin/coordica-linux-amd64` 后，可运行 `make package`（默认版本 `0.2.5-dev`），或显式运行 `python3 scripts/package-release.py --version 0.2.5-dev`，用 Python 3 标准库生成三个分发包、各平台 `START-HERE.txt` 和 `SHA256SUMS`。脚本校验许可、包内文件及二进制字节；它不构建程序、不上传发布，普通下载用户无需安装 Python。
+
+</details>
+
+<a id="setup-reference"></a>
+
+<details>
+<summary><strong>可信中心、项目初始化与 MCP 安装</strong></summary>
 
 ## 可信中心设置与项目初始化（0.2.3-dev）
 
@@ -151,6 +273,23 @@ Runner 在既有领取循环中先通过 `POST /api/v1/runner/presence` 上报�
 
 Web 中建立项目、明确最低检查，录入需求，再按下方 Phase B 流程保存、批准和评估目标。仓库地址支持不含凭据的 HTTPS URL，或中心本机 Git 仓库绝对路径。远端需要已有目标分支与至少一个提交。阶段 A 针对 Coordica 自举，中心强制保护授权、验证、集成、适配器与初始化服务模块；用户还可追加保护路径。路径模式按仓库根目录、大小写敏感的 `/` 路径匹配，支持 `*` 和完整路径段 `**`；符号链接、submodule 等当前不支持的变化会拒绝集成。
 
+## 统一 MCP 初始化（主要接入方式）
+
+安装到固定目录后，先运行 `coordica setup` 预览，再用 `coordica setup --apply` 为发现的客户端注册同一个 MCP。支持 Claude Code、Codex、Cursor、Kimi Code、pi 的已核验配置格式，并为 dsh 生成本机 overlay；有版本或配置冲突会明确报告。需要指定客户端时使用 `--client`。Runner 按本机工具注册表发现能力，内置 Codex、Claude Code、dsh、Cursor CLI、Kimi Code、pi 的执行定义；新工具可以复用已有协议驱动注册，本机注册示例见 [custom-acp.json](examples/tools/custom-acp.json)。版本探测不代表已登录或已经完成真实任务验收。
+
+macOS、Windows、Linux 都把对应平台的 `coordica` 可执行文件安装为 stdio MCP，参数为 `mcp --interaction`（默认 setup 创建一个名为 `coordica` 的接入）。在中心“中心配置与接入”生成一次性接入指令，交给执行电脑的 Agent；也可在“运行与节点”创建配对码，另行提供中心 URL 和必要的公共 CA 路径。MCP 自动发现 Git 与工具路径，交给 Runner 配对，并安装/启动用户级后台服务。无需手工执行 `pair` 或 `runner`。每台电脑使用独立节点身份，容量为 1 或 2。
+
+本地探测不读取 Agent 认证文件；已有登录继续由各官方工具使用。用户级后台服务与聊天客户端分离；macOS 使用 launchd、Linux 使用 systemd --user、Windows 使用当前用户的计划任务。服务启动失败会明确报错并保留已配对状态，不伪装成已上线。
+
+原生 CLI 继承启动它的中心或 Runner 父进程中的标准代理环境变量 `HTTPS_PROXY`、`HTTP_PROXY`、`ALL_PROXY`、`NO_PROXY`（也支持小写名称）。可通过 `NO_PROXY` 排除本机地址，避免本地 URL 经过代理。
+
+</details>
+
+<a id="workflow-reference"></a>
+
+<details>
+<summary><strong>目标授权、需求生命周期与工作台</strong></summary>
+
 ## Phase B：目标授权、Leader 与有限自动执行
 
 在中心本机 Owner 控制台的“项目概览”建立项目，填写仓库、目标分支、受保护路径和最低检查；在“需求池”录入需求。随后进入“目标规划与 Leader”，创建完整目标文档：objective（目标）、non_goals（非目标）、acceptance（验收标准）、关联 requirement_ids、architecture（架构）、directory_outline（目录大纲）、字面 allowed_roots（允许根目录）和正整数 budget_seconds（有限累计目标预算）。空架构或缺失边界仍属于规划，不表示可执行。
@@ -248,9 +387,18 @@ Owner 通过 `tests/suites` 配置套件，通过 `tests/run` 请求有限验证
 该门禁独立于项目脚本、模型回复、功能测试和受保护候选批准。本机 `make quality` 与三平台 CI 使用同一实现。
 初始化、Leader 规划、需求重排、开发与审查接收同一要求；词法度量之外仍须核查语义内聚、依赖方向与语言原生结构。
 
+</details>
+
+<a id="validation-reference"></a>
+
+<details>
+<summary><strong>按版本保留的验证记录与覆盖范围</strong></summary>
+
 ## 验证状态
 
-既有 v0.2.1-dev 包含主机范围查询闭包、持久化节点签发校验、跨页面咨询重试信封、稳定阻断分页、延迟停止决策核销和有限长运行配置。2026-10-13 已通过 macOS 独立本机真实 stdio MCP 与原生 `gpt-6.1-sol` Leader 验收：两个逻辑节点分别使用受限凭据及实际中心/Runner 端口，核对共享 profile 复用、需求来源与去重、主机查询与监听入口权限，以及撤销后原连接拒绝重放；无目标和已批准准入目标两种场景下，自动化开启仍只产生咨询回复，目标、授权、范围、需求、任务、发布意图及 Git 主线保持不变，所有执行停止并结算。逻辑节点测试不代表真实跨机部署。需求版本化撤销/编辑与实时开发者邮箱尚未实现。
+以下按版本保留既有验收记录及其范围，不作为当前源码的完整功能清单。当前功能说明见上文；源码已有实现不等于已完成所有平台、工具或真实多机部署验收。
+
+既有 v0.2.1-dev 包含主机范围查询闭包、持久化节点签发校验、跨页面咨询重试信封、稳定阻断分页、延迟停止决策核销和有限长运行配置。2026-10-13 已通过 macOS 独立本机真实 stdio MCP 与原生 `gpt-6.1-sol` Leader 验收：两个逻辑节点分别使用受限凭据及实际中心/Runner 端口，核对共享 profile 复用、需求来源与去重、主机查询与监听入口权限，以及撤销后原连接拒绝重放；无目标和已批准准入目标两种场景下，自动化开启仍只产生咨询回复，目标、授权、范围、需求、任务、发布意图及 Git 主线保持不变，所有执行停止并结算。逻辑节点测试不代表真实跨机部署。该 v0.2.1-dev 验收不覆盖需求版本化修订/撤回；当前源码已有对应实现，见上文“分层测试与验证任务”。实时开发者邮箱仍属后续功能。
 
 v0.2.2-dev 的统一 MCP 实现及评审修复已由独立验收通过完整 macOS Go race 套件（包括全部监听测试）、真实原生可执行文件 stdio 与隔离双监听中心测试：缺失 profile 后，同一 MCP 进程获得十一项中心工具；节点受限 profile 仅获得七项工具，不能访问 Leader 或全局任务池；Run 仅有三项范围内工具并拒绝跨角色调用。中心实际重启期间 MCP 进程保持存活；撤销凭据后，缓存读取与需求提交均被拒绝。
 
@@ -258,7 +406,7 @@ v0.2.2-dev 的原生 Codex CLI 安装配置验收确认旧 chat-only 接入迁�
 
 v0.2.2-dev 的统一接入验收没有运行模型，没有派发开发、规划 Run 或任务；节点注册是逻辑 fixture，没有激活用户服务。CLI 配置安装已测试；原生 GUI 客户端动态工具刷新仍取决于客户端支持，必要时重新发现或重连。该 v0.2.2-dev 验收未新增 Windows/Linux 原生部署或所有客户端 GUI 执行认证。
 
-v0.2.3-dev 的原生服务、统一 MCP 与只读 Leader 就绪验证记录以对应 Releases 的发布说明为准，由 Owner 独立验证后记录。实时开发者邮箱、索引集成、模型/effort/并发设置与资源扩展仍属后续功能。
+v0.2.3-dev 的原生服务、统一 MCP 与只读 Leader 就绪验证记录以对应 Releases 的发布说明为准，由 Owner 独立验证后记录。实时开发者邮箱、索引集成与资源扩展仍属后续功能。当前源码已提供工具实际报告的模型/思考强度选择及节点容量设置，见上文“池、来源与节点能力”；这些实现说明不扩大上述 v0.2.3-dev 验证记录的验收范围。
 
 既有 Phase A 已完成真实 Mac 中心与 Windows 节点连接、Windows dsh 实现、Claude 独立评审的小项目闭环，以及运行中取消验收。该 Phase A 的实际 Agent 验收事实限于 Claude / dsh，不把支持定义或版本探测说成其他工具已实测。
 
@@ -268,15 +416,12 @@ v0.2.3-dev 的原生服务、统一 MCP 与只读 Leader 就绪验证记录以�
 
 完整测试与各平台 CI 结果以当前发布版本关联的 GitHub checks 为准，本地局部检查不替代完整测试或平台 CI。多机 Phase B 与 Linux 原生部署仍待验证。既有普通局域网连通与任务测试不覆盖断线、重启、重复消息、旧租约及全部进程树停止语义；单元/协议模拟、CI 和跨平台编译分别记录，跨编译不等于目标系统原生认证。
 
-## 统一 MCP 初始化（主要接入方式）
+</details>
 
-安装到固定目录后，先运行 `coordica setup` 预览，再用 `coordica setup --apply` 为发现的客户端注册同一个 MCP。支持 Claude Code、Codex、Cursor、Kimi Code、pi 的已核验配置格式，并为 dsh 生成本机 overlay；有版本或配置冲突会明确报告。需要指定客户端时使用 `--client`。Runner 按本机工具注册表发现能力，内置 Codex、Claude Code、dsh、Cursor CLI、Kimi Code、pi 的执行定义；新工具可以复用已有协议驱动注册，本机注册示例见 [custom-acp.json](examples/tools/custom-acp.json)。版本探测不代表已登录或已经完成真实任务验收。
+<a id="network-reference"></a>
 
-macOS、Windows、Linux 都把对应平台的 `coordica` 可执行文件安装为 stdio MCP，参数为 `mcp --interaction`（默认 setup 创建一个名为 `coordica` 的接入）。在中心“中心配置与接入”生成一次性接入指令，交给执行电脑的 Agent；也可在“运行与节点”创建配对码，另行提供中心 URL 和必要的公共 CA 路径。MCP 自动发现 Git 与工具路径，交给 Runner 配对，并安装/启动用户级后台服务。无需手工执行 `pair` 或 `runner`。每台电脑使用独立节点身份，容量为 1 或 2。
-
-本地探测不读取 Agent 认证文件；已有登录继续由各官方工具使用。用户级后台服务与聊天客户端分离；macOS 使用 launchd、Linux 使用 systemd --user、Windows 使用当前用户的计划任务。服务启动失败会明确报错并保留已配对状态，不伪装成已上线。
-
-原生 CLI 继承启动它的中心或 Runner 父进程中的标准代理环境变量 `HTTPS_PROXY`、`HTTP_PROXY`、`ALL_PROXY`、`NO_PROXY`（也支持小写名称）。可通过 `NO_PROXY` 排除本机地址，避免本地 URL 经过代理。
+<details>
+<summary><strong>Runner 本机页面与局域网接入</strong></summary>
 
 ## 执行电脑的本机页面
 
@@ -286,7 +431,7 @@ Runner 启动后，在该电脑打开 `http://127.0.0.1:8081`，查看本机节�
 
 若中心也在这台电脑，Runner 会核对已配置的中心地址是否属于本机及中心返回的连接信息，再显示跳转到中心需求池、任务池、运行与配置页的入口。中心页面仍须使用 owner 凭据登录，Runner 不会代为读取或授予 owner 身份；其他电脑的 Runner 页面不显示这些入口。
 
-已有安装需将中心与执行电脑上的 Coordica 二进制升级到 `0.1.3-dev`，再重启服务，才能使用同机中心导航和新的接入配置页；保留原数据目录和节点身份。
+同机中心导航和新的接入配置页自 `0.1.3-dev` 引入。当前源码版本为 `0.2.5-dev`；升级时使用匹配版本的中心与 Runner，并保留原数据目录和节点身份。
 
 ## 两台电脑通过局域网连接
 
@@ -304,6 +449,13 @@ Runner 启动后，在该电脑打开 `http://127.0.0.1:8081`，查看本机节�
 将示例 IP 替换为中心实际的局域网 IPv4。`https://192.168.1.10:8443` 只提供 Runner 配对与执行接口，不提供控制台或 owner API。控制台仍在中心电脑的 `http://127.0.0.1:8080` 打开，不需要浏览器信任局域网的自签证书。
 
 `--console-listen` 默认 `127.0.0.1:8080`，仅接受回环地址，端口可自定义。默认启动时两个监听地址相同，在本机共享 HTTP 服务；指定局域网监听后分为本机控制台和 HTTPS 节点接口。节点接口也可使用 `--listen 0.0.0.0:8443`，此时需加上 `--runner-url https://192.168.1.10:8443`，向配置页明确可分享的实际地址；该地址必须使用 HTTPS，且主机名或 IP 须被 TLS 证书 SAN 覆盖。未配置实际地址时不会把 `0.0.0.0` 或 `::` 复制给远端 Agent。私钥只留在中心，非回环 HTTP 连接会被拒绝；不提供跳过证书验证选项。证书默认一年有效，公网中转尚未实现。
+
+</details>
+
+<a id="github-reference"></a>
+
+<details>
+<summary><strong>GitHub PR 集成与发布权限</strong></summary>
 
 ## GitHub PR 集成
 
@@ -347,6 +499,13 @@ GitHub 仓库需要启用分支保护：
 
 “只有本人/本人授权中心可写”还依赖 GitHub 仓库权限和分支规则。部署到你自己的项目时，需要自行设置仓库权限和中心专用凭据；下载本项目不授予本项目仓库的写权限。私人电脑原有用户凭据不属于本平台能绝对隔离的安全边界。
 
+</details>
+
+<a id="interface-reference"></a>
+
+<details>
+<summary><strong>CLI、MCP 与协议细节</strong></summary>
+
 ## CLI 与 MCP
 
 以下是诊断入口，正常接入使用上面的 MCP 初始化。需要前台排障时，可手动配对和启动：
@@ -379,36 +538,9 @@ owner CLI 在中心电脑使用本机控制台的 HTTP API，默认地址为 `ht
 
 提供 `get_context`、`report_block`、`request_scope`。范围申请只登记阻塞，不能放宽权限。最终代码与结构化评审由 Runner 在受管进程停止、固定材料校验后提交，MCP 不允许模型提前宣称进程已停止。stdio 遵循 [MCP 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)，没有 owner 批准或发布工具。
 
-## 暂停、恢复与备份
-
-暂停停止新派发并要求在途进程结束。已经进入 `dispatching` 的外部 Git 操作继续核对真实远端结果，成功不会被当前暂停状态抹掉。失联 Run 不会自动当作已停止；Runner 回报受管进程已停止，或 owner 在运行页填写实际停止证据后，中心自动恢复原任务，无需再手动恢复。兼容且有空闲容量的 Runner 随后原子领取新 Run，使用新的执行代次和独立工作目录。
-
-自动恢复消耗原任务的一次重试额度，保留累计支出；失联且实际用量未知时，按整个有限执行额度结算。预算不足或重试用尽会阻塞并等待 owner 决策。任务暂停、取消、授权变化和人工阻塞不会被自动清除；项目暂停期间保持待恢复，项目恢复后再推进。旧 Run 的迟到结果不会改变新执行、候选或预算。已经受理的候选继续原评审与验证流程，不重新开发。
-
-中心重启会把旧验证进程标记为待核对，确认停止后重试同一个固定候选。Runner 保留工作目录和完成消息，恢复时先交接/核对，未知旧进程不会被盲目重派。macOS/Linux Runner 会复核遗留受管进程组并在确认静止后补报停止；Windows 的未知停止记录继续等待可靠确认，不能仅凭父进程消失放行。正常 Windows 执行通过 Job Object 确认受管进程停止后，可以自动恢复。重试与修复次数、预算均保留；增加任务预算/次数需要 owner 新版本批准。
-
-Web 或 CLI 创建一致备份，返回中心上的备份目录。备份包含数据库快照、引用材料及必要 Git 对象，清单核验完成后才发布。凭据不进入备份。恢复到不存在的新目录：
-
-```sh
-./bin/coordica restore --from 备份目录 --data 新中心目录
-./bin/coordica serve --data 新中心目录
-```
-
-恢复后项目暂停，旧节点撤销，重新配对并核对 Git 外部事实后恢复。旧电脑未上传的私人修改不属于恢复保证。升级前先备份，停止旧进程再启动新二进制。中心与 Runner 升级到 `0.1.3-dev` 后可使用新的接入配置页和同机中心导航；`0.1.2-dev` Runner 保留本机活动页，`0.1.1-dev` Runner 仍可连接新中心但没有本机页面。`0.1.0` 中心的严格解码不接受新能力字段，不能混用新 Runner；新中心会保守阻止缺少取消/评审声明的旧 Runner 领取新活动。在途旧 Run 按原租约核对。代码合并不自动升级服务。
-
-## 维护
-
-真实 Agent 验收可使用安装包中的 [独立小项目](examples/acceptance/README.md)，在隔离仓库执行，不影响本项目或用户实际项目。
-
-没有开启后台自动升级或公开上传。Phase B 自动化默认关闭；启用也不提供全局无限授权。
-
-项目没有生命周期累计时间上限，中心持续运行；项目 used_seconds / reserved_seconds 是保留全部历史支出的统计与证据，不参与派单、评审、规划、咨询或恢复门禁。兼容记录中的 total_budget_seconds 已弃用并忽略，不要求在创建项目时填写；旧 POST project/budget（ConfigureProjectBudget）明确返回 deprecated。目标预算仍有限（最多 365 天），目标内规划累计额度仍由 PlanningBudgetSeconds（1–31536000 秒且不少于超时，默认十五分钟）约束，单次规划/咨询/初始化超时由 PlanningTimeoutSeconds（1–604800 秒，默认五分钟）约束、重试为 0–2。咨询账户仅统计及预留，不是另一个项目总额度。任务累计额度可配置至 365 天（默认四小时），单个执行 Run 可配置至七天（默认一小时）；新任务自动修复/重试各 0–2，Owner 版本化扩展仍最多 100 次，历史计数不清零。租约续期与有限执行截止时间独立；最低检查仍保留单次一小时超时政策。
-
-旧版本 `hold_reason=budget` 不会自动清除：记录没有保存原始耗尽原因。确认旧进程树已停止并已结算、目标/任务剩余额度为正、当前授权/政策/候选仍有效且重试可用后，Owner 可在任务恢复操作中提交当前任务版本，或调用 `POST /api/v1/tasks/{id}/resume`，正文为 `{ "expected_version": 当前版本 }`，带 Owner 凭据与新的 `Idempotency-Key`。此兼容恢复保留累计支出，失败执行的恢复消耗一次剩余重试；缺失停止证据、真实额度耗尽或过期授权仍拒绝。已有发布意图按原有核对路径处理，不因升级重建。
-
 ## One interaction MCP (`coordica`)
 
-Default `coordica setup` previews one user-facing stdio entry named **coordica**; `--apply` writes it. Each physical host shares one startup-fixed Runner directory and one private limited interaction profile across its clients. Local `inspect_environment`, `save_runner_profile` and `initialize_runner` work before enrollment and without a live center. No center service startup, project onboarding interview, worker mailbox, AOCI initialization, model/effort/concurrency settings or resource expansion is provided by this change.
+Default `coordica setup` previews one user-facing stdio entry named **coordica**; `--apply` writes it. Each physical host shares one startup-fixed Runner directory and one private limited interaction profile across its clients. Local `inspect_environment`, `save_runner_profile` and `initialize_runner` work before enrollment and without a live center. This describes the scope of the original unified-entry change, not the current feature set. Current center lifecycle, project initialization, model/reasoning-effort and node-capacity settings are documented in the sections above; registering an MCP entry alone does not complete those steps.
 
 Normal conversation is the interaction role: local bootstrap, redacted project queries, explicit requirement intake and center-host-only advisory Leader conversation. It has no developer Worker, Owner, task creation, approval, scope grant or publication authority. Managed developer Run sessions use the same stdio implementation/server name with a fixed Run/generation and expose **only** `get_context`, `report_block`, `request_scope`; they never inherit interaction tools. Queries never invoke Leader, and only explicitly submitted text is stored.
 
@@ -519,3 +651,49 @@ Leader 的普通规划与需求影响分析会携带精确的已确认共享基�
 开发与审查任务收到关联需求的固定修订正文，不继承其他 Agent 的对话或私有经验。源码按需读取自固定私有工作区，审查仍须覆盖固定候选的完整差异。身份、共享基线或需求版本变化后，不能把新合同交给旧 Run。只读 Leader 资料复用既有进程退出和临时目录回收流程；无法确认进程停止时保留现场和原有阻断。
 
 手动升级时先升级中心，再升级 Runner。中心只向明确声明支持当前固定需求上下文协议的 Runner 派发关联需求的开发和审查任务；旧 Runner 仍可报告在线状态，在升级前不会领取这些任务或占用其预算。新版 Runner 遇到关联需求缺少正文的旧中心会明确拒绝执行，避免仅凭需求 ID 猜测合同；这不自动升级、启动或批准任何项目。
+
+</details>
+
+<a id="operations-reference"></a>
+
+<details>
+<summary><strong>暂停、恢复、备份与维护</strong></summary>
+
+## 暂停、恢复与备份
+
+暂停停止新派发并要求在途进程结束。已经进入 `dispatching` 的外部 Git 操作继续核对真实远端结果，成功不会被当前暂停状态抹掉。失联 Run 不会自动当作已停止；Runner 回报受管进程已停止，或 owner 在运行页填写实际停止证据后，中心自动恢复原任务，无需再手动恢复。兼容且有空闲容量的 Runner 随后原子领取新 Run，使用新的执行代次和独立工作目录。
+
+自动恢复消耗原任务的一次重试额度，保留累计支出；失联且实际用量未知时，按整个有限执行额度结算。预算不足或重试用尽会阻塞并等待 owner 决策。任务暂停、取消、授权变化和人工阻塞不会被自动清除；项目暂停期间保持待恢复，项目恢复后再推进。旧 Run 的迟到结果不会改变新执行、候选或预算。已经受理的候选继续原评审与验证流程，不重新开发。
+
+中心重启会把旧验证进程标记为待核对，确认停止后重试同一个固定候选。Runner 保留工作目录和完成消息，恢复时先交接/核对，未知旧进程不会被盲目重派。macOS/Linux Runner 会复核遗留受管进程组并在确认静止后补报停止；Windows 的未知停止记录继续等待可靠确认，不能仅凭父进程消失放行。正常 Windows 执行通过 Job Object 确认受管进程停止后，可以自动恢复。重试与修复次数、预算均保留；增加任务预算/次数需要 owner 新版本批准。
+
+Web 或 CLI 创建一致备份，返回中心上的备份目录。备份包含数据库快照、引用材料及必要 Git 对象，清单核验完成后才发布。凭据不进入备份。恢复到不存在的新目录：
+
+```sh
+./bin/coordica restore --from 备份目录 --data 新中心目录
+./bin/coordica serve --data 新中心目录
+```
+
+恢复后项目暂停，旧节点撤销，重新配对并核对 Git 外部事实后恢复。旧电脑未上传的私人修改不属于恢复保证。升级前先备份，停止旧进程再启动新二进制。以下为历史兼容记录：中心与 Runner 自 `0.1.3-dev` 起可使用新的接入配置页和同机中心导航；`0.1.2-dev` Runner 保留本机活动页，`0.1.1-dev` Runner 仍可连接新中心但没有本机页面。`0.1.0` 中心的严格解码不接受新能力字段，不能混用新 Runner；新中心会保守阻止缺少取消/评审声明的旧 Runner 领取新活动。在途旧 Run 按原租约核对。代码合并不自动升级服务。
+
+## 维护
+
+真实 Agent 验收可使用安装包中的 [独立小项目](examples/acceptance/README.md)，在隔离仓库执行，不影响本项目或用户实际项目。
+
+没有开启后台自动升级或公开上传。Phase B 自动化默认关闭；启用也不提供全局无限授权。
+
+项目没有生命周期累计时间上限，中心持续运行；项目 used_seconds / reserved_seconds 是保留全部历史支出的统计与证据，不参与派单、评审、规划、咨询或恢复门禁。兼容记录中的 total_budget_seconds 已弃用并忽略，不要求在创建项目时填写；旧 POST project/budget（ConfigureProjectBudget）明确返回 deprecated。目标预算仍有限（最多 365 天），目标内规划累计额度仍由 PlanningBudgetSeconds（1–31536000 秒且不少于超时，默认十五分钟）约束，单次规划/咨询/初始化超时由 PlanningTimeoutSeconds（1–604800 秒，默认五分钟）约束、重试为 0–2。咨询账户仅统计及预留，不是另一个项目总额度。任务累计额度可配置至 365 天（默认四小时），单个执行 Run 可配置至七天（默认一小时）；新任务自动修复/重试各 0–2，Owner 版本化扩展仍最多 100 次，历史计数不清零。租约续期与有限执行截止时间独立；最低检查仍保留单次一小时超时政策。
+
+旧版本 `hold_reason=budget` 不会自动清除：记录没有保存原始耗尽原因。确认旧进程树已停止并已结算、目标/任务剩余额度为正、当前授权/政策/候选仍有效且重试可用后，Owner 可在任务恢复操作中提交当前任务版本，或调用 `POST /api/v1/tasks/{id}/resume`，正文为 `{ "expected_version": 当前版本 }`，带 Owner 凭据与新的 `Idempotency-Key`。此兼容恢复保留累计支出，失败执行的恢复消耗一次剩余重试；缺失停止证据、真实额度耗尽或过期授权仍拒绝。已有发布意图按原有核对路径处理，不因升级重建。
+
+</details>
+
+## 许可与下载
+
+**源码可见，个人非商业使用免费。** 允许个人非商业修改并在自己的设备上使用；个人商业用途、团队或公司使用及二次开发、向他人发布修改版均须事先另获书面授权。这不是 MIT 或 OSI 开源许可。正式条款见 [LICENSE](LICENSE)，授权申请可向本仓库维护者提交 Issue。
+
+第三方组件保留各自许可，见 [第三方声明](THIRD_PARTY_NOTICES.md)。本许可不会仅因使用 Coordica 就要求你公开独立开发的项目。
+
+## 反馈
+
+欢迎通过 [Issues](https://github.com/5intro/Coordica/issues) 提交问题、使用反馈或许可申请。报告问题时请附版本、操作系统、复现步骤与脱敏日志；不要提交令牌、私钥、个人配置或项目私密内容。

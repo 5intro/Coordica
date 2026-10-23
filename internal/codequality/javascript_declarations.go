@@ -162,12 +162,12 @@ func (m *metrics) javaScriptSource(f File) {
 
 func (m *metrics) scriptMembers(f File, text, class string, open, end int, ends map[int]int, seen map[int]bool) {
 	count, cursor, walked, depth := 0, open+1, open+1, 0
-	for _, match := range scriptSignature.FindAllStringSubmatchIndex(text[open+1:end], -1) {
+	for _, match := range scriptMethodMatches(m.ctx, text, ends) {
 		if m.cancelled() {
 			return
 		}
-		start := open + 1 + match[0]
-		if start < cursor {
+		start := match[0]
+		if start < cursor || start >= end {
 			continue
 		}
 		for walked < start {
@@ -182,10 +182,10 @@ func (m *metrics) scriptMembers(f File, text, class string, open, end int, ends 
 		if depth != 0 || strings.Contains(prefix, "=") {
 			continue
 		}
-		nameEnd := open + 1 + match[3]
+		nameEnd := match[3]
 		body := scriptFunctionBody(text, nameEnd, ends)
 		if close, ok := ends[body]; ok && body >= 0 {
-			name := text[open+1+match[2] : nameEnd]
+			name := f.Text[match[2]:nameEnd]
 			count++
 			m.scriptFunctionFinding(f, text, class+"."+name, start, body, close, ends)
 			seen[body] = true

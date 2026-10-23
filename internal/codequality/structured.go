@@ -109,6 +109,11 @@ func (m *metrics) pythonSource(f File) {
 	lines := strings.Split(maskedSource(f.Text, true, stringEnds), "\n")
 	original := strings.Split(f.Text, "\n")
 	pythonLambdas(m, f)
+	type scope struct {
+		name string
+		end  int
+	}
+	var scopes []scope
 	for start, line := range lines {
 		if m.cancelled() {
 			return
@@ -119,12 +124,20 @@ func (m *metrics) pythonSource(f File) {
 			continue
 		}
 		end, methods := pythonRegion(lines, original, stringEnds, start)
-		if decl[1] == "class" {
-			m.add(f.Path, start+1, "class_lines", decl[2], end-start+1, MaxClass)
-			m.add(f.Path, start+1, "class_methods", decl[2], methods, MaxMethods)
-		} else {
-			m.add(f.Path, start+1, "function_lines", decl[2], end-start+1, MaxFunction)
+		for len(scopes) > 0 && start > scopes[len(scopes)-1].end {
+			scopes = scopes[:len(scopes)-1]
 		}
+		name := decl[2]
+		if len(scopes) > 0 {
+			name = scopes[len(scopes)-1].name + "." + name
+		}
+		if decl[1] == "class" {
+			m.add(f.Path, start+1, "class_lines", name, end-start+1, MaxClass)
+			m.add(f.Path, start+1, "class_methods", name, methods, MaxMethods)
+		} else {
+			m.add(f.Path, start+1, "function_lines", name, end-start+1, MaxFunction)
+		}
+		scopes = append(scopes, scope{name, end})
 	}
 }
 
