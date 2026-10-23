@@ -133,7 +133,7 @@ func (m *metrics) javaScriptSource(f File) {
 		if m.cancelled() {
 			return
 		}
-		open := match[1] - 1
+		open := scriptClassBody(text, match[1], ends)
 		if end, ok := ends[open]; ok {
 			name := scriptClassName(m.ctx, f.Text, text, match, open, ends)
 			m.add(f.Path, m.lineAt(match[0]), "class_lines", name,

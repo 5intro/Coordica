@@ -113,6 +113,7 @@ func (m *metrics) nativeBraceSource(f File) {
 		}
 		m.blockFunction(f.Path, text, fn.name, fn.start, fn.body, ends)
 	}
+	nativeAnonymousFunctions(m, f, text, extension, pairs)
 	for _, match := range nativeClass.FindAllStringSubmatchIndex(text, -1) {
 		if m.cancelled() {
 			return

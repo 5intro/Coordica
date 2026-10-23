@@ -91,7 +91,8 @@ blob; an actual local deletion remains a deletion. Required Python entrypoints
 run in isolated import mode so repository modules cannot replace stdlib imports.
 
 Inventory limits are 20,000 tree entries, 2 MiB per included source file and
-64 MiB included source per tree. Non-UTF-8 source, duplicate inventory paths,
+64 MiB included source per tree; raw manifests have a separate 96 MiB bound.
+Non-UTF-8 source, duplicate inventory paths,
 unsupported selected Git objects and malformed Go source are rejected. Large
 repositories need an explicit reviewed extension of this bounded reader;
 they must not be silently truncated and reported as passed. Immutable blobs

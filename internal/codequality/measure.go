@@ -92,7 +92,7 @@ func measureInventory(ctx context.Context, files []File, baseline bool) ([]Findi
 }
 
 func (m *metrics) text(f File) {
-	lines := strings.Split(strings.TrimSuffix(f.Text, "\n"), "\n")
+	lines := strings.Split(strings.TrimSuffix(physicalNewlines(f.Text), "\n"), "\n")
 	if f.Text == "" {
 		lines = nil
 	}

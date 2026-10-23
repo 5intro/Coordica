@@ -3,6 +3,8 @@ package gitops
 import (
 	"context"
 	"errors"
+
+	"coordica/internal/process"
 )
 
 type SourceReader struct{ Git *Client }
@@ -34,7 +36,7 @@ func (r SourceReader) Read(
 	if err := g.guardRepo(ctx, repo); err != nil {
 		return err
 	}
-	out, err := g.run(ctx, repo, nil, "ls-tree", "-r", "-l", "-z", string(commit))
+	out, err := readSourceManifest(ctx, g, repo, commit)
 	if err != nil {
 		return err
 	}
@@ -43,4 +45,22 @@ func (r SourceReader) Read(
 		return err
 	}
 	return r.readSourceBatch(ctx, repo, entries, consume)
+}
+
+// 20,000 entries with typical OS path maxima plus object headers fit within
+// this explicit bound. Larger immutable manifests are deterministic defects.
+const maxSourceManifestBytes = 96 << 20
+
+func readSourceManifest(ctx context.Context, g *Client, repo string, commit OID) ([]byte, error) {
+	spec, err := gitCommandSpec(g, repo, nil, "ls-tree", "-r", "-l", "-z", string(commit))
+	if err != nil {
+		return nil, err
+	}
+	out, stderr, result, err := process.CollectRaw(ctx, spec, maxSourceManifestBytes, 64<<10)
+	err = gitCommandFailure(ctx, "ls-tree", stderr, result, err)
+	if ctx.Err() == nil && len(out) == maxSourceManifestBytes && errors.Is(err, ErrOutputLimit) &&
+		!errors.Is(err, process.ErrTreeNotStopped) {
+		return nil, &SourceInventoryError{Cause: err}
+	}
+	return out, err
 }
