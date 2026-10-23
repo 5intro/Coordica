@@ -15,6 +15,7 @@ type metrics struct {
 	lines    []int
 	findings []Finding
 	methods  map[string][]Finding
+	partials map[string]*partialMeasurement
 }
 
 func (m *metrics) add(file string, line int, rule, subject string, value, limit int) {
@@ -66,6 +67,7 @@ func measureInventory(ctx context.Context, files []File, baseline bool) ([]Findi
 			}
 		}
 	}
+	partialClassFindings(&m)
 	for key, methods := range m.methods {
 		if m.cancelled() {
 			return nil, ctx.Err()

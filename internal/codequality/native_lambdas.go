@@ -3,6 +3,9 @@ package codequality
 import "strings"
 
 func nativeAnonymousFunctions(m *metrics, f File, text, extension string, ends map[int]int) {
+	if extension == ".rs" {
+		rustClosures(m, f, text, ends)
+	}
 	if strings.Contains("|.cc|.cpp|.h|.hpp|", "|"+extension+"|") {
 		for open, close := range ends {
 			if m.cancelled() {

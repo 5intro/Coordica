@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-var shellFunction = regexp.MustCompile(`(?m)(?:^|[;\n])\s*(?:function\s+([\w-]+)\s*(?:\(\s*\))?|([\w-]+)\s*\(\s*\))\s*`)
+var shellFunction = regexp.MustCompile(`\b(?:function\s+([\w-]+)\s*(?:\(\s*\))?|([\w-]+)\s*\(\s*\))\s*`)
 var powerFunction = regexp.MustCompile(`(?i)\bfunction\s+([\w:-]+)\s*(?:\([^{}]*\))?\s*\{`)
 var scssFunction = regexp.MustCompile(`@(?:function|mixin)\s+([\w-]+)\s*[({]`)
 var powerClass = regexp.MustCompile(`(?i)\bclass\s+([\w]+)[^;{}]*\{`)

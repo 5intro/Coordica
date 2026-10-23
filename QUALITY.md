@@ -80,6 +80,8 @@ JavaScript/TypeScript signatures use balanced delimiters; expression-bodied
 arrows, executable template interpolations, object methods and callable class
 fields are included. Function debt also binds to declaration,
 binding/call-site and enclosing-scope headers, independently of line numbers.
+C# partial declarations aggregate class size and methods by namespace,
+enclosing types and generic arity; file-local types retain their file identity.
 
 Fixed artifact conventions exclude `.git`, `node_modules`, `vendor`,
 `third_party`, `dist`, `*.generated.ts` and `*.pb.go`. A generated-file comment
