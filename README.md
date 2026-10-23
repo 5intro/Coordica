@@ -63,13 +63,33 @@ Coordica 把需求、开发任务、代码审查和阻断事项放在同一个�
 
 想使用主干源码中的功能，可按[构建指南](#build-reference)自行构建。主干与发布包即使显示相同版本号，内容也可能不同。
 
-### 2. 配置中心
+### 2. 快速启动本地控制台
+
+只想先了解控制台，可以在解压目录打开终端，用一个尚不存在、与源码和正式数据分开的目录启动。无需先配置模型、创建项目或接入 Runner。
+
+macOS / Linux：
+
+```sh
+./coordica serve --data "$HOME/coordica-first-look"
+```
+
+Windows PowerShell：
+
+```powershell
+.\coordica.exe serve --data "$HOME\coordica-first-look"
+```
+
+保持终端运行，在同一台电脑打开 [本机控制台](http://127.0.0.1:8080)，使用上述数据目录中的 `owner.token` 登录。该令牌只供你管理中心，不要发送给 Agent、写入仓库或放进反馈附件。
+
+这一步以前台方式运行，不会安装后台服务、配置 Leader、配对 Runner 或开始开发。体验结束后按 Ctrl+C 停止，再按下面的步骤配置正式中心，避免端口冲突。若已有中心占用该端口，请先使用现有控制台，不要另启实例。
+
+### 3. 配置中心
 
 选择一台电脑作为中心，指定项目仓库、数据目录和原生 Codex 路径，再注册统一 MCP。详细命令见[可信中心、项目初始化与 MCP 安装](#setup-reference)。
 
 初始化并启动中心后，在这台电脑打开 [本机控制台](http://127.0.0.1:8080)，使用中心数据目录中的 `owner.token` 登录。该令牌仅供你管理中心，不要发送给 Agent 或写入仓库。
 
-### 3. 接入执行电脑，开始项目
+### 4. 接入执行电脑，开始项目
 
 在中心控制台生成一次性接入指令，交给对应电脑上的 MCP 客户端完成 Runner 配对。每台电脑使用自己的配对码；同机也需要登记 Runner。
 
@@ -285,13 +305,7 @@ go build -trimpath -o bin/coordica.exe ./cmd/coordica
 
 当前源码版本号为 `0.2.5-dev`。Node 只用于构建前端，不是运行下载包的依赖。
 
-仅查看控制台时，可用新的独立目录前台启动：
-
-```sh
-./bin/coordica serve --data .coordica-center
-```
-
-该命令不会配置 Leader、配对 Runner 或开始开发。使用完按 Ctrl+C 停止，再配置正式中心，避免端口冲突。
+源码构建后，可在仓库目录用 `./bin/coordica serve --data "$HOME/coordica-first-look"` 查看控制台；Windows 使用 `.\bin\coordica.exe`。目录、登录和退出方式见[快速启动本地控制台](#2-快速启动本地控制台)。
 
 维护者可运行 `make test` 与 `make check`；测试还需要 Python 3.10+。协议生成使用 `make generate`。打包脚本 `scripts/package-release.py` 使用已有平台二进制生成分发包与校验文件，不负责构建或上传发布。
 
