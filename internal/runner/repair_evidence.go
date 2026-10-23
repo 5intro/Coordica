@@ -80,12 +80,12 @@ func repairPlanDigest(c *domain.Candidate) string {
 
 func repairCheckRecord(c *domain.Candidate, check domain.CheckResult) []byte {
 	record := struct {
-		Name            string   `json:"name"`
-		ExitCode        int      `json:"exit_code"`
-		FixedCheck      *domain.Check`json:"fixed_check,omitempty"`
-		CommandStatus   string   `json:"command_status"`
-		Output          string   `json:"output"`
-		OutputTruncated bool     `json:"output_truncated"`
+		Name            string        `json:"name"`
+		ExitCode        int           `json:"exit_code"`
+		FixedCheck      *domain.Check `json:"fixed_check,omitempty"`
+		CommandStatus   string        `json:"command_status"`
+		Output          string        `json:"output"`
+		OutputTruncated bool          `json:"output_truncated"`
 	}{Name: check.Name, ExitCode: check.ExitCode, CommandStatus: "unavailable: no unique matching check in fixed plan"}
 	if c.CheckPlan != nil {
 		for i := range c.CheckPlan.Checks {
