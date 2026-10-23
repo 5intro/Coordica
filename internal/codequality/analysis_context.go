@@ -9,11 +9,15 @@ import (
 func sourceLineOffsets(text string) []int {
 	lines := []int{0}
 	for i := 0; i < len(text); i++ {
-		if text[i] == '\n' {
+		if text[i] == '\n' || text[i] == '\r' && (i+1 == len(text) || text[i+1] != '\n') {
 			lines = append(lines, i+1)
 		}
 	}
 	return lines
+}
+
+func physicalNewlines(text string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
 }
 
 func indexedLine(lines []int, offset int) int {
@@ -35,6 +39,8 @@ func measureSource(m *metrics, f File) error {
 			return err
 		}
 	} else {
+		f.Text = physicalNewlines(f.Text)
+		m.lines = sourceLineOffsets(f.Text)
 		m.structuredSource(f)
 	}
 	return m.ctx.Err()

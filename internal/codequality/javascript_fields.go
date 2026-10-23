@@ -14,16 +14,18 @@ func scriptCallableFields(ctx context.Context, original, text string, open, end 
 		if ctx != nil && ctx.Err() != nil {
 			return count
 		}
-		if close, ok := ends[at]; ok {
+		if close, ok := ends[at]; ok && text[at] == '[' {
+			at = close + 1
+		} else if close, ok := ends[at]; ok {
 			at = close + 1
 			continue
-		}
-		if !scriptWord(text[at]) {
+		} else if !scriptWord(text[at]) {
 			at++
 			continue
-		}
-		for at < end && scriptWord(text[at]) {
-			at++
+		} else {
+			for at < end && scriptWord(text[at]) {
+				at++
+			}
 		}
 		assignment := scriptFieldAssignment(text, at, end, ends)
 		if assignment < 0 {

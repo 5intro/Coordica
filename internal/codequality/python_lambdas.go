@@ -8,6 +8,26 @@ import (
 )
 
 var pythonLambda = regexp.MustCompile(`\blambda\b`)
+var pythonAssignment = regexp.MustCompile(`^\s*[A-Za-z_]\w*\s*(?::[^=]+)?=\s*([^=].*)?$`)
+
+func pythonLambdaBinding(lines []string) bool {
+	match := pythonAssignment.FindStringSubmatch(lines[0])
+	if match == nil {
+		return false
+	}
+	expression := match[1]
+	for index := 1; ; index++ {
+		expression = strings.TrimLeft(expression, " (\t\r\n\\")
+		if expression != "" {
+			location := pythonLambda.FindStringIndex(expression)
+			return location != nil && location[0] == 0
+		}
+		if index >= len(lines) {
+			return false
+		}
+		expression = lines[index]
+	}
+}
 
 func pythonLambdas(m *metrics, f File) {
 	text := maskedSource(f.Text, true, map[int]int{})

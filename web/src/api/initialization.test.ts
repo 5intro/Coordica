@@ -12,6 +12,12 @@ describe('initialization runtime contract', () => {
     expect(validInitialization({ ...confirmed, approved_digest: 'd'.repeat(64) })).toBe(false);
     expect(validInitialization({ ...confirmed, approved_baseline: null })).toBe(false);
     expect(validInitialization({ ...confirmed, approved_baseline: {} })).toBe(false);
+    expect(validInitialization({ ...confirmed, approved_baseline: {
+      ...confirmed.approved_baseline, architecture: 'unrelated architecture',
+    } })).toBe(false);
+    expect(validInitialization({ ...confirmed, approved_baseline: Object.fromEntries(
+      Object.entries(confirmed.approved_baseline).reverse(),
+    ) })).toBe(true);
   });
   it('rejects incomplete result, unknown state and forged confirmation digest', () => {
     expect(validInitialization(readyInitialization)).toBe(true);

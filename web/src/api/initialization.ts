@@ -1,18 +1,26 @@
 import type { Baseline, Initialization } from '../api.generated';
+type CompleteBaseline = Baseline & { checks: NonNullable<Baseline['checks']> };
 
 const strings = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === 'string');
 const object = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
+const baselineFields = ['requirements', 'acceptance', 'architecture', 'modules',
+  'conventions', 'testing', 'functionality', 'risks'] as const;
 
-function baseline(value: unknown): value is Baseline {
-  const fields = ['requirements', 'acceptance', 'architecture', 'modules',
-    'conventions', 'testing', 'functionality', 'risks'] as const;
-  if (!object(value) || !fields.every((key) => typeof value[key] === 'string')
+function baseline(value: unknown): value is CompleteBaseline {
+  if (!object(value) || !baselineFields.every((key) => typeof value[key] === 'string')
     || !strings(value.allowed_roots) || !strings(value.protected_paths) || !Array.isArray(value.checks)) return false;
   return value.checks.every((check: unknown) => object(check) && typeof check.name === 'string'
     && typeof check.command === 'string' && strings(check.args) && Number.isSafeInteger(check.timeout_seconds)
     && Number(check.timeout_seconds) >= 1 && Number(check.timeout_seconds) <= 3600);
+}
+
+// Compare contract values, independently of JSON object property order.
+function baselineIdentity(value: CompleteBaseline): string {
+  return JSON.stringify([baselineFields.map((field) => value[field]),
+    value.allowed_roots, value.protected_paths,
+    value.checks.map((check) => [check.name, check.command, check.args, check.timeout_seconds])]);
 }
 
 function feedback(value: unknown): boolean {
@@ -50,7 +58,8 @@ function operation(value: Partial<Initialization>): boolean {
 function confirmed(value: Partial<Initialization>): boolean {
   return value.status !== 'initialized' || Number(value.version) > 0
     && value.approved_version === value.version && value.approved_digest === value.digest
-    && baseline(value.approved_baseline);
+    && baseline(value.approved_baseline) && baseline(value.result?.baseline)
+    && baselineIdentity(value.approved_baseline) === baselineIdentity(value.result.baseline);
 }
 
 // Validate the versioned boundary before enabling Owner confirmation controls.

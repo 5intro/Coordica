@@ -23,7 +23,7 @@ class QualityIsolationTests(unittest.TestCase):
 from types import SimpleNamespace
 Path(__file__).with_name('shadow-imported').touch()
 DEVNULL = -3
-def check_output(*args, **kwargs): return 'a' * 40
+def check_output(*args, **kwargs): return 'b' * 40
 def run(*args, **kwargs): return SimpleNamespace(returncode=0)
 '''
             (scripts / 'subprocess.py').write_text(shadow)

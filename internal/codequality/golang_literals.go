@@ -74,7 +74,7 @@ func (m *metrics) goLiterals(f File, set *token.FileSet, root *ast.File) {
 		if !ok {
 			return true
 		}
-		start, end := set.Position(fn.Pos()).Line, set.Position(fn.End()).Line
+		start, end := m.lineAt(set.Position(fn.Pos()).Offset), m.lineAt(set.Position(fn.End()).Offset)
 		if end-start+1 <= MaxFunction {
 			return true
 		}

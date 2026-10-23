@@ -1,6 +1,30 @@
 package store
 
-import "coordica/internal/domain"
+import (
+	"database/sql"
+
+	"coordica/internal/domain"
+)
+
+// Historical activity can recover its exact input reference, but it cannot
+// prove the old process state. Never copy the current attempt's state into it.
+func LeaderActivityReference(tx *Tx, ref domain.LeaderExecutionRef, generation int64) (domain.LeaderExecutionRef, error) {
+	var low, high sql.NullInt64
+	err := tx.tx.QueryRowContext(tx.ctx, `SELECT MIN(input_version),MAX(input_version) FROM leader_activity
+ WHERE kind=? AND execution_id=? AND generation=?`, ref.Kind, ref.ID, generation).Scan(&low, &high)
+	if err != nil {
+		return ref, err
+	}
+	ref.Generation, ref.InputVersion = generation, 0
+	if !low.Valid {
+		return ref, domain.ErrNotFound
+	}
+	if low.Int64 != high.Int64 {
+		return ref, domain.Fail("activity_inconsistent", "历史活动的输入版本不一致")
+	}
+	ref.InputVersion = low.Int64
+	return ref, nil
+}
 
 // Project scalar metadata only: large pending plans and model output never
 // enter the activity inventory. Each execution kind has a fixed small bound.
