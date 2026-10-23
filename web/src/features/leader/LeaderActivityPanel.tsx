@@ -5,6 +5,7 @@ import { Status, time } from '../../components/ui';
 import { mergeActivity, useLeaderActivity, useLeaderHistory } from './useLeaderActivity';
 
 function executionTitle(execution: LeaderExecution) {
+  if (execution.state === 'history_only' || execution.state === 'history_unavailable') return '历史活动';
   if (execution.source_kind === 'scope_request') return '范围申请评估';
   return execution.ref.kind === 'initialization' ? '项目初始化' : execution.purpose === 'consultation'
     ? '咨询与建议' : execution.source_id ? '需求变更评估' : '目标规划';
