@@ -18,6 +18,7 @@ type backupRecords struct {
 	Runs               []domain.Run
 	PlanningRuns       []domain.PlanningRun
 	Supplements        []domain.TestSupplementPlan
+	Signoffs           []domain.AcceptanceSignoff
 	Intents            []domain.Intent
 }
 
@@ -40,7 +41,8 @@ func readBackupRecords(ctx context.Context, file string, sanitize bool) (backupR
 		}
 	}
 	rows, err := db.QueryContext(ctx, `SELECT kind,id,data FROM records WHERE kind IN
- ('artifact','candidate_artifact','candidate','run','intent','planning_run','task','test_supplement','test_supplement_digest')
+ ('artifact','candidate_artifact','candidate','run','intent','planning_run','task','test_supplement','test_supplement_digest',
+ 'acceptance_signoff','acceptance_signoff_revision')
  ORDER BY kind,id`)
 	if err != nil {
 		return result, err
@@ -103,8 +105,8 @@ func requiredBackupOIDs(records backupRecords) ([]gitops.OID, error) {
 			}
 		}
 	}
-	for _, plan := range records.Supplements {
-		if err := add(plan.Commit); err != nil {
+	for _, commit := range backupTestCommits(records) {
+		if err := add(commit); err != nil {
 			return nil, err
 		}
 	}
@@ -114,6 +116,17 @@ func requiredBackupOIDs(records backupRecords) ([]gitops.OID, error) {
 	}
 	sort.Slice(oids, func(i, j int) bool { return oids[i] < oids[j] })
 	return oids, nil
+}
+
+func backupTestCommits(records backupRecords) []string {
+	commits := []string{}
+	for _, plan := range records.Supplements {
+		commits = append(commits, plan.Commit)
+	}
+	for _, signoff := range records.Signoffs {
+		commits = append(commits, signoff.Commit)
+	}
+	return commits
 }
 
 func appendBackupRecord(result *backupRecords, kind, id string, b []byte) error {
@@ -164,6 +177,12 @@ func appendBackupRecord(result *backupRecords, kind, id string, b []byte) error 
 			return err
 		}
 		result.Supplements = append(result.Supplements, plan)
+	case "acceptance_signoff", "acceptance_signoff_revision":
+		var signoff domain.AcceptanceSignoff
+		if err = json.Unmarshal(b, &signoff); err != nil {
+			return err
+		}
+		result.Signoffs = append(result.Signoffs, signoff)
 	case "intent":
 		var in domain.Intent
 		if err = json.Unmarshal(b, &in); err != nil {

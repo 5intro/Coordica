@@ -11,14 +11,14 @@ import (
 	"coordica/internal/process"
 )
 
-func (c TestCatalog) requireSupplementCommit(ctx context.Context, commit gitops.OID) error {
-	g, ok := c.Service.Source.(*gitops.Client)
+func requireManagedCommit(ctx context.Context, s *Service, commit gitops.OID) error {
+	g, ok := s.Source.(*gitops.Client)
 	if !ok {
 		g = gitops.New("git")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	err := g.RequireCommit(ctx, filepath.Join(c.Service.Dir, "repository"), commit)
+	err := g.RequireCommit(ctx, filepath.Join(s.Dir, "repository"), commit)
 	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
 		errors.Is(err, process.ErrTreeNotStopped) || errors.Is(err, gitops.ErrUnsafeConfig) {
 		return err

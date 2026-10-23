@@ -93,7 +93,8 @@ it('manual-only gaps stay with the Owner instead of generating developer work', 
   const client = new ApiClient('owner');
   render(<CoverageDetails coverage={{ ...coverage, gaps: [{ criterion_id: 'once', case_id: '',
     reason: 'manual_required', action: 'owner_acceptance' }] }} client={client} refresh={vi.fn()} />);
-  expect(screen.getByRole('button', { name: '生成补测需求' })).toHaveProperty('disabled', true);
+  expect(screen.queryByRole('button', { name: '生成补测需求' })).toBeNull();
+  expect(screen.getByRole('region', { name: '人工验收' })).toBeTruthy();
 });
 
 it('retains supplement feedback after relationship refresh but fences content edits', async () => {

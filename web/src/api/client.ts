@@ -3,6 +3,7 @@ import { PlanningAnswers } from './planningAnswers';
 import { initializationReply } from './initialization';
 import { InitializationAnswers } from './initializationAnswers';
 import { InitializationPolicies } from './initializationPolicies';
+import { AcceptanceSignoffActions } from './acceptanceSignoffs';
 import type { Snapshot, Problem, ConversationInput, Initialization } from '../api.generated';
 
 export type PendingConsultation = { kind: 'consult' | 'propose'; body: ConversationInput; key: string };
@@ -15,6 +16,7 @@ export class ApiError extends Error {
 }
 
 export class ApiClient {
+  readonly acceptanceSignoffs = new AcceptanceSignoffActions();
   readonly planningAnswers = new PlanningAnswers();
   readonly initializationAnswers = new InitializationAnswers();
   readonly initializationPolicies = new InitializationPolicies();

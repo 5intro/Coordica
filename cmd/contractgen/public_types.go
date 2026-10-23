@@ -39,7 +39,8 @@ func publicTypes() []any {
 func publicTestCatalogTypes() []any {
 	return []any{domain.CriterionRef{}, domain.TestCase{}, domain.TestCaseSave{}, domain.TestCaseQuery{}, domain.TestCasePage{},
 		domain.AcceptanceCriterion{}, domain.AcceptancePlan{}, domain.AcceptanceSave{}, domain.TestCaseSummary{}, domain.CaseEvidence{},
-		domain.CriterionCoverage{}, domain.AcceptanceCoverage{}, domain.TestGap{}, domain.TestSupplementRequest{}, domain.TestSupplementPlan{}}
+		domain.CriterionCoverage{}, domain.AcceptanceCoverage{}, domain.TestGap{}, domain.TestSupplementRequest{}, domain.TestSupplementPlan{},
+		domain.AcceptanceSignoff{}, domain.AcceptanceSignoffRequest{}, domain.AcceptanceSignoffStatus{}}
 }
 
 func publicPreparationTypes() []any {

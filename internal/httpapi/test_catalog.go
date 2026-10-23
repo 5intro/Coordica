@@ -11,6 +11,7 @@ import (
 // Registered only on admin/shared loopback. The remote Runner and limited chat
 // surfaces cannot edit acceptance policy, test definitions or supplementary work.
 func registerTestCatalog(mux *http.ServeMux, s *Server) {
+	registerAcceptanceSignoffs(mux, s)
 	catalog := app.TestCatalog{Service: s.Service}
 	mux.HandleFunc("GET /api/v1/tests/acceptance/plan", s.auth("owner", func(w http.ResponseWriter, r *http.Request) {
 		if err := testQueryKeys(r, "requirement_id"); err != nil {
