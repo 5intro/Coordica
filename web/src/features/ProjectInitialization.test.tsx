@@ -14,6 +14,10 @@ describe('project initialization', () => {
     const client = new ApiClient('owner'); const write = vi.spyOn(client, 'write').mockResolvedValue(readyInitialization);
     const view = render(<ProjectInitialization snapshot={snapshot} client={client} refresh={() => undefined} />);
     const confirm = screen.getByRole('button', { name: '确认已审阅的共享基线' }); expect((confirm as HTMLButtonElement).disabled).toBe(true);
+    const checkbox = screen.getByRole('checkbox');
+    for (const evidence of [screen.getByText('源码分析与覆盖记录'), screen.getByText('Owner 配置实际检查政策')]) {
+      expect(evidence.compareDocumentPosition(checkbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
     fireEvent.click(screen.getByRole('checkbox')); expect((confirm as HTMLButtonElement).disabled).toBe(false); fireEvent.click(confirm);
     await waitFor(() => expect(write).toHaveBeenCalledWith('/initialization/confirm', { expected_version: 2, digest: 'b'.repeat(64) }));
     view.rerender(<ProjectInitialization snapshot={{ ...snapshot, initialization: { ...readyInitialization, version: 3, digest: 'd'.repeat(64) } }} client={client} refresh={() => undefined} />);
@@ -30,13 +34,34 @@ describe('project initialization', () => {
   });
 });
 
+it('shows input selection before analyzing an unclassified new repository', async () => {
+  const client = new ApiClient('owner');
+  const write = vi.spyOn(client, 'write').mockResolvedValue(readyInitialization);
+  render(<ProjectInitialization snapshot={{ ...snapshot, initialization: null }} client={client} refresh={() => undefined} />);
+  const selector = screen.getByLabelText(/项目输入类型/);
+  expect(selector.closest('details')).toHaveProperty('open', true);
+  fireEvent.change(selector, { target: { value: 'new' } });
+  fireEvent.click(screen.getByRole('button', { name: '打开项目并请求只读初始化' }));
+  await waitFor(() => expect(write).toHaveBeenCalledWith('/initialization/analyze', { expected_version: 0, kind: 'new' }));
+});
+
 it('keeps blank draft analyzable and makes actual Owner checks a separate policy action', async () => {
-  const client = new ApiClient('owner'); const write = vi.spyOn(client, 'write').mockResolvedValue(snapshot.project);
-  render(<ProjectInitialization snapshot={{ ...snapshot, project: { ...snapshot.project!, checks: [] }, initialization: { ...readyInitialization, status: 'draft' } }} client={client} refresh={() => undefined} />);
+  const client = new ApiClient('owner');
+  const checks = [{ name: 'Go tests', command: 'go', args: ['test', './...'], timeout_seconds: 600 }];
+  const write = vi.spyOn(client, 'write').mockResolvedValue({
+    ...snapshot.project, version: 2, policy_version: 2, checks,
+  });
+  render(<ProjectInitialization snapshot={{ ...snapshot,
+    project: { ...snapshot.project!, checks: [] },
+    initialization: { ...readyInitialization, status: 'draft' },
+  }} client={client} refresh={() => undefined} />);
   expect(screen.getByText(/当前尚无有效检查/)).toBeTruthy();
-  expect((screen.getByRole('button', { name: '打开项目并请求只读初始化' }) as HTMLButtonElement).disabled).toBe(false);
-  fireEvent.change(screen.getByLabelText(/实际检查 JSON/), { target: { value: JSON.stringify([{ name: 'Go tests', command: 'go', args: ['test', './...'], timeout_seconds: 600 }]) } });
+  expect(screen.getByRole('button', { name: '打开项目并请求只读初始化' })).toHaveProperty('disabled', false);
+  fireEvent.change(screen.getByLabelText(/实际检查 JSON/), { target: { value: JSON.stringify(checks) } });
   fireEvent.click(screen.getByRole('button', { name: '保存 Owner 检查政策' }));
-  await waitFor(() => expect(write).toHaveBeenCalledWith('/project/policy', { expected_version: 1, checks: [{ name: 'Go tests', command: 'go', args: ['test', './...'], timeout_seconds: 600 }], protected_paths: ['internal/app/**'] }));
+  await waitFor(() => expect(write).toHaveBeenCalledWith('/project/policy', {
+    expected_version: 1, checks, protected_paths: ['internal/app/**'],
+  }, expect.any(String)));
+  await waitFor(() => expect(client.initializationPolicies.read('project')).toBeUndefined());
   expect(write).not.toHaveBeenCalledWith('/initialization/confirm', expect.anything());
 });

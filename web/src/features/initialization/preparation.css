@@ -1,0 +1,31 @@
+.preparation-page {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.preparation-page > .panel,
+.preparation-page > .section-title {
+  margin: 0;
+}
+
+.preparation-page .detail-section {
+  margin-block: 0;
+  padding-block: 10px;
+  border: 0;
+}
+
+.preparation-page summary {
+  cursor: pointer;
+  line-height: 1.5;
+}
+
+.preparation-page .preserve-lines {
+  max-inline-size: 72ch;
+}
+
+.preparation-page code,
+.preparation-page .facts dd,
+.preparation-page .preserve-lines {
+  overflow-wrap: anywhere;
+}
