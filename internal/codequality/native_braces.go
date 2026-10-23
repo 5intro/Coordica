@@ -47,6 +47,8 @@ func nativeFunctionBody(text string, at int, ends map[int]int) int {
 
 func nativeFunctions(ctx context.Context, text, extension string, ends map[int]int) []nativeBlock {
 	var blocks []nativeBlock
+	seen := map[int]bool{}
+	headerEnd := 0
 	matches := nativeFunction.FindAllStringSubmatchIndex(text, -1)
 	keyword := extension == ".rs" || extension == ".swift" || extension == ".kt" || extension == ".php"
 	if !keyword {
@@ -56,6 +58,9 @@ func nativeFunctions(ctx context.Context, text, extension string, ends map[int]i
 		if ctx != nil && ctx.Err() != nil {
 			return nil
 		}
+		if match[0] < headerEnd {
+			continue
+		}
 		name, at := "anonymous", match[1]
 		if match[2] >= 0 {
 			name, at = text[match[2]:match[3]], match[3]
@@ -64,8 +69,15 @@ func nativeFunctions(ctx context.Context, text, extension string, ends map[int]i
 			continue
 		}
 		body := nativeFunctionBody(text, at, ends)
-		if close, ok := ends[body]; ok && body >= 0 {
+		if strings.Contains("|.cc|.cpp|.h|.hpp|", "|"+extension+"|") {
+			if constructor, ok := cppInitializerBody(text, at, ends); ok {
+				body = constructor
+			}
+		}
+		if close, ok := ends[body]; ok && body >= 0 && !seen[body] {
 			blocks = append(blocks, nativeBlock{name, match[0], body, close})
+			seen[body] = true
+			headerEnd = body
 		}
 	}
 	return blocks

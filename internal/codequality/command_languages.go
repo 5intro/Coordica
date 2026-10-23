@@ -16,6 +16,8 @@ func (m *metrics) commandSource(f File) {
 	text := maskedSource(f.Text, extension != ".scss", map[int]int{})
 	if extension == ".sh" {
 		text = maskedShell(f.Text)
+	} else if extension == ".ps1" {
+		text = maskedHashComments(f.Text, true)
 	}
 	ends := scriptPairs(text)
 	pattern := shellFunction

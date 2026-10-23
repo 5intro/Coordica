@@ -26,7 +26,7 @@ func (m *metrics) goSource(f File) error {
 	set := token.NewFileSet()
 	root, err := parser.ParseFile(set, f.Path, f.Text, 0)
 	if err != nil {
-		return fmt.Errorf("Go structural analysis %s: %w", f.Path, err)
+		return &SourceError{Cause: fmt.Errorf("Go structural analysis %s: %w", f.Path, err)}
 	}
 	for _, decl := range root.Decls {
 		if m.cancelled() {
