@@ -2,6 +2,21 @@ package codequality
 
 import "strings"
 
+func nativeAttributeCall(text, extension string, start int, ends map[int]int) bool {
+	if extension == ".java" {
+		at := start - 1
+		for at >= 0 && (scriptWord(text[at]) || text[at] == '.') {
+			at--
+		}
+		return at >= 0 && text[at] == '@'
+	}
+	if extension == ".cs" {
+		open := strings.LastIndexByte(text[:start], '[')
+		return open >= 0 && ends[open] > start
+	}
+	return false
+}
+
 func nativeDeclarationPrefix(text string, start int, ends map[int]int) bool {
 	begin := strings.LastIndexAny(text[:start], ";{}") + 1
 	for at := begin; at < start; at++ {

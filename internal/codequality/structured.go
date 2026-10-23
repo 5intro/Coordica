@@ -21,7 +21,7 @@ func (m *metrics) structuredSource(f File) {
 		m.nativeBraceSource(f)
 	case ".rb":
 		m.rubySource(f)
-	case ".sh", ".ps1", ".scss":
+	case ".sh", ".ps1", ".psm1", ".scss":
 		m.commandSource(f)
 	case ".html", ".vue", ".svelte":
 		m.embeddedSource(f)

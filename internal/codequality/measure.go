@@ -11,11 +11,13 @@ import (
 )
 
 type metrics struct {
-	ctx      context.Context
-	lines    []int
-	findings []Finding
-	methods  map[string][]Finding
-	partials map[string]*partialMeasurement
+	ctx         context.Context
+	lines       []int
+	findings    []Finding
+	methods     map[string][]Finding
+	partials    map[string]*partialMeasurement
+	rustModules map[string]rustModuleInfo
+	rustParts   []rustTypePart
 }
 
 func (m *metrics) add(file string, line int, rule, subject string, value, limit int) {
@@ -68,6 +70,7 @@ func measureInventory(ctx context.Context, files []File, baseline bool) ([]Findi
 		}
 	}
 	partialClassFindings(&m)
+	rustClassFindings(&m)
 	for key, methods := range m.methods {
 		if m.cancelled() {
 			return nil, ctx.Err()

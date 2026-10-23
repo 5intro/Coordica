@@ -16,7 +16,7 @@ func (m *metrics) commandSource(f File) {
 	text := maskedSource(f.Text, extension != ".scss", map[int]int{})
 	if extension == ".sh" {
 		text = maskedShell(f.Text)
-	} else if extension == ".ps1" {
+	} else if extension == ".ps1" || extension == ".psm1" {
 		text = maskedHashComments(f.Text, true)
 	}
 	ends := scriptPairs(text)
@@ -25,7 +25,7 @@ func (m *metrics) commandSource(f File) {
 		return
 	}
 	pattern := shellFunction
-	if extension == ".ps1" {
+	if extension == ".ps1" || extension == ".psm1" {
 		pattern = powerFunction
 	} else if extension == ".scss" {
 		pattern = scssFunction
@@ -44,13 +44,13 @@ func (m *metrics) commandSource(f File) {
 		}
 		m.blockFunction(f.Path, text, text[nameStart:nameEnd], match[0], body, ends)
 	}
-	if extension == ".ps1" {
+	if extension == ".ps1" || extension == ".psm1" {
 		m.powerClasses(f, text, ends)
 	}
 }
 
 func (m *metrics) powerClasses(f File, text string, ends map[int]int) {
-	functions := nativeFunctions(m.ctx, text, ".cs", ends)
+	functions := nativeFunctions(m.ctx, f.Text, text, ".cs", ends)
 	for _, match := range powerClass.FindAllStringSubmatchIndex(text, -1) {
 		if m.cancelled() {
 			return

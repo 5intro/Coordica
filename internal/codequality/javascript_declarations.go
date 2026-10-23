@@ -179,7 +179,7 @@ func (m *metrics) scriptMembers(f File, text, class string, open, end int, ends 
 			walked++
 		}
 		prefix := text[max(cursor, strings.LastIndex(text[:start], "\n")+1):start]
-		if depth != 0 || strings.Contains(prefix, "=") {
+		if depth != 0 || strings.Contains(prefix, "=") || nativeAttributeCall(text, ".java", start, ends) {
 			continue
 		}
 		nameEnd := match[3]
@@ -189,6 +189,9 @@ func (m *metrics) scriptMembers(f File, text, class string, open, end int, ends 
 			count++
 			m.scriptFunctionFinding(f, text, class+"."+name, start, body, close, ends)
 			seen[body] = true
+			cursor = close + 1
+		} else if close := scriptBodylessMemberEnd(text, nameEnd, end, ends); close >= 0 {
+			count++
 			cursor = close + 1
 		}
 	}
