@@ -13,7 +13,7 @@ func TestAnalysisErrorsDistinguishCandidateFromFrozenBaseline(t *testing.T) {
 		t.Fatal("candidate syntax defect lost its identity", err)
 	}
 	_, err = Regressions(bad, nil)
-	if err == nil || errors.As(err, &candidate) {
-		t.Fatal("baseline defect misclassified as a candidate repair", err)
+	if err != nil {
+		t.Fatal("deleting invalid baseline source must be permitted", err)
 	}
 }
