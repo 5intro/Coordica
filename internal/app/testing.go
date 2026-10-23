@@ -120,51 +120,14 @@ func (s *Service) StartVerification(ctx context.Context, a Actor, key string, in
 		if !suite.Enabled || !domain.TestPlatformAllowed(suite, runtime.GOOS) {
 			return nil, domain.Fail("conflict", "suite disabled or unavailable on this center platform")
 		}
-		ids := in.RequirementIDs
-		if len(ids) == 0 {
-			ids = suite.RequirementIDs
-		}
-		paths := []string{}
-		baseline, e := initialization(tx)
+		t, e := verificationTask(tx, s, in, suite)
 		if e != nil {
 			return nil, e
 		}
-		roots := baseline.ApprovedBaseline.AllowedRoots
-		goal, e := goalDocument(tx)
-		if e != nil {
+		if e = tx.Put("task", t.ID, t); e != nil {
 			return nil, e
 		}
-		if goal.Version != 0 {
-			roots = goal.AllowedRoots
-		}
-		for _, root := range roots {
-			if root == "." {
-				paths = append(paths, "**")
-			} else {
-				paths = append(paths, root+"/**")
-			}
-		}
-		for _, id := range ids {
-			var requirement domain.Requirement
-			if e := tx.Get("requirement", id, &requirement); e != nil {
-				return nil, domain.Fail("invalid_input", "unknown verification requirement")
-			}
-		}
-		t := domain.Task{ID: ID("task_"), Version: 1, Title: "验证 · " + suite.Name, Description: suite.Description, Acceptance: "Every configured check passes against the pinned commit with the process tree stopped", RequirementIDs: ids, AllowedPaths: paths, Tool: "program", State: "ready", ApprovedVersion: 1, AuthorizationVersion: 1, BudgetSeconds: in.BudgetSeconds, MaxRunSeconds: in.MaxRunSeconds, MaxRetries: in.MaxRetries, CreatedAt: s.Now(), Verification: &domain.VerificationSpec{Suite: suite, Commit: in.Commit, Digest: suiteDigest(suite)}}
-		t.RequirementRevisions, e = requirementBindings(tx, ids)
-		if e != nil {
-			return nil, e
-		}
-		if t.Description == "" {
-			t.Description = suite.Name
-		}
-		if e := domain.ValidateTask(t); e != nil {
-			return nil, e
-		}
-		if e := goalGate(tx, &t, true); e != nil {
-			return nil, e
-		}
-		if e := tx.Put("task", t.ID, t); e != nil {
+		if e = store.PinTestCatalog(tx, t.ID, suite.ID); e != nil {
 			return nil, e
 		}
 		return t, s.audit(tx, a, "tests.requested", t.ID, suite.ID+":"+in.Commit)

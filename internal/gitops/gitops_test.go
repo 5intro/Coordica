@@ -207,7 +207,7 @@ func TestSnapshotBundleAndFreshFetch(t *testing.T) {
 	if err != nil || got != later {
 		t.Fatalf("fetch used stale clone main %q %v", got, err)
 	}
-	if err = g.requireCommit(ctx, workspace, later); err != nil {
+	if err = g.RequireCommit(ctx, workspace, later); err != nil {
 		t.Fatal("fetch did not retain objects", err)
 	}
 }

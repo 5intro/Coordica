@@ -1,0 +1,32 @@
+.test-workspace > .segmented { margin-bottom: 24px; }
+.test-workspace .catalog-section { padding-block: 12px; }
+.test-workspace .testing-heading { align-items: center; margin-bottom: 22px; }
+.catalog-layout { display: grid; grid-template-columns: minmax(240px, .9fr) minmax(300px, 1.3fr); gap: 24px; align-items: start; }
+.catalog-list { list-style: none; padding: 0; margin: 0 0 20px; }
+.catalog-list > li { margin-bottom: 12px; }
+.catalog-item { display: grid; gap: 7px; width: 100%; text-align: left; padding: 18px; border-radius: 14px;
+  background: var(--surface); color: var(--ink); box-shadow: 0 5px 18px rgb(50 45 35 / 5%); }
+.catalog-item[aria-pressed="true"] { background: var(--selection); }
+.catalog-item span { font-weight: 400; font-size: .87rem; line-height: 1.5; }
+.catalog-item small, .catalog-detail small, .coverage-detail small { display: block; margin-top: 4px; color: var(--muted); }
+.catalog-detail { margin: 0; }
+.catalog-detail fieldset { display: grid; gap: 14px; }
+.catalog-detail .checkbox { align-items: start; }
+.catalog-links { list-style: none; padding: 0; }
+.catalog-links li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 8px; }
+.catalog-placeholder { padding: 24px; color: var(--muted); }
+.criterion-row h3 { margin: 0; }
+.criterion-row ul { padding-left: 20px; }
+.criterion-row li { padding: 5px 0; }
+.criterion-row a { margin-left: 14px; }
+.coverage-detail .supplement-preview li { display: grid; gap: 5px; margin-bottom: 16px; }
+.supplement-preview small { margin-top: 12px; }
+.acceptance-edit-row { display: grid; gap: 12px; padding-bottom: 16px; box-shadow: 0 1px 0 rgb(50 45 35 / 8%); }
+.test-legacy > .testing-center > .testing-heading > div > h1 { display: none; }
+.test-legacy[hidden] { display: none; }
+.test-workspace .testing-form { margin-bottom: 24px; }
+@media (max-width: 850px) {
+  .catalog-layout { grid-template-columns: minmax(0, 1fr); }
+  .catalog-placeholder { display: none; }
+  .test-workspace > .segmented { display: flex; flex-wrap: wrap; }
+}
