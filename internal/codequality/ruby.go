@@ -14,14 +14,24 @@ type rubyBlock struct {
 }
 
 func (m *metrics) rubySource(f File) {
-	text := maskedRuby(f.Text)
+	literals := map[int]int{}
+	text := maskedRubyLiterals(f.Text, literals)
+	pairs := scriptPairs(text)
+	for start, end := range literals {
+		pairs[start] = end
+	}
 	var stack []rubyBlock
+	skipUntil := -1
 	for line, source := range strings.Split(text, "\n") {
 		if m.cancelled() {
 			return
 		}
 		loop := false
 		for _, token := range rubyToken.FindAllStringIndex(source, -1) {
+			absolute := m.lines[line] + token[0]
+			if absolute <= skipUntil {
+				continue
+			}
 			word := source[token[0]:token[1]]
 			prefix := strings.TrimSpace(source[:token[0]])
 			if word == "end" {
@@ -41,19 +51,37 @@ func (m *metrics) rubySource(f File) {
 			loop = word == "while" || word == "until" || word == "for"
 			name := rubyName.FindString(strings.TrimSpace(source[token[1]:]))
 			if word == "def" {
-				for i := len(stack) - 1; i >= 0; i-- {
-					if stack[i].kind == "def" || stack[i].kind == "do" {
-						break
-					}
-					if stack[i].kind == "class" {
-						stack[i].methods++
-						break
-					}
+				rubyCountMethod(stack)
+				if end, ok := rubyEndlessEnd(m, f, text, m.lines[line]+token[1], pairs); ok {
+					m.add(f.Path, line+1, "function_lines", rubyScopedName(stack, name), m.lineAt(end)-line, MaxFunction)
+					skipUntil = end
+					continue
 				}
 			}
-			stack = append(stack, rubyBlock{kind: word, name: name, line: line + 1})
+			stack = append(stack, rubyBlock{kind: word, name: rubyScopedName(stack, name), line: line + 1})
 		}
 	}
+}
+
+func rubyCountMethod(stack []rubyBlock) {
+	for i := len(stack) - 1; i >= 0; i-- {
+		if stack[i].kind == "def" || stack[i].kind == "do" {
+			return
+		}
+		if stack[i].kind == "class" {
+			stack[i].methods++
+			return
+		}
+	}
+}
+
+func rubyScopedName(stack []rubyBlock, name string) string {
+	for i := len(stack) - 1; i >= 0; i-- {
+		if stack[i].kind == "class" || stack[i].kind == "module" || stack[i].kind == "def" {
+			return stack[i].name + "." + name
+		}
+	}
+	return name
 }
 
 func (m *metrics) rubyBlockFinding(file string, block rubyBlock, end int) {

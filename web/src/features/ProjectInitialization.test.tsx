@@ -14,6 +14,10 @@ describe('project initialization', () => {
     const client = new ApiClient('owner'); const write = vi.spyOn(client, 'write').mockResolvedValue(readyInitialization);
     const view = render(<ProjectInitialization snapshot={snapshot} client={client} refresh={() => undefined} />);
     const confirm = screen.getByRole('button', { name: '确认已审阅的共享基线' }); expect((confirm as HTMLButtonElement).disabled).toBe(true);
+    const checkbox = screen.getByRole('checkbox');
+    for (const evidence of [screen.getByText('源码分析与覆盖记录'), screen.getByText('Owner 配置实际检查政策')]) {
+      expect(evidence.compareDocumentPosition(checkbox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
     fireEvent.click(screen.getByRole('checkbox')); expect((confirm as HTMLButtonElement).disabled).toBe(false); fireEvent.click(confirm);
     await waitFor(() => expect(write).toHaveBeenCalledWith('/initialization/confirm', { expected_version: 2, digest: 'b'.repeat(64) }));
     view.rerender(<ProjectInitialization snapshot={{ ...snapshot, initialization: { ...readyInitialization, version: 3, digest: 'd'.repeat(64) } }} client={client} refresh={() => undefined} />);
@@ -28,6 +32,17 @@ describe('project initialization', () => {
     fireEvent.click(screen.getByRole('button', { name: '打开项目并请求只读初始化' }));
     await waitFor(() => expect(write).toHaveBeenCalledWith('/initialization/analyze', { expected_version: 2, kind: 'existing' }));
   });
+});
+
+it('shows input selection before analyzing an unclassified new repository', async () => {
+  const client = new ApiClient('owner');
+  const write = vi.spyOn(client, 'write').mockResolvedValue(readyInitialization);
+  render(<ProjectInitialization snapshot={{ ...snapshot, initialization: null }} client={client} refresh={() => undefined} />);
+  const selector = screen.getByLabelText(/项目输入类型/);
+  expect(selector.closest('details')).toHaveProperty('open', true);
+  fireEvent.change(selector, { target: { value: 'new' } });
+  fireEvent.click(screen.getByRole('button', { name: '打开项目并请求只读初始化' }));
+  await waitFor(() => expect(write).toHaveBeenCalledWith('/initialization/analyze', { expected_version: 0, kind: 'new' }));
 });
 
 it('keeps blank draft analyzable and makes actual Owner checks a separate policy action', async () => {

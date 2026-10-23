@@ -30,11 +30,11 @@ function ProjectPreparation({ snapshot, client, refresh }: Props) {
             <>
               <BaselineView current={current} />
               <InitializationInterview projectID={project.id} current={current} client={client} action={action} />
-              <InitializationConfirmation current={current} project={project} client={client} action={action} />
               <PreparationEvidence current={current} />
             </>
           )}
           <InitializationPolicy project={project} current={current} client={client} action={action} />
+          {current && <InitializationConfirmation current={current} project={project} client={client} action={action} />}
         </>
       )}
     </div>

@@ -11,12 +11,19 @@ import (
 
 // Clarification replies bind to the exact accepted Leader result as well as
 // its goal version. A new result for the same document invalidates old forms.
-func validatePlanningAnswer(document domain.PlanningDocument, request domain.PlanningMessageRequest) error {
+func validatePlanningAnswer(tx *store.Tx, document domain.PlanningDocument, request domain.PlanningMessageRequest) error {
 	if request.ReplyToRunID == "" && request.Question == "" {
 		return nil
 	}
 	if request.ReplyToRunID == "" || request.ReplyToRunID != document.LeaderRunID || document.LeaderResult == nil {
 		return domain.Fail("version_conflict", "Leader 问题已更新，请核对当前问题")
+	}
+	var source domain.PlanningRun
+	if err := tx.Get("planning_run", request.ReplyToRunID, &source); err != nil {
+		return err
+	}
+	if source.ScopeRequestID != "" || source.RequirementChangeID != "" || source.Purpose == domain.ConsultationPurpose {
+		return domain.Fail("version_conflict", "专项评估的问题必须在原评估流程中处理")
 	}
 	result := document.LeaderResult
 	if !slices.Contains(result.Clarifications, request.Question) && !slices.Contains(result.MissingItems, request.Question) {
@@ -53,7 +60,7 @@ func (s *Service) SchedulePlanning(ctx context.Context, a Actor, key string,
 			if e := version(d.Version, req.ExpectedVersion); e != nil {
 				return nil, e
 			}
-			if e := validatePlanningAnswer(d, req); e != nil {
+			if e := validatePlanningAnswer(tx, d, req); e != nil {
 				return nil, e
 			}
 			if pending, e := pendingGoalRequirementChange(tx, d); e != nil {
@@ -102,11 +109,16 @@ func (s *Service) SchedulePlanning(ctx context.Context, a Actor, key string,
 }
 
 func recordLeaderAnswer(tx *store.Tx, s *Service, r *domain.PlanningRun, d *domain.PlanningDocument) error {
+	r.State = "succeeded"
+	if r.ScopeRequestID != "" {
+		// Scope assessments retain their exact request and decision flow;
+		// they must never publish ordinary goal questions or answer bindings.
+		return nil
+	}
 	d.LeaderRunID = r.ID
 	d.LeaderResult = r.PendingResult
 	d.LeaderSession = r.SessionID
 	d.MissingItems = append(append(documentMissing(*d), r.PendingResult.MissingItems...), r.PendingResult.Clarifications...)
-	r.State = "succeeded"
 	m := domain.LeaderMessage{ID: ID("msg_"), DocumentVersion: d.Version, Role: "leader", Text: r.PendingResult.Reply, CreatedAt: s.Now()}
 	if e := tx.Put("leader_message", m.ID, m); e != nil {
 		return e

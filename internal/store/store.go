@@ -87,10 +87,21 @@ func (s *Store) transact(ctx context.Context, fn func(*Tx) error, notify bool) e
 		return err
 	}
 	defer tx.Rollback()
+	var before, after int64
+	if notify {
+		if err = tx.QueryRowContext(ctx, "SELECT total_changes()").Scan(&before); err != nil {
+			return err
+		}
+	}
 	if err = fn(&Tx{tx, ctx}); err != nil {
 		return err
 	}
-	if err = tx.Commit(); err == nil && notify {
+	if notify {
+		if err = tx.QueryRowContext(ctx, "SELECT total_changes()").Scan(&after); err != nil {
+			return err
+		}
+	}
+	if err = tx.Commit(); err == nil && notify && after != before {
 		close(s.changes)
 		s.changes = make(chan struct{})
 	}
@@ -123,7 +134,8 @@ func (t *Tx) Put(kind, id string, value any) error {
 	if err != nil {
 		return err
 	}
-	_, err = t.tx.ExecContext(t.ctx, "INSERT INTO records(kind,id,data) VALUES(?,?,?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data", kind, id, b)
+	_, err = t.tx.ExecContext(t.ctx, `INSERT INTO records(kind,id,data) VALUES(?,?,?)
+ ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data WHERE records.data IS NOT excluded.data`, kind, id, b)
 	return err
 }
 func (t *Tx) Delete(kind, id string) error {
