@@ -4,6 +4,8 @@ permissions:
   contents: read
 jobs:
   verify:
+    env:
+      GO_TEST_BATCH_PATTERN: '^Test[A-M]'
     strategy:
       fail-fast: false
       matrix:
@@ -39,7 +41,11 @@ jobs:
       - run: go run ./cmd/contractgen
       - run: git diff --exit-code -- api/v1.schema.json web/src/api.generated.ts
       - run: go vet ./...
-      # The Windows application regressions use real Git/process boundaries;
-      # allow the full package to finish while retaining the supervisor limits.
-      - run: python scripts/test-go.py -- -race -timeout=15m ./...
+      # Real Git/process boundaries make a single package slow on Windows.
+      # Complementary filters retain all tests, examples and fuzz seeds, with
+      # independent bounded deadlines and supervised cleanup for each batch.
+      - name: Go race tests (first batch)
+        run: python scripts/test-go.py -- -race -timeout=15m -skip '${{ env.GO_TEST_BATCH_PATTERN }}' ./...
+      - name: Go race tests (second batch)
+        run: python scripts/test-go.py -- -race -timeout=15m -run '${{ env.GO_TEST_BATCH_PATTERN }}' ./...
       - run: go build -trimpath -o bin/coordica ./cmd/coordica
