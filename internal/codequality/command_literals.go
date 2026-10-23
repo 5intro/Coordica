@@ -5,6 +5,7 @@ import "strings"
 // Shell '#' is a comment only at a token boundary, never the trim operator
 // inside ${...}. Keep expansion braces visible for the structural scan.
 func maskedShell(text string) string {
+	text = maskedShellDocuments(text)
 	out := []byte(text)
 	depth := 0
 	for at := 0; at < len(text); at++ {
@@ -13,7 +14,7 @@ func maskedShell(text string) string {
 			continue
 		}
 		if text[at] == '\'' || text[at] == '"' || text[at] == '`' {
-			at = scriptQuoteEnd(text, at) - 1
+			at = shellQuoteEnd(text, at) - 1
 			continue
 		}
 		if strings.HasPrefix(text[at:], "${") {

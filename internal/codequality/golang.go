@@ -41,10 +41,10 @@ func (m *metrics) goSource(f File) error {
 			receiver := receiverName(fn.Recv.List[0].Type)
 			name = receiver + "." + name
 			key := path.Dir(f.Path) + "/" + root.Name.Name + "/" + receiver
-			m.methods[key] = append(m.methods[key], Finding{Path: f.Path, Line: set.Position(fn.Pos()).Line})
+			m.methods[key] = append(m.methods[key], Finding{Path: f.Path, Line: m.lineAt(set.Position(fn.Pos()).Offset)})
 		}
 		if fn.Body != nil {
-			start, end := set.Position(fn.Pos()).Line, set.Position(fn.End()).Line
+			start, end := m.lineAt(set.Position(fn.Pos()).Offset), m.lineAt(set.Position(fn.End()).Offset)
 			m.add(f.Path, start, "function_lines", name, end-start+1, MaxFunction)
 		}
 	}

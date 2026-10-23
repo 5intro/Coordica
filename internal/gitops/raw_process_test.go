@@ -24,6 +24,8 @@ func TestMain(m *testing.M) {
 	switch mode {
 	case "source-batch-forward":
 		os.Exit(forwardSourceGit())
+	case "source-manifest-long":
+		os.Exit(longSourceManifestGit())
 	case "snapshot-index-failure", "snapshot-index-cancel":
 		if rawGitHelperArgument("diff-index") >= 0 {
 			if mode == "snapshot-index-cancel" {

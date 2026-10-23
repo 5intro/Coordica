@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-var classBlock = regexp.MustCompile(`\bclass(?:\s+([A-Za-z_$][\w$]*))?[^;{}]*\{`)
+var classBlock = regexp.MustCompile(`\bclass(?:\s+([A-Za-z_$][\w$]*))?`)
 var pythonDeclaration = regexp.MustCompile(`^(?:async\s+)?(class|def)\s+([A-Za-z_]\w*)`)
 
 func (m *metrics) structuredSource(f File) {
