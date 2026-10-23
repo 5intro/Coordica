@@ -1,5 +1,5 @@
 import { SOURCE_VERSION } from './api.generated';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ApiClient, messageOf } from './api/client';
 import { LocalClient } from './api/localClient';
 import type { LocalInfo } from './api/localClient';
@@ -10,14 +10,14 @@ import { useConnectionInfo } from './hooks/useConnectionInfo';
 import { Login, TOKEN_KEY } from './features/Login';
 import { ProjectInitialization } from './features/ProjectInitialization';
 import { ProjectSetup } from './features/ProjectSetup';
-import { Planning } from './features/Planning';
+import { Planning } from './features/leader/LeaderWorkspace';
 import { Automation } from './features/Automation';
 import { Overview } from './features/Overview';
 import { Requirements } from './features/Requirements';
 import { Tasks } from './features/Tasks';
 import { Agents } from './features/Agents';
 import { Blocks } from './features/Blocks';
-import { routeEvent } from './hooks/useRouteField';
+import { useWorkspaceRoute } from './hooks/useWorkspaceRoute';
 import { Testing } from './features/Testing';
 import { Runs } from './features/Runs';
 import { Candidates } from './features/Candidates';
@@ -25,7 +25,7 @@ import { Audit } from './features/Audit';
 import { Settings } from './features/Settings';
 import { ConnectionSettings } from './features/ConnectionSettings';
 import { RunnerWorkspace } from './features/RunnerWorkspace';
-import { GlassDock, type DockItem } from './components/material/GlassDock';
+import { SettingsNavigation, WorkspaceDock } from './features/WorkspaceNavigation';
 import { DetailPanel } from './components/material/DetailPanel';
 import { Icon } from './components/material/icons';
 import { RequirementComposer } from './features/RequirementComposer';
@@ -35,31 +35,15 @@ export type Page = 'initialization' | 'planning' | 'automation' | 'blocks' | 'ag
 const pages: { id: Page; label: string; number: string }[] = [
   { id: 'testing', label: '测试中心', number: '' },
   { id: 'initialization', label: '项目准备', number: '00' },
-  { id: 'planning', label: '目标规划与 Leader', number: 'B1' }, { id: 'automation', label: '系统自动化', number: 'B2' },
+  { id: 'planning', label: 'Leader 对话追踪', number: 'B1' }, { id: 'automation', label: '系统自动化', number: 'B2' },
   { id: 'overview', label: '项目概览', number: '01' }, { id: 'requirements', label: '需求池', number: '02' },
   { id: 'tasks', label: '任务池', number: '03' }, { id: 'runs', label: '运行与节点', number: '04' },
   { id: 'blocks', label: '阻断池', number: '09' }, { id: 'agents', label: 'Agent 管理', number: '10' },
   { id: 'candidates', label: '集成候选', number: '05' }, { id: 'audit', label: '审计记录', number: '06' },
   { id: 'settings', label: '政策与恢复', number: '07' }, { id: 'connection', label: '中心配置与接入', number: '08' },
 ];
-const managementPages: { id: Page; label: string }[] = [
-  { id: 'settings', label: '项目' }, { id: 'automation', label: '系统' }, { id: 'connection', label: '接入' },
-  { id: 'initialization', label: '项目准备' }, { id: 'planning', label: 'Leader 规划与咨询' },
-  { id: 'runs', label: '运行与恢复' }, { id: 'audit', label: '审计记录' },
-];
-const dockPages: DockItem[] = [
-  { id: 'overview', name: '总览', icon: 'home' }, { id: 'requirements', name: '需求池', icon: 'idea' },
-  { id: 'tasks', name: '任务池', icon: 'task' }, { id: 'candidates', name: '审查池', icon: 'review' },
-  { id: 'blocks', name: '阻断池', icon: 'block' }, { id: 'agents', name: 'Agent 管理', icon: 'agents' },
-  { id: 'testing', name: '测试中心', icon: 'test' }, { id: 'settings', name: '设置', icon: 'settings' },
-];
-const dockAppearance = { motion: true, refraction: true };
-function hashFocus() { return new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('id') ?? undefined; }
 function storedToken() { try { return sessionStorage.getItem(TOKEN_KEY) ?? ''; } catch { return ''; } }
-function hashPage(): Page | undefined {
-  const hash = window.location.hash.replace(/^#\/?/, '').split('?')[0];
-  return pages.find((item) => item.id === hash)?.id;
-}
+
 
 export function App() {
   const [info, setInfo] = useState<LocalInfo>();
@@ -92,49 +76,7 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
   const client = useMemo(() => new ApiClient(token), [token]);
   const { snapshot, error, updatedAt, loading, refresh } = useSnapshot(client);
   const connection = useConnectionInfo(client);
-  const [page, setPage] = useState<Page>(() => hashPage() ?? 'overview');
-  const [focusId, setFocusId] = useState<string | undefined>(hashFocus);
-  const [visited, setVisited] = useState<Set<Page>>(() => new Set([hashPage() ?? 'overview']));
-  const positions = useRef<Partial<Record<Page, number>>>({});
-  const currentPage = useRef(page);
-  const locations = useRef<Partial<Record<Page, string>>>({ [page]: window.location.hash });
-  useEffect(() => {
-    let frame: number | undefined;
-    function change() {
-      if (frame !== undefined) cancelAnimationFrame(frame);
-      const next = hashPage() ?? 'overview';
-      locations.current[next] = window.location.hash;
-      currentPage.current = next;
-      setPage(next); setFocusId(hashFocus());
-      setVisited((previous) => new Set([...previous, next]));
-      frame = requestAnimationFrame(() => window.scrollTo({ top: window.history.state?.scroll ?? positions.current[next] ?? 0, behavior: 'auto' }));
-    }
-    function remember() {
-      positions.current[currentPage.current] = window.scrollY;
-      window.history.replaceState({ ...window.history.state, scroll: window.scrollY }, '');
-    }
-    for (const event of ['hashchange', 'popstate', routeEvent]) window.addEventListener(event, change);
-    window.addEventListener('scroll', remember, { passive: true });
-    return () => {
-      for (const event of ['hashchange', 'popstate', routeEvent]) window.removeEventListener(event, change);
-      window.removeEventListener('scroll', remember);
-      if (frame !== undefined) cancelAnimationFrame(frame);
-    };
-  }, []);
-  function navigate(next: Page, id?: string) {
-    positions.current[page] = window.scrollY;
-    window.history.replaceState({ ...window.history.state, scroll: window.scrollY }, '');
-    const hash = !id && locations.current[next] ? locations.current[next]! : `#${next}${id ? `?id=${encodeURIComponent(id)}` : ''}`;
-    if (window.location.hash !== hash) window.history.pushState({ scroll: positions.current[next] ?? 0 }, '', hash);
-    // The dock can be clicked before the first passive route listener mounts.
-    // Apply local navigation immediately; the event still restores URL fields
-    // and scroll through the same shell path used by browser history.
-    currentPage.current = next;
-    locations.current[next] = hash;
-    setPage(next); setFocusId(hashFocus());
-    setVisited((previous) => new Set([...previous, next]));
-    window.dispatchEvent(new Event(routeEvent));
-  }
+  const { page, focusId, visited, navigate } = useWorkspaceRoute(pages);
   const [composer, setComposer] = useState(false);
   const [requirementNotice, setRequirementNotice] = useState('');
   const [searching, setSearching] = useState(false);
@@ -151,9 +93,7 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
     <div className="main-shell">
       <main id="main-content" tabIndex={-1}>
         {(error || loading) && <div className="workspace-status"><span>{error ? '中心连接异常' : loading ? '正在连接中心' : '中心已连接'} · {updatedAt ? time(updatedAt) : '等待快照'}</span></div>}
-        {['settings', 'automation', 'connection', 'initialization', 'planning', 'audit', 'runs'].includes(page) && <nav className="settings-switch" aria-label="管理与设置">{managementPages.slice(0, 3).map((item) => <button key={item.id} aria-current={page === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}>{item.label}</button>)}</nav>}
-        {page === 'settings' && <nav className="settings-group settings-links" aria-label="更多项目设置">{managementPages.slice(3).map((item) => <button className="settings-row text-button" key={item.id} onClick={() => navigate(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}</nav>}
-        {managementPages.slice(3).some((item) => item.id === page) && <button className="text-button" onClick={() => navigate('settings')}>返回设置</button>}
+        <SettingsNavigation page={page} navigate={navigate} />
         <Feedback notice={requirementNotice} error={error ? `${error}${snapshot ? ' 当前显示上次成功取得的状态。' : ''}` : ''} />
         {page === 'connection' ? <ConnectionSettings client={client} {...connection} project={project} openPolicies={() => navigate('settings')} />
           : !snapshot ? <div className="panel connection-panel"><Empty title={loading ? '正在读取中心状态' : '尚未取得中心状态'}>{loading ? '仅显示服务端实际记录。' : '确认 owner token 与中心连接后重试。'}</Empty>{!loading && <div className="actions"><button className="primary" onClick={refresh}>重新连接</button><button className="secondary" onClick={logout}>更换凭据</button></div>}</div>
@@ -176,7 +116,7 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
         <footer className="workbench-footer"><span>Coordica {SOURCE_VERSION}</span>{!error && !loading && <span>中心已连接 · {updatedAt ? time(updatedAt) : '等待快照'}</span>}<button className="text-button" onClick={() => { refresh(); connection.reload(); }} aria-label="刷新中心状态">刷新状态</button>{runnerURL && <a className="text-button" href={`${runnerURL}/`}>本机 Runner ↗</a>}<button className="text-button" onClick={logout}>断开工作台</button></footer>
       </main>
     </div>
-    <GlassDock label="工作台页面" items={dockPages} active={managementPages.some((entry) => entry.id === page) ? 'settings' : page} onSelect={(id) => navigate(id as Page)} appearance={dockAppearance}/>
+    <WorkspaceDock page={page} navigate={navigate} />
     {composer && <DetailPanel title="新需求" onClose={() => setComposer(false)}><h2>新需求</h2><RequirementComposer client={client} refresh={refresh} onSaved={() => { setComposer(false); setRequirementNotice('需求已记录。'); }}/></DetailPanel>}
     {searching && snapshot && <WorkspaceSearch snapshot={snapshot} onClose={() => setSearching(false)} navigate={(page,id) => { setSearching(false); navigate(page,id); }}/>}
   </div>;

@@ -1,3 +1,4 @@
+import { LeaderEntry } from './leader/LeaderEntry';
 import { activeRequirement } from './requirementState';
 import { reasonLabel } from '../components/ui';
 import { useId, useState, type ReactNode } from 'react';
@@ -67,6 +68,7 @@ export function Overview({ snapshot, navigate, onNewRequirement }: { snapshot: S
   const cancelled = tasks.filter((task) => task.state === 'cancelled').length;
   return <div className="overview">
     <header className="overview-header"><div><h1>{project.name}</h1><div className="overview-progress"><Status value={project.paused ? 'paused' : 'ready'} /><span>{completed}/{tasks.length - cancelled} 已完成</span>{snapshot.planning_document?.objective && <button className="text-button" aria-expanded={expandedGoal} aria-controls={goalId} onClick={() => setExpandedGoal(!expandedGoal)}>{expandedGoal ? '收起目标' : '展开目标'}</button>}</div><p id={goalId} hidden={!expandedGoal} className="overview-objective">{snapshot.planning_document?.objective || '尚未记录目标'}</p></div><div className="overview-header-actions"><a href="#requirements" aria-label="提交需求" onClick={(event) => { event.preventDefault(); if (onNewRequirement) onNewRequirement(); else navigate('requirements', undefined); }}><Icon name="plus" size={16}/>新需求</a></div></header>
+    <LeaderEntry snapshot={snapshot} />
     {todos.length > 0 && <section className="overview-todos" aria-label="人工待办"><div className="overview-todo-heading"><Icon name="block" size={23}/><h2>需要你处理 <span>{todos.length}</span></h2>{todos.length > 1 && <button className="text-button" onClick={() => setShowTodos(true)}>查看全部</button>}</div><ul>{todos.slice(0,1).map(row)}</ul></section>}
     <div className="overview-workspace"><div className="overview-pools">{[pools.slice(0,2),pools.slice(2)].map((pair,rowIndex) => <PoolRow row={rowIndex} count={Math.max(...pair.map((pool) => pool.entries.length))} key={rowIndex}>{pair.map((pool) => <section className="overview-pool-group" key={pool.page} aria-label={pool.title}><header><h2>{link(pool.page,pool.title)} <span aria-label={`${pool.title}活动总数`}>{pool.entries.length}</span></h2></header><div className="overview-pool pool-well">{pool.entries.length ? <ul>{pool.entries.map(row)}</ul> : <p className="overview-empty">{pool.empty}</p>}</div></section>)}</PoolRow>)}</div>
       <aside className="overview-hosts" aria-label="主机运行动态"><header><h2>此刻的协作</h2>{link('agents', '管理主机')}</header>{hosts.length ? hosts.slice(0,3).map(({ id, node }) => {

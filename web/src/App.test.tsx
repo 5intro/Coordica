@@ -158,6 +158,7 @@ it.each([['same-page', 'consult'], ['away-and-back', 'consult'], ['same-page', '
   vi.spyOn(LocalClient.prototype, 'info').mockResolvedValue({ mode: 'center' });
   const snapshot = vi.spyOn(ApiClient.prototype, 'snapshot').mockResolvedValue(centerSnapshot);
   vi.spyOn(ApiClient.prototype, 'read').mockResolvedValue(connectionInfo);
+  vi.spyOn(ApiClient.prototype, 'followLeader').mockResolvedValue();
   const accepted: { body: string; key: string }[] = [];
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, options) => {
     accepted.push({ body: options!.body as string, key: (options!.headers as Record<string, string>)['Idempotency-Key'] });
@@ -172,8 +173,7 @@ it.each([['same-page', 'consult'], ['away-and-back', 'consult'], ['same-page', '
     fireEvent.click(screen.getByRole('button', { name: /任务池/ }));
     await screen.findByRole('heading', { name: '任务池' });
   }
-  if (!screen.queryByRole('button', { name: 'Leader 规划与咨询' })) fireEvent.click(screen.getByRole('button', { name: '设置' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Leader 规划与咨询' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Leader 活动' }));
   expect(await screen.findByLabelText('纯咨询内容')).toHaveProperty('value', 'Keep this exact private question');
   expect(screen.getByLabelText('纯咨询内容')).toHaveProperty('disabled', true);
   fireEvent.click(screen.getByRole('button', { name: '重试待确认咨询请求' }));

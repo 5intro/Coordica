@@ -1,3 +1,5 @@
+import { followActivity } from './leaderActivity';
+import { PlanningAnswers } from './planningAnswers';
 import { initializationReply } from './initialization';
 import { InitializationAnswers } from './initializationAnswers';
 import { InitializationPolicies } from './initializationPolicies';
@@ -13,6 +15,7 @@ export class ApiError extends Error {
 }
 
 export class ApiClient {
+  readonly planningAnswers = new PlanningAnswers();
   readonly initializationAnswers = new InitializationAnswers();
   readonly initializationPolicies = new InitializationPolicies();
   private readonly uncertainWrites = new Map<string, string>();
@@ -120,6 +123,10 @@ export class ApiClient {
     const value = initializationReply(await this.read<unknown>('/initialization', signal));
     if (!value) throw new ApiError('incompatible_response', '初始化契约不兼容。');
     return value;
+  }
+
+  followLeader(after: number, signal: AbortSignal, receive: Parameters<typeof followActivity>[3]) {
+    return followActivity(this.token, after, signal, receive);
   }
 
   export(): Promise<Snapshot> { return this.request<Snapshot>('/export'); }

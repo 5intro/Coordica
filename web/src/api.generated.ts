@@ -358,6 +358,7 @@ export interface AutomationRequest {
   settings: AutomationSettings;
 }
 export interface PlanningDocument {
+  leader_run_id?: string;
   approved_authorization_version: number;
   version: number;
   authorization_version: number;
@@ -403,6 +404,8 @@ export interface LeaderMessage {
   created_at: string;
 }
 export interface PlanningMessageRequest {
+  reply_to_run_id?: string;
+  question?: string;
   expected_version: number;
   text: string;
 }
@@ -1013,4 +1016,43 @@ export interface RequirementPlan {
   updates: (RequirementTaskUpdate)[] | null;
   tasks: (RequirementNewTask)[] | null;
   major_decisions: (MajorDecisionProposal)[] | null;
+}
+export interface LeaderExecutionRef {
+  kind: string;
+  id: string;
+  generation: number;
+  input_version: number;
+}
+export interface LeaderExecution {
+  ref: LeaderExecutionRef;
+  version: number;
+  purpose: string;
+  source_id: string;
+  source_kind?: string;
+  state: string;
+  tree_stopped: boolean;
+  settled: boolean;
+}
+export interface LeaderActivityEvent {
+  sequence: number;
+  execution: LeaderExecutionRef;
+  key: string;
+  kind: string;
+  text: string;
+  time: string;
+}
+export interface LeaderActivityPage {
+  version: number;
+  events: (LeaderActivityEvent)[] | null;
+  executions: (LeaderExecution)[] | null;
+  cursor: number;
+  oldest: number;
+  truncated: boolean;
+  has_more: boolean;
+  queried_at: string;
+}
+export interface PlanningAnswerReceipt {
+  reply_to_run_id: string;
+  run: PlanningRun;
+  message: LeaderMessage;
 }

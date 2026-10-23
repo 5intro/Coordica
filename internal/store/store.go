@@ -19,8 +19,9 @@ import (
 // Store serializes transactions in this single-center application. SQLite also
 // enforces uniqueness; a second writer cannot bypass idempotency constraints.
 type Store struct {
-	db *sql.DB
-	mu sync.Mutex
+	db      *sql.DB
+	mu      sync.Mutex
+	changes chan struct{}
 }
 type Tx struct {
 	tx  *sql.Tx
@@ -39,7 +40,7 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	s := &Store{db: db}
+	s := &Store{db: db, changes: make(chan struct{})}
 	_, err = db.Exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
  CREATE TABLE IF NOT EXISTS schema_version(version INTEGER NOT NULL);
  INSERT INTO schema_version SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM schema_version);
@@ -47,6 +48,9 @@ func Open(path string) (*Store, error) {
  CREATE TABLE IF NOT EXISTS audit(sequence INTEGER PRIMARY KEY AUTOINCREMENT,data BLOB NOT NULL);
  CREATE TABLE IF NOT EXISTS idempotency(actor TEXT NOT NULL,key TEXT NOT NULL,digest TEXT NOT NULL,response BLOB NOT NULL,PRIMARY KEY(actor,key));
  CREATE TABLE IF NOT EXISTS outbox(id INTEGER PRIMARY KEY AUTOINCREMENT,kind TEXT NOT NULL,object_id TEXT NOT NULL,delivered INTEGER NOT NULL DEFAULT 0);`)
+	if err == nil {
+		err = initializeLeaderActivity(db)
+	}
 	if err != nil {
 		db.Close()
 		return nil, err
@@ -73,6 +77,9 @@ func Open(path string) (*Store, error) {
 }
 func (s *Store) Close() error { return s.db.Close() }
 func (s *Store) Update(ctx context.Context, fn func(*Tx) error) error {
+	return s.transact(ctx, fn, true)
+}
+func (s *Store) transact(ctx context.Context, fn func(*Tx) error, notify bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -80,12 +87,37 @@ func (s *Store) Update(ctx context.Context, fn func(*Tx) error) error {
 		return err
 	}
 	defer tx.Rollback()
+	var before, after int64
+	if notify {
+		if err = tx.QueryRowContext(ctx, "SELECT total_changes()").Scan(&before); err != nil {
+			return err
+		}
+	}
 	if err = fn(&Tx{tx, ctx}); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if notify {
+		if err = tx.QueryRowContext(ctx, "SELECT total_changes()").Scan(&after); err != nil {
+			return err
+		}
+	}
+	if err = tx.Commit(); err == nil && notify && after != before {
+		close(s.changes)
+		s.changes = make(chan struct{})
+	}
+	return err
 }
-func (s *Store) View(ctx context.Context, fn func(*Tx) error) error { return s.Update(ctx, fn) }
+func (s *Store) View(ctx context.Context, fn func(*Tx) error) error {
+	return s.transact(ctx, fn, false)
+}
+
+// Subscribe before reading so a committed change cannot be missed between
+// a bounded query and waiting. Read-only transactions never wake subscribers.
+func (s *Store) Changes() <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.changes
+}
 func (t *Tx) Get(kind, id string, out any) error {
 	var data []byte
 	err := t.tx.QueryRowContext(t.ctx, "SELECT data FROM records WHERE kind=? AND id=?", kind, id).Scan(&data)
@@ -102,7 +134,8 @@ func (t *Tx) Put(kind, id string, value any) error {
 	if err != nil {
 		return err
 	}
-	_, err = t.tx.ExecContext(t.ctx, "INSERT INTO records(kind,id,data) VALUES(?,?,?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data", kind, id, b)
+	_, err = t.tx.ExecContext(t.ctx, `INSERT INTO records(kind,id,data) VALUES(?,?,?)
+ ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data WHERE records.data IS NOT excluded.data`, kind, id, b)
 	return err
 }
 func (t *Tx) Delete(kind, id string) error {

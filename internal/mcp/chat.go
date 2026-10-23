@@ -44,44 +44,13 @@ func (s Chat) Call(ctx context.Context, name string, args json.RawMessage) (stri
 const chatRejected = "Chat request rejected; refresh versions, check input and credential, or contact the Owner."
 
 func (s Chat) call(ctx context.Context, name string, raw json.RawMessage) (json.RawMessage, error) {
+	if name == "read_leader_activity" || name == "get_project_initialization" || name == "open_project" || name == "answer_project_initialization" {
+		return callPreparation(ctx, s.API, name, raw)
+	}
 	decode := func(v any) error { return jsoninput.Decode(raw, v, 32<<10) }
 	var path, key string
 	var input any
 	switch name {
-	case "get_project_initialization":
-		var v struct{}
-		if e := decode(&v); e != nil {
-			return nil, e
-		}
-		return s.API.Do(ctx, "GET", "/api/v1/chat/initialization", "", nil)
-	case "open_project":
-		var v struct {
-			domain.InitializationRequest
-			Key string `json:"idempotency_key"`
-		}
-		if e := decode(&v); e != nil {
-			return nil, e
-		}
-		if e := jsoninput.Required(raw, "expected_version", "kind", "idempotency_key"); e != nil {
-			return nil, e
-		}
-		path = "initialization/analyze"
-		key = v.Key
-		input = v.InitializationRequest
-	case "answer_project_initialization":
-		var v struct {
-			domain.InitializationAnswer
-			Key string `json:"idempotency_key"`
-		}
-		if e := decode(&v); e != nil {
-			return nil, e
-		}
-		if e := jsoninput.Required(raw, "expected_version", "question_id", "original_text", "source", "idempotency_key"); e != nil {
-			return nil, e
-		}
-		path = "initialization/answer"
-		key = v.Key
-		input = v.InitializationAnswer
 	case "get_project_overview":
 		var v struct{}
 		if e := decode(&v); e != nil {
@@ -193,6 +162,7 @@ func chatTools() []any {
 	for _, name := range []string{"consult_leader", "propose_change"} {
 		tools = append(tools, tool(name, "Queue an asynchronous advisory request. Relay is never Owner approval. Use expected_goal_version 0 when absent; adopt through Owner flows.", map[string]any{"expected_goal_version": map[string]any{"type": "integer", "minimum": 0}, "original_text": str(16384), "assistant_summary": str(4096), "source": source, "reply_to": str(128), "idempotency_key": str(200)}, []string{"expected_goal_version", "original_text", "source", "idempotency_key"}))
 	}
+	tools = append(tools, leaderActivityTool())
 	return append(tools, tool("cancel_consultation", "Request cancellation of your own consultation or proposal; wait for central stop evidence.", map[string]any{"id": str(128), "expected_version": map[string]any{"type": "integer", "minimum": 1}, "idempotency_key": str(200)}, []string{"id", "expected_version", "idempotency_key"}))
 }
 
@@ -205,7 +175,9 @@ func chatToolsForScope(scope string) []any {
 	for _, t := range tools {
 		v := t.(map[string]any)
 		name, _ := v["name"].(string)
-		if name == "get_project_initialization" || name == "open_project" || name == "answer_project_initialization" || name == "get_consultation" || name == "consult_leader" || name == "propose_change" || name == "cancel_consultation" {
+		switch name {
+		case "get_project_initialization", "open_project", "answer_project_initialization", "get_consultation",
+			"consult_leader", "propose_change", "cancel_consultation", "read_leader_activity":
 			continue
 		}
 		if name == "list_project_items" || name == "get_project_item" {
