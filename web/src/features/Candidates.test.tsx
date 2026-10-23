@@ -76,8 +76,10 @@ describe('candidate progress visibility', () => {
       fireEvent.click(screen.getByRole('button', { name: '进行中' }));
       expect(list.getByRole('button').getAttribute('aria-pressed')).toBe('false');
       expect(screen.getByRole('link', { name: '审查永久链接' }).getAttribute('href')).toBe('#candidates?id=old');
+      expect(screen.getByText(/此详情不在当前筛选范围/)).toBeTruthy();
       window.history.replaceState({}, '', '#candidates?id=old&filter=history');
       fireEvent(window, new PopStateEvent('popstate'));
+      expect(screen.queryByText(/此详情不在当前筛选范围/)).toBeNull();
       expect(list.getByRole('button').getAttribute('aria-pressed')).toBe('true');
     } finally {
       window.history.replaceState({}, '', '/');
