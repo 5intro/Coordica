@@ -77,7 +77,7 @@ func Included(name string) bool {
 	switch strings.ToLower(path.Ext(name)) {
 	case ".go", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".py",
 		".java", ".cs", ".rs", ".c", ".cc", ".cpp", ".h", ".hpp", ".swift",
-		".kt", ".rb", ".php", ".css", ".scss", ".html", ".vue", ".svelte", ".sh", ".ps1":
+		".kt", ".rb", ".php", ".css", ".scss", ".html", ".vue", ".svelte", ".sh", ".ps1", ".psm1":
 		return true
 	}
 	return false
