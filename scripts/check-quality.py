@@ -43,6 +43,8 @@ def main():
         head = subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=root, text=True, timeout=10
         ).strip()
+        if base == head:
+            raise SystemExit("CI requires a different trusted baseline; refusing to compare HEAD with itself")
         command += ["--candidate", head]
     else:
         command += ["--working-tree"]

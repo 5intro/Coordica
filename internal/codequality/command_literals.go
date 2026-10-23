@@ -36,6 +36,10 @@ func maskedShell(text string) string {
 }
 
 func maskedRuby(text string) string {
+	return maskedRubyLiterals(text, nil)
+}
+
+func maskedRubyLiterals(text string, literals map[int]int) string {
 	out := []byte(text)
 	for at := 0; at < len(text); {
 		start, end := at, at
@@ -59,6 +63,12 @@ func maskedRuby(text string) string {
 		}
 		if end > start {
 			scriptBlank(out, start, end)
+			if text[start] != '#' {
+				out[start] = '0'
+				if literals != nil {
+					literals[start] = end - 1
+				}
+			}
 			at = end
 		} else {
 			at++
