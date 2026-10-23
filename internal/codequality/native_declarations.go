@@ -22,16 +22,8 @@ func nativeDeclarationPrefix(text string, start int, ends map[int]int) bool {
 }
 
 func nativeDeclarationEnd(text string, at int, ends map[int]int) int {
-	at = scriptSpace(text, at)
-	if at < len(text) && text[at] == '<' {
-		at = scriptTypeArguments(text, at, ends)
-		if at < 0 {
-			return -1
-		}
-		at = scriptSpace(text, at)
-	}
-	close, ok := ends[at]
-	if !ok || text[at] != '(' {
+	close := nativeParameterClose(text, at, ends)
+	if close < 0 {
 		return -1
 	}
 	for at = close + 1; at < len(text); at++ {

@@ -179,7 +179,7 @@ header:
 func pythonOwnedMethods(lines []string) int {
 	methods := 0
 	var declarations []int
-	for _, line := range lines {
+	for index, line := range lines {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
@@ -189,6 +189,9 @@ func pythonOwnedMethods(lines []string) int {
 		}
 		decl := pythonDeclaration.FindStringSubmatch(strings.TrimSpace(line))
 		if decl == nil {
+			if len(declarations) == 0 && pythonLambdaBinding(lines[index:]) {
+				methods++
+			}
 			continue
 		}
 		if len(declarations) == 0 && decl[1] == "def" {
