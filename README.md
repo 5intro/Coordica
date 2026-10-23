@@ -345,7 +345,7 @@ macOS、Windows、Linux 都把对应平台的 `coordica` 可执行文件安装�
 | 固定提交覆盖与补测预览 | GET `tests/acceptance?requirement_id=...&commit=...` |
 | 生成去重补测需求 | POST `tests/supplements`，`requirement_id`、`commit`、`expected_digest` |
 
-这些操作复用中心用例、版本检查、幂等和审计；远端 Runner 与有限交互层没有验收政策写入权限。完整字段见公开 API Schema。人工验收签收/撤销、更多框架及跨平台逐条证据聚合仍在后续计划中。
+这些操作复用中心用例、版本检查、幂等和审计；远端 Runner 与有限交互层没有验收政策写入权限。完整字段见公开 API Schema。更多框架及跨平台逐条证据聚合仍在后续计划中。
 
 ## 池、来源与节点能力
 
