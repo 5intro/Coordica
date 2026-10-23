@@ -72,6 +72,7 @@ def read_input(relative):
 
 def common_entries():
     required = [
+        "AGENTS.md", "AGENT.md", "QUALITY.md",
         "LICENSE", "THIRD_PARTY_NOTICES.md", "README.md", "go.mod", "go.sum",
         "third_party/licenses/manifest.json",
         "internal/process/README.md", "examples/dsh/coordica.cordis.yml",

@@ -216,27 +216,9 @@ func (w *Integrator) prepare(ctx context.Context, c domain.Candidate) error {
 	}
 	c.Main = main
 	c.Commit = string(candidate.Commit)
-	var suites []domain.TestSuite
-	if e = s.DB.View(ctx, func(tx *store.Tx) error {
-		var err error
-		suites, err = store.List[domain.TestSuite](tx, "test_suite")
-		return err
-	}); e != nil {
-		return e
-	}
-	w.mu.Lock()
-	changes, diffErr := w.Git.DiffPaths(ctx, w.repo(), gitops.OID(main), candidate.Commit)
-	w.mu.Unlock()
-	if diffErr != nil {
-		return w.reject(ctx, c, diffErr, false)
-	}
-	var paths []string
-	for _, change := range changes {
-		paths = append(paths, change.Paths()...)
-	}
-	plan, e := mergeCheckPlan(p, suites, paths, c.Protected)
+	plan, e := candidateCheckPlan(ctx, w, p, c)
 	if e != nil {
-		return w.reject(ctx, c, e, false)
+		return candidateCheckFailure(ctx, w, c, e)
 	}
 	c.CheckPlan = &plan
 	c.State = "prechecking"
@@ -267,46 +249,6 @@ func (w *Integrator) prepare(ctx context.Context, c domain.Candidate) error {
 			return e
 		}
 		return s.audit(tx, Actor{ID: "center"}, "candidate.prepared", c.ID, c.Commit)
-	})
-}
-func (w *Integrator) reject(ctx context.Context, c domain.Candidate, cause error, repairable bool) error {
-	s := w.Service
-	return s.DB.Update(ctx, func(tx *store.Tx) error {
-		var current domain.Candidate
-		if e := tx.Get("candidate", c.ID, &current); e != nil {
-			return e
-		}
-		var t domain.Task
-		if e := tx.Get("task", c.TaskID, &t); e != nil {
-			return e
-		}
-		if t.CurrentCandidateID != c.ID {
-			return nil
-		}
-		current.State = "rejected"
-		current.PreparationStopped = !errors.Is(cause, process.ErrTreeNotStopped)
-		current.Detail = errDetail(cause)
-		current.Version++
-		project, e := getProject(tx)
-		if e != nil {
-			return e
-		}
-		if !project.Paused && t.AuthorizationVersion == current.AuthorizationVersion && project.PolicyVersion == current.PolicyVersion {
-			queueRepair(&t, &current, repairable)
-		} else if project.Paused && t.HoldReason == "" && t.State != "cancelled" && t.State != "integrated" {
-			t.HoldReason = "paused"
-		}
-		t.Version++
-		if e := tx.Put("candidate", current.ID, current); e != nil {
-			return e
-		}
-		if e := tx.Put("task", t.ID, t); e != nil {
-			return e
-		}
-		if e := s.taskDecision(tx, t, current.Detail); e != nil {
-			return e
-		}
-		return s.audit(tx, Actor{ID: "center"}, "candidate.rejected", c.ID, current.Detail)
 	})
 }
 func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
@@ -591,6 +533,11 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 	}); e != nil {
 		return e
 	}
+	// Check authority before any new I/O, then gate legacy ready candidates
+	// too. Approval or successful project tests cannot waive structural rules.
+	if err := checkCandidateQuality(ctx, w, c); err != nil {
+		return candidateQualityFailure(ctx, w, c, err)
+	}
 	actual, e := w.Git.Query(ctx, p.RepositoryURL, "refs/heads/"+p.TargetBranch)
 	if e != nil {
 		return e
@@ -617,29 +564,7 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 	if string(actual) != c.Main && !alreadyMerged {
 		return w.invalidate(ctx, c, "主线已变化，必须重建候选")
 	}
-	var goalScope *gitops.Scope
-	var goalVersion int64
-	e = s.DB.View(ctx, func(tx *store.Tx) error {
-		var task domain.Task
-		if err := tx.Get("task", c.TaskID, &task); err != nil {
-			return err
-		}
-		if err := goalGate(tx, &task, false); err != nil {
-			return err
-		}
-		var err error
-		goalScope, err = currentGoalScope(tx)
-		if err != nil {
-			return err
-		}
-		var d domain.PlanningDocument
-		if err = tx.Get("planning_document", "current", &d); err == nil {
-			goalVersion = d.Version
-		} else if !errors.Is(err, domain.ErrNotFound) {
-			return err
-		}
-		return nil
-	})
+	goalScope, goalVersion, e := landingScope(ctx, s, c.TaskID)
 	if e != nil {
 		return e
 	}

@@ -15,7 +15,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -219,50 +218,12 @@ func controlledEnv(extra []string) []string {
 }
 
 func (g *Client) run(ctx context.Context, dir string, extra []string, args ...string) ([]byte, error) {
-	if err := validateWorkingDirectory(dir); err != nil {
+	spec, err := gitCommandSpec(g, dir, extra, args...)
+	if err != nil {
 		return nil, err
 	}
-	argv := []string{"--no-pager"}
-	if dir != "" && runtime.GOOS != "windows" {
-		argv = append(argv, "-C", dir)
-	}
-	argv = append(argv, args...)
-	spec := process.Spec{Executable: g.GitPath, Args: argv, Env: controlledEnv(extra), GracePeriod: 750 * time.Millisecond, DrainTimeout: 2 * time.Second}
-	if dir != "" && runtime.GOOS == "windows" {
-		// Git processes -C before reading core.longpaths. Let Go set the
-		// native working directory instead, preserving relative Git paths.
-		if !filepath.IsAbs(spec.Executable) {
-			absolute, err := exec.LookPath(spec.Executable)
-			if err != nil {
-				return nil, err
-			}
-			absolute, err = filepath.Abs(absolute)
-			if err != nil {
-				return nil, err
-			}
-			spec.Executable = absolute
-		}
-		spec.Dir = dir
-	}
 	stdout, stderr, result, err := process.CollectRaw(ctx, spec, maxOutput, 64<<10)
-	if ctx.Err() != nil {
-		// Context cancellation must not hide a failed tree-stop observation.
-		err = errors.Join(err, ctx.Err())
-	}
-	if errors.Is(err, process.ErrOutputLimit) {
-		return stdout, &Error{Op: args[0], Kind: errors.Join(ErrOutputLimit, err), Detail: "managed command output limit exceeded", ExitCode: result.ExitCode}
-	}
-	if err != nil {
-		e := &Error{Op: args[0], Kind: errors.Join(ErrGit, err), Detail: strings.TrimSpace(string(stderr)), ExitCode: result.ExitCode}
-		var exit *exec.ExitError
-		if errors.As(err, &exit) {
-			e.ExitCode = exit.ExitCode()
-		} else if e.Detail == "" {
-			e.Detail = err.Error()
-		}
-		return stdout, e
-	}
-	return stdout, nil
+	return stdout, gitCommandFailure(ctx, args[0], stderr, result, err)
 }
 
 // Windows appends a directory separator and terminating NUL to its process

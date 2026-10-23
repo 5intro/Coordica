@@ -66,6 +66,7 @@ class ReleaseTests(unittest.TestCase):
     def test_public_package_inventory(self):
         entries = release.common_entries()
         expected = {
+            'AGENTS.md', 'AGENT.md', 'QUALITY.md',
             'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'go.mod', 'go.sum',
             'internal/process/README.md', 'examples/dsh/coordica.cordis.yml',
             'examples/tools/custom-acp.json', 'examples/acceptance/README.md',

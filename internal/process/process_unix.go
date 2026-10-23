@@ -45,10 +45,24 @@ func (g *platformGuard) cleanup(grace time.Duration) (bool, error) {
 	}
 	err := g.terminate()
 	if g.waitEmpty(grace) {
-		return true, err
+		return groupStopResult(true, err)
 	}
-	err = errors.Join(err, g.kill())
-	return g.waitEmpty(time.Second), err
+	killErr := g.kill()
+	return groupStopResult(g.waitEmpty(time.Second), err, killErr)
+}
+
+// A signal can fail while the last group member is exiting. Only an
+// independently established empty group can make that EPERM race harmless.
+// A permissions error alone is never proof that a managed tree has stopped.
+func groupStopResult(stopped bool, signals ...error) (bool, error) {
+	var err error
+	for _, signalErr := range signals {
+		if stopped && signalErr == syscall.EPERM {
+			continue
+		}
+		err = errors.Join(err, signalErr)
+	}
+	return stopped, err
 }
 func (g *platformGuard) close() {}
 

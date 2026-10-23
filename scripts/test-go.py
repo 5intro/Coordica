@@ -169,10 +169,21 @@ def terminate(infos, root):
                 pass
 
 
+def settled_job_members(job, anchor, grace=1):
+    # Wait receipts can precede the kernel's Job accounting update. Let
+    # exiting members settle before classifying them as leaked processes.
+    deadline = time.monotonic() + grace
+    while True:
+        remaining = max(0, job.active() - anchor)
+        if remaining == 0 or time.monotonic() >= deadline:
+            return remaining
+        time.sleep(.05)
+
+
 def stop_processes(root, child=None, child_identity=None, job=None):
     stopped = 0
     if job is not None:
-        stopped = max(0, job.active() - int(child is not None and child.poll() is None))
+        stopped = settled_job_members(job, int(child is not None and child.poll() is None))
         job.stop()
         if child is not None:
             child.wait(timeout=5)
@@ -278,6 +289,14 @@ def allocated_bytes(root):
     return total
 
 
+def publish_registration(root, record, child_identity):
+    with lifecycle_lock(root.parent):
+        record["child"] = child_identity
+        pending = root / (MARKER + ".pending")
+        pending.write_text(json.dumps(record))
+        pending.replace(root / MARKER)
+
+
 def run(command, parent, timeout, min_free, max_temp):
     parent = parent.resolve()
     recover_stale(parent)
@@ -318,10 +337,7 @@ def run(command, parent, timeout, min_free, max_temp):
             if identity["session"] != child.pid:
                 raise RuntimeError("test worker did not establish an independent session")
             child_identity["session"] = child.pid
-        record["child"] = child_identity
-        pending = root / (MARKER + ".pending")
-        pending.write_text(json.dumps(record))
-        pending.replace(root / MARKER)
+        publish_registration(root, record, child_identity)
         child.stdin.write(b"G")
         child.stdin.flush()
         deadline = time.monotonic() + timeout

@@ -8,9 +8,19 @@ import (
 	"coordica/internal/store"
 )
 
-var authorityPaths = []string{"AGENTS.md", ".github/**", "cmd/coordica/**", "internal/app/**", "internal/domain/**", "internal/httpapi/**", "internal/localhttp/**", "internal/nodeconsole/**", "internal/gitops/**", "internal/github/**", "internal/process/**", "internal/store/**", "internal/agent/**", "internal/runner/**", "internal/onboarding/**", "internal/nodeservice/**", "internal/localfile/**", "internal/filelock/**", "internal/mcp/**", "internal/chatprofile/**", "internal/mcpconfig/**", "internal/centerhost/**", "api/**"}
+var authorityPaths = []string{
+	"AGENTS.md", "AGENT.md", "QUALITY.md", "Makefile", ".github/**", "cmd/coordica/**", "cmd/qualitycheck/**",
+	"internal/app/**", "internal/domain/**", "internal/httpapi/**", "internal/localhttp/**",
+	"internal/nodeconsole/**", "internal/gitops/**", "internal/github/**", "internal/process/**",
+	"internal/store/**", "internal/agent/**", "internal/runner/**", "internal/onboarding/**",
+	"internal/nodeservice/**", "internal/localfile/**", "internal/filelock/**", "internal/mcp/**",
+	"internal/chatprofile/**", "internal/mcpconfig/**", "internal/centerhost/**", "internal/codequality/**",
+	"scripts/check-quality.py", "api/**",
+}
 
-const authorityPolicyVersion = 2
+const authorityPolicyVersion = 4
+const authorityMigrationDetail = "authority protection migration v4 requires explicit baseline initialization; no permissions granted"
+const authorityMigrationAudit = "v4; initialization required; no grants"
 
 // MigrateAuthorityPolicy applies the mandatory authority-protection
 // migration. It preserves project identity/history, never grandfathering a
@@ -72,7 +82,7 @@ func (s *Service) MigrateAuthorityPolicy(ctx context.Context) error {
 		v.ApprovedVersion = 0
 		v.ApprovedDigest = ""
 		v.ApprovedBaseline = nil
-		v.Detail = "authority protection migration v2 requires explicit baseline initialization; no permissions granted"
+		v.Detail = authorityMigrationDetail
 		if e = tx.Put("initialization", "current", v); e != nil {
 			return e
 		}
@@ -97,6 +107,6 @@ func (s *Service) MigrateAuthorityPolicy(ctx context.Context) error {
 		}{authorityPolicyVersion}); e != nil {
 			return e
 		}
-		return s.audit(tx, Actor{ID: "center"}, "project.authority_policy_migrated", p.ID, "v2; initialization required; no grants")
+		return s.audit(tx, Actor{ID: "center"}, "project.authority_policy_migrated", p.ID, authorityMigrationAudit)
 	})
 }
