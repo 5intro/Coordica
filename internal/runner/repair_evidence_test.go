@@ -12,14 +12,14 @@ import (
 
 func repairEvidenceAssignment() domain.Assignment {
 	return domain.Assignment{
-		Run: domain.Run{Kind: "implement", Base: "fixed-candidate"},
-		Task: domain.Task{Acceptance: "KEEP_ACCEPTANCE"},
+		Run:     domain.Run{Kind: "implement", Base: "fixed-candidate"},
+		Task:    domain.Task{Acceptance: "KEEP_ACCEPTANCE"},
 		Project: domain.Project{Checks: []domain.Check{{Name: "unit", Command: "WRONG_CURRENT_COMMAND"}}},
 		Candidate: &domain.Candidate{
 			ID: "candidate-1", Commit: "fixed-candidate", SourceRunID: "source-run",
-			Detail: "check unit failed (exit 1)",
+			Detail:    "check unit failed (exit 1)",
 			CheckPlan: &domain.CheckPlan{Digest: "fixed-plan-digest", Checks: []domain.Check{{Name: "unit", Command: "go", Args: []string{"test", "./..."}, TimeoutSeconds: 60}}},
-			Checks: []domain.CheckResult{{Name: "passed", Passed: true, Output: "PASSED_OUTPUT_NOT_NEEDED"}, {Name: "unit", ExitCode: 1, Output: "EXPECTED_FAILURE_SENTINEL"}},
+			Checks:    []domain.CheckResult{{Name: "passed", Passed: true, Output: "PASSED_OUTPUT_NOT_NEEDED"}, {Name: "unit", ExitCode: 1, Output: "EXPECTED_FAILURE_SENTINEL"}},
 		},
 	}
 }
@@ -118,5 +118,32 @@ func TestRepairEvidenceDoesNotInventOrTruncateCommands(t *testing.T) {
 		if strings.Contains(string(raw), `"fixed_check"`) || !strings.Contains(string(raw), "EXPECTED_FAILURE_SENTINEL") {
 			t.Fatal("missing or ambiguous fixed command was fabricated", string(raw))
 		}
+	}
+}
+
+func TestRepairEvidenceEmptyAndHistoricalAttribution(t *testing.T) {
+	if got := repairCheckEvidence(&domain.Candidate{}, maxRepairEvidenceBytes); got != "" {
+		t.Fatal("empty candidate generated diagnostics")
+	}
+	a := repairEvidenceAssignment()
+	a.Candidate.CheckRunID = "earlier-successful-check-run"
+	a.Candidate.Checks = []domain.CheckResult{{Name: "unit", ExitCode: -1}}
+	prompt := assignmentPrompt(a, "runner")
+	if !strings.Contains(prompt, `"recorded_check_run_id_not_failure_attribution":"earlier-successful-check-run"`) || !strings.Contains(prompt, `"output":""`) {
+		t.Fatal("empty output or historical check Run misrepresented")
+	}
+	// Escaping, rather than source length alone, counts against command limits.
+	a.Candidate.CheckPlan.Checks[0].Args = []string{strings.Repeat("\x00", 1000)}
+	raw := repairCheckRecord(a.Candidate, a.Candidate.Checks[0])
+	if strings.Contains(string(raw), `"fixed_check"`) || !strings.Contains(string(raw), "fixed command exceeds size limit") {
+		t.Fatal("escaped fixed command exceeded its budget")
+	}
+	checks := a.Candidate.Checks
+	a.Candidate.Checks = nil
+	a.Task.Description = strings.Repeat("x", maxAssignmentPromptBytes)
+	base := assignmentPrompt(a, "runner")
+	a.Candidate.Checks = checks
+	if got := assignmentPrompt(a, "runner"); got != base {
+		t.Fatal("already oversized mandatory context was changed or hidden")
 	}
 }
