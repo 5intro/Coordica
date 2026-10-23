@@ -18,6 +18,8 @@ func receiverName(expr ast.Expr) string {
 		return receiverName(v.X)
 	case *ast.IndexListExpr:
 		return receiverName(v.X)
+	case *ast.ParenExpr:
+		return receiverName(v.X)
 	}
 	return ""
 }

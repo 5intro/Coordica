@@ -82,6 +82,13 @@ fields are included. Function debt also binds to declaration,
 binding/call-site and enclosing-scope headers, independently of line numbers.
 C# partial declarations aggregate class size and methods by namespace,
 enclosing types and generic arity; file-local types retain their file identity.
+Native method attribution walks braces once instead of scanning every class
+against every function. Rust implementation parts aggregate by module/type
+identity, including ordinary module files and explicit imports; native tooling
+and independent review remain necessary for compiler-specific resolution.
+Declaration-only TypeScript/Kotlin methods, Kotlin expression bodies, Java enum
+bodies and Ruby brace blocks are measured. Java/C# annotations and attributes
+do not count as methods. PowerShell modules (`.psm1`) use the PowerShell checks.
 
 Fixed artifact conventions exclude `.git`, `node_modules`, `vendor`,
 `third_party`, `dist`, `*.generated.ts` and `*.pb.go`. A generated-file comment
