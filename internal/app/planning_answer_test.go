@@ -14,7 +14,12 @@ func TestPlanningAnswerFencesSameGoalNewResultAndAtomicReplay(t *testing.T) {
 	result.Clarifications = []string{"要使用哪种存储？"}
 	goal.LeaderResult = &result
 	ctx := context.Background()
-	if err := f.s.DB.Update(ctx, func(tx *store.Tx) error { return tx.Put("planning_document", "current", goal) }); err != nil {
+	if err := f.s.DB.Update(ctx, func(tx *store.Tx) error {
+		if err := tx.Put("planning_run", goal.LeaderRunID, domain.PlanningRun{ID: goal.LeaderRunID}); err != nil {
+			return err
+		}
+		return tx.Put("planning_document", "current", goal)
+	}); err != nil {
 		t.Fatal(err)
 	}
 	req := domain.PlanningMessageRequest{ExpectedVersion: goal.Version, ReplyToRunID: goal.LeaderRunID, Question: result.Clarifications[0], Text: "SQLite"}

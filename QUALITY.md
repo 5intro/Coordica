@@ -80,6 +80,8 @@ JavaScript/TypeScript signatures use balanced delimiters; expression-bodied
 arrows, executable template interpolations, object methods and callable class
 fields are included. Function debt also binds to declaration,
 binding/call-site and enclosing-scope headers, independently of line numbers.
+C# partial declarations aggregate class size and methods by namespace,
+enclosing types and generic arity; file-local types retain their file identity.
 
 Fixed artifact conventions exclude `.git`, `node_modules`, `vendor`,
 `third_party`, `dist`, `*.generated.ts` and `*.pb.go`. A generated-file comment
@@ -91,7 +93,8 @@ blob; an actual local deletion remains a deletion. Required Python entrypoints
 run in isolated import mode so repository modules cannot replace stdlib imports.
 
 Inventory limits are 20,000 tree entries, 2 MiB per included source file and
-64 MiB included source per tree. Non-UTF-8 source, duplicate inventory paths,
+64 MiB included source per tree; raw manifests have a separate 96 MiB bound.
+Non-UTF-8 source, duplicate inventory paths,
 unsupported selected Git objects and malformed Go source are rejected. Large
 repositories need an explicit reviewed extension of this bounded reader;
 they must not be silently truncated and reported as passed. Immutable blobs

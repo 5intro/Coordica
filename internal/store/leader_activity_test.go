@@ -83,10 +83,36 @@ func TestStoreSubscriptionsWakeOnlyAfterCommit(t *testing.T) {
 	default:
 	}
 	_ = db.Update(context.Background(), func(*Tx) error { return nil })
+	_ = db.Update(context.Background(), func(tx *Tx) error {
+		if err := tx.Put("fixture", "rolled-back", "value"); err != nil {
+			return err
+		}
+		return fmt.Errorf("rollback after write")
+	})
+	_ = db.Update(context.Background(), func(tx *Tx) error { return tx.Delete("fixture", "absent") })
+	select {
+	case <-changed:
+		t.Fatal("no-op commit woke subscription")
+	default:
+	}
+	if err := db.Update(context.Background(), func(tx *Tx) error {
+		return tx.Put("fixture", "id", "changed")
+	}); err != nil {
+		t.Fatal(err)
+	}
 	select {
 	case <-changed:
 	default:
 		t.Fatal("commit wake lost")
+	}
+	changed = db.Changes()
+	_ = db.Update(context.Background(), func(tx *Tx) error {
+		return tx.Put("fixture", "id", "changed")
+	})
+	select {
+	case <-changed:
+		t.Fatal("unchanged persisted value woke subscription")
+	default:
 	}
 }
 

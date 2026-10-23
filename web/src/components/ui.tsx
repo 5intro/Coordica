@@ -8,6 +8,7 @@ const stateLabels: Record<string, string> = {
   prechecking: '预检查 · 尚未进入审查', validating: '验证中', ready_to_land: '审查通过 · 待集成', landing: '写入中', dispatching: '已派发',
   landed: '已进入主线', rejected: '已拒绝', invalidated: '已失效', reconciling: '对账中',
   paused: '已暂停', approve: '评审通过', changes_requested: '需要修改', blocked: '阻断',
+  history_only: '历史活动 · 未保留结束状态', history_unavailable: '历史活动已过期',
 };
 const green = new Set(['verified', 'integrated', 'succeeded', 'landed', 'approve']);
 const active = new Set(['executing', 'starting', 'running', 'reviewing', 'validating', 'landing']);

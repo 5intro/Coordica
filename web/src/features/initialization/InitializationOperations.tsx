@@ -25,7 +25,7 @@ export function InitializationOperations({ project, current, client, action }: P
       <p role="status">{guidance[current?.status ?? 'draft']}</p>
       {!project.checks?.length && <p role="status">当前尚无有效检查：可以先访谈，确认项目约定前请配置真实检查。</p>}
       {current?.detail && <p className="muted">{current.detail}</p>}
-      <details>
+      <details open={!current?.kind}>
         <summary>{current?.status === 'initialized' ? '重新分析项目' : '分析选项'}</summary>
         <Field label="项目输入类型" hint="已有仓库分析固定提交；新项目通过访谈补齐需求与架构。">
           <select value={kind} onChange={(event) => setKind(event.target.value)}>

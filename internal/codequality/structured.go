@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-var classBlock = regexp.MustCompile(`\bclass(?:\s+([A-Za-z_$][\w$]*))?[^;{}]*\{`)
+var classBlock = regexp.MustCompile(`\bclass(?:\s+([A-Za-z_$][\w$]*))?`)
 var pythonDeclaration = regexp.MustCompile(`^(?:async\s+)?(class|def)\s+([A-Za-z_]\w*)`)
 
 func (m *metrics) structuredSource(f File) {
@@ -160,15 +160,12 @@ header:
 			}
 		}
 	}
-	end, bodyIndent := headerEnd, -1
+	end := headerEnd
 	for i := headerEnd + 1; i < len(lines); i++ {
 		if strings.TrimSpace(lines[i]) != "" {
 			d := indentation(lines[i])
 			if d <= indent {
 				break
-			}
-			if bodyIndent == -1 || d < bodyIndent {
-				bodyIndent = d
 			}
 			end = max(end, i, stringEnds[i+1]-1)
 		}
@@ -176,14 +173,33 @@ header:
 			end = max(end, i)
 		}
 	}
+	return end, pythonOwnedMethods(lines[headerEnd+1 : end+1])
+}
+
+func pythonOwnedMethods(lines []string) int {
 	methods := 0
-	for _, line := range lines[headerEnd+1 : end+1] {
+	var declarations []int
+	for index, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		indent := indentation(line)
+		for len(declarations) > 0 && indent <= declarations[len(declarations)-1] {
+			declarations = declarations[:len(declarations)-1]
+		}
 		decl := pythonDeclaration.FindStringSubmatch(strings.TrimSpace(line))
-		if decl != nil && decl[1] == "def" && indentation(line) == bodyIndent {
+		if decl == nil {
+			if len(declarations) == 0 && pythonLambdaBinding(lines[index:]) {
+				methods++
+			}
+			continue
+		}
+		if len(declarations) == 0 && decl[1] == "def" {
 			methods++
 		}
+		declarations = append(declarations, indent)
 	}
-	return end, methods
+	return methods
 }
 
 func indentation(line string) int {

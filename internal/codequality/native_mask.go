@@ -1,12 +1,18 @@
 package codequality
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+)
 
 var rustLifetime = regexp.MustCompile(`'[A-Za-z_][A-Za-z_0-9]*`)
 
 func nativeMaskedSource(text, extension string) string {
 	if extension == ".php" {
 		return maskedHashComments(text, false)
+	}
+	if strings.Contains("|.cc|.cpp|.h|.hpp|", "|"+extension+"|") {
+		text = maskedCppRawStrings(text)
 	}
 	if extension != ".rs" {
 		return maskedSource(text, false, nil)

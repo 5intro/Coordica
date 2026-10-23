@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"coordica/internal/domain"
 	"coordica/internal/gitops"
 )
 
@@ -34,6 +35,22 @@ func TestQualityLandingIOFailurePreservesReviewedCandidateAndRetries(t *testing.
 	landed := f.candidate(t)
 	if landed.ID != candidate.ID || landed.Commit != candidate.Commit || landed.State != "landed" {
 		t.Fatal("retry failed to land the original reviewed candidate", landed)
+	}
+}
+
+func TestCheckPlanInfrastructureFailuresPreserveCandidate(t *testing.T) {
+	for _, failure := range []error{errors.New("temporary Git diff failure"), domain.Fail("database", "read failed")} {
+		f := newITFixture(t)
+		f.implement(t, "src/feature.txt")
+		before := f.snapshot(t)
+		candidate := f.candidate(t)
+		if err := candidateCheckFailure(context.Background(), f.w, candidate, failure); !errors.Is(err, failure) {
+			t.Error("operational failure was not returned unchanged", err)
+		}
+		after := f.snapshot(t)
+		if !reflect.DeepEqual(before.Candidates, after.Candidates) || !reflect.DeepEqual(before.Tasks, after.Tasks) {
+			t.Error("check-plan infrastructure failure discarded candidate or consumed a repair")
+		}
 	}
 }
 

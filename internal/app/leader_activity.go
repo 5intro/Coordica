@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"coordica/internal/domain"
@@ -26,11 +27,12 @@ func (l LeaderActivities) Read(ctx context.Context, actor Actor, query domain.Le
 		if err != nil {
 			return err
 		}
+		heads, err = selectedLeaderGenerations(tx, heads, query.Generation)
+		if err != nil {
+			return err
+		}
 		refs := make([]domain.LeaderExecutionRef, 0, len(heads))
 		for _, head := range heads {
-			if query.Generation > head.Ref.Generation {
-				return domain.Fail("invalid_input", "activity generation is ahead of the execution")
-			}
 			refs = append(refs, head.Ref)
 		}
 		page, err = store.ReadLeaderActivity(tx, query, refs)
@@ -40,6 +42,29 @@ func (l LeaderActivities) Read(ctx context.Context, actor Actor, query domain.Le
 		return err
 	})
 	return page, err
+}
+
+func selectedLeaderGenerations(tx *store.Tx, heads []domain.LeaderExecution, generation int64) ([]domain.LeaderExecution, error) {
+	if generation == 0 {
+		return heads, nil
+	}
+	for index, head := range heads {
+		if generation > head.Ref.Generation {
+			return nil, domain.Fail("invalid_input", "activity generation is ahead of the execution")
+		}
+		if generation == head.Ref.Generation {
+			continue
+		}
+		ref, err := store.LeaderActivityReference(tx, head.Ref, generation)
+		state := "history_only"
+		if errors.Is(err, domain.ErrNotFound) {
+			state = "history_unavailable"
+		} else if err != nil {
+			return nil, err
+		}
+		heads[index] = domain.LeaderExecution{Ref: ref, State: state}
+	}
+	return heads, nil
 }
 
 func readableLeaderHeads(tx *store.Tx, actor Actor, query domain.LeaderActivityQuery) ([]domain.LeaderExecution, error) {
