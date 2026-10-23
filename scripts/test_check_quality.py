@@ -41,6 +41,16 @@ class QualityCommandTests(unittest.TestCase):
                 quality.main()
             run.assert_not_called()
 
+    def test_initial_main_push_rejects_equal_base_and_head(self):
+        with patch.dict(quality.os.environ, {"QUALITY_BASE": "0" * 40, "CI": "true"}, clear=True), \
+                patch.object(quality.subprocess, "check_output", return_value="a" * 40), \
+                patch.object(quality.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            with self.assertRaises(SystemExit) as result:
+                quality.main()
+            self.assertNotEqual(result.exception.code, 0)
+            run.assert_not_called()
+
     def test_new_branch_push_uses_target_main_not_its_own_head(self):
         with patch.dict(quality.os.environ, {"QUALITY_BASE": "0" * 40, "CI": "true"}, clear=True), \
                 patch.object(quality.subprocess, "check_output", side_effect=["a" * 40, "b" * 40]), \

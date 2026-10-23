@@ -7,7 +7,8 @@ import (
 	"strings"
 )
 
-var nativeClass = regexp.MustCompile(`\b(?:class|struct|interface|trait|object|impl)\s+(?:<[^{};]*>\s*)?([A-Za-z_$][\w$]*)[^;{}]*\{`)
+var nativeClass = regexp.MustCompile(`\b(?:record(?:\s+(?:class|struct))?|class|struct|interface|trait|object|impl)\s+` +
+	`(?:<[^{};]*>\s*)?([A-Za-z_$][\w$]*)`)
 var nativeFunction = regexp.MustCompile(`\b(?:fn|func|fun|function)\b\s*&?\s*([A-Za-z_$][\w$]*)?`)
 
 type nativeBlock struct {
@@ -68,6 +69,9 @@ func nativeFunctions(ctx context.Context, text, extension string, ends map[int]i
 		if !keyword && nativeControl(name) {
 			continue
 		}
+		if !nativeDeclarationPrefix(text, match[0], ends) {
+			continue
+		}
 		body := nativeFunctionBody(text, at, ends)
 		if strings.Contains("|.cc|.cpp|.h|.hpp|", "|"+extension+"|") {
 			if constructor, ok := cppInitializerBody(text, at, ends); ok {
@@ -78,6 +82,11 @@ func nativeFunctions(ctx context.Context, text, extension string, ends map[int]i
 			blocks = append(blocks, nativeBlock{name, match[0], body, close})
 			seen[body] = true
 			headerEnd = body
+		} else if body < 0 {
+			if end := nativeDeclarationEnd(text, at, ends); end >= 0 {
+				blocks = append(blocks, nativeBlock{name, match[0], -1, end})
+				headerEnd = end
+			}
 		}
 	}
 	return blocks
@@ -111,14 +120,16 @@ func (m *metrics) nativeBraceSource(f File) {
 		if m.cancelled() {
 			return
 		}
-		m.blockFunction(f.Path, text, fn.name, fn.start, fn.body, ends)
+		if fn.body >= 0 {
+			m.scriptFunctionFinding(f, text, fn.name, fn.start, fn.body, fn.end, pairs)
+		}
 	}
 	nativeAnonymousFunctions(m, f, text, extension, pairs)
 	for _, match := range nativeClass.FindAllStringSubmatchIndex(text, -1) {
 		if m.cancelled() {
 			return
 		}
-		open := match[1] - 1
+		open := scriptClassBody(text, match[1], pairs)
 		close, ok := ends[open]
 		if !ok {
 			continue

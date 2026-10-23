@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-var shellFunction = regexp.MustCompile(`(?m)(?:^|[;\n])\s*(?:function\s+([\w-]+)\s*(?:\(\s*\))?|([\w-]+)\s*\(\s*\))\s*\{`)
+var shellFunction = regexp.MustCompile(`(?m)(?:^|[;\n])\s*(?:function\s+([\w-]+)\s*(?:\(\s*\))?|([\w-]+)\s*\(\s*\))\s*`)
 var powerFunction = regexp.MustCompile(`(?i)\bfunction\s+([\w:-]+)\s*(?:\([^{}]*\))?\s*\{`)
 var scssFunction = regexp.MustCompile(`@(?:function|mixin)\s+([\w-]+)\s*[({]`)
 var powerClass = regexp.MustCompile(`(?i)\bclass\s+([\w]+)[^;{}]*\{`)
@@ -20,6 +20,10 @@ func (m *metrics) commandSource(f File) {
 		text = maskedHashComments(f.Text, true)
 	}
 	ends := scriptPairs(text)
+	if extension == ".sh" {
+		shellFunctions(m, f, text, ends)
+		return
+	}
 	pattern := shellFunction
 	if extension == ".ps1" {
 		pattern = powerFunction
