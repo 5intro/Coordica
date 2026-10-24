@@ -73,6 +73,7 @@ def read_input(relative):
 def common_entries():
     required = [
         "LICENSE", "THIRD_PARTY_NOTICES.md", "README.md", "go.mod", "go.sum",
+        "cmd/coordica/main.go", "api/v1.schema.json", "web/public/favicon.svg",
         "third_party/licenses/manifest.json",
         "internal/process/README.md", "examples/dsh/coordica.cordis.yml",
         "examples/tools/custom-acp.json", "examples/acceptance/README.md",
@@ -152,6 +153,11 @@ def start_here(version, platform, binary):
 
 项目初始化：所有旧数据库与无 Goal 项目也需要 Leader 只读分析和 Owner 确认精确基线。
 中心主机先用 host-config 保存可信固定角色/路径，再 setup --host-role center --host-config 固定配置 --runner-data 独立固定Runner目录；initialize_center/start_center/get_host_status 均无路径参数。
+首次保存 host-config 前选择仅同机或跨机：跨机保留 console-listen 127.0.0.1:8080，
+设置 runner-listen 为实际 IP:8443 和 runner-url 为匹配的 HTTPS 地址；初始化在原 data 生成 TLS 证书。
+需要远端 Git/GitHub 权限时，同次保存 git-auth-file/git-auth-remote 或 github-repository/github-token-file。
+具体安全文件格式和参数见 README.md 的“可信中心、项目初始化与 MCP 安装”（#setup-reference）。
+host-config 不覆盖已有配置；不要改 data 或另启 serve 冒充既有中心接续。
 同一个中心 MCP 保留 initialize_runner，无第二个入口；中心 limited profile 保持原身份，不发送到提供的其它配对端点。
 checks-file 可省略，先建立暂停的空检查草案并访谈；Owner 保存真实非空检查政策后重新分析确认，空检查不能执行。
 初始化捕获 Owner 的 PlanningTimeoutSeconds 与 PlanningMaxRetries；默认300秒、两次重试，无需开启自动化。
@@ -192,7 +198,7 @@ Leader 纯咨询/建议不创建任务或修改授权；页面切换保留未确
 项目 total_budget_seconds 与 ChatOverview budget_seconds 均为忽略的弃用字段，项目支出仅作统计。
 开发/评审/规划/咨询单 Run 最多七天；任务/目标内规划累计最多 365 天且不少于单 Run，重试仍有限。
 旧 budget 阻断不自动迁移；Owner 核对停止结算、剩余额度和当前授权后以当前任务版本恢复。
-恢复不清零支出，不绕过重试上限，不改变已有发布意图；具体兼容步骤见 README.md。
+恢复不清零支出，不绕过重试上限，不改变已有发布意图；具体兼容步骤见 README.md 的“暂停、恢复、备份与维护”（#operations-reference）。
 当前源码已支持需求内容修订与撤回，按固定修订冻结、停止核对和重排相关工作；
 暂停或自动化关闭时只排队，重大决定仍由 Owner 处理。
 工具注册示例：examples/tools/custom-acp.json
