@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"runtime"
+	"sort"
 	"testing"
 	"time"
 
@@ -32,7 +33,33 @@ func TestLiveAgentSmoke(t *testing.T) {
 	if _, _, err := process.Collect(ctx, process.Spec{Executable: "git", Args: []string{"init", "-q"}, Dir: dir}, 16<<10); err != nil {
 		t.Fatal(err)
 	}
-	result, err := Execute(ctx, Request{Tool: tool, WorkDir: dir, Role: "review", AllowedTools: []string{"Read", "Glob", "Grep"}, Prompt: `Return exactly one JSON object {"status":"coordica_smoke_ok"}. Do not use tools, edit files, execute commands, browse, or explain.`}, func(event Event) {
+	role := os.Getenv("COORDICA_LIVE_ROLE")
+	if role == "" {
+		role = "review"
+	}
+	result, err := Execute(ctx, Request{Tool: tool, WorkDir: dir, Role: role, Model: os.Getenv("COORDICA_LIVE_MODEL"),
+		ReasoningEffort: os.Getenv("COORDICA_LIVE_EFFORT"), AllowedTools: []string{"Read", "Glob", "Grep"},
+		Prompt: `Return exactly one JSON object {"status":"coordica_smoke_ok"}. Do not use tools, edit files, execute commands, browse, or explain.`}, func(event Event) {
+		if event.Type == "acp.message" {
+			var message struct {
+				ID     json.RawMessage
+				Method string
+				Params struct {
+					Update struct {
+						Kind string `json:"sessionUpdate"`
+					}
+				}
+				Result map[string]json.RawMessage
+			}
+			if json.Unmarshal(event.Data, &message) == nil {
+				keys := []string{}
+				for key := range message.Result {
+					keys = append(keys, key)
+				}
+				sort.Strings(keys)
+				t.Logf("ACP envelope method=%s id=%s update=%s result_fields=%v", message.Method, message.ID, message.Params.Update.Kind, keys)
+			}
+		}
 		if event.Type == "error" || event.Type == "turn.failed" {
 			safe := SanitizeEvent(event)
 			t.Logf("%s: %s", safe.Type, safe.Data)

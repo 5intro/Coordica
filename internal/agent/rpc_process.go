@@ -18,7 +18,7 @@ type rpcProcess struct {
 }
 
 func startRPC(def Definition, req Request, onEvent func(Event)) (*rpcProcess, error) {
-	return startRPCSpec(process.Spec{Executable: req.Executable, Args: launchArgs(def, req), Dir: req.WorkDir, Env: developmentEnv()}, onEvent)
+	return startRPCSpec(process.Spec{Executable: req.Executable, Args: launchArgs(def, req), Dir: req.WorkDir, Env: executionEnv(req)}, onEvent)
 }
 
 func startRPCSpec(spec process.Spec, onEvent func(Event)) (*rpcProcess, error) {

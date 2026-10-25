@@ -18,6 +18,10 @@ import (
 
 func TestMain(m *testing.M) {
 	if len(os.Args) > 1 {
+		if os.Args[1] == "--slow-version" {
+			time.Sleep(time.Minute)
+			os.Exit(0)
+		}
 		if os.Args[1] == "-p" && strings.Contains(strings.Join(os.Args, " "), "--input-format stream-json") {
 			fakeClaudeCatalog()
 			os.Exit(0)

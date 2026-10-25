@@ -260,6 +260,12 @@ func safeCapabilities(caps []domain.Capability) []domain.ChatAgentCapability {
 // All limited initialization replies, including durable replays, use this same
 // projection. Original evidence, answers and normative policy remain private.
 func safeInitialization(v domain.Initialization) domain.Initialization {
+	if v.Leader != nil {
+		selection := *v.Leader
+		selection.Tool, selection.Model = redacted(selection.Tool), redacted(selection.Model)
+		selection.ReasoningEffort = redacted(selection.ReasoningEffort)
+		v.Leader = &selection
+	}
 	textList := func(values []string) []string {
 		out := []string{}
 		for _, value := range values {

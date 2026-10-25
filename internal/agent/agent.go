@@ -234,7 +234,17 @@ func executionEnv(req Request) []string {
 	if req.Role != "leader" {
 		return developmentEnv()
 	}
-	allowed := map[string]bool{"PATH": true, "HOME": true, "USER": true, "LOGNAME": true, "SYSTEMROOT": true, "WINDIR": true, "TMPDIR": true, "TMP": true, "TEMP": true, "LANG": true, "LC_ALL": true, "CODEX_HOME": true, "XDG_CONFIG_HOME": true, "OPENAI_API_KEY": true, "HTTPS_PROXY": true, "HTTP_PROXY": true, "ALL_PROXY": true, "NO_PROXY": true}
+	allowed := map[string]bool{
+		"PATH": true, "HOME": true, "USER": true, "LOGNAME": true, "SYSTEMROOT": true, "WINDIR": true,
+		"TMPDIR": true, "TMP": true, "TEMP": true, "LANG": true, "LC_ALL": true,
+		"CODEX_HOME": true, "XDG_CONFIG_HOME": true, "OPENAI_API_KEY": true,
+		"ANTHROPIC_API_KEY": true, "ANTHROPIC_AUTH_TOKEN": true, "ANTHROPIC_BASE_URL": true,
+		"CLAUDE_CONFIG_DIR": true, "DSH_HOME": true, "DEEPSEEK_API_KEY": true,
+		"PI_CODING_AGENT_DIR": true, "KIMI_CODE_HOME": true,
+		"ANTHROPIC_MODEL": true, "ANTHROPIC_DEFAULT_OPUS_MODEL": true,
+		"ANTHROPIC_DEFAULT_SONNET_MODEL": true, "ANTHROPIC_DEFAULT_HAIKU_MODEL": true,
+		"HTTPS_PROXY": true, "HTTP_PROXY": true, "ALL_PROXY": true, "NO_PROXY": true,
+	}
 	env := []string{}
 	for _, entry := range os.Environ() {
 		key, _, _ := strings.Cut(entry, "=")

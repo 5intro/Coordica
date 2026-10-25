@@ -47,6 +47,7 @@ type InitializationFeedback struct {
 	CreatedAt    time.Time  `json:"created_at"`
 }
 type Initialization struct {
+	Leader              *LeaderSelection         `json:"leader,omitempty"`
 	Version             int64                    `json:"version"`
 	Status              string                   `json:"status"`
 	Kind                string                   `json:"kind"`
@@ -68,8 +69,10 @@ type Initialization struct {
 	Detail              string                   `json:"detail"`
 }
 type InitializationRequest struct {
-	ExpectedVersion int64  `json:"expected_version"`
-	Kind            string `json:"kind"`
+	ExpectedVersion int64            `json:"expected_version"`
+	Kind            string           `json:"kind"`
+	Leader          *LeaderSelection `json:"leader,omitempty"`
+	LeaderVersion   *int64           `json:"leader_version,omitempty"`
 }
 type InitializationAnswer struct {
 	ExpectedVersion int64      `json:"expected_version"`
@@ -85,23 +88,24 @@ type InitializationConfirm struct {
 // Internal process/accounting record; its PID and working directory are not
 // part of the limited interaction projection.
 type InitializationOperation struct {
-	ID                    string    `json:"id"`
-	ActorID               string    `json:"actor_id"`
-	ActorRole             string    `json:"actor_role"`
-	Version               int64     `json:"version"`
-	InitializationVersion int64     `json:"initialization_version"`
-	Generation            int64     `json:"generation"`
-	State                 string    `json:"state"`
-	MaxRetries            int       `json:"max_retries"`
-	Attempt               int       `json:"attempt"`
-	ProcessID             int       `json:"process_id"`
-	WorkingDirectory      string    `json:"working_directory"`
-	Deadline              time.Time `json:"deadline"`
-	GrantSeconds          int64     `json:"grant_seconds"`
-	UsedSeconds           int64     `json:"used_seconds"`
-	ElapsedSeconds        int64     `json:"elapsed_seconds"`
-	TreeStopped           bool      `json:"tree_stopped"`
-	Settled               bool      `json:"settled"`
+	Leader                *LeaderSelection `json:"leader,omitempty"`
+	ID                    string           `json:"id"`
+	ActorID               string           `json:"actor_id"`
+	ActorRole             string           `json:"actor_role"`
+	Version               int64            `json:"version"`
+	InitializationVersion int64            `json:"initialization_version"`
+	Generation            int64            `json:"generation"`
+	State                 string           `json:"state"`
+	MaxRetries            int              `json:"max_retries"`
+	Attempt               int              `json:"attempt"`
+	ProcessID             int              `json:"process_id"`
+	WorkingDirectory      string           `json:"working_directory"`
+	Deadline              time.Time        `json:"deadline"`
+	GrantSeconds          int64            `json:"grant_seconds"`
+	UsedSeconds           int64            `json:"used_seconds"`
+	ElapsedSeconds        int64            `json:"elapsed_seconds"`
+	TreeStopped           bool             `json:"tree_stopped"`
+	Settled               bool             `json:"settled"`
 }
 
 type ProjectPolicyRequest struct {

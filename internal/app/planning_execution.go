@@ -10,7 +10,7 @@ import (
 func executePlanningLeader(execCtx context.Context, w *PlanningWorker, r domain.PlanningRun, dir, prompt string) (PlanningOutcome, error) {
 	outcome, err := executeObservedLeader(execCtx, w.Service,
 		domain.LeaderExecutionRef{Kind: "planning", ID: r.ID, Generation: r.Generation, InputVersion: r.DocumentVersion},
-		w.Executor, dir, prompt, func(pid int) error {
+		w.Executor, pinnedLeader(r.Leader), dir, prompt, func(pid int) error {
 			return w.Service.DB.Update(execCtx, func(tx *store.Tx) error {
 				var current domain.PlanningRun
 				if e := tx.Get("planning_run", r.ID, &current); e != nil {

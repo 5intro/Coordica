@@ -46,11 +46,39 @@ func (r *Registry) discoverModels(ctx context.Context, def Definition, cap Capab
 		return nil, "unavailable"
 	}
 	key := def.ID + "\x00" + cap.Executable + "\x00" + cap.Version + "\x00" + strconv.FormatInt(info.Size(), 10) + "\x00" + info.ModTime().String()
-	r.modelMu.Lock()
-	defer r.modelMu.Unlock()
-	if cached, ok := r.modelCache[key]; ok && time.Now().Before(cached.until) {
-		return cloneModels(cached.models), cached.status
+	for {
+		if ctx.Err() != nil {
+			return nil, "unavailable"
+		}
+		r.modelMu.Lock()
+		if cached, ok := r.modelCache[key]; ok && time.Now().Before(cached.until) {
+			r.modelMu.Unlock()
+			return cloneModels(cached.models), cached.status
+		}
+		if pending := r.modelReads[key]; pending != nil {
+			r.modelMu.Unlock()
+			select {
+			case <-ctx.Done():
+				return nil, "unavailable"
+			case <-pending:
+				continue
+			}
+		}
+		if r.modelReads == nil {
+			r.modelReads = map[string]chan struct{}{}
+		}
+		r.modelReads[key] = make(chan struct{})
+		r.modelMu.Unlock()
+		break
 	}
+	defer func() {
+		r.modelMu.Lock()
+		close(r.modelReads[key])
+		delete(r.modelReads, key)
+		r.modelMu.Unlock()
+	}()
+	// Only callers for this exact catalog wait. Never hold the cache mutex
+	// during process/network I/O or while waiting for another caller.
 	models, err := readToolModels(ctx, def, cap.Executable)
 	status, ttl := "reported", 5*time.Minute
 	if err != nil {
@@ -59,10 +87,12 @@ func (r *Registry) discoverModels(ctx context.Context, def Definition, cap Capab
 	if ctx.Err() != nil {
 		return nil, "unavailable"
 	}
+	r.modelMu.Lock()
 	if r.modelCache == nil || len(r.modelCache) >= 64 {
 		r.modelCache = map[string]modelCacheEntry{}
 	}
 	r.modelCache[key] = modelCacheEntry{cloneModels(models), status, time.Now().Add(ttl)}
+	r.modelMu.Unlock()
 	return models, status
 }
 

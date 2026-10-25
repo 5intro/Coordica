@@ -163,7 +163,12 @@ func (w *PlanningWorker) queueRequirementChanges(ctx context.Context) error {
 			if e != nil {
 				return e
 			}
-			r := domain.PlanningRun{ID: ID("plan_"), Version: 1, Purpose: requirementPurpose, RequirementChangeID: change.ID, BaselineVersion: baseline.ApprovedVersion, BaselineDigest: baseline.ApprovedDigest, DocumentVersion: d.Version, AuthorizationVersion: d.AuthorizationVersion, AutomationVersion: settings.Version, Generation: 1, State: "queued", MaxRetries: settings.PlanningMaxRetries}
+			r := domain.PlanningRun{
+				ID: ID("plan_"), Version: 1, Purpose: requirementPurpose, RequirementChangeID: change.ID,
+				BaselineVersion: baseline.ApprovedVersion, BaselineDigest: baseline.ApprovedDigest, DocumentVersion: d.Version,
+				AuthorizationVersion: d.AuthorizationVersion, AutomationVersion: settings.Version, Generation: 1, State: "queued",
+				Leader: leaderChoice(settings), MaxRetries: settings.PlanningMaxRetries,
+			}
 			change.State, change.AutomationVersion = "assessing", settings.Version
 			change.Version++
 			if e = tx.Put("requirement_change", change.ID, change); e != nil {

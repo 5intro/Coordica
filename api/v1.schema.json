@@ -419,6 +419,9 @@
         "leader_model": {
           "type": "string"
         },
+        "leader_reasoning_effort": {
+          "type": "string"
+        },
         "leader_tool": {
           "type": "string"
         },
@@ -2350,6 +2353,16 @@
         "kind": {
           "type": "string"
         },
+        "leader": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LeaderSelection"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "omissions": {
           "items": {
             "type": "string"
@@ -2525,6 +2538,16 @@
         "initialization_version": {
           "type": "integer"
         },
+        "leader": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LeaderSelection"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "max_retries": {
           "type": "integer"
         },
@@ -2605,6 +2628,26 @@
         },
         "kind": {
           "type": "string"
+        },
+        "leader": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LeaderSelection"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "leader_version": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -2771,6 +2814,53 @@
       ],
       "type": "object"
     },
+    "LeaderConfiguration": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "items": {
+            "$ref": "#/$defs/Capability"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "queried_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "selection": {
+          "$ref": "#/$defs/LeaderSelection"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "selection",
+        "capabilities",
+        "queried_at"
+      ],
+      "type": "object"
+    },
+    "LeaderConfigureRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "type": "integer"
+        },
+        "selection": {
+          "$ref": "#/$defs/LeaderSelection"
+        }
+      },
+      "required": [
+        "expected_version",
+        "selection"
+      ],
+      "type": "object"
+    },
     "LeaderExecution": {
       "additionalProperties": false,
       "properties": {
@@ -2926,6 +3016,29 @@
         "tasks",
         "scopes",
         "major_decisions"
+      ],
+      "type": "object"
+    },
+    "LeaderSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "reasoning_effort": {
+          "maxLength": 64,
+          "type": "string"
+        },
+        "tool": {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "model"
       ],
       "type": "object"
     },
@@ -3380,6 +3493,16 @@
         },
         "id": {
           "type": "string"
+        },
+        "leader": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LeaderSelection"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "lease_until": {
           "format": "date-time",

@@ -19,6 +19,12 @@ import (
 type PlanningExecutor interface {
 	Execute(context.Context, string, string, func(int) error) (PlanningOutcome, error)
 }
+
+// Native executors accept the immutable choice carried by each operation.
+// Legacy deterministic fixtures only implement the original default executor.
+type SelectedPlanningExecutor interface {
+	ExecuteSelected(context.Context, domain.LeaderSelection, string, string, func(int) error) (PlanningOutcome, error)
+}
 type PlanningOutcome struct {
 	RequirementChangeID  string    `json:"requirement_change_id,omitempty"`
 	RunID                string    `json:"run_id"`
@@ -146,6 +152,9 @@ func (w *PlanningWorker) reserve(ctx context.Context) (domain.PlanningRun, domai
 			r.ExecutionAdapter = "injected"
 			if w.ExecutionAdapter != "" {
 				r.ExecutionAdapter = w.ExecutionAdapter
+			}
+			if r.Leader != nil {
+				r.ExecutionAdapter = r.Leader.Tool
 			}
 			r.Version++
 			r.StartedAt = s.Now()

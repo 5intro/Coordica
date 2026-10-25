@@ -28,8 +28,27 @@ func (s *Service) ConfigureAutomation(ctx context.Context, a Actor, key string, 
 		return nil, e
 	}
 	v := req.Settings
-	if v.DevelopmentTool != "codex" || v.LeaderTool != "codex" || v.DevelopmentModel != "gpt-6.1-sol" || v.LeaderModel != "gpt-6.1-sol" || v.PlanningTimeoutSeconds < 1 || v.PlanningTimeoutSeconds > domain.MaxRunDurationSeconds || v.PlanningBudgetSeconds < v.PlanningTimeoutSeconds || v.PlanningBudgetSeconds > domain.MaxTaskBudgetSeconds || v.PlanningMaxRetries < 0 || v.PlanningMaxRetries > 2 {
-		return nil, domain.Fail("invalid_input", "finite Codex gpt-6.1-sol settings required")
+	if v.DevelopmentTool != "codex" || v.DevelopmentModel != "gpt-6.1-sol" ||
+		domain.ValidateLeaderSelection(leaderSelection(v)) != nil || v.PlanningTimeoutSeconds < 1 ||
+		v.PlanningTimeoutSeconds > domain.MaxRunDurationSeconds || v.PlanningBudgetSeconds < v.PlanningTimeoutSeconds ||
+		v.PlanningBudgetSeconds > domain.MaxTaskBudgetSeconds || v.PlanningMaxRetries < 0 || v.PlanningMaxRetries > 2 {
+		return nil, domain.Fail("invalid_input", "valid tool/model choices and finite planning settings required")
+	}
+	if raw, found, err := replayMutation(ctx, s, a, key, "automation.configure", req, nil); found || err != nil {
+		return raw, err
+	}
+	var old domain.AutomationSettings
+	if err := s.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
+		old, err = automation(tx)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	if leaderSelection(old) != leaderSelection(v) {
+		if err := (LeaderConfigurations{s}).validate(ctx, leaderSelection(v)); err != nil {
+			return nil, err
+		}
 	}
 	return s.mutate(ctx, a, key, "automation.configure", req, func(tx *store.Tx) (any, error) {
 		old, e := automation(tx)

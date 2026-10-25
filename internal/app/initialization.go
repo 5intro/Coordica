@@ -64,7 +64,8 @@ func initializationDigest(v domain.Initialization) string {
 		Available, Covered, Omissions []string
 		Result                        *domain.InitializationResult
 		Feedback                      []domain.InitializationFeedback
-	}{v.Version, v.Kind, v.SourceSHA, v.PolicyDigest, v.AvailablePaths, v.CoveredPaths, v.Omissions, v.Result, v.Feedback})
+		Leader                        *domain.LeaderSelection `json:"leader,omitempty"`
+	}{v.Version, v.Kind, v.SourceSHA, v.PolicyDigest, v.AvailablePaths, v.CoveredPaths, v.Omissions, v.Result, v.Feedback, v.Leader})
 	return Hash(string(b))
 }
 func baselineGate(tx *store.Tx, t *domain.Task, bind bool) error {
@@ -193,6 +194,22 @@ func (s *Service) RequestInitialization(ctx context.Context, a Actor, key string
 	if req.Kind != "existing" && req.Kind != "new" {
 		return nil, domain.Fail("invalid_input", "kind must be existing or new")
 	}
+	if (req.Leader == nil) != (req.LeaderVersion == nil) {
+		return nil, domain.Fail("invalid_input", "Leader selection requires its exact configuration version")
+	}
+	if req.Leader != nil {
+		if err := owner(a); err != nil {
+			return nil, err
+		}
+	}
+	if raw, found, err := replayMutation(ctx, s, a, key, "initialization.request", req, conversationCheck(a)); found || err != nil {
+		return initializationResponse(a, raw, err)
+	}
+	if req.Leader != nil {
+		if err := (LeaderConfigurations{s}).validate(ctx, *req.Leader); err != nil {
+			return nil, err
+		}
+	}
 	var p domain.Project
 	e := s.DB.View(ctx, func(tx *store.Tx) error {
 		if e := conversationCheck(a)(tx); e != nil {
@@ -247,6 +264,13 @@ func (s *Service) RequestInitialization(ctx context.Context, a Actor, key string
 				return nil, domain.Fail("busy", "初始化请求尚未停止")
 			}
 		}
+		if req.Leader != nil {
+			if _, err := (LeaderConfigurations{s}).apply(tx, a, domain.LeaderConfigureRequest{
+				ExpectedVersion: *req.LeaderVersion, Selection: *req.Leader,
+			}); err != nil {
+				return nil, err
+			}
+		}
 		v.Version++
 		v.AvailablePaths = []string{}
 		v.Kind = req.Kind
@@ -297,7 +321,12 @@ func (s *Service) queueInitialization(tx *store.Tx, a Actor, v domain.Initializa
 	if err != nil {
 		return nil, err
 	}
-	op := domain.InitializationOperation{ID: ID("init_"), ActorID: a.ID, ActorRole: a.Role, Version: 1, InitializationVersion: v.Version, Generation: 1, State: "queued", GrantSeconds: settings.PlanningTimeoutSeconds, MaxRetries: settings.PlanningMaxRetries}
+	op := domain.InitializationOperation{
+		ID: ID("init_"), ActorID: a.ID, ActorRole: a.Role, Version: 1, InitializationVersion: v.Version, Generation: 1,
+		State: "queued", GrantSeconds: settings.PlanningTimeoutSeconds, MaxRetries: settings.PlanningMaxRetries,
+	}
+	op.Leader = leaderChoice(settings)
+	v.Leader = leaderChoice(settings)
 	v.OperationID = op.ID
 	v.OperationGeneration = op.Generation
 	v.OperationVersion = op.Version

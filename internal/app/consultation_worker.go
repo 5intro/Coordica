@@ -57,6 +57,9 @@ func (w *PlanningWorker) reserveConsultation(tx *store.Tx, r *domain.PlanningRun
 	if w.ExecutionAdapter != "" {
 		r.ExecutionAdapter = w.ExecutionAdapter
 	}
+	if r.Leader != nil {
+		r.ExecutionAdapter = r.Leader.Tool
+	}
 	r.Version++
 	r.StartedAt = w.Service.Now()
 	r.GrantSeconds = grant
