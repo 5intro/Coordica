@@ -25,6 +25,9 @@
   selections per Run, require the structured execution-intent contract for goal-bound development, and reject
   unsupported selections without falling back. This product capability does not change this repository's personal
   implementation restriction above.
+- Follow [SECURITY.md](SECURITY.md): the supported execution environment is a trusted private host. Integration scope,
+  process groups, permission modes and registered read-only roles do not attest OS isolation or same-user credential
+  protection. Do not silently replace this boundary with a sandbox claim or weaken an externally provisioned sandbox.
 
 - Each physical host reuses one limited interaction MCP/profile. Center chat credentials are Owner-issued and may contact Leader only on admin/shared loopback. Paired Runner hosts mint node-bound chat credentials; remote TLS accepts only node-chat, shared safe facts, requirements and own-node safe runtime queries. Persisted scope/node registration is checked transactionally before replay. Legacy unscoped credentials require explicit renewal; never infer authority from profile flags/source IDs.
 - Consultation accounts are cumulative statistics/reservation targets, not lifetime allowances. Each consultation retains a finite timeout and bounded retries. Do not add progress polling timers or a runtime mailbox module.

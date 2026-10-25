@@ -7,6 +7,12 @@ import { AgentSettings } from './AgentSettings';
 const capability: Capability = { ...nodeSnapshot.node.capabilities![0], tool: 'codex', protocol: 'codex-jsonl', model_discovery: 'reported', models: [{ id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol', reasoning_efforts: ['high', 'ultra'], default_reasoning_effort: 'high' }, { id: 'gpt-6-astra', name: 'Astra', reasoning_efforts: ['ultra'] }] };
 const other = { tool: 'other', enabled: false, implement: false, review: true, model: 'other-model' };
 const node = { ...nodeSnapshot.node, scheduling_configured: true, tools: [other, { tool: 'codex', enabled: true, implement: true, review: false }], capabilities: [capability] };
+it.each(['codex', 'claude', 'custom-acp'])('does not present %s role permissions as host isolation', (tool) => {
+ const client = new ApiClient('owner'), write = vi.spyOn(client, 'write');
+ render(<AgentSettings node={node} capability={{ ...capability, tool, read_only: true }} tool={tool} client={client} refresh={vi.fn()}/>);
+ expect(screen.getByText(/范围检查限制代码集成，不隔离电脑文件/)).toBeTruthy();
+ expect(write).not.toHaveBeenCalled();
+});
 it('saves real per-tool parameters with the original host version and preserves other tool permissions on retries', async () => {
  const client = new ApiClient('owner'), refresh = vi.fn();
  const write = vi.spyOn(client, 'write').mockRejectedValueOnce(new Error('中心拒绝')).mockResolvedValueOnce({ ...node, version: 2 });
