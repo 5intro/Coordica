@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"time"
 
 	"coordica/internal/domain"
 	"coordica/internal/runner"
@@ -37,10 +36,8 @@ func newLeaderExecutor(codex, toolsFile string, overrides executableFlags) (*Age
 // Discovery is local, demand-driven and bounded; registry caches model catalogs
 // rather than opening an agent conversation for each UI read or task poll.
 func (e *AgentPlanningExecutor) DiscoverLeaders(parent context.Context) ([]domain.Capability, error) {
-	ctx, cancel := context.WithTimeout(parent, 20*time.Second)
-	defer cancel()
 	result := []domain.Capability{}
-	for _, cap := range e.Registry.Discover(ctx, e.Executables) {
+	for _, cap := range e.Registry.Discover(parent, e.Executables) {
 		if !cap.Installed {
 			continue
 		}

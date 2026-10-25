@@ -240,6 +240,7 @@ func executionEnv(req Request) []string {
 		"CODEX_HOME": true, "XDG_CONFIG_HOME": true, "OPENAI_API_KEY": true,
 		"ANTHROPIC_API_KEY": true, "ANTHROPIC_AUTH_TOKEN": true, "ANTHROPIC_BASE_URL": true,
 		"CLAUDE_CONFIG_DIR": true, "DSH_HOME": true, "DEEPSEEK_API_KEY": true,
+		"PI_CODING_AGENT_DIR": true, "KIMI_CODE_HOME": true,
 		"ANTHROPIC_MODEL": true, "ANTHROPIC_DEFAULT_OPUS_MODEL": true,
 		"ANTHROPIC_DEFAULT_SONNET_MODEL": true, "ANTHROPIC_DEFAULT_HAIKU_MODEL": true,
 		"HTTPS_PROXY": true, "HTTP_PROXY": true, "ALL_PROXY": true, "NO_PROXY": true,

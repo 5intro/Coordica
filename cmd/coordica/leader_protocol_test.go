@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -27,7 +28,7 @@ func TestLeaderProtocolFixture(t *testing.T) {
 		os.Exit(6)
 	}
 	if strings.Contains(args, "fixture-version") {
-		println("1.0.0")
+		fmt.Println("1.0.0")
 		os.Exit(0)
 	}
 	scanner := bufio.NewScanner(os.Stdin)
@@ -61,8 +62,8 @@ func TestLeaderProtocolFixture(t *testing.T) {
 		switch request.Method {
 		case "initialize":
 			result = map[string]any{"protocolVersion": 1, "agentCapabilities": map[string]any{
-				"sessionCapabilities": map[string]any{"close": map[string]any{}}}}
-		case "session/new":
+				"sessionCapabilities": map[string]any{"close": map[string]any{}, "resume": map[string]any{}}}}
+		case "session/new", "session/resume":
 			if strings.Contains(args, "fixture-diagnostic") {
 				_, _ = os.Stdout.WriteString("[llm] loaded model catalog\n")
 			}

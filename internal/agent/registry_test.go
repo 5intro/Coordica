@@ -406,7 +406,8 @@ func TestLeaderEnvironmentDoesNotForwardOwnerOrPublicationAuthority(t *testing.T
 	t.Setenv("OPENAI_API_KEY", "fixture-model")
 	modelEnvironment := map[string]string{"ANTHROPIC_API_KEY": "fixture-anthropic", "ANTHROPIC_AUTH_TOKEN": "fixture-auth",
 		"ANTHROPIC_BASE_URL": "https://model.invalid", "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-flash",
-		"DEEPSEEK_API_KEY": "fixture-deepseek", "CLAUDE_CONFIG_DIR": "/fixture/claude", "DSH_HOME": "/fixture/dsh"}
+		"DEEPSEEK_API_KEY": "fixture-deepseek", "CLAUDE_CONFIG_DIR": "/fixture/claude", "DSH_HOME": "/fixture/dsh",
+		"PI_CODING_AGENT_DIR": "/fixture/pi", "KIMI_CODE_HOME": "/fixture/kimi"}
 	for key, value := range modelEnvironment {
 		t.Setenv(key, value)
 	}

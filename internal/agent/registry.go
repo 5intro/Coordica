@@ -57,6 +57,7 @@ type Registry struct {
 	names       map[string]int
 	modelMu     sync.Mutex
 	modelCache  map[string]modelCacheEntry
+	modelReads  map[string]chan struct{}
 }
 
 var validID = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
@@ -182,18 +183,6 @@ func (r *Registry) Definitions() []Definition {
 	return defs
 }
 
-func (r *Registry) Discover(ctx context.Context, executables map[string]string) []Capability {
-	var caps []Capability
-	for _, def := range r.Definitions() {
-		capability := r.Probe(ctx, def.ID, executables[def.ID])
-		if capability.Available {
-			capability.Models, capability.ModelDiscovery = r.discoverModels(ctx, def, capability)
-		}
-		caps = append(caps, capability)
-	}
-	return caps
-}
-
 // Probe is version-only discovery. Declared protocol capabilities are not a
 // certification of authentication, installed protocol version, or OS support.
 func (r *Registry) Probe(ctx context.Context, tool, executable string) Capability {
@@ -211,6 +200,10 @@ func (r *Registry) Probe(ctx context.Context, tool, executable string) Capabilit
 	}
 	c.Executable = path
 	c.Installed = true
+	if ctx.Err() != nil {
+		c.Detail = "tool discovery canceled; catalog incomplete"
+		return c
+	}
 	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	out, result, err := process.Collect(probeCtx, process.Spec{Executable: path, Args: def.VersionArgs, Env: developmentEnv()}, 16<<10)
