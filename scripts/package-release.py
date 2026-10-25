@@ -21,6 +21,7 @@ import tarfile
 import tempfile
 import zipfile
 
+from release_binary import validate_binary
 from startup_guide import start_here
 
 
@@ -184,8 +185,10 @@ def main():
     if epoch < 0 or epoch > 0xFFFFFFFF:
         raise ValueError("SOURCE_DATE_EPOCH must fit the unsigned gzip timestamp range")
     entries = common_entries()
-    # Read every binary before creating files, so missing inputs leave old outputs intact.
+    # Read and validate every binary before creating files, leaving old outputs intact on failure.
     binaries = {source: read_input(f"bin/{source}") for _, source, _, _ in PLATFORMS}
+    for platform, source, _, _ in PLATFORMS:
+        validate_binary(binaries[source], platform, source)
     output_dir = ROOT / "bin"
     with tempfile.TemporaryDirectory(prefix=".coordica-release-", dir=output_dir) as temporary:
         staging = Path(temporary)
