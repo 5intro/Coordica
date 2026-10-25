@@ -18,7 +18,7 @@ import { Tasks } from './features/Tasks';
 import { Agents } from './features/Agents';
 import { Blocks } from './features/Blocks';
 import { useWorkspaceRoute } from './hooks/useWorkspaceRoute';
-import { Testing } from './features/Testing';
+import { Testing } from './features/testing/TestingWorkspace';
 import { Runs } from './features/Runs';
 import { Candidates } from './features/Candidates';
 import { Audit } from './features/Audit';

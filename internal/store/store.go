@@ -51,6 +51,9 @@ func Open(path string) (*Store, error) {
 	if err == nil {
 		err = initializeLeaderActivity(db)
 	}
+	if err == nil {
+		err = initializeTestCatalog(db)
+	}
 	if err != nil {
 		db.Close()
 		return nil, err

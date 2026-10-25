@@ -58,7 +58,7 @@ func (s *Server) handler(runners, admin bool) http.Handler {
 		mux.HandleFunc("POST /api/v1/runner/register", s.register)
 	}
 	if admin {
-		registerLeaderActivity(mux, s)
+		registerAdminWorkspaces(mux, s)
 	}
 	chatAPI := s.auth("chat", func(w http.ResponseWriter, r *http.Request) {
 		a := r.Context().Value(actorKey{}).(app.Actor)

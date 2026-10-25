@@ -63,7 +63,7 @@ func TestFetchRetainsDistinctObservedObjectsWithoutPollingRefLeak(t *testing.T) 
 	}
 	mustRun(t, g, cache, "gc", "--prune=now")
 	for _, oid := range []OID{base, next} {
-		if err := g.requireCommit(ctx, cache, oid); err != nil {
+		if err := g.RequireCommit(ctx, cache, oid); err != nil {
 			t.Fatal("observation lost after pruning", err)
 		}
 	}

@@ -38,8 +38,9 @@ def lifecycle_lock(parent):
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
             raise RuntimeError("test lifecycle lock is not a regular file")
-        if os.fstat(fd).st_size == 0:
-            os.write(fd, b"0")
+        # Both flock and Windows byte-range locks allow an empty file. Never
+        # initialize its contents before locking: another first-time opener
+        # could already own that byte and Windows would reject the write.
         deadline = time.monotonic() + 30
         while not locked:
             try:

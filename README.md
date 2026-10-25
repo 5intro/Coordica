@@ -118,6 +118,27 @@ macOS 请使用固定安装路径，按需要授权文件访问；开发版没�
 
 活动与业务审计分开：全局保留最近 4096 条、单条最多 2048 字节；不会回填升级前的活动。Owner 在 loopback 使用 `GET leader/activity` 和 `GET leader/activity/stream`；中心聊天通过 `read_leader_activity` 读取有界页面（`limit` 1–100，可带 `after` 或准确 `kind`/`id`/`generation`）。节点聊天和远程 Runner 监听没有 Leader 活动入口。工具回合结束不能作为完成、授权或停止证明。
 
+## 测试条目、需求验收与补测
+
+测试中心的“测试条目”记录验证目的、步骤、断言和黑盒、白盒、冒烟、回归、黄金旅程、端到端、长生命周期分类。条目定义与套件命令分开：条目不能增加可执行权限，只有 Owner 保存的套件提供检查命令。
+
+先在“需求验收与补测”保存条款，再在条目中选择对应需求和条款。关联固定需求内容修订与验收计划版本；条款或条目修改后，旧执行不能自动变成新版本的通过证据。覆盖查询需要完整固定提交 SHA，套件、条目版本和被中心接受的静止验证 Run 必须一致。人工验收与代码已合并分别保留，不根据 Agent 的总结判为完成。
+
+首个条目报告适配为 `go-json`，使用套件中的 `go test -json` 检查，条目标识为 `package#TestName`。输出必须包含实际测试运行及完整包终结事件；失败、跳过、截断、取消、旧 Run 和缺少条目报告均不算通过。其他框架目前只显示命令检查，逐条报告适配仍待扩展。验证目前在中心本机执行；多平台套件缺少平台证据时不会宣称条目通过。
+
+覆盖查询自动列出缺失、待实现、未运行、失败、过期等缺口。“生成补测需求”将预览保存为关联的普通需求，交给既有 Leader 流程判断复用或新增工作；同一预览去重，来源修订后旧补测任务不能继续使用旧授权。它不恢复暂停、不启用自动化、不改测试命令。只有人工验收的缺口不会生成自动开发任务。补测材料超过 64 KiB 时整批拒绝，应拆分需求或精简条目。
+
+| 操作 | 本机 Owner HTTP / CLI 路径 |
+| --- | --- |
+| 条目分页与分类 | GET `tests/cases?limit=50&category=regression&after=...` |
+| 保存条目版本 | POST `tests/cases`，`expected_version`、`case` |
+| 读取当前验收计划 | GET `tests/acceptance/plan?requirement_id=...` |
+| 保存验收条款 | POST `tests/acceptance`，`expected_requirement_version`、`expected_version`、`plan` |
+| 固定提交覆盖与补测预览 | GET `tests/acceptance?requirement_id=...&commit=...` |
+| 生成去重补测需求 | POST `tests/supplements`，`requirement_id`、`commit`、`expected_digest` |
+
+这些操作复用中心用例、版本检查、幂等和审计；远端 Runner 与有限交互层没有验收政策写入权限。完整字段见公开 API Schema。人工验收签收/撤销、更多框架及跨平台逐条证据聚合仍在后续计划中。
+
 ## 可维护性审查
 
 开发与独立审查遵守 [质量规范](QUALITY.md)，渐进拆分计划见 [AGENT.md](AGENT.md)。
@@ -375,4 +396,3 @@ Web、CLI 与 MCP 遵守相同授权规则。普通聊天使用受限 profile；
 ## 反馈
 
 通过 [Issues](https://github.com/5intro/Coordica/issues) 提交问题或建议。请附版本、操作系统、复现步骤与脱敏日志，不要提交令牌、私钥、个人配置或项目私密内容。
-

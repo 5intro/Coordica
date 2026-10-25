@@ -1057,3 +1057,102 @@ export interface PlanningAnswerReceipt {
   run: PlanningRun;
   message: LeaderMessage;
 }
+export interface CriterionRef {
+  requirement_id: string;
+  revision: number;
+  plan_version: number;
+  criterion_id: string;
+}
+export interface TestCase {
+  id: string;
+  version: number;
+  name: string;
+  purpose: string;
+  categories: (string)[] | null;
+  steps: (string)[] | null;
+  assertions: (string)[] | null;
+  enabled: boolean;
+  implemented: boolean;
+  suite_id: string;
+  check_name: string;
+  report_format: string;
+  external_id: string;
+  coverage: (CriterionRef)[] | null;
+}
+export interface TestCaseSave {
+  expected_version: number;
+  case: TestCase;
+}
+export interface TestCaseQuery {
+  after: string;
+  category: string;
+  requirement_id: string;
+  limit: number;
+}
+export interface TestCasePage {
+  items: (TestCase)[] | null;
+  next: string;
+}
+export interface AcceptanceCriterion {
+  id: string;
+  title: string;
+  method: string;
+}
+export interface AcceptancePlan {
+  requirement_id: string;
+  revision: number;
+  version: number;
+  criteria: (AcceptanceCriterion)[] | null;
+}
+export interface AcceptanceSave {
+  expected_requirement_version: number;
+  expected_version: number;
+  plan: AcceptancePlan;
+}
+export interface TestCaseSummary {
+  id: string;
+  version: number;
+  name: string;
+}
+export interface CaseEvidence {
+  case: TestCaseSummary;
+  state: string;
+  run_id: string;
+  platform: string;
+}
+export interface CriterionCoverage {
+  criterion: AcceptanceCriterion;
+  state: string;
+  cases: (CaseEvidence)[] | null;
+}
+export interface AcceptanceCoverage {
+  requirement: Requirement;
+  plan: AcceptancePlan;
+  commit: string;
+  digest: string;
+  current: boolean;
+  verified: boolean;
+  criteria: (CriterionCoverage)[] | null;
+  gaps: (TestGap)[] | null;
+}
+export interface TestGap {
+  criterion_id: string;
+  case_id: string;
+  run_id?: string;
+  reason: string;
+  action: string;
+}
+export interface TestSupplementRequest {
+  requirement_id: string;
+  commit: string;
+  expected_digest: string;
+}
+export interface TestSupplementPlan {
+  requirement_id: string;
+  source_id: string;
+  source_revision: number;
+  plan_version: number;
+  commit: string;
+  digest: string;
+  gaps: (TestGap)[] | null;
+}

@@ -420,60 +420,6 @@ func (g *Client) Clone(ctx context.Context, source, dir string) error {
 	return err
 }
 
-func (g *Client) Head(ctx context.Context, repo string) (OID, error) {
-	if err := g.guardRepo(ctx, repo); err != nil {
-		return "", err
-	}
-	out, err := g.run(ctx, repo, nil, "rev-parse", "--verify", "HEAD^{commit}")
-	if err != nil {
-		return "", err
-	}
-	return ParseOID(strings.TrimSpace(string(out)))
-}
-
-// Checkout places a fixed commit in a managed workspace without discarding
-// local modifications. Clone deliberately leaves checkout to this operation.
-func (g *Client) Checkout(ctx context.Context, repo string, commit OID) error {
-	if err := g.guardRepo(ctx, repo); err != nil {
-		return err
-	}
-	if err := g.requireCommit(ctx, repo, commit); err != nil {
-		return err
-	}
-	_, err := g.run(ctx, repo, nil, "checkout", "--detach", string(commit))
-	return err
-}
-func (g *Client) requireCommit(ctx context.Context, repo string, o OID) error {
-	if err := validIDs(o); err != nil {
-		return err
-	}
-	_, err := g.run(ctx, repo, nil, "cat-file", "-e", string(o)+"^{commit}")
-	return err
-}
-
-func (g *Client) IsAncestor(ctx context.Context, repo string, from, to OID) (bool, error) {
-	if err := validIDs(from, to); err != nil {
-		return false, err
-	}
-	if err := g.guardRepo(ctx, repo); err != nil {
-		return false, err
-	}
-	for _, o := range []OID{from, to} {
-		if err := g.requireCommit(ctx, repo, o); err != nil {
-			return false, err
-		}
-	}
-	_, err := g.run(ctx, repo, nil, "merge-base", "--is-ancestor", string(from), string(to))
-	if err == nil {
-		return true, nil
-	}
-	var command *Error
-	if errors.As(err, &command) && command.ExitCode == 1 && !errors.Is(err, process.ErrTreeNotStopped) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-		return false, nil
-	}
-	return false, err
-}
-
 func (g *Client) CommitAll(ctx context.Context, repo, message string, id Identity) (OID, error) {
 	if err := g.guardRepo(ctx, repo); err != nil {
 		return "", err
@@ -526,7 +472,7 @@ func (g *Client) CreateSnapshotBundle(ctx context.Context, repo string, h OID, d
 	if err := g.guardRepo(ctx, repo); err != nil {
 		return Bundle{}, err
 	}
-	if err := g.requireCommit(ctx, repo, h); err != nil {
+	if err := g.RequireCommit(ctx, repo, h); err != nil {
 		return Bundle{}, err
 	}
 	return g.createBundle(ctx, repo, h, h, dest)
@@ -625,7 +571,7 @@ func (g *Client) importBundle(ctx context.Context, repo, file string, b, h OID, 
 	}
 	// The application's issued baseline must already exist independently.
 	if requireBase {
-		if err := g.requireCommit(ctx, repo, b); err != nil {
+		if err := g.RequireCommit(ctx, repo, b); err != nil {
 			return result, fault("bundle", errors.Join(ErrInvalidBundle, err), "baseline unavailable")
 		}
 	}
@@ -661,7 +607,7 @@ func (g *Client) importBundle(ctx context.Context, repo, file string, b, h OID, 
 	if _, err = g.run(ctx, repo, nil, "bundle", "unbundle", copy); err != nil {
 		return result, fault("bundle", errors.Join(ErrInvalidBundle, err), "object import failed")
 	}
-	if err = g.requireCommit(ctx, repo, h); err != nil {
+	if err = g.RequireCommit(ctx, repo, h); err != nil {
 		return result, errors.Join(ErrInvalidBundle, err)
 	}
 	if _, err = g.run(ctx, repo, nil, "fsck", "--strict", "--no-reflogs", string(h)); err != nil {
@@ -758,7 +704,7 @@ func (g *Client) DiffPaths(ctx context.Context, repo string, from, to OID) ([]Ch
 		return nil, err
 	}
 	for _, o := range []OID{from, to} {
-		if err := g.requireCommit(ctx, repo, o); err != nil {
+		if err := g.RequireCommit(ctx, repo, o); err != nil {
 			return nil, err
 		}
 	}
@@ -780,7 +726,7 @@ func (g *Client) DiffPatch(ctx context.Context, repo string, from, to OID) ([]by
 		return nil, err
 	}
 	for _, oid := range []OID{from, to} {
-		if err := g.requireCommit(ctx, repo, oid); err != nil {
+		if err := g.RequireCommit(ctx, repo, oid); err != nil {
 			return nil, err
 		}
 	}
