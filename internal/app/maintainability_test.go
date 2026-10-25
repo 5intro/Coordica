@@ -61,64 +61,76 @@ func qualityCandidateSource(t *testing.T, f *itFixture, path string, text []byte
 	return f.candidate(t)
 }
 
-func TestMaintainabilityRejectsBeforeReviewWithoutPublishing(t *testing.T) {
+func TestMaintainabilityAdvisoryReachesReviewWithoutPublishing(t *testing.T) {
 	f := newITFixture(t)
 	qualityCandidate(t, f)
 	if err := f.w.Tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	c := f.candidate(t)
-	if c.State != "rejected" || !strings.Contains(c.Detail, "maintainability-v1") {
-		t.Fatal("invalid structure reached review", c)
+	if c.State != "prechecking" || !strings.Contains(c.Maintainability, codequality.Version) {
+		t.Fatal("advisory signal lost before independent review", c)
 	}
 	main, err := f.g.Query(context.Background(), f.remote, "refs/heads/main")
 	if err != nil || main != f.b {
-		t.Fatal("rejected candidate moved main", main, err)
+		t.Fatal("unreviewed candidate moved main", main, err)
+	}
+	if err := f.w.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if f.candidate(t).State != "reviewing" || f.snapshot(t).Tasks[0].Repairs != 0 {
+		t.Fatal("advisory blocked review or consumed repair")
+	}
+	review := f.claim(t, "review")
+	if review.Candidate == nil || review.Candidate.Maintainability != c.Maintainability {
+		t.Fatal("reviewer lost fixed advisory context")
 	}
 }
 
-func TestMaintainabilityBlocksLegacyApprovedCandidateAtLanding(t *testing.T) {
+func TestMaintainabilityAdvisoryDoesNotWaiveValidationEvidence(t *testing.T) {
 	f := newITFixture(t)
 	ctx := context.Background()
-	c := qualityCandidate(t, f)
-	// Let prepare import the actual artifact; structural rejection must not
-	// erase those fixed objects. Then simulate a pre-upgrade approved record.
-	if err := f.w.Tick(ctx); err != nil {
-		t.Fatal(err)
+	qualityCandidate(t, f)
+	for range 2 {
+		if err := f.w.Tick(ctx); err != nil {
+			t.Fatal(err)
+		}
 	}
-	c = f.candidate(t)
-	fixed, err := f.g.BuildCandidate(ctx, f.w.repo(), f.b, gitops.OID(c.Head),
-		filepath.Join(t.TempDir(), "legacy"), gitops.Identity{})
+	c := f.candidate(t)
+	review := f.claim(t, "review")
+	_, err := f.s.Complete(ctx, f.node, ID("review_"), review.Run.ID, domain.CompleteRequest{
+		Generation: review.Run.Generation, Status: "succeeded", SessionID: "advisory-review", Quiescent: true,
+		Review: &domain.Review{Candidate: c.Commit, Verdict: "approve", Summary: "Cohesive change despite long literal", Findings: []string{}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Main, c.Commit = string(f.b), string(fixed.Commit)
-	c.State, c.ApprovedCommit = "ready_to_land", c.Commit
-	c.Protected = true
-	c.Review = &domain.Review{Candidate: c.Commit, Verdict: "approve"}
-	c.Checks = []domain.CheckResult{{Name: "clean_git", Passed: true}}
-	if err := f.s.DB.Update(ctx, func(tx *store.Tx) error {
-		var task domain.Task
-		if err := tx.Get("task", c.TaskID, &task); err != nil {
-			return err
-		}
-		task.State, task.CurrentCandidateID, task.HoldReason = "awaiting_integration", c.ID, ""
-		if err := tx.Put("task", task.ID, task); err != nil {
-			return err
-		}
-		return tx.Put("candidate", c.ID, c)
-	}); err != nil {
+	c = f.candidate(t)
+	if c.State != "ready_to_land" || c.CheckPlan == nil || c.CheckRunID == "" || c.Maintainability == "" {
+		t.Fatal("real review/check pipeline did not retain advisory", c)
+	}
+	originalRun := c.CheckRunID
+	c.CheckRunID = "missing-validation-run"
+	if err := f.s.DB.Update(ctx, func(tx *store.Tx) error { return tx.Put("candidate", c.ID, c) }); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.w.land(ctx, c); err == nil {
+		t.Fatal("advisory policy waived fixed test evidence")
+	}
+	main, err := f.g.Query(ctx, f.remote, "refs/heads/main")
+	if err != nil || main != f.b || f.candidate(t).State != "ready_to_land" {
+		t.Fatal("invalid evidence changed main/state", err)
+	}
+	c.CheckRunID = originalRun
+	if err := f.s.DB.Update(ctx, func(tx *store.Tx) error { return tx.Put("candidate", c.ID, c) }); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.w.land(ctx, c); err != nil {
 		t.Fatal(err)
 	}
-	if f.candidate(t).State != "rejected" {
-		t.Fatal("legacy approval bypassed structural gate")
-	}
-	main, err := f.g.Query(ctx, f.remote, "refs/heads/main")
-	if err != nil || main != f.b {
-		t.Fatal("bad legacy candidate published", main, err)
+	main, err = f.g.Query(ctx, f.remote, "refs/heads/main")
+	if err != nil || string(main) != c.Commit || f.candidate(t).State != "landed" {
+		t.Fatal("valid reviewed candidate blocked by advisory", err)
 	}
 }
 

@@ -29,30 +29,15 @@ func (m *metrics) lineAt(offset int) int { return indexedLine(m.lines, offset) }
 func (m *metrics) cancelled() bool { return m.ctx != nil && m.ctx.Err() != nil }
 
 func measureSource(m *metrics, f File) error {
-	if csharpMetadata(f.Path) {
-		return nil
-	}
-	m.csharpScopes = nil
-	if strings.EqualFold(path.Ext(f.Path), ".cs") {
-		var err error
-		m.csharpScopes, err = csharpSourceScopes(m.csharpProjects, f.Path)
-		if err != nil {
-			return err
-		}
-	}
 	m.lines = sourceLineOffsets(f.Text)
 	m.text(f)
 	if m.cancelled() {
 		return m.ctx.Err()
 	}
+	// All languages get cheap physical signals. Go uses the standard library
+	// parser; other language semantics belong to existing native tools/review.
 	if strings.EqualFold(path.Ext(f.Path), ".go") {
-		if err := m.goSource(f); err != nil {
-			return err
-		}
-	} else {
-		f.Text = physicalNewlines(f.Text)
-		m.lines = sourceLineOffsets(f.Text)
-		m.structuredSource(f)
+		return m.goSource(f)
 	}
 	return m.ctx.Err()
 }

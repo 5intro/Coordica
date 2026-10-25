@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const Version = "maintainability-v1"
+const Version = "maintainability-v2-advisory"
 
 const (
 	MaxLine      = 160
@@ -23,24 +23,20 @@ const (
 
 // Instructions is the same standing requirement for initialization, planning,
 // development and independent review. It grants no scope or policy authority.
-const Instructions = `Maintainability is a required acceptance gate for every project.
-Keep domain rules, application transactions, persistence, transports, Git/process
-operations and tool adapters cohesive and separate. Do not create god objects,
-unrelated-responsibility services, minified hand-written code or giant functions.
-Limits for authored source: 160 Unicode characters per line, 500 lines per file,
-80 lines per function, 200 lines per class and 20 methods per class/Go receiver.
-Go receiver methods are counted across all files of the same package.
-Existing debt is frozen against the fixed target main, never a candidate-edited
-allowlist: no new violation or increased existing measurement is acceptable.
-Do not evade checks by renaming files/types, moving code into generated/vendor
-paths, marking authored code generated, compressing statements or moving one
-god object's methods across files. Split by responsibility with small consumer
-interfaces, preserving atomic state/audit/idempotency and final version checks.
-Plan bounded tasks and include structural cleanup for affected legacy hotspots.
-Review cohesion, dependency direction and native language structure even where
-automatic syntax metrics are unavailable. Request changes on a violation;
-tests passing or an Owner candidate approval does not waive this requirement.
-Only Owner may decide a policy change through a separate protected change.
+const Instructions = `
+Maintain cohesive modules and small consumer-owned interfaces. Use these
+reference signals, not automatic rejection thresholds: 160 Unicode characters
+per line, 500 lines per file, 80 lines per function, 200 lines per class and
+20 methods per class/Go receiver. Focus on new large modules and mixed
+responsibilities, dependency direction and practical opportunities to split.
+Metrics are advisory and may be incomplete; do not invent a language parser
+or demand formatting churn merely to hit a number. Use project-native lint,
+build/type checks, tests and independent code review. Reviewers use judgment
+and request changes for material maintenance risks, not a lexical edge case.
+Numeric findings neither reject a candidate nor approve one. Fixed candidate,
+scope/authorization, test evidence, process-stop and final version checks
+remain mandatory. Existing source is compared to fixed target main so the
+report focuses on new or growing risk without an editable allowlist.
 `
 
 type File struct {
@@ -73,9 +69,6 @@ func Included(name string) bool {
 	}
 	if strings.HasSuffix(name, ".generated.ts") || strings.HasSuffix(name, ".pb.go") {
 		return false
-	}
-	if csharpMetadata(name) {
-		return true
 	}
 	switch strings.ToLower(path.Ext(name)) {
 	case ".go", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".py",

@@ -60,7 +60,7 @@ func TestQualityPreparationFailurePreservesCandidate(t *testing.T) {
 	before := f.snapshot(t)
 	c := f.candidate(t)
 	f.w.Git = gitops.New(filepath.Join(t.TempDir(), "missing-git"))
-	_, err := candidateCheckPlan(context.Background(), f.w, *before.Project, c)
+	_, err := candidateCheckPlan(context.Background(), f.w, *before.Project, &c)
 	var scan *qualityScanFailure
 	if !errors.As(err, &scan) {
 		t.Fatal("scan failure lost its source", err)

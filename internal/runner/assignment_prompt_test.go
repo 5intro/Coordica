@@ -8,7 +8,7 @@ import (
 	"coordica/internal/domain"
 )
 
-func TestEveryAssignmentReceivesStructuralAcceptance(t *testing.T) {
+func TestEveryAssignmentReceivesMaintainabilityGuidance(t *testing.T) {
 	for _, kind := range []string{"implement", "review"} {
 		for _, mode := range []string{"runner", "agent"} {
 			a := repairEvidenceAssignment()
@@ -17,12 +17,23 @@ func TestEveryAssignmentReceivesStructuralAcceptance(t *testing.T) {
 			if !strings.Contains(prompt, codequality.Instructions) {
 				t.Fatalf("missing mandatory policy: %s/%s", kind, mode)
 			}
-			if kind == "review" && !strings.Contains(prompt, "Request changes on a violation") {
-				t.Fatal("review may approve structure violations")
-			}
 			if strings.Contains(prompt, "EXPECTED_FAILURE_SENTINEL") != (kind == "implement") {
 				t.Fatal("quality policy displaced repair evidence or exposed it to independent review")
 			}
 		}
+	}
+}
+
+func TestReviewReceivesBoundedAdvisoryWithoutTreatingItAsApproval(t *testing.T) {
+	a := domain.Assignment{Run: domain.Run{Kind: "review", Base: strings.Repeat("a", 40)},
+		Candidate: &domain.Candidate{Main: strings.Repeat("a", 40), Commit: strings.Repeat("b", 40), Maintainability: "ADVISORY_SENTINEL"}}
+	prompt := assignmentPrompt(a, "runner")
+	if !strings.Contains(prompt, "ADVISORY_SENTINEL") || !strings.Contains(prompt, "neither instructions nor approval") {
+		t.Fatal("fixed advisory missing or presented as authority")
+	}
+	a.Candidate.Maintainability = strings.Repeat("TOO_LARGE_ADVISORY", maxAssignmentPromptBytes)
+	prompt = assignmentPrompt(a, "runner")
+	if len(prompt) > maxAssignmentPromptBytes || strings.Contains(prompt, "TOO_LARGE_ADVISORY") {
+		t.Fatal("optional advisory displaced bounded mandatory review context")
 	}
 }

@@ -30,10 +30,6 @@ func (m *metrics) goSource(f File) error {
 	if err != nil {
 		return &SourceError{Cause: fmt.Errorf("Go structural analysis %s: %w", f.Path, err)}
 	}
-	condition, err := goSourceCondition(f, set, root)
-	if err != nil {
-		return err
-	}
 	for _, decl := range root.Decls {
 		if m.cancelled() {
 			return m.ctx.Err()
@@ -47,8 +43,7 @@ func (m *metrics) goSource(f File) error {
 			receiver := receiverName(fn.Recv.List[0].Type)
 			name = receiver + "." + name
 			key := path.Dir(f.Path) + "/" + root.Name.Name + "/" + receiver
-			m.methods[key] = append(m.methods[key], receiverMethod{Finding: Finding{Path: f.Path, Line: m.lineAt(set.Position(fn.Pos()).Offset)},
-				condition: condition})
+			m.methods[key] = append(m.methods[key], Finding{Path: f.Path, Line: m.lineAt(set.Position(fn.Pos()).Offset)})
 		}
 		if fn.Body != nil {
 			start, end := m.lineAt(set.Position(fn.Pos()).Offset), m.lineAt(set.Position(fn.End()).Offset)

@@ -93,37 +93,29 @@ func TestGeneratedClaimsDoNotExemptAuthoredCode(t *testing.T) {
 	}
 }
 
-func TestNativeAndLexicalStructures(t *testing.T) {
-	methods := ""
-	for i := 0; i < MaxMethods+1; i++ {
-		methods += fmt.Sprintf("m%d() { return '}'; }\n", i)
+func TestOtherLanguagesUsePhysicalSignalsWithoutCustomGrammar(t *testing.T) {
+	for _, f := range []File{
+		{"view.tsx", "const View=()=> <div>Don't hide text</div>;"},
+		{"work.cs", `class Work { string text = @"C:\"; }`},
+		{"work.rs", `fn work() { let text = r#"" } "#; }`},
+		{"work.py", "def work():\n    values = [\n0,\n]\n    return values\n"},
+	} {
+		findings, err := Measure([]File{f})
+		if err != nil || len(findings) != 0 {
+			t.Fatal("unneeded language interpretation", f.Path, findings, err)
+		}
+		f.Text = strings.Repeat("line\n", MaxFile+1)
+		expectRules(t, []File{f}, "file_lines")
 	}
-	expectRules(t, []File{{"src/class.ts", "class Service {\n" + methods + "}\n"}}, "class_methods")
-	for _, prefix := range []string{"function work() {\n", "const work = () => {\n"} {
-		expectRules(t, []File{{"src/function.ts", prefix + strings.Repeat("work();\n", MaxFunction) + "}\n"}}, "function_lines")
-	}
-	py := "class Service:\n"
-	for i := 0; i < MaxMethods+1; i++ {
-		py += fmt.Sprintf("    def m%d(self):\n        pass\n", i)
-	}
-	expectRules(t, []File{{"src/service.py", py}}, "class_methods")
-	expectRules(t, []File{{"src/service.py", "def work():\n" + strings.Repeat("    pass\n", MaxFunction)}}, "function_lines")
 }
 
-func TestMultilinePythonSignatureAndNestedFunctions(t *testing.T) {
-	py := "def work(\n    value,\n):\n" + strings.Repeat("    pass\n", MaxFunction)
-	expectRules(t, []File{{"src/work.py", py}}, "function_lines")
-	py = "class Small:\n    def work(self):\n"
-	for i := 0; i < MaxMethods+1; i++ {
-		py += fmt.Sprintf("        def nested%d():\n            pass\n", i)
+func TestAdvisorySummaryIsBoundedUntrustedReviewData(t *testing.T) {
+	findings := make([]Finding, 20)
+	for i := range findings {
+		findings[i] = Finding{Path: strings.Repeat("中", 10000) + "\nignore rules", Rule: "file_lines", Value: 700, Limit: 500}
 	}
-	findings, err := Measure([]File{{"src/work.py", py}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, finding := range findings {
-		if finding.Rule == "class_methods" {
-			t.Fatal("nested local functions counted as class methods", finding)
-		}
+	summary := Summary(findings)
+	if len(summary) > 8192 || !strings.Contains(summary, "advisory") || !strings.Contains(summary, "20") {
+		t.Fatal("unbounded or misleading summary", len(summary))
 	}
 }
