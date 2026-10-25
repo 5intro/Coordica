@@ -8,6 +8,9 @@ import (
 var rustLifetime = regexp.MustCompile(`'[A-Za-z_][A-Za-z_0-9]*`)
 
 func nativeMaskedSource(text, extension string) string {
+	if extension == ".cs" {
+		return maskedCSharp(text)
+	}
 	if extension == ".php" {
 		return maskedHashComments(text, false)
 	}

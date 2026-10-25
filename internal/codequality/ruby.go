@@ -43,7 +43,7 @@ func (m *metrics) rubySource(f File) {
 				}
 				continue
 			}
-			if (word == "if" || word == "unless" || word == "while" || word == "until") && prefix != "" && !strings.HasSuffix(prefix, ";") {
+			if (word == "if" || word == "unless" || word == "while" || word == "until") && rubyPostfixModifier(prefix) {
 				continue // Statement modifiers have no matching end.
 			}
 			if word == "do" && loop {

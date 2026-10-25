@@ -39,13 +39,7 @@ func nativeFunctions(ctx context.Context, original, text, extension string, ends
 	var blocks []nativeBlock
 	seen := map[int]bool{}
 	headerEnd := 0
-	matches := nativeFunction.FindAllStringSubmatchIndex(text, -1)
-	keyword := extension == ".rs" || extension == ".swift" || extension == ".kt" || extension == ".php"
-	if !keyword {
-		matches = nativeSignatureMatches(text, extension)
-	} else if extension == ".kt" {
-		matches = kotlinFunction.FindAllStringSubmatchIndex(text, -1)
-	}
+	matches, keyword := nativeFunctionMatches(text, extension)
 	for _, match := range matches {
 		if ctx != nil && ctx.Err() != nil {
 			return nil

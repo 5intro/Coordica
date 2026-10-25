@@ -75,3 +75,13 @@ func TestCSharpUnknownProjectMembershipFailsClosedWithoutBaselineAllowance(t *te
 		t.Fatal("metadata escaped bounded reader")
 	}
 }
+
+func TestCSharpUnknownBaselineScopeRetainsOnlyPhysicalDebt(t *testing.T) {
+	source := "// " + strings.Repeat("x", 161) + "\nclass Worker {}\n"
+	base := []File{{"app.csproj", "<Project"}, {"work.cs", source}}
+	candidate := []File{{"app.csproj", reviewSDKProject}, {"work.cs", source}}
+	findings, err := Regressions(base, candidate)
+	if err != nil || len(findings) != 0 {
+		t.Fatal("measurable physical baseline debt was discarded", findings, err)
+	}
+}

@@ -32,6 +32,11 @@ func measureSource(m *metrics, f File) error {
 	if csharpMetadata(f.Path) {
 		return nil
 	}
+	m.lines = sourceLineOffsets(f.Text)
+	m.text(f)
+	if m.cancelled() {
+		return m.ctx.Err()
+	}
 	m.csharpScopes = nil
 	if strings.EqualFold(path.Ext(f.Path), ".cs") {
 		var err error
@@ -39,11 +44,6 @@ func measureSource(m *metrics, f File) error {
 		if err != nil {
 			return err
 		}
-	}
-	m.lines = sourceLineOffsets(f.Text)
-	m.text(f)
-	if m.cancelled() {
-		return m.ctx.Err()
 	}
 	if strings.EqualFold(path.Ext(f.Path), ".go") {
 		if err := m.goSource(f); err != nil {

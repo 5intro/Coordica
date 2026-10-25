@@ -111,6 +111,11 @@ methods. Markup comments and quoted attributes do not create executable scripts.
 JSX child text and attributes preserve callback/expression boundaries; Rust raw
 string hash delimiters and nested comments do not expose literal braces. Ruby
 receiver keyword methods and symbols do not open lexical block frames.
+Python scope endings respect balanced and explicit continuation lines, Ruby
+block-valued conditionals remain distinct from postfix modifiers, Swift
+initializers retain function limits, and C# verbatim/interpolated strings retain
+executable expression bodies. TypeScript class-property function annotations
+are type regions, while their executable initializers remain measured.
 
 Fixed artifact conventions exclude `.git`, `node_modules`, `vendor`,
 `third_party`, `dist`, `*.generated.ts` and `*.pb.go`. A generated-file comment

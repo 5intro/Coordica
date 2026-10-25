@@ -54,6 +54,7 @@ func scriptTypeRegions(ctx context.Context, text string, ends map[int]int) []scr
 		}
 		regions = append(regions, scriptTypeRegion{match[1], scriptAnnotationEnd(text, match[1], ends)})
 	}
+	regions = append(regions, scriptPropertyTypeRegions(ctx, text, ends)...)
 	sort.Slice(regions, func(i, j int) bool { return regions[i].start < regions[j].start })
 	merged := []scriptTypeRegion{}
 	for _, region := range regions {

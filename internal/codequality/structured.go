@@ -161,14 +161,16 @@ header:
 		}
 	}
 	end := headerEnd
+	continuation := pythonContinuation{}
 	for i := headerEnd + 1; i < len(lines); i++ {
 		if strings.TrimSpace(lines[i]) != "" {
 			d := indentation(lines[i])
-			if d <= indent {
+			if d <= indent && !continuation.active() {
 				break
 			}
 			end = max(end, i, stringEnds[i+1]-1)
 		}
+		continuation.advance(lines[i])
 		if strings.TrimSpace(original[i]) != "" && indentation(original[i]) > indent {
 			end = max(end, i)
 		}
@@ -179,7 +181,13 @@ header:
 func pythonOwnedMethods(lines []string) int {
 	methods := 0
 	var declarations []int
+	continuation := pythonContinuation{}
 	for index, line := range lines {
+		continued := continuation.active()
+		continuation.advance(line)
+		if continued {
+			continue
+		}
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
