@@ -68,7 +68,7 @@ func TestWorkerScopedRunnerCommitMode(t *testing.T) {
 					mu.Lock()
 					artifact = body
 					mu.Unlock()
-					respond(w, domain.Artifact{ID: "artifact_scoped", RunID: "run_test"})
+					respond(w, artifactTestReceipt(body))
 				case strings.HasSuffix(req.URL.Path, "complete"):
 					var value domain.CompleteRequest
 					if err := json.NewDecoder(req.Body).Decode(&value); err != nil {

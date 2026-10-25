@@ -16,9 +16,17 @@ const guidance: Record<string, string> = {
 };
 
 export function InitializationOperations({ project, current, client, action }: PreparationState & PreparationControls) {
-  const [kind, setKind] = useState(current?.kind === 'new' ? 'new' : 'existing');
+  const [choice, setChoice] = useState<{ kind: 'new' | 'existing' }>();
+  const kind = choice?.kind ?? (current?.kind === 'new' ? 'new' : 'existing');
   const analyzing = current?.status === 'analyzing';
   const unknown = current?.operation_state === 'unknown_live';
+  async function analyze() {
+    const submitted = choice;
+    const accepted = await action.execute(() => client.write<Initialization>('/initialization/analyze', {
+      expected_version: current?.version ?? 0, kind,
+    }), '只读分析请求已登记。未授权任何开发任务。');
+    if (accepted) setChoice((latest) => latest === submitted ? undefined : latest);
+  }
   return (
     <section className="panel" aria-labelledby="initialization-status">
       <h2 id="initialization-status">{labels[current?.status ?? 'draft']}</h2>
@@ -28,16 +36,14 @@ export function InitializationOperations({ project, current, client, action }: P
       <details open={!current?.kind}>
         <summary>{current?.status === 'initialized' ? '重新分析项目' : '分析选项'}</summary>
         <Field label="项目输入类型" hint="已有仓库分析固定提交；新项目通过访谈补齐需求与架构。">
-          <select value={kind} onChange={(event) => setKind(event.target.value)}>
+          <select value={kind} onChange={(event) => setChoice({ kind: event.target.value === 'new' ? 'new' : 'existing' })}>
             <option value="existing">已有仓库 · 固定提交只读分析</option>
             <option value="new">新项目 · 需求与架构访谈</option>
           </select>
         </Field>
       </details>
       <button className="primary" disabled={action.busy || !project.paused || analyzing || unknown}
-        onClick={() => void action.execute(() => client.write<Initialization>('/initialization/analyze', {
-          expected_version: current?.version ?? 0, kind,
-        }), '只读分析请求已登记。未授权任何开发任务。')}>
+        onClick={() => void analyze()}>
         {current?.status === 'initialized' ? '暂停后重新初始化（使旧任务授权失效）' : '打开项目并请求只读初始化'}
       </button>
       {analyzing && !unknown && (

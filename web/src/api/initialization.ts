@@ -90,3 +90,4 @@ export function initializationReply(value: unknown): Initialization | undefined 
   const normalized = object(value) && value.omissions === null ? { ...value, omissions: [] } : value;
   return validInitialization(normalized) ? normalized : undefined;
 }
+

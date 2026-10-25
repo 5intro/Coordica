@@ -435,8 +435,21 @@ func TestFailedPrecheckCannotEnterReview(t *testing.T) {
 	}
 	seedCurrentPolicyBaseline(t, f.s)
 	f.implement(t, "src/feature.txt")
-	if c := f.candidate(t); c.State != "rejected" || c.CheckRunID != "" {
+	c := f.candidate(t)
+	if c.State != "rejected" || c.CheckRunID != "" {
 		t.Fatal("failed precheck reached review", c)
+	}
+	// Failure evidence must survive persistence and the next repair Claim.
+	// CheckRunID is not failure attribution: it is only populated on success.
+	repair := f.claim(t, "implement")
+	if repair.Candidate == nil || repair.Run.Base != c.Commit || repair.Candidate.ID != c.ID || repair.Candidate.SourceRunID != c.SourceRunID || repair.Candidate.CheckRunID != "" {
+		t.Fatal("repair lost fixed candidate provenance", repair)
+	}
+	if len(repair.Candidate.Checks) != 1 || repair.Candidate.Checks[0].Passed || repair.Candidate.Checks[0].Name != "failure" || repair.Candidate.Checks[0].ExitCode != -1 || repair.Candidate.Checks[0].Output == "" || repair.Candidate.Checks[0].Output != c.Checks[0].Output {
+		t.Fatal("repair lost persisted failed check diagnostics", repair.Candidate)
+	}
+	if repair.Candidate.CheckPlan == nil || repair.Candidate.CheckPlan.Digest != c.CheckPlan.Digest || repair.Candidate.CheckPlan.Checks[0].Command != "coordica-nonexistent-test-command" {
+		t.Fatal("repair lost fixed check plan", repair.Candidate)
 	}
 }
 
