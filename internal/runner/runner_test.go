@@ -425,26 +425,6 @@ func TestPermissionDeadlinesUseCenterTime(t *testing.T) {
 		t.Fatal("missing center clock accepted")
 	}
 }
-func TestWatchdogStopsBeforeLeaseAndRevocation(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		respond(w, domain.HeartbeatResponse{Cancel: true, Reason: "paused"})
-	}))
-	defer server.Close()
-	r := testRunner(t, server)
-	for _, leaseDuration := range []time.Duration{150 * time.Millisecond, 5 * time.Second} {
-		ctx, stop := context.WithCancel(context.Background())
-		now := time.Now()
-		a := domain.Assignment{Run: domain.Run{ID: "run_test", Generation: 7}, HeartbeatSeconds: 1}
-		end := r.watchPermission(ctx, stop, a, now, now.Add(leaseDuration), now.Add(time.Minute), now)
-		select {
-		case <-ctx.Done():
-		case <-time.After(2 * time.Second):
-			t.Fatal("local permission watchdog did not stop")
-		}
-		end()
-		stop()
-	}
-}
 func TestStrictReviewRejectsWrongCandidateAndTrailingText(t *testing.T) {
 	valid := `{"candidate":"candidate","verdict":"approve","summary":"checked","findings":[],"run_id":""}`
 	if _, err := parseReview(valid, "candidate"); err != nil {

@@ -19,3 +19,11 @@ export function validInitialization(value: unknown): value is Initialization {
   if (!r || v.status !== 'analyzing' && (r.generation !== v.operation_generation || r.initialization_version !== v.version || r.operation_id !== v.operation_id || r.source_sha !== v.source_sha) || typeof r.ready !== 'boolean' || !baseline(r.baseline) || !Array.isArray(r.facts) || !r.facts.every((f: unknown) => object(f) && typeof f.path === 'string' && typeof f.fact === 'string') || !strings(r.inspected_paths) || !Array.isArray(r.questions) || !r.questions.every((q: unknown) => object(q) && typeof q.id === 'string' && typeof q.text === 'string' && strings(q.prerequisites)) || !strings(r.suggestions)) return false;
   return !(v.status === 'awaiting_owner' || v.status === 'initialized') || r.ready && r.questions.length === 0 && /^[a-f0-9]{64}$/.test(v.digest);
 }
+
+// Go encodes the new-project worker's nil omissions slice as null. Normalize
+// only this known wire representation, without changing persisted digest input
+// or weakening the strict contract for any other field.
+export function initializationReply(value: unknown): Initialization | null {
+  const normalized = object(value) && value.omissions === null ? { ...value, omissions: [] } : value;
+  return validInitialization(normalized) ? normalized : null;
+}
