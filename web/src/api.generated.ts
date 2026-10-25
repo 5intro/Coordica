@@ -1156,3 +1156,35 @@ export interface TestSupplementPlan {
   digest: string;
   gaps: (TestGap)[] | null;
 }
+export interface AcceptanceSignoff {
+  id: string;
+  version: number;
+  requirement_id: string;
+  revision: number;
+  plan_version: number;
+  commit: string;
+  coverage_digest: string;
+  manual_criteria: (string)[] | null;
+  state: string;
+  note: string;
+  actor_id: string;
+  recorded_at: string;
+}
+export interface AcceptanceSignoffRequest {
+  requirement_id: string;
+  commit: string;
+  action: string;
+  expected_version: number;
+  expected_digest: string;
+  manual_criteria: (string)[] | null;
+  note: string;
+}
+export interface AcceptanceSignoffStatus {
+  requirement_id: string;
+  commit: string;
+  digest: string;
+  can_accept: boolean;
+  accepted: boolean;
+  receipt: AcceptanceSignoff | null;
+  recent: (AcceptanceSignoff)[] | null;
+}

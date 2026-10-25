@@ -21,6 +21,18 @@
 .criterion-row a { margin-left: 14px; }
 .coverage-detail .supplement-preview li { display: grid; gap: 5px; margin-bottom: 16px; }
 .supplement-preview small { margin-top: 12px; }
+.signoff-panel { margin-block: 24px; }
+.signoff-panel .testing-heading { margin-bottom: 12px; flex-wrap: wrap; gap: 12px; }
+.signoff-panel h2, .signoff-history p { margin: 0; }
+.signoff-note, .signoff-history p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.signoff-form { display: grid; gap: 16px; margin-top: 20px; }
+.signoff-form fieldset { display: grid; gap: 10px; margin: 0; padding: 0; border: 0; }
+.signoff-form legend { margin-bottom: 10px; font-weight: 600; }
+.signoff-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.signoff-panel details { margin-top: 20px; }
+.signoff-history { padding-left: 22px; }
+.signoff-history li { margin-block: 14px; }
+.signoff-history span { display: block; margin-bottom: 5px; color: var(--muted); }
 .acceptance-edit-row { display: grid; gap: 12px; padding-bottom: 16px; box-shadow: 0 1px 0 rgb(50 45 35 / 8%); }
 .test-legacy > .testing-center > .testing-heading > div > h1 { display: none; }
 .test-legacy[hidden] { display: none; }

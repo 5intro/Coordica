@@ -27,7 +27,7 @@ func (c TestCatalog) Supplement(ctx context.Context, a Actor, key string, in dom
 	if raw, found, err := readMutationReplay(ctx, c.Service, a, key, "tests.supplement", in); err != nil || found {
 		return raw, err
 	}
-	if err := c.requireSupplementCommit(ctx, commit); err != nil {
+	if err := requireManagedCommit(ctx, c.Service, commit); err != nil {
 		return nil, err
 	}
 	return c.Service.mutate(ctx, a, key, "tests.supplement", in, func(tx *store.Tx) (any, error) {

@@ -39,7 +39,8 @@ export function RequirementAcceptance({ snapshot, client, refresh }: TestingProp
       setCoverage(v);
     } catch (e) { setError(messageOf(e)); } finally { setLoading(false); }
   }
-  const currentCoverage = coverage && requirementState !== 'withdrawn' && coverage.requirement.id === id && coverage.commit === commit &&
+  const currentCoverage = coverage && coverage.requirement.state === requirementState &&
+    coverage.requirement.id === id && coverage.commit === commit &&
     Math.max(1, coverage.requirement.content_revision ?? 1) === contentRevision &&
     coverage.plan.version === plan?.version && coverage.plan.revision === plan?.revision ? coverage : undefined;
   return <section className="catalog-section" aria-label="需求验收与补测">

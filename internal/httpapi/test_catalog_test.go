@@ -31,7 +31,8 @@ func TestCatalogHTTPAuthorityStrictInputAndPublicContract(t *testing.T) {
 	if err := json.Unmarshal(raw, &grant); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"tests/cases", "tests/acceptance", "tests/supplements", "tests/acceptance/plan"} {
+	for _, path := range []string{"tests/cases", "tests/acceptance", "tests/supplements", "tests/acceptance/plan",
+		"tests/acceptance/signoff"} {
 		for _, method := range []string{"GET", "POST"} {
 			for _, token := range []string{f.node.Token, grant.Token} {
 				w := boundaryRequest(f.server.AdminHandler(), method, "/api/v1/"+path, token, `{}`)

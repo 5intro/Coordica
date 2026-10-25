@@ -122,6 +122,160 @@
       ],
       "type": "object"
     },
+    "AcceptanceSignoff": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "coverage_digest": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "manual_criteria": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "plan_version": {
+          "type": "integer"
+        },
+        "recorded_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "requirement_id": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "state": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "requirement_id",
+        "revision",
+        "plan_version",
+        "commit",
+        "coverage_digest",
+        "manual_criteria",
+        "state",
+        "note",
+        "actor_id",
+        "recorded_at"
+      ],
+      "type": "object"
+    },
+    "AcceptanceSignoffRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "expected_digest": {
+          "type": "string"
+        },
+        "expected_version": {
+          "type": "integer"
+        },
+        "manual_criteria": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "requirement_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirement_id",
+        "commit",
+        "action",
+        "expected_version",
+        "expected_digest",
+        "manual_criteria",
+        "note"
+      ],
+      "type": "object"
+    },
+    "AcceptanceSignoffStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted": {
+          "type": "boolean"
+        },
+        "can_accept": {
+          "type": "boolean"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "receipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AcceptanceSignoff"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recent": {
+          "items": {
+            "$ref": "#/$defs/AcceptanceSignoff"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "requirement_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirement_id",
+        "commit",
+        "digest",
+        "can_accept",
+        "accepted",
+        "receipt",
+        "recent"
+      ],
+      "type": "object"
+    },
     "AnalysisEvidence": {
       "additionalProperties": false,
       "properties": {
