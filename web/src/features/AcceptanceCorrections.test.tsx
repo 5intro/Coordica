@@ -46,10 +46,10 @@ it('shows verified tasks in history without writes or pending assignment copy', 
   expect(within(screen.getByRole('region', { name: '任务列表' })).getByRole('button', { name: verified.title })).toBeTruthy();
   expect(write).not.toHaveBeenCalled();
 });
-it('keeps precheck evidence accessible through a deep link while excluding it from the default review list', () => {
+it('keeps precheck evidence accessible in the default list and through a deep link', () => {
   const pending = { ...candidate, state: 'prechecking', commit: 'a'.repeat(40) };
   render(<Candidates snapshot={{ ...centerSnapshot, tasks: [localTask], candidates: [pending] }} initialId={pending.id} client={client} refresh={refresh} />);
-  expect(within(screen.getByRole('region', { name: '候选列表' })).queryByRole('button')).toBeNull();
+  expect(within(screen.getByRole('region', { name: '候选列表' })).getByRole('button')).toBeTruthy();
   expect(screen.getByText('预检查中 · 尚未进入 Agent 独立审查。')).toBeTruthy();
   fireEvent.change(screen.getByLabelText('审查筛选'), { target: { value: 'prechecking' } });
   expect(within(screen.getByRole('region', { name: '候选列表' })).getByRole('button')).toBeTruthy();

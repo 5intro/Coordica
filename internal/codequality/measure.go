@@ -14,7 +14,7 @@ type metrics struct {
 	ctx         context.Context
 	lines       []int
 	findings    []Finding
-	methods     map[string][]Finding
+	methods     map[string][]receiverMethod
 	partials    map[string]*partialMeasurement
 	rustModules map[string]rustModuleInfo
 	rustParts   []rustTypePart
@@ -40,7 +40,15 @@ func MeasureContext(ctx context.Context, files []File) ([]Finding, error) {
 }
 
 func measureInventory(ctx context.Context, files []File, baseline bool) ([]Finding, error) {
-	m := metrics{ctx: ctx, methods: map[string][]Finding{}}
+	return measureInventoryReceivers(ctx, files, baseline, nil)
+}
+
+func measureInventoryReceivers(ctx context.Context, files []File, baseline bool, receivers map[string][]receiverMethod) ([]Finding, error) {
+	methods := receivers
+	if methods == nil {
+		methods = map[string][]receiverMethod{}
+	}
+	m := metrics{ctx: ctx, methods: methods}
 	total := 0
 	seen := map[string]bool{}
 	for _, f := range files {
@@ -72,12 +80,19 @@ func measureInventory(ctx context.Context, files []File, baseline bool) ([]Findi
 	partialClassFindings(&m)
 	rustClassFindings(&m)
 	for key, methods := range m.methods {
+		if receivers != nil {
+			break
+		}
 		if m.cancelled() {
 			return nil, ctx.Err()
 		}
 		f := methods[0]
-		m.add(f.Path, f.Line, "receiver_methods", key, len(methods), MaxMethods)
-		if len(methods) > MaxMethods {
+		count, _, err := solveReceiverVariants(ctx, nil, methods, false)
+		if err != nil {
+			return nil, err
+		}
+		m.add(f.Path, f.Line, "receiver_methods", key, count, MaxMethods)
+		if count > MaxMethods {
 			// Location is diagnostic only; receiver debt belongs to its package
 			// and type, even after its first method/file is removed.
 			m.findings[len(m.findings)-1].key = "receiver_methods\x00" + key
@@ -121,11 +136,12 @@ func Regressions(base, candidate []File) ([]Finding, error) {
 }
 
 func RegressionsContext(ctx context.Context, base, candidate []File) ([]Finding, error) {
-	old, err := measureInventory(ctx, base, true)
+	oldReceivers, nextReceivers := map[string][]receiverMethod{}, map[string][]receiverMethod{}
+	old, err := measureInventoryReceivers(ctx, base, true, oldReceivers)
 	if err != nil {
 		return nil, fmt.Errorf("baseline quality inventory: %w", err)
 	}
-	next, err := MeasureContext(ctx, candidate)
+	next, err := measureInventoryReceivers(ctx, candidate, false, nextReceivers)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return nil, err
@@ -137,6 +153,21 @@ func RegressionsContext(ctx context.Context, base, candidate []File) ([]Finding,
 		allowances[f.key] = append(allowances[f.key], f.Value)
 	}
 	var failures []Finding
+	for key, methods := range nextReceivers {
+		count, grown, err := solveReceiverVariants(ctx, oldReceivers[key], methods, true)
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, err
+			}
+			return nil, &CandidateError{Cause: err}
+		}
+		if grown {
+			f := methods[0].Finding
+			f.Rule, f.Subject, f.Value, f.Limit = "receiver_methods", key, count, MaxMethods
+			f.key = "receiver_methods\x00" + key
+			failures = append(failures, f)
+		}
+	}
 	for _, f := range next {
 		if err := ctx.Err(); err != nil {
 			return nil, err

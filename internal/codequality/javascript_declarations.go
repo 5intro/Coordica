@@ -129,15 +129,14 @@ func (m *metrics) javaScriptSource(f File) {
 	text := maskedJavaScript(f.Text)
 	ends := scriptPairs(text)
 	seen := map[int]bool{}
-	for _, match := range classBlock.FindAllStringSubmatchIndex(text, -1) {
+	for _, match := range scriptClassMatches(f.Path, text) {
 		if m.cancelled() {
 			return
 		}
 		open := scriptClassBody(text, match[1], ends)
 		if end, ok := ends[open]; ok {
 			name := scriptClassName(m.ctx, f.Text, text, match, open, ends)
-			m.add(f.Path, m.lineAt(match[0]), "class_lines", name,
-				m.lineAt(end)-m.lineAt(match[0])+1, MaxClass)
+			scopedClassFinding(m, f, text, name, "class_lines", match[0], open, m.lineAt(end)-m.lineAt(match[0])+1, MaxClass, ends)
 			m.scriptMembers(f, text, name, open, end, ends, seen)
 		}
 	}
@@ -196,5 +195,5 @@ func (m *metrics) scriptMembers(f File, text, class string, open, end int, ends 
 		}
 	}
 	count += scriptCallableFields(m.ctx, f.Text, text, open, end, ends)
-	m.add(f.Path, m.lineAt(open), "class_methods", class, count, MaxMethods)
+	scopedClassFinding(m, f, text, class, "class_methods", open, open, count, MaxMethods, ends)
 }

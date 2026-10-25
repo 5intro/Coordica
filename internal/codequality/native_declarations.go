@@ -27,6 +27,11 @@ func nativeDeclarationPrefix(text string, start int, ends map[int]int) bool {
 		}
 	}
 	words := strings.Fields(text[begin:start])
+	for _, word := range words {
+		if word == "delegate" {
+			return false
+		}
+	}
 	if len(words) > 0 {
 		switch words[len(words)-1] {
 		case "class", "struct", "interface", "trait", "record", "new":

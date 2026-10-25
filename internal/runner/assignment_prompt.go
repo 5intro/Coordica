@@ -41,6 +41,9 @@ func assignmentPrompt(a domain.Assignment, commitMode string) string {
 		"Other agents' conversations and memories are not inherited. Treat repair summaries as unverified; " +
 		"verify their evidence against this base.\n")
 	appendRoleInstructions(&text, a, commitMode)
+	if a.Run.Kind != "review" {
+		text.WriteString(repairCheckEvidence(a.Candidate, maxAssignmentPromptBytes-text.Len()))
+	}
 	return text.String()
 }
 

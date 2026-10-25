@@ -90,6 +90,17 @@ Declaration-only TypeScript/Kotlin methods, Kotlin expression bodies, Java enum
 bodies and Ruby brace blocks are measured. Java/C# annotations and attributes
 do not count as methods. PowerShell modules (`.psm1`) use the PowerShell checks.
 
+Go receiver methods aggregate only across compatible build variants. Analysis
+combines filename constraints with modern or legacy build directives, enumerates
+Go 1.27 target pairs and compiler/release alternatives, and solves custom tags
+with a fixed one-million-evaluation bound. Exhaustion fails closed. Debt is
+compared under the same variant in both trees; a larger Linux receiver cannot
+hide new Windows debt. This lexical model does not replace native build checks.
+Native class identities include enclosing namespaces/types. Java anonymous
+classes and TypeScript interfaces receive class-like limits, expression-bodied
+Java/C# lambdas receive function limits, and nested delegate types are not
+methods. Markup comments and quoted attributes do not create executable scripts.
+
 Fixed artifact conventions exclude `.git`, `node_modules`, `vendor`,
 `third_party`, `dist`, `*.generated.ts` and `*.pb.go`. A generated-file comment
 does not grant an exemption. Review must reject relocating authored behavior
