@@ -118,7 +118,9 @@ class BinaryTests(unittest.TestCase):
             root = Path(directory)
             (root / 'bin').mkdir()
             with mock.patch.object(release, 'ROOT', root), \
-                    mock.patch.object(release, 'common_entries', return_value={'README.md': (b'readme', 0o644), 'examples/dsh/coordica.cordis.yml': (b'overlay', 0o644)}), \
+                    mock.patch.object(release, 'common_entries', return_value={
+                        'README.md': (b'readme', 0o644),
+                        'examples/dsh/coordica.cordis.yml': (b'overlay', 0o644)}), \
                     mock.patch.object(sys, 'argv', ['package-release.py', '--version', '1.2.3']):
                 for bad_platform, _, _, _ in release.PLATFORMS:
                     for platform, source, _, _ in release.PLATFORMS:
