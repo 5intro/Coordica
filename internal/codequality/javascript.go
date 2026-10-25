@@ -5,12 +5,13 @@ import "strings"
 // JavaScript gives '/' two lexical meanings. Keep expression position and
 // control-condition parentheses so regex braces never become block braces,
 // while ordinary division remains visible. Native syntax checks still apply.
-func maskedJavaScript(text string) string {
+func maskedJavaScript(text string, allowJSX bool) string {
 	out := []byte(text)
 	canRegex, previous := true, ""
 	var controls []bool
 	var interpolations []int
 	template := false
+	var jsx jsxMask
 	for i := 0; i < len(text); {
 		if template {
 			var expression bool
@@ -19,6 +20,10 @@ func maskedJavaScript(text string) string {
 			if expression {
 				interpolations = append(interpolations, 0)
 			}
+			continue
+		}
+		if next, consumed := jsx.step(text, out, i, canRegex && allowJSX); consumed {
+			i, canRegex, previous = next, text[i] == '{', "literal"
 			continue
 		}
 		start, c := i, text[i]
@@ -68,6 +73,7 @@ func maskedJavaScript(text string) string {
 					interpolations[top]--
 				}
 			}
+			jsx.brace(c)
 			canRegex, controls = scriptPunctuation(c, previous, canRegex, controls)
 			previous = string(c)
 			i++

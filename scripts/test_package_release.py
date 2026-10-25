@@ -1,6 +1,8 @@
 """Public release wording and archive safety regression checks."""
+import hashlib
 import importlib.util
 from pathlib import Path
+import re
 import tempfile
 import unittest
 
@@ -10,32 +12,103 @@ spec.loader.exec_module(release)
 
 
 class ReleaseTests(unittest.TestCase):
-    def test_phase_b_start_here_for_every_platform(self):
+    def assert_readme_references(self, text, readme):
+        references = re.findall(r'“([^”]+)”（#([a-z0-9-]+)）', text)
+        self.assertTrue(references, 'START-HERE has no anchored README references')
+        for title, anchor in references:
+            marker = f'<a id="{anchor}"></a>'
+            self.assertIn(marker, readme, f'Missing README anchor: {anchor}')
+            section = readme.split(marker, 1)[1].split('<a id="', 1)[0]
+            headings = re.findall(r'^#{1,6} (.+)$', section, re.MULTILINE)
+            headings += re.findall(r'<summary><strong>([^<]+)</strong></summary>', section)
+            self.assertIn(title, headings, f'Wrong README title at #{anchor}: {title}')
+
+    def test_start_here_readme_references_for_every_platform(self):
+        readme = (release.ROOT / 'README.md').read_text(encoding='utf-8')
         for platform, _, binary, _ in release.PLATFORMS:
             with self.subTest(platform=platform):
-                text = release.start_here('0.2.3-dev', platform, binary).decode()
-                for expected in ('Coordica v0.2.3-dev', '/releases/tag/v0.2.3-dev',
-                                 'gpt-6.1-sol', '默认关闭', '测试不替代授权',
-                                 'macOS 本机 Phase B 端到端验收已通过', '进程树停止证据',
-                                 '原生 Leader 运行中取消验收也已通过',
-                                 '结构化会话', '真实存活 PID', '保留实际耗时支出',
-                                 'Owner 仅批准目标一次', '没有手动批准范围',
-                                 '所有 Run 进程树均已停止', '项目与目标预留预算均为零',
-                                 '同一任务以新授权恢复并保留累计支出',
-                                 'node:test', '本地测试 Git 的 main',
-                                 '不代表完整 Phase B dsh 协作或多机部署已通过',
-                                 '当前发布版本关联的 GitHub checks',
-                                 '多机 Phase B 与 Linux 原生部署仍待验证',
-                                 '运行中取消的 Phase A 验收已通过', 'Claude / dsh',
-                                 'coordica-chat', '--interaction', '唯一的 coordica', '--runner-data', '稳定绝对路径',
-                                 '完整 macOS Go race 套件', '包括全部监听测试', '隔离双监听中心',
-                                 '十一项中心工具', '七项工具', '没有运行模型', '没有激活用户服务',
-                                 'GUI 动态工具刷新取决于客户端支持', 'fixtures 不代表',
-                                 '重新加载或重启', '七天', '365 天', '旧 budget 阻断不自动迁移',
-                                 '忽略的弃用字段', '尚未实现', 'Owner 独立验证后部署与发布'):
+                text = release.start_here('0.2.5-dev', platform, binary).decode()
+                self.assert_readme_references(text, readme)
+
+    def test_readme_references_reject_missing_anchor_or_wrong_section(self):
+        text = 'README.md 的“开始使用”（#getting-started）。'
+        valid = '<a id="getting-started"></a>\n## 开始使用\n'
+        self.assert_readme_references(text, valid)
+        invalid = (
+            valid.replace('getting-started', 'renamed'),
+            valid.replace('## 开始使用', '## 新标题'),
+            '<a id="other"></a>\n## 开始使用\n'
+            '<a id="getting-started"></a>\n## 新标题\n',
+            valid.replace('## 开始使用', '正文提及开始使用，不是章节标题'),
+        )
+        for readme in invalid:
+            with self.subTest(readme=readme), self.assertRaises(AssertionError):
+                self.assert_readme_references(text, readme)
+
+    def test_readme_references_require_anchored_navigation(self):
+        with self.assertRaises(AssertionError):
+            self.assert_readme_references('README.md 的“旧标题”', '## 旧标题')
+
+    def test_start_here_usage_and_safety_for_every_platform(self):
+        for platform, _, binary, _ in release.PLATFORMS:
+            with self.subTest(platform=platform):
+                text = release.start_here('0.2.5-dev', platform, binary).decode()
+                for expected in ('Coordica v0.2.5-dev', '/releases/tag/v0.2.5-dev',
+                                 '源码与发布包可能对应不同提交', 'gpt-6.1-sol',
+                                 '默认关闭', '测试不替代授权', '进程树停止证据',
+                                 '个人非商业使用', '不是 OSI 批准的开源许可',
+                                 'setup 预览', 'setup --apply', '已安装并登录',
+                                 'HTTPS', '公共 CA', 'TLS 证书 SAN',
+                                 'Owner token 不经 MCP 返回', '不可放入源码或公开包',
+                                 '解压不会自动安装或启动系统服务', '稳定绝对路径',
+                                 '冲突保留', '旧无范围凭据须显式 --renew',
+                                 '重试使用原内容与同一键', '恢复不清零支出',
+                                 '不绕过重试上限', '重大决定仍由 Owner 处理'):
                     self.assertIn(expected, text)
-                self.assertNotIn('端到端验证正在进行', text)
-                self.assertNotIn('取消与断线等故障场景仍待实测', text)
+                # Reject internal progress reports, not words needed for honest limitations.
+                for internal_status in ('后续功能',
+                                        '验收已通过', '验收通过', 'Phase A', 'Phase B',
+                                        'fixtures', '真实存活 PID', 'macOS Go race 套件'):
+                    self.assertNotIn(internal_status, text)
+
+    def test_start_here_rendering_preserves_exact_prior_guide(self):
+        expected = {
+            'darwin-arm64': '29073f513929e58d18ce7f53bf732bb782bcd827986f30b28648c2b7c2d7021d',
+            'windows-amd64': 'c52a3d5ed74f1d49f316ca0e89bc9cde5df8f362e0b6e5f2e3f04891578da7e0',
+            'linux-amd64': '2333226fa56f258ff170b3dc2f0f99864ce4361b7ce6e5df999555ee586144aa',
+        }
+        for platform, _, binary, _ in release.PLATFORMS:
+            with self.subTest(platform=platform):
+                text = release.start_here('0.2.5-dev', platform, binary)
+                self.assertEqual(hashlib.sha256(text).hexdigest(), expected[platform])
+
+    def test_hosted_setup_and_budget_recovery_documented(self):
+        readme = (release.ROOT / 'README.md').read_text(encoding='utf-8')
+        setup = readme.split('<a id="setup-reference"></a>', 1)[1].split('</details>', 1)[0]
+        for expected in ('仅同机使用', '需要跨机 Runner',
+                         '--console-listen 127.0.0.1:8080',
+                         '--runner-listen 192.168.1.10:8443',
+                         '--runner-url https://192.168.1.10:8443',
+                         '不覆盖已有不同配置', '--github-token-file',
+                         '--git-auth-file', '--git-auth-remote',
+                         '不加 `Bearer` 前缀', 'Authorization:', '0600'):
+            self.assertIn(expected, setup)
+        operations = readme.split('<a id="operations-reference"></a>', 1)[1].split('</details>', 1)[0]
+        for expected in ('旧版 budget 阻断', '预留支出为零', 'expected_version',
+                         '/api/v1/tasks/<task-id>/resume', '相同幂等键',
+                         '保留累计支出', '已有发布意图'):
+            self.assertIn(expected, operations)
+
+    def test_readme_local_links_are_in_package(self):
+        entries = release.common_entries()
+        readme = entries['README.md'][0].decode()
+        links = re.findall(r'\]\(([^)]+)\)', readme)
+        links += re.findall(r'<img[^>]+src="([^"]+)"', readme)
+        for link in links:
+            if link.startswith(('https://', 'http://', '#')):
+                continue
+            target = link.split('#', 1)[0]
+            self.assertIn(target, entries, f'Broken packaged README link: {link}')
 
     def test_public_execution_intent_boundary(self):
         documents = {'README.md': (release.ROOT / 'README.md').read_text(encoding='utf-8')}
@@ -68,6 +141,7 @@ class ReleaseTests(unittest.TestCase):
         expected = {
             'AGENTS.md', 'AGENT.md', 'QUALITY.md',
             'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'go.mod', 'go.sum',
+            'cmd/coordica/main.go', 'api/v1.schema.json', 'web/public/favicon.svg',
             'internal/process/README.md', 'examples/dsh/coordica.cordis.yml',
             'examples/tools/custom-acp.json', 'examples/acceptance/README.md',
             'examples/acceptance/.gitignore', 'examples/acceptance/src/greeting.mjs',

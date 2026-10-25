@@ -81,7 +81,15 @@ arrows, executable template interpolations, object methods and callable class
 fields are included. Function debt also binds to declaration,
 binding/call-site and enclosing-scope headers, independently of line numbers.
 C# partial declarations aggregate class size and methods by namespace,
-enclosing types and generic arity; file-local types retain their file identity.
+enclosing types and generic arity within each statically resolved compilation
+project; file-local types retain their file identity. Bounded `.csproj` metadata
+is read without running MSBuild. SDK default descendants and ordered literal
+Compile Include/Remove/Exclude globs are supported; ancestors also own nested
+project source selected by their defaults. Project identities fence partial
+type debt. Dynamic/conditional membership, custom SDKs and explicit build
+imports fail closed for C# source rather than claiming a resolved assembly.
+The static inventory is limited to 256 projects; native compilation remains
+required for full MSBuild semantics.
 Native method attribution walks braces once instead of scanning every class
 against every function. Rust implementation parts aggregate by module/type
 identity, including ordinary module files and explicit imports; native tooling
@@ -89,6 +97,20 @@ and independent review remain necessary for compiler-specific resolution.
 Declaration-only TypeScript/Kotlin methods, Kotlin expression bodies, Java enum
 bodies and Ruby brace blocks are measured. Java/C# annotations and attributes
 do not count as methods. PowerShell modules (`.psm1`) use the PowerShell checks.
+
+Go receiver methods aggregate only across compatible build variants. Analysis
+combines filename constraints with modern or legacy build directives, enumerates
+Go 1.27 target pairs and compiler/release alternatives, and solves custom tags
+with a fixed one-million-evaluation bound. Exhaustion fails closed. Debt is
+compared under the same variant in both trees; a larger Linux receiver cannot
+hide new Windows debt. This lexical model does not replace native build checks.
+Native class identities include enclosing namespaces/types. Java anonymous
+classes and TypeScript interfaces receive class-like limits, expression-bodied
+Java/C# lambdas receive function limits, and nested delegate types are not
+methods. Markup comments and quoted attributes do not create executable scripts.
+JSX child text and attributes preserve callback/expression boundaries; Rust raw
+string hash delimiters and nested comments do not expose literal braces. Ruby
+receiver keyword methods and symbols do not open lexical block frames.
 
 Fixed artifact conventions exclude `.git`, `node_modules`, `vendor`,
 `third_party`, `dist`, `*.generated.ts` and `*.pb.go`. A generated-file comment

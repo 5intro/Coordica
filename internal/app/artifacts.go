@@ -14,12 +14,12 @@ import (
 
 func (s *Service) UploadArtifact(ctx context.Context, a Actor, id string, body io.Reader) (domain.Artifact, error) {
 	var result domain.Artifact
-	run, e := s.AssignmentRun(ctx, a, id)
+	e := s.DB.View(ctx, func(tx *store.Tx) error {
+		_, err := artifactUploadRun(tx, a, id, s.Now())
+		return err
+	})
 	if e != nil {
 		return result, e
-	}
-	if run.Kind != "implement" || run.State != "running" || !s.Now().Before(run.LeaseUntil) {
-		return result, domain.Fail("stale_run", "当前Run不能提交代码材料")
 	}
 	dir := filepath.Join(s.Dir, "artifacts")
 	if e = os.MkdirAll(dir, 0700); e != nil {
@@ -52,12 +52,8 @@ func (s *Service) UploadArtifact(ctx context.Context, a Actor, id string, body i
 		return result, e
 	}
 	e = s.DB.Update(ctx, func(tx *store.Tx) error {
-		var current domain.Run
-		if e := tx.Get("run", id, &current); e != nil {
+		if _, e := artifactUploadRun(tx, a, id, s.Now()); e != nil {
 			return e
-		}
-		if baselineRun(tx, current) != nil || current.NodeID != a.NodeID || current.State != "running" || !s.Now().Before(current.LeaseUntil) {
-			return domain.Fail("stale_run", "上传期间执行已失效")
 		}
 		var prior domain.Artifact
 		if e := tx.Get("artifact", result.ID, &prior); e == nil {

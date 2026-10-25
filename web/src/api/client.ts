@@ -90,9 +90,9 @@ export class ApiClient {
       throw new ApiError('incompatible_response', '中心契约不兼容，请更新工作台。');
     }
     if (snapshot.initialization != null) {
-      const value = initializationReply(snapshot.initialization);
-      if (!value) throw new ApiError('incompatible_response', '初始化契约不兼容，请更新中心与工作台。');
-      snapshot.initialization = value;
+      const initialization = initializationReply(snapshot.initialization);
+      if (!initialization) throw new ApiError('incompatible_response', '初始化契约不兼容，请更新中心与工作台。');
+      return { ...snapshot, initialization };
     }
     return snapshot;
   }

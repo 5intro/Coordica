@@ -1,31 +1,40 @@
-import { useRouteField } from '../hooks/useRouteField';
-import { matches } from './management';
-import type { Candidate, Snapshot } from '../api.generated';
+import type { Snapshot } from '../api.generated';
 import { ApiClient } from '../api/client';
-import { Empty, Feedback, SectionTitle, Status, stateLabel, duration, short, time } from '../components/ui';
+import { Empty } from '../components/ui';
 import { PoolInspection } from '../components/material/PoolInspection';
-import { Glass } from '../components/material/Glass';
-import { useAction } from '../hooks/useAction';
-import { PullRequestStatus } from './PullRequestStatus';
+import { useRouteField } from '../hooks/useRouteField';
+import { CandidateDetail } from './candidates/CandidateDetail';
+import { CandidateList } from './candidates/CandidateList';
+import { CandidateToolbar } from './candidates/CandidateToolbar';
+import { activeCandidate, candidateTitle, visibleCandidates } from './candidates/candidateView';
 
-const historical = (state: string) => ['failed', 'landed', 'rejected', 'invalidated', 'cancelled'].includes(state);
-export function Candidates({ snapshot, client, refresh, initialId }: { snapshot: Snapshot; client: ApiClient; refresh: () => void; initialId?: string }) {
+type Props = { snapshot: Snapshot; client: ApiClient; refresh: () => void; initialId?: string };
+
+export function Candidates({ snapshot, client, refresh, initialId }: Props) {
   const candidates = snapshot.candidates ?? [];
-  const [selected, setSelected] = useRouteField('candidates', 'id', initialId ?? candidates.find((item) => !historical(item.state))?.id ?? candidates[0]?.id ?? '');
+  const defaultID = initialId ?? candidates.find((item) => activeCandidate(item.state))?.id ?? candidates[0]?.id ?? '';
+  const [selected, setSelected] = useRouteField('candidates', 'id', defaultID);
   const [query, setQuery] = useRouteField('candidates', 'query');
   const [filter, setFilter] = useRouteField('candidates', 'filter', 'active');
   const [sort, setSort] = useRouteField('candidates', 'sort', 'newest');
-  const title = (item: Candidate) => snapshot.tasks?.find((task) => task.id === item.task_id)?.title ?? '未命名任务';
-  const shown = candidates.filter((item) => (filter === 'all' || (filter === 'active' ? !!item.commit && ['reviewing', 'ready_to_land'].includes(item.state) : filter === 'history' ? historical(item.state) : item.state === filter)) && matches(query, [item.id, title(item), item.commit, item.state, item.detail, ...(snapshot.tasks?.find((task) => task.id === item.task_id)?.requirement_ids ?? [])])).sort((a, b) => sort === 'title' ? title(a).localeCompare(title(b), 'zh-CN') : (sort === 'oldest' ? 1 : -1) * a.created_at.localeCompare(b.created_at));
+  const title = (item: (typeof candidates)[number]) => candidateTitle(snapshot, item);
+  const shown = visibleCandidates(snapshot, filter, query, sort);
   const candidate = candidates.find((item) => item.id === selected);
-  return <><SectionTitle title="审查池" filters={<div className="segmented" aria-label="列表范围"><button aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>全部</button><button aria-pressed={filter === 'active'} onClick={() => setFilter('active')}>活动</button><button aria-pressed={filter === 'history'} onClick={() => setFilter('history')}>历史</button></div>} />
-    <div className="task-toolbar"><input type="search" aria-label="搜索审查" placeholder="任务、需求 ID、候选版本或原因" value={query} onChange={(e) => setQuery(e.target.value)} /><details className="filter-options"><summary>筛选与排序</summary><div className="actions"><select aria-label="审查筛选" value={filter} onChange={(e) => setFilter(e.target.value)}><option value="active">待审 / 待集成</option><option value="all">全部候选</option><option value="history">历史 · 失败 / 已合并 / 已失效</option>{[...new Set(candidates.map((item) => item.state))].map((state) => <option key={state} value={state}>{stateLabel(state)}</option>)}</select><select aria-label="审查排序" value={sort} onChange={(e) => setSort(e.target.value)}><option value="newest">最新优先</option><option value="oldest">最早优先</option><option value="title">任务标题</option></select></div></details></div>
-    <div className="task-layout"><section className="panel task-list collection-list" aria-label="候选列表">{shown.length ? shown.map((item) => <Glass className="work-card" radius={14} key={item.id}><button className={`task-row ${item.id === candidate?.id ? 'selected' : ''}`} key={item.id} aria-pressed={item.id === candidate?.id} onClick={() => setSelected(item.id)}><div className="record-meta"><Status value={item.state} /></div><strong>{title(item)}</strong><small>C {short(item.commit)}{item.protected ? ' · 受保护变化' : ''}{item.pull_request?.number ? ` · PR #${item.pull_request.number}` : ''}</small></button></Glass>) : <Empty title={candidates.length ? '没有匹配候选' : '集成队列为空'}>可切换历史，查看失败与已合并的固定版本。</Empty>}</section><PoolInspection title={candidate ? title(candidate) : '审查详情'}>{candidate ? <CandidateDetail key={candidate.id} snapshot={snapshot} candidate={candidate} client={client} refresh={refresh} /> : <div className="panel"><Empty title={selected ? '候选不存在' : '尚无候选证据'}>自测摘要不能代替评审与门禁事实。</Empty></div>}</PoolInspection></div></>;
-}
-
-function CandidateDetail({ candidate, snapshot, client, refresh }: { snapshot: Snapshot; candidate: Candidate; client: ApiClient; refresh: () => void }) {
-  const action = useAction(refresh);
-  const task = snapshot.tasks?.find((item) => item.id === candidate.task_id);
-  const canApprove = candidate.protected && candidate.commit && candidate.approved_commit !== candidate.commit && candidate.state === 'ready_to_land';
-  return <article className="panel candidate-detail"><div className="record-meta"><details><summary>技术详情</summary><code>{candidate.id}</code><p>政策 v{candidate.policy_version} · 授权 v{candidate.authorization_version}</p></details><Status value={candidate.state} /></div><h2>{task?.title || '未命名任务'}</h2><a className="pool-detail-link" href={`#candidates?id=${encodeURIComponent(candidate.id)}`}>审查永久链接</a><p>开发任务：<a href={`#tasks?id=${encodeURIComponent(candidate.task_id)}`}>{task?.title ?? '未命名任务'}</a></p><div>需求：{task?.requirement_ids?.length ? task.requirement_ids.map((id) => <a className="data-row" key={id} href={`#requirements?id=${encodeURIComponent(id)}`}>{snapshot.requirements?.find((item) => item.id === id)?.title ?? '关联需求'} →</a>) : '快照中未提供关联需求'}</div>{candidate.state === 'prechecking' && <p>预检查中 · 尚未进入 Agent 独立审查。</p>}{candidate.state === 'reviewing' && <p>独立审查待审 / 审中，等待固定版本的评审结论。</p>}{candidate.state === 'ready_to_land' && <p>审查通过 · 待集成。有效快速检查证据由中心保留；无需再次执行全量回归。最终放行仍由中心核验当前授权与主线。</p>}<p className="muted">{time(candidate.created_at)}</p>{candidate.pull_request && <PullRequestStatus candidate={candidate} client={client} refresh={refresh} />}{candidate.detail && <p className="hold preserve-lines">{candidate.detail}</p>}<details><summary>技术详情：固定版本证据</summary><dl className="commit-grid">{[['B', candidate.base, '开发基线'], ['H', candidate.head, '成员提交'], ['M', candidate.main, '主线旧值'], ['C', candidate.commit, '最终候选']].map(([label, value, explanation]) => <div key={label}><dt>{label}<span>{explanation}</span></dt><dd><code>{value || '尚未生成'}</code></dd></div>)}</dl></details>{candidate.protected && <section className="protected-notice"><strong>包含受保护变化</strong><p>人工批准绑定同一个 C。批准不会启用新政策或替换运行中的中心。</p>{canApprove ? <button className="primary" disabled={action.busy} onClick={() => { if (window.confirm(`特别批准固定候选 ${candidate.commit}？仍需通过当前门禁，批准不等于运行版本启用。`)) void action.execute(() => client.write<Candidate>(`/candidates/${encodeURIComponent(candidate.id)}/approve`, { expected_version: candidate.version }), `已批准固定 C：${short(candidate.commit)}。`); }}>特别批准此 C</button> : <p className="muted">{candidate.approved_commit === candidate.commit && candidate.commit ? `已批准 ${short(candidate.approved_commit)}` : '尚无可批准的有效固定候选'}</p>}</section>}<Feedback {...action} /><section className="detail-section"><h3>独立 Agent 评审</h3>{candidate.review ? <><div className="subheading">{candidate.review.candidate === candidate.commit ? <Status value={candidate.review.verdict} /> : <span>历史评审结论 {candidate.review.verdict} · 对象与当前 C 不同</span>}<a href={`#runs?id=${encodeURIComponent(candidate.review.run_id)}`}>查看评审运行</a></div><p className="preserve-lines">{candidate.review.summary}</p>{(candidate.review.findings ?? []).length > 0 && <ul className="findings">{(candidate.review.findings ?? []).map((finding, index) => <li key={index}>{finding}</li>)}</ul>}<details><summary>技术详情：评审对象</summary><code>{candidate.review.candidate}</code></details></> : <p className="muted">尚无独立评审结论。</p>}</section><section className="detail-section"><h3>程序门禁 <span className="count">{(candidate.checks ?? []).length}</span></h3><div className="muted">检查绑定 C：<code>{short(candidate.commit)}</code>{candidate.check_plan && <details><summary>技术详情：检查计划</summary><p>政策 v{candidate.check_plan.policy_version}</p><code>{candidate.check_plan.digest}</code></details>}{candidate.check_run_id && <> · <a href={`#runs?id=${encodeURIComponent(candidate.check_run_id)}`}>查看检查运行</a></>}</div>{(candidate.check_plan?.checks ?? []).filter((check) => !candidate.checks?.some((result) => result.name === check.name)).map((check) => <p key={check.name}>未执行 / 缺失：{check.name}</p>)}{(candidate.checks ?? []).length ? (candidate.checks ?? []).map((check, index) => <details className="check-result" key={`${check.name}-${index}`}><summary><span><span className={`check-dot ${check.passed ? 'passed' : 'failed'}`} aria-hidden="true" />{check.name}</span><span className="muted">{check.passed ? '通过' : '失败'} · exit {check.exit_code} · {duration(check.duration_seconds)}</span></summary><pre>{check.output || '没有输出记录'}</pre></details>) : <p className="muted">检查尚未执行；不会显示为通过。</p>}</section><p className="fine-print">普通候选由中心自动放行。已进入主线与运行版本启用分别记录。</p></article>;
+  return <>
+    <CandidateToolbar candidates={candidates} query={query} filter={filter} sort={sort}
+      onQuery={setQuery} onFilter={setFilter} onSort={setSort} />
+    <div className="task-layout">
+      <CandidateList items={shown} total={candidates.length} currentID={candidate?.id} title={title} select={setSelected} />
+      <PoolInspection title={candidate ? title(candidate) : '审查详情'}>
+        {candidate ? <>
+          {!shown.some((item) => item.id === candidate.id) && <p className="muted" role="status">
+            此详情不在当前筛选范围，仍保留所选候选。可切换“全部”或清除搜索查看列表。
+          </p>}
+          <CandidateDetail key={candidate.id} snapshot={snapshot} candidate={candidate} client={client} refresh={refresh} />
+        </> : <div className="panel">
+          <Empty title={selected ? '候选不存在' : '尚无候选证据'}>自测摘要不能代替评审与门禁事实。</Empty>
+        </div>}
+      </PoolInspection>
+    </div>
+  </>;
 }
