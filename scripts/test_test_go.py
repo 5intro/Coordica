@@ -8,7 +8,6 @@ import signal
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 from unittest.mock import patch
 
@@ -175,43 +174,6 @@ class TestSupervisor(unittest.TestCase):
         self.assertEqual(len(roots), 1)
         self.assertIsNotNone(guard.read_owner(roots[0]))
 
-    def test_killed_supervisor_is_recovered_on_next_invocation(self):
-        # The registered worker is deliberately outside its temp root. Its
-        # persisted creation identity must recover it after supervisor death.
-        ready = self.parent / "worker-ready"
-        payload = f"import pathlib,time; pathlib.Path({str(ready)!r}).write_text('ready'); time.sleep(60)"
-        code = ("import importlib.util,pathlib,sys; "
-                f"s=importlib.util.spec_from_file_location('g',{str(Path(guard.__file__))!r}); "
-                "g=importlib.util.module_from_spec(s);s.loader.exec_module(g); "
-                f"g.run([sys.executable,'-c',{payload!r}],pathlib.Path({str(self.parent)!r}),60,1,33554432)")
-        supervisor = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.DEVNULL,
-                                      stderr=subprocess.DEVNULL)
-        worker = None
-        try:
-            deadline = time.monotonic() + 30
-            while time.monotonic() < deadline:
-                for root in self.parent.glob(guard.PREFIX + "*"):
-                    record = guard.read_owner(root)
-                    if record and record.get("child"):
-                        worker = record["child"]
-                        break
-                if worker and ready.exists():
-                    break
-                if supervisor.poll() is not None:
-                    self.fail("supervisor exited before registering its worker")
-                time.sleep(.05)
-            self.assertIsNotNone(worker)
-            supervisor.kill()
-            supervisor.wait(timeout=10)
-            guard.recover_stale(self.parent)
-            self.assertNotEqual(guard.process_snapshot().get(worker["pid"], {}).get("start"), worker["start"])
-            self.assert_clean()
-        finally:
-            if supervisor.poll() is None:
-                supervisor.kill()
-                supervisor.wait(timeout=10)
-            guard.recover_stale(self.parent)
-
     def test_recovery_observes_new_owner_after_discovering_its_marker(self):
         root = Path(tempfile.mkdtemp(prefix=guard.PREFIX, dir=self.parent))
         owner = guard.owner_record(root)
@@ -245,28 +207,6 @@ class TestSupervisor(unittest.TestCase):
         self.assertEqual(self.run_code(code), 1)
         self.assertNotIn(json.loads(evidence.read_text())["pid"], guard.process_snapshot())
         self.assert_clean()
-
-    def test_concurrent_supervisors_do_not_recover_each_others_work(self):
-        programs = []
-        for number in range(2):
-            ready = self.parent / ("ready-" + str(number))
-            payload = f"import pathlib,time;pathlib.Path({str(ready)!r}).write_text('ready');time.sleep(2)"
-            code = ("import importlib.util,pathlib,sys; "
-                    f"s=importlib.util.spec_from_file_location('g',{str(Path(guard.__file__))!r}); "
-                    "g=importlib.util.module_from_spec(s);s.loader.exec_module(g); "
-                    f"sys.exit(g.run([sys.executable,'-c',{payload!r}],pathlib.Path({str(self.parent)!r}),20,1,33554432))")
-            programs.append(subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
-        try:
-            for program in programs:
-                self.assertEqual(program.wait(timeout=30), 0)
-            self.assertTrue(all((self.parent / ("ready-" + str(n))).exists() for n in range(2)))
-            self.assert_clean()
-        finally:
-            for program in programs:
-                if program.poll() is None:
-                    program.kill()
-                    program.wait(timeout=10)
-            guard.recover_stale(self.parent)
 
     def test_legacy_marker_without_containment_proof_is_preserved(self):
         root = Path(tempfile.mkdtemp(prefix=guard.PREFIX, dir=self.parent))

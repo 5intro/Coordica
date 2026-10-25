@@ -5,6 +5,10 @@
 - HTTP, CLI, MCP, and background workers must call the same application use cases. Never duplicate authorization or state transitions in an entry point.
 - `internal/gitops` and `internal/process` know nothing about HTTP, SQLite, or task state. `internal/agent` knows tool protocols, not scheduling.
 - Prefer small consumer-owned interfaces at I/O boundaries. Do not add an interface per struct or general workflow framework.
+- Read [QUALITY.md](QUALITY.md) and staged cleanup tasks in [AGENT.md](AGENT.md). Review semantic cohesion and maintenance risks; numeric measurements are advisory, not automatic merge vetoes.
+- Reference signals: 160 Unicode characters per line, 500 lines per file, 80 per function, 200 per class and 20 methods per class/Go receiver. Use judgment; do not chase syntax edge cases or churn formatting to hit a number. Focus on growing modules and mixed responsibilities.
+- Keep formatting-only changes separate from behavior changes where practical. Split by responsibility, not arbitrary line counts. Preserve transaction atomicity, identity/generation fencing, cumulative accounting, process-stop evidence and final candidate/version checks during extraction.
+- Run `make quality` before handoff. It reports physical-size/standard Go AST risk hints. Use project-native lint/build/type checks and regression tests; do not maintain a custom multi-language parser. Source inventory safety, scope/authorization, fixed versions and test/review evidence remain mandatory.
 - Persist state, audit, and outbox together. Keep Git/process/network I/O outside database transactions.
 - Never infer completion from model prose. Preserve fixed candidate, lease, authorization, and cumulative accounting invariants. Project used/reserved spending is telemetry, never a lifetime cap; goal/task/Run policies remain finite and independent.
 - Tests should exercise actual failure modes: contention, stale requests, duplicate messages, cancellation, scope violations, candidate/main changes, and restart recovery.

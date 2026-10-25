@@ -22,6 +22,10 @@ func TestMain(m *testing.M) {
 	}
 	marker := os.Getenv("COORDICA_GIT_RAW_TEST_MARKER")
 	switch mode {
+	case "source-batch-forward":
+		os.Exit(forwardSourceGit())
+	case "source-manifest-long":
+		os.Exit(longSourceManifestGit())
 	case "snapshot-index-failure", "snapshot-index-cancel":
 		if rawGitHelperArgument("diff-index") >= 0 {
 			if mode == "snapshot-index-cancel" {

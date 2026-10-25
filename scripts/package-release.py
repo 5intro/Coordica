@@ -75,6 +75,7 @@ def read_input(relative):
 
 def common_entries():
     required = [
+        "AGENTS.md", "AGENT.md", "QUALITY.md",
         "LICENSE", "THIRD_PARTY_NOTICES.md", "README.md", "go.mod", "go.sum",
         "cmd/coordica/main.go", "api/v1.schema.json", "web/public/favicon.svg",
         "third_party/licenses/manifest.json",

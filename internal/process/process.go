@@ -290,36 +290,7 @@ func (s *Session) supervise(ctx context.Context, spec Spec, guard *platformGuard
 // parsing. Limits bound retained bytes; exceeding either stops the same managed
 // process tree and preserves its shutdown evidence in the returned error.
 func CollectRaw(ctx context.Context, spec Spec, stdoutLimit, stderrLimit int) ([]byte, []byte, Result, error) {
-	if stdoutLimit < 0 || stderrLimit < 0 {
-		return nil, nil, Result{ExitCode: -1}, errors.New("output limits cannot be negative")
-	}
-	spec.RawOutput = true
-	s, err := Start(ctx, spec)
-	if err != nil {
-		return nil, nil, Result{ExitCode: -1}, err
-	}
-	s.CloseInput()
-	var stdout, stderr []byte
-	tooLarge := false
-	for event := range s.Output() {
-		destination, limit := &stdout, stdoutLimit
-		if event.Stream == "stderr" {
-			destination, limit = &stderr, stderrLimit
-		}
-		remaining := limit - len(*destination)
-		chunk := event.Line
-		if len(chunk) > remaining {
-			tooLarge = true
-			chunk = chunk[:remaining]
-			s.Stop()
-		}
-		*destination = append(*destination, chunk...)
-	}
-	result, err := s.Wait()
-	if tooLarge {
-		err = errors.Join(err, ErrOutputLimit)
-	}
-	return stdout, stderr, result, err
+	return collectRawInput(ctx, spec, nil, stdoutLimit, stderrLimit)
 }
 
 // Collect is intended for short preflight commands. The supplied context still

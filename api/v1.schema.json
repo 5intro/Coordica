@@ -366,6 +366,9 @@
         "main": {
           "type": "string"
         },
+        "maintainability_advisory": {
+          "type": "string"
+        },
         "policy_version": {
           "type": "integer"
         },
