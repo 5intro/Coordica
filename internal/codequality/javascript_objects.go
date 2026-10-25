@@ -26,7 +26,7 @@ func scriptObjectPrefix(text string, at int) bool {
 }
 
 func (m *metrics) scriptObjectMethods(f File, text string, ends map[int]int, seen map[int]bool) {
-	for _, match := range scriptMethodMatches(m.ctx, text, ends) {
+	for _, match := range scriptMethodMatches(m.ctx, f.Text, text, ends) {
 		if m.cancelled() {
 			return
 		}

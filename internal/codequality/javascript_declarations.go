@@ -161,7 +161,7 @@ func (m *metrics) javaScriptSource(f File) {
 
 func (m *metrics) scriptMembers(f File, text, class string, open, end int, ends map[int]int, seen map[int]bool) {
 	count, cursor, walked, depth := 0, open+1, open+1, 0
-	for _, match := range scriptMethodMatches(m.ctx, text, ends) {
+	for _, match := range scriptMethodMatches(m.ctx, f.Text, text, ends) {
 		if m.cancelled() {
 			return
 		}
