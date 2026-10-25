@@ -101,7 +101,7 @@ function Workspace({ token, logout }: { token: string; logout: () => void }) {
               : <div className={`feature-page feature-${page}`}>
                 {page === 'initialization' && <ProjectInitialization snapshot={snapshot} client={client} refresh={refresh} />}
                 {page === 'planning' && <Planning snapshot={snapshot} client={client} refresh={refresh} initialId={focusId} />}
-                {page === 'automation' && <Automation settings={snapshot.automation} client={client} refresh={refresh} />}
+                {page === 'automation' && <Automation settings={snapshot.automation} nodes={snapshot.nodes ?? []} client={client} refresh={refresh} />}
                 {page === 'overview' && <Overview snapshot={snapshot} navigate={navigate} onNewRequirement={() => { setRequirementNotice(''); setComposer(true); }} />}
                 {visited.has('requirements') && <div hidden={page !== 'requirements'}><Requirements nodes={snapshot.nodes ?? []} requirements={snapshot.requirements ?? []} tasks={snapshot.tasks ?? []} navigate={navigate} client={client} refresh={refresh} /></div>}
                 {visited.has('tasks') && <div hidden={page !== 'tasks'}><Tasks snapshot={snapshot} client={client} refresh={refresh} /></div>}

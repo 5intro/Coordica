@@ -89,9 +89,6 @@ func baselineGate(tx *store.Tx, t *domain.Task, bind bool) error {
 		return domain.Fail("baseline_changed", "approved normative context differs from confirmed digest")
 	}
 	if t != nil {
-		if t.Tool != "codex" && !(t.Tool == "program" && t.Verification != nil) {
-			return domain.Fail("invalid_input", "development requires native codex; other registered tools are test/review-only")
-		}
 		rootAll := false
 		for _, root := range v.ApprovedBaseline.AllowedRoots {
 			if root == "." {

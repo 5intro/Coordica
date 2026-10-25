@@ -28,7 +28,8 @@ func (s *Service) ConfigureAutomation(ctx context.Context, a Actor, key string, 
 		return nil, e
 	}
 	v := req.Settings
-	if v.DevelopmentTool != "codex" || v.DevelopmentModel != "gpt-6.1-sol" ||
+	if domain.ValidateToolID(v.DevelopmentTool) != nil || strings.TrimSpace(v.DevelopmentModel) == "" ||
+		len(v.DevelopmentModel) > 128 ||
 		domain.ValidateLeaderSelection(leaderSelection(v)) != nil || v.PlanningTimeoutSeconds < 1 ||
 		v.PlanningTimeoutSeconds > domain.MaxRunDurationSeconds || v.PlanningBudgetSeconds < v.PlanningTimeoutSeconds ||
 		v.PlanningBudgetSeconds > domain.MaxTaskBudgetSeconds || v.PlanningMaxRetries < 0 || v.PlanningMaxRetries > 2 {
@@ -57,6 +58,11 @@ func (s *Service) ConfigureAutomation(ctx context.Context, a Actor, key string, 
 		}
 		if e = version(old.Version, req.ExpectedVersion); e != nil {
 			return nil, e
+		}
+		if old.DevelopmentTool != v.DevelopmentTool || old.DevelopmentModel != v.DevelopmentModel {
+			if e = validateDevelopmentChoice(tx, v); e != nil {
+				return nil, e
+			}
 		}
 		v.Version = old.Version + 1
 		if e = tx.Put("automation", "current", v); e != nil {
@@ -190,9 +196,6 @@ func goalAuthority(tx *store.Tx, t *domain.Task, bind bool) error {
 		if !goalAllowsRequirement(tx, d, id) {
 			return domain.Fail("scope", "task requirement outside goal")
 		}
-	}
-	if t.Tool != "codex" && !(t.Tool == "program" && t.Verification != nil) {
-		return domain.Fail("invalid_input", "Phase B development requires native codex")
 	}
 	if bind {
 		t.GoalVersion = d.Version

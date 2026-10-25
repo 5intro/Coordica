@@ -58,6 +58,7 @@ func executeACP(ctx context.Context, def Definition, req Request, onEvent func(E
 	canLoad, canResume, canClose := false, false, false
 	calls := map[string]acpMetadata{}
 	promptStarted := false
+	outputBytes := 0
 	diagnosticLines, diagnosticBytes := 0, 0
 	cancelRun := func() {
 		if cancelled {
@@ -89,6 +90,7 @@ func executeACP(ctx context.Context, def Definition, req Request, onEvent func(E
 		// session/load may replay prior messages before its response. Only the
 		// current prompt belongs in this execution's output and review result.
 		result.OutputText = ""
+		outputBytes = 0
 		calls = map[string]acpMetadata{}
 		promptStarted = true
 		return send("session/prompt", map[string]any{"sessionId": result.SessionID, "prompt": []map[string]string{{"type": "text", "text": req.Prompt}}})
@@ -246,6 +248,12 @@ func executeACP(ctx context.Context, def Definition, req Request, onEvent func(E
 							s.Stop()
 							continue
 						}
+						if params.Update.Kind == "tool_call" {
+							// ACP streams pre-tool commentary in the same channel as
+							// the answer. Only text after the last tool invocation is
+							// the terminal response; keep the full stream in events.
+							result.OutputText = ""
+						}
 					}
 					if params.Update.Kind == "agent_message_chunk" {
 						var content struct{ Type, Text string }
@@ -256,9 +264,10 @@ func executeACP(ctx context.Context, def Definition, req Request, onEvent func(E
 						}
 						if content.Type == "text" {
 							result.OutputText += content.Text
+							outputBytes += len(content.Text)
 						}
 					}
-					if len(result.OutputText) > 8<<20 {
+					if outputBytes > 8<<20 {
 						protocolErr = errors.New("agent result exceeds size limit")
 						s.Stop()
 					}

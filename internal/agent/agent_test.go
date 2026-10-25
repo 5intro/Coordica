@@ -259,6 +259,11 @@ func fakeACP() {
 				printJSON(map[string]any{"jsonrpc": "2.0", "id": 900, "result": map[string]string{"stopReason": "end_turn"}})
 				continue
 			}
+			if scenario == "commentary" {
+				printJSON(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{
+					"sessionId": params.SessionID, "update": map[string]any{"sessionUpdate": "agent_message_chunk",
+						"content": map[string]string{"type": "text", "text": "I will inspect the source first."}}}})
+			}
 			printJSON(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": params.SessionID, "update": map[string]any{"sessionUpdate": "tool_call", "toolCallId": "read-file", "kind": "read", "content": []map[string]any{{"type": "content", "content": map[string]string{"type": "text", "text": "file contents"}}}}}})
 			printJSON(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": params.SessionID, "update": map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "done"}}}})
 			respond(map[string]string{"stopReason": "end_turn"})

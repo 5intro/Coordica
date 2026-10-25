@@ -754,7 +754,7 @@ func (s *nativeEvidenceSource) ReadAnalysis(context.Context, string, string) (gi
 }
 
 func TestInitializationExecutorDistinguishesPhysicalPathsFromEvidenceIdentifiers(t *testing.T) {
-	for _, kind := range []string{"repository_entries", "physical_inspected", "metadata_inspected", "physical_fact", "metadata_fact"} {
+	for _, kind := range []string{"repository_entries", "physical_inspected", "metadata_inspected", "physical_fact", "metadata_fact", "glob_root"} {
 		t.Run(kind, func(t *testing.T) {
 			s, a, source := initFixture(t)
 			s.Source = &nativeEvidenceSource{analysisSourceFake: *source}
@@ -772,10 +772,15 @@ func TestInitializationExecutorDistinguishesPhysicalPathsFromEvidenceIdentifiers
 				result.Facts[0].Path = "source/README.md"
 			case "metadata_fact":
 				result.Facts[0].Path = "source-manifest.json"
+			case "glob_root":
+				result.Baseline.AllowedRoots = []string{"src/**", "test/**"}
 			}
 			called := false
 			worker := InitializationWorker{Service: s, Executor: planningExecFunc(func(_ context.Context, dir, prompt string) (PlanningOutcome, error) {
 				called = true
+				if !strings.Contains(prompt, "baseline.allowed_roots contains literal repository-relative") {
+					t.Fatal("executor prompt omitted the distinction between root directories and task globs")
+				}
 				for _, instruction := range []string{"source-manifest.json as snapshot metadata only", "Open its physical scratch location source/<manifest-entry>", "inspected_paths and every facts.path report ONLY the exact repository-relative manifest entry", "Never prepend the scratch source/ prefix", "include the metadata file source-manifest.json in inspected_paths or facts.path", "open source/README.md but report README.md", "open source/src/greet.mjs but report src/greet.mjs", "open source/test/greet.test.mjs but report test/greet.test.mjs"} {
 					if !strings.Contains(prompt, instruction) {
 						t.Error("executor prompt lacks evidence path protocol", instruction)

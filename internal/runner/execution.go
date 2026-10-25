@@ -158,14 +158,18 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 		prompt += reviewInput
 	}
 	request := agent.Request{Tool: assignment.Run.Tool, Executable: r.config.Executables[assignment.Run.Tool], WorkDir: record.WorkDir, Prompt: prompt, Role: assignment.Run.Kind, AllowedTools: []string{"Read", "Edit", "Write", "Glob", "Grep", "Bash"}, Model: assignment.Run.Model, ReasoningEffort: assignment.Run.ReasoningEffort}
-	nativeIntent := assignment.GoalContext != nil && assignment.Run.Kind == "implement" && definition.Protocol == agent.ProtocolCodex && definition.ID == "codex"
+	nativeIntent := assignment.GoalContext != nil && assignment.Run.Kind == "implement"
 	if nativeIntent {
 		schemaPath := filepath.Join(dir, "execution.schema.json")
 		if err = os.WriteFile(schemaPath, executionOutputSchema, 0600); err != nil {
 			finish(err)
 			return
 		}
-		request.OutputSchemaPath = schemaPath
+		if definition.Protocol == agent.ProtocolCodex || definition.Protocol == agent.ProtocolClaude {
+			request.OutputSchemaPath = schemaPath
+		} else {
+			request.Prompt += "\nReturn exactly one JSON object matching this schema, without Markdown or extra prose:\n" + string(executionOutputSchema)
+		}
 		request.Prompt += nativeIntentPrompt
 	}
 	if assignment.Run.Kind == "review" {
@@ -214,7 +218,7 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 		TreeStopped     bool   `json:"tree_stopped"`
 	}{result.SessionID, loggedOutput, outputTruncated, result.ExitCode, result.TreeStopped}, true)
 	completion.SessionID = result.SessionID
-	completion.Quiescent = result.TreeStopped || !started
+	completion.Quiescent = result.TreeStopped || !started && !errors.Is(err, process.ErrTreeNotStopped)
 	if nativeIntent && err == nil {
 		// A successful native outcome needs an affirmative tree-stop receipt;
 		// an absent process-start event alone cannot prove it.

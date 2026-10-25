@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import type { Capability, Node, NodeConfigureRequest, ToolScheduling } from '../api.generated';
+import type { AutomationSettings, Capability, Node, NodeConfigureRequest, ToolScheduling } from '../api.generated';
 import { ApiClient } from '../api/client';
 import { Feedback, Field } from '../components/ui';
 import { useAction } from '../hooks/useAction';
+import { leaderModelLabel } from './initialization/leaderLabels';
 
 function preferences(node: Node): ToolScheduling[] {
   return [...new Set([...(node.tools ?? []).map((t) => t.tool), ...(node.capabilities ?? []).map((c) => c.tool)])].map((tool) =>
@@ -10,12 +11,13 @@ function preferences(node: Node): ToolScheduling[] {
 }
 
 /** Edits one tool while preserving the host and all other tool permissions. */
-export function AgentSettings({ node, capability, tool, client, refresh }: { node: Node; capability?: Capability; tool: string; client: ApiClient; refresh: () => void }) {
+export function AgentSettings({ node, capability, tool, defaults, client, refresh }: { defaults?: Pick<AutomationSettings, 'development_tool' | 'development_model'>; node: Node; capability?: Capability; tool: string; client: ApiClient; refresh: () => void }) {
   const [draft, setDraft] = useState(() => ({ version: node.version, value: preferences(node).find((p) => p.tool === tool) ?? { tool, enabled: false, implement: false, review: false } }));
   const [error, setError] = useState('');
   const action = useAction(refresh);
   const models = capability?.model_discovery === 'reported' ? capability.models ?? [] : [];
-  const codexDefault = tool === 'codex' || capability?.protocol === 'codex-jsonl';
+  const defaultLabel = defaults?.development_tool === tool ? `项目默认 · ${leaderModelLabel(defaults.development_model)}` :
+    tool === 'codex' || capability?.protocol === 'codex-jsonl' ? '兼容默认 · gpt-6.1-sol' : '工具默认';
   const model = models.find((m) => m.id === draft.value.model);
   const stale = draft.version < node.version;
   function reset() { setDraft({ version: node.version, value: preferences(node).find((p) => p.tool === tool) ?? { tool, enabled: false, implement: false, review: false } }); setError(''); }
@@ -37,7 +39,7 @@ export function AgentSettings({ node, capability, tool, client, refresh }: { nod
     <p className="muted">仅影响新运行，已派出的任务保留原参数。</p>
     <Feedback {...action} error={error || action.error}/>
     {models.length ? <>
-      <Field label="执行模型"><select value={draft.value.model ?? ''} disabled={node.revoked || action.busy} onChange={(e) => setDraft({ ...draft, value: { ...draft.value, model: e.target.value, reasoning_effort: '' } })}><option value="">{codexDefault ? '项目默认 · gpt-6.1-sol' : '工具默认'}</option>{draft.value.model && !model && <option value={draft.value.model} disabled>原模型已不可用</option>}{models.map((m) => <option key={m.id} value={m.id}>{m.name || m.id}</option>)}</select></Field>
+      <Field label="执行模型"><select value={draft.value.model ?? ''} disabled={node.revoked || action.busy} onChange={(e) => setDraft({ ...draft, value: { ...draft.value, model: e.target.value, reasoning_effort: '' } })}><option value="">{defaultLabel}</option>{draft.value.model && !model && <option value={draft.value.model} disabled>原模型已不可用</option>}{models.map((m) => <option key={m.id} value={m.id}>{m.name || m.id}</option>)}</select></Field>
       <Field label="思考强度"><select value={draft.value.reasoning_effort ?? ''} disabled={node.revoked || action.busy || !model || !model.reasoning_efforts?.length} onChange={(e) => setDraft({ ...draft, value: { ...draft.value, reasoning_effort: e.target.value } })}><option value="">{model?.default_reasoning_effort ? `工具默认 · ${model.default_reasoning_effort}` : '工具默认'}</option>{draft.value.reasoning_effort && !model?.reasoning_efforts?.includes(draft.value.reasoning_effort) && <option value={draft.value.reasoning_effort} disabled>原强度已不可用</option>}{model?.reasoning_efforts?.map((value) => <option key={value} value={value}>{value}</option>)}</select></Field>
     </> : <><p className="muted">{capability?.model_discovery === 'unavailable' ? '模型目录暂时无法读取。' : '此工具尚未报告可配置的模型目录。'}</p>{(draft.value.model || draft.value.reasoning_effort) && <button type="button" className="text-button" onClick={() => setDraft({ ...draft, value: { ...draft.value, model: '', reasoning_effort: '' } })}>清除原执行参数</button>}</>}
     <details className="agent-permissions"><summary>调度权限</summary><fieldset disabled={node.revoked || action.busy}><legend className="sr-only">调度权限</legend>{(['enabled', 'implement', 'review'] as const).map((key) => <Field key={key} label={{ enabled: '允许调度', implement: '开发任务', review: '审查任务' }[key]}><input type="checkbox" checked={draft.value[key]} onChange={(e) => setDraft({ ...draft, value: { ...draft.value, [key]: e.target.checked } })}/></Field>)}</fieldset></details>

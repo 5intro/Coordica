@@ -15,16 +15,19 @@ func TestRegisteredToolIdentitySchedulingAndIndependentReview(t *testing.T) {
 	ctx := context.Background()
 	b, err := f.s.CreateTask(ctx, f.owner, "custom-task", domain.Task{Title: "custom", Description: "custom protocol driver", Acceptance: "fixed candidate", AllowedPaths: []string{"src/**"}, Tool: "local-custom", BudgetSeconds: 7200, MaxRunSeconds: 3600})
 	task := decodeTest[domain.Task](t, b, err)
-	b, err = f.s.TaskAction(ctx, f.owner, "custom-approve", task.ID, "approve", domain.VersionRequest{ExpectedVersion: task.Version})
-	if err == nil {
-		t.Fatal("custom tool received development authority")
+	if _, err = f.s.TaskAction(ctx, f.node, "node-cannot-approve", task.ID, "approve", domain.VersionRequest{ExpectedVersion: task.Version}); err == nil {
+		t.Fatal("node granted itself custom tool development authority")
 	}
-	task = f.task
-	caps := []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}, {Tool: "local-custom", Available: true, Structured: true, Cancel: true, Review: false}, {Tool: "independent-review", Available: true, Structured: true, Cancel: true, Review: true}}
+	b, err = f.s.TaskAction(ctx, f.owner, "custom-approve", task.ID, "approve", domain.VersionRequest{ExpectedVersion: task.Version})
+	task = decodeTest[domain.Task](t, b, err)
+	if _, err = f.s.TaskAction(ctx, f.owner, "cancel-original", f.task.ID, "cancel", domain.VersionRequest{ExpectedVersion: f.task.Version}); err != nil {
+		t.Fatal(err)
+	}
+	caps := []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: false}, {Tool: "local-custom", Available: true, Structured: true, Cancel: true, Review: false}, {Tool: "independent-review", Available: true, Structured: true, Cancel: true, Review: true}}
 	b, err = f.s.Claim(ctx, f.node, "custom-claim", domain.ClaimRequest{Capabilities: caps}, strings.Repeat("a", 40))
 	first := decodeTest[*domain.Assignment](t, b, err)
-	if first == nil || first.Run.Tool != "codex" {
-		t.Fatalf("authorized native development not scheduled: %+v", first)
+	if first == nil || first.Run.Tool != task.Tool || first.Task.ID != task.ID {
+		t.Fatalf("Owner-authorized registered developer not scheduled: %+v", first)
 	}
 	artifact, err := f.s.UploadArtifact(ctx, f.node, first.Run.ID, strings.NewReader("immutable fixture"))
 	if err != nil {

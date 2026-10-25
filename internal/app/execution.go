@@ -36,6 +36,10 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 		if e != nil {
 			return nil, e
 		}
+		settings, e := automation(tx)
+		if e != nil {
+			return nil, e
+		}
 		var n domain.Node
 		if e = tx.Get("node", a.NodeID, &n); e != nil {
 			return nil, e
@@ -108,7 +112,7 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 				candidate = &c
 				tool = ""
 				for _, capability := range req.Capabilities {
-					_, _, optionsValid := nodeExecution(n, capability.Tool)
+					_, _, optionsValid := taskExecution(n, capability.Tool, settings)
 					if optionsValid && capability.Tool != t.Tool && nodeAllows(n, capability.Tool, "review") && capability.Review && available(req.Capabilities, capability.Tool) {
 						tool = capability.Tool
 						break
@@ -116,7 +120,7 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 				}
 				if tool == "" {
 					for _, capability := range req.Capabilities {
-						_, _, optionsValid := nodeExecution(n, capability.Tool)
+						_, _, optionsValid := taskExecution(n, capability.Tool, settings)
 						if optionsValid && capability.Tool == t.Tool && nodeAllows(n, capability.Tool, "review") && capability.Review && available(req.Capabilities, t.Tool) {
 							tool = t.Tool
 							break
@@ -151,7 +155,11 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			if !nodeAllows(n, tool, kind) || !available(req.Capabilities, tool) || runBase == "" {
 				continue
 			}
-			model, effort, optionsValid := nodeExecution(n, tool)
+			if kind == "implement" && t.GoalVersion != 0 && tool != "codex" &&
+				req.ExecutionIntentVersion != domain.ExecutionIntentVersion {
+				continue
+			}
+			model, effort, optionsValid := taskExecution(n, tool, settings)
 			if !optionsValid {
 				continue
 			}
