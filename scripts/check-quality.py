@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the center's structural gate on CI commits or the local worktree."""
+"""Report the center's lightweight maintainability signals on fixed commits or the worktree."""
 import os
 from pathlib import Path
 import subprocess

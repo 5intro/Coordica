@@ -719,6 +719,7 @@ export interface CheckResult {
   duration_seconds: number;
 }
 export interface Candidate {
+  maintainability_advisory?: string;
   pull_request?: PullRequestStatus | null;
   preparation_stopped?: boolean;
   check_plan?: CheckPlan | null;
