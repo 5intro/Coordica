@@ -30,7 +30,7 @@ func (m *metrics) rubySource(f File) {
 		loop := false
 		for _, token := range rubyToken.FindAllStringIndex(source, -1) {
 			absolute := m.lines[line] + token[0]
-			if absolute <= skipUntil {
+			if absolute <= skipUntil || rubyQualifiedKeyword(source, token[0]) {
 				continue
 			}
 			word := source[token[0]:token[1]]
@@ -93,4 +93,10 @@ func (m *metrics) rubyBlockFinding(file string, block rubyBlock, end int) {
 		m.add(file, block.line, "class_lines", block.name, end-block.line+1, MaxClass)
 		m.add(file, block.line, "class_methods", block.name, block.methods, MaxMethods)
 	}
+}
+
+// Receiver method names and unquoted symbols do not open keyword blocks.
+func rubyQualifiedKeyword(source string, at int) bool {
+	prefix := strings.TrimRight(source[:at], " \t")
+	return strings.HasSuffix(prefix, ".") || strings.HasSuffix(prefix, ":")
 }
