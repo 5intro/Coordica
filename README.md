@@ -143,7 +143,13 @@ macOS 请使用固定安装路径，按需要授权文件访问；开发版没�
 [{"name":"Go tests","command":"go","args":["test","./..."],"timeout_seconds":300}]
 ```
 
-下面以已有 HTTPS 仓库为例：先把你自己的仓库克隆到 `/projects/my-project`，确认本地和远端都有 `main` 分支及基础提交。将 `YOUR-ACCOUNT/my-project` 替换为实际目标，中心的读取与写入凭据须单独配置；仓库 URL 本身不授予权限。然后保存配置并注册 MCP：
+下面以已有 HTTPS 仓库为例：先把你自己的仓库克隆到 `/projects/my-project`，确认本地和远端都有 `main` 分支及基础提交。将 `YOUR-ACCOUNT/my-project` 替换为实际目标，中心的读取与写入凭据须单独配置；仓库 URL 本身不授予权限。首次保存前，先确定连接方式和凭据，再执行下面的命令：
+
+- **仅同机使用**：保留示例中的两个 `127.0.0.1:8080` 监听，不需要 TLS，其他电脑不能接入。
+- **需要跨机 Runner**：在同一条 `host-config` 命令中，把 `--runner-listen 127.0.0.1:8080` 替换为 `--runner-listen 192.168.1.10:8443 --runner-url https://192.168.1.10:8443`，IP 换成中心实际固定地址；`--console-listen 127.0.0.1:8080` 保持不变。初始化会在该数据目录生成 `center.crt` 和 `center.key`，HTTPS 地址须在证书 SAN 中。只向 Runner 分发公共 `center.crt`，不分发私钥。
+- **远端仓库凭据**：需要私有仓库读取或远端写入时，先按下方“中心服务的持久仓库凭据”准备文件，并把对应参数加入同一条 `host-config` 命令；不要只给临时 `serve` 进程配置。
+
+以下是仅同机的新中心示例（跨机时先替换上述 Runner 参数）：
 
 ```sh
 /installed/coordica host-config --host-role center \
@@ -161,6 +167,8 @@ macOS 请使用固定安装路径，按需要授权文件访问；开发版没�
   --client generic --output /chosen/mcp --apply
 ```
 
+`host-config` 不覆盖已有不同配置；完全相同的配置可幂等重试。上述示例不是既有中心的迁移命令；已初始化的配置与数据身份绑定，不要删除配置重跑、手改监听或改用另一个 data 目录冒充接续。需要改变既有部署时，先备份并核对对应版本的迁移方案。
+
 `--client generic --output` 导出通用客户端配置。也可先运行 `coordica setup` 预览已发现的客户端，再按实际客户端选择配置并使用 `--apply`。配置冲突需要先处理，不应覆盖其他项目或已有身份。
 
 通过已注册的统一 MCP 调用 `initialize_center {}`，或使用 CLI：
@@ -171,6 +179,15 @@ coordica host --host-config /chosen/config/center.json --action status
 ```
 
 初始化创建项目草案并请求用户级服务启动。以状态返回和本机控制台确认服务已就绪。启动后审阅项目分析、配置非空真实检查，并由 Owner 确认基线；Goal 和任务另行批准。
+
+### 中心服务的持久仓库凭据
+
+终端中能 `git push` 或已登录 `gh`，不代表后台中心拥有凭据。选下面一种方式，在首次保存 `host-config` 时加入参数；这里只展示文件路径和格式，不要把真实秘密粘贴到命令行、聊天或仓库。
+
+- **GitHub 仓库（含 GitHub PR 模式）**：加入 `--github-repository YOUR-ACCOUNT/my-project --github-token-file /private/coordica-secrets/github.token`。文件只含原始 GitHub API token，不加 `Bearer` 前缀；仓库必须匹配 `--repository-url`。未另设 Git Authorization 文件时，同一凭据也为这个固定仓库的 HTTPS Git 操作提供认证。权限要求见 [GitHub PR 集成](#github-reference)；保存凭据不自动启用 PR 模式。
+- **其他 HTTPS Git 或显式独立 Git 凭据**：加入 `--git-auth-remote https://git.example.com/owner/project.git --git-auth-file /private/coordica-secrets/git.header`，并把 `--repository-url` 设置为完全相同的 URL。文件是一行服务商接受的 Authorization 值，例如 `Basic <base64(username:token)>` 或 `Bearer <token>`，不包含 `Authorization:` 字段名。Basic 编码不是加密，具体认证形式按服务商要求准备。Git 凭据本身不提供 GitHub PR API 权限。
+
+文件使用固定绝对路径，放在源码外，与 Owner token、TLS 私钥、数据库、配置和交互 profile 使用不同路径。由你在本机安全创建：Unix 仅当前用户可读写（文件模式 `0600`）；Windows 使用当前用户的私密 ACL。托管服务从已保存路径读取凭据，不依赖交互终端的环境变量或临时参数。不要把凭据文件或其内容提交、打包、记录到日志。轮换同一路径的凭据后重启中心，并检查服务状态。
 
 ### 仓库与数据
 
@@ -191,16 +208,9 @@ Runner 配对后，在对应电脑打开 `http://127.0.0.1:8081`，查看本机�
 
 在中心控制台的“中心配置与接入”中，为每台电脑生成一次性接入指令。跨机连接使用中心实际 HTTPS 地址与公共 CA，核对证书 DER 的 SHA-256 指纹；不要分享中心私钥或 Owner 令牌。
 
-手动配置局域网监听的示例：
+**已按前文跨机选项初始化的托管中心无需再运行 `tls` 或 `serve`。** 使用原配置 `/chosen/config/center.json`、原数据目录 `/chosen/runtime/center` 和已生成的 `/chosen/runtime/center/center.crt`，在控制台核对公布的 HTTPS 地址及证书指纹。不要另启 `.coordica-center` 或更换 data；那会是另一实例，不会延续原项目和节点。
 
-```sh
-./bin/coordica tls --out .coordica-tls --hosts localhost,127.0.0.1,192.168.1.10
-./bin/coordica serve --data .coordica-center \
-  --listen 192.168.1.10:8443 --console-listen 127.0.0.1:8080 \
-  --tls-cert .coordica-tls/center.crt --tls-key .coordica-tls/center.key
-```
-
-将示例 IP 替换为中心真实地址。此命令用于手动前台运行，不要与已启动的用户级中心服务同时占用端口。
+仅同机配置没有跨机入口。还未初始化的新中心可返回[保存中心配置](#setup-reference)，先选择跨机参数再初始化；已有中心不能靠重跑 `host-config` 覆盖配置，部署迁移需另行核对。不要同时启动前台进程与托管服务争用端口。
 
 将公共 `center.crt` 复制到 Runner 电脑，再通过其 MCP 客户端提供中心 HTTPS 地址、本机 CA 路径和一次性配对码。以中心节点页的心跳确认接入。配对码到期后重新生成；复制失败可重试同一条接入配置。
 
@@ -233,7 +243,7 @@ Runner 配对后，在对应电脑打开 `http://127.0.0.1:8081`，查看本机�
 
 在“代码集成”中配置目标仓库与必需检查。中心为任务维护 PR，完成固定候选检查、独立评审及 GitHub 必需检查后再请求合并。额外的 GitHub 审批要求仍须满足。
 
-中心使用独立私密凭据文件，不借用 Runner 的账号：
+中心使用独立私密凭据文件，不借用 Runner 的账号。托管中心应在首次 `host-config` 中保存 `--github-repository` 和 `--github-token-file`，见[持久配置](#setup-reference)。下面仅展示独立前台进程的参数，不会修改托管服务；不要用另一个 data 目录接续既有中心，也不要与托管服务同时运行：
 
 ```sh
 coordica serve --data /private/coordica-center \
@@ -260,6 +270,15 @@ Coordica 不会修改仓库规则或跳过额外审批。暂停项目时只核�
 <summary><strong>暂停、恢复、备份与维护</strong></summary>
 
 **暂停与恢复。** 暂停停止新派发，并请求在途执行结束。失联不等于已停止；在恢复前核对旧进程及远端 Git 状态。确认停止后，任务可在原有授权、剩余预算和重试次数内恢复；预算不足、授权失效或人工阻断需要 Owner 处理。
+
+### 旧版 budget 阻断的安全恢复
+
+项目 `total_budget_seconds` 和 ChatOverview `budget_seconds` 已是忽略的弃用字段，项目支出仅用于统计；任务、目标与单 Run 的有限预算及重试上限仍有效。旧 `budget` 阻断不会自动清除，不能仅因项目总额度不再生效就恢复：
+
+1. 先暂停项目并备份。在中心本机以 Owner 身份检查该任务的全部旧 Run；失联或终端消失不等于停止。需要时通过原 Run 的“确认已停止”操作提交实际进程树检查证据，等待执行结束和支出结算，确认没有未知旧执行，任务预留支出为零。
+2. 核对任务及目标剩余额度、重试次数，以及当前目标、基线、任务授权、政策和执行代次。预算耗尽、授权过期或代次不符时先处理相应授权，不能改数据库、清零支出或创建替代任务绕过限制。
+3. 在准备允许派发时恢复项目，再刷新该任务，使用当前任务版本执行“恢复”。Owner CLI/API 的等价操作是 `POST /api/v1/tasks/<task-id>/resume`，请求体为 `{"expected_version": <刷新后任务的 version>}`；CLI 使用 `coordica ctl --method POST --path tasks/<task-id>/resume --body-file /chosen/resume.json --key <本次操作的唯一键> --token-file /chosen/runtime/center/owner.token`；`--path` 是相对路径，不加 `/api/v1/` 前缀，JSON 文件填写上面的当前版本请求体。从原中心的 Owner token 文件认证，不在参数里放 token 内容。重试同一请求使用相同幂等键；版本冲突时先重新读取状态，不盲目重复旧版本。
+4. 重新查看任务、Run 与阻断状态，确认恢复结果。恢复保留累计支出，必要时消耗一次重试；已有发布意图仍按原候选核对，不因预算恢复而重新发布或改变授权。失败时保留阻断并根据错误处理，不通过修改弃用项目额度强行放行。
 
 **备份。** 从 Web 或 CLI 创建一致备份，保存到安全位置。备份包含数据库快照、引用材料及必要 Git 对象，不包含凭据；尚未上传的节点私人修改需要另行保存。
 

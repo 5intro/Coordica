@@ -1,4 +1,5 @@
 """Public release wording and archive safety regression checks."""
+import hashlib
 import importlib.util
 from pathlib import Path
 import re
@@ -64,10 +65,50 @@ class ReleaseTests(unittest.TestCase):
                                  '重试使用原内容与同一键', '恢复不清零支出',
                                  '不绕过重试上限', '重大决定仍由 Owner 处理'):
                     self.assertIn(expected, text)
-                for internal_status in ('尚未', '待验证', '仍待', '后续功能',
+                # Reject internal progress reports, not words needed for honest limitations.
+                for internal_status in ('后续功能',
                                         '验收已通过', '验收通过', 'Phase A', 'Phase B',
                                         'fixtures', '真实存活 PID', 'macOS Go race 套件'):
                     self.assertNotIn(internal_status, text)
+
+    def test_start_here_rendering_preserves_exact_prior_guide(self):
+        expected = {
+            'darwin-arm64': '29073f513929e58d18ce7f53bf732bb782bcd827986f30b28648c2b7c2d7021d',
+            'windows-amd64': 'c52a3d5ed74f1d49f316ca0e89bc9cde5df8f362e0b6e5f2e3f04891578da7e0',
+            'linux-amd64': '2333226fa56f258ff170b3dc2f0f99864ce4361b7ce6e5df999555ee586144aa',
+        }
+        for platform, _, binary, _ in release.PLATFORMS:
+            with self.subTest(platform=platform):
+                text = release.start_here('0.2.5-dev', platform, binary)
+                self.assertEqual(hashlib.sha256(text).hexdigest(), expected[platform])
+
+    def test_hosted_setup_and_budget_recovery_documented(self):
+        readme = (release.ROOT / 'README.md').read_text(encoding='utf-8')
+        setup = readme.split('<a id="setup-reference"></a>', 1)[1].split('</details>', 1)[0]
+        for expected in ('仅同机使用', '需要跨机 Runner',
+                         '--console-listen 127.0.0.1:8080',
+                         '--runner-listen 192.168.1.10:8443',
+                         '--runner-url https://192.168.1.10:8443',
+                         '不覆盖已有不同配置', '--github-token-file',
+                         '--git-auth-file', '--git-auth-remote',
+                         '不加 `Bearer` 前缀', 'Authorization:', '0600'):
+            self.assertIn(expected, setup)
+        operations = readme.split('<a id="operations-reference"></a>', 1)[1].split('</details>', 1)[0]
+        for expected in ('旧版 budget 阻断', '预留支出为零', 'expected_version',
+                         '/api/v1/tasks/<task-id>/resume', '相同幂等键',
+                         '保留累计支出', '已有发布意图'):
+            self.assertIn(expected, operations)
+
+    def test_readme_local_links_are_in_package(self):
+        entries = release.common_entries()
+        readme = entries['README.md'][0].decode()
+        links = re.findall(r'\]\(([^)]+)\)', readme)
+        links += re.findall(r'<img[^>]+src="([^"]+)"', readme)
+        for link in links:
+            if link.startswith(('https://', 'http://', '#')):
+                continue
+            target = link.split('#', 1)[0]
+            self.assertIn(target, entries, f'Broken packaged README link: {link}')
 
     def test_public_execution_intent_boundary(self):
         documents = {'README.md': (release.ROOT / 'README.md').read_text(encoding='utf-8')}
@@ -99,6 +140,7 @@ class ReleaseTests(unittest.TestCase):
         entries = release.common_entries()
         expected = {
             'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'go.mod', 'go.sum',
+            'cmd/coordica/main.go', 'api/v1.schema.json', 'web/public/favicon.svg',
             'internal/process/README.md', 'examples/dsh/coordica.cordis.yml',
             'examples/tools/custom-acp.json', 'examples/acceptance/README.md',
             'examples/acceptance/.gitignore', 'examples/acceptance/src/greeting.mjs',
