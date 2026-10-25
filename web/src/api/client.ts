@@ -1,4 +1,6 @@
 import { initializationReply } from './initialization';
+import { InitializationAnswers } from './initializationAnswers';
+import { InitializationPolicies } from './initializationPolicies';
 import type { Snapshot, Problem, ConversationInput, Initialization } from '../api.generated';
 
 export type PendingConsultation = { kind: 'consult' | 'propose'; body: ConversationInput; key: string };
@@ -11,6 +13,8 @@ export class ApiError extends Error {
 }
 
 export class ApiClient {
+  readonly initializationAnswers = new InitializationAnswers();
+  readonly initializationPolicies = new InitializationPolicies();
   private readonly uncertainWrites = new Map<string, string>();
   // Private prose lives only in this credential/session's memory. Project IDs
   // isolate envelopes; route remounts reuse the same ApiClient instance.
