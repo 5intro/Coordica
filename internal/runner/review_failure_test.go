@@ -117,6 +117,14 @@ func reviewFailureServer(t *testing.T, bundle string) (*httptest.Server, func() 
 		switch {
 		case strings.HasSuffix(req.URL.Path, "/input.bundle"):
 			http.ServeFile(w, req, bundle)
+		case req.URL.Path == "/api/v1/runs/run_test/heartbeat":
+			var value domain.HeartbeatRequest
+			if err := json.NewDecoder(req.Body).Decode(&value); err != nil || value.Generation != 7 {
+				t.Errorf("invalid fixture heartbeat: %+v, %v", value, err)
+				w.WriteHeader(http.StatusConflict)
+				return
+			}
+			respond(w, domain.HeartbeatResponse{LeaseUntil: time.Now().Add(time.Minute)})
 		case strings.HasSuffix(req.URL.Path, "/complete"):
 			var value domain.CompleteRequest
 			if err := json.NewDecoder(req.Body).Decode(&value); err != nil {
@@ -136,6 +144,20 @@ func reviewFailureServer(t *testing.T, bundle string) (*httptest.Server, func() 
 		mu.Lock()
 		defer mu.Unlock()
 		return completion
+	}
+}
+
+func TestReviewFailureFixtureAcceptsHeartbeat(t *testing.T) {
+	server, completion := reviewFailureServer(t, "")
+	r := testRunner(t, server)
+	var response domain.HeartbeatResponse
+	clock, err := r.json(context.Background(), "POST", "/api/v1/runs/run_test/heartbeat", "",
+		domain.HeartbeatRequest{Generation: 7, ElapsedSeconds: 11}, &response)
+	if err != nil || response.Cancel || !response.LeaseUntil.After(clock.Received) {
+		t.Fatalf("slow Git preparation could not renew its fixture lease: %+v, %v", response, err)
+	}
+	if value := completion(); value.Status != "" || value.Quiescent {
+		t.Fatalf("heartbeat became completion or stop evidence: %+v", value)
 	}
 }
 
