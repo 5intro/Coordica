@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"coordica/internal/agent"
@@ -92,7 +91,7 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 	}
 	ctx, stop := context.WithCancel(parent)
 	defer stop()
-	stopHeartbeat := r.watchPermission(ctx, stop, assignment, record.StartedAt, lease, deadline, clock.Received)
+	stopHeartbeat, permissionUntil := r.watchPermission(ctx, stop, assignment, record.StartedAt, lease, deadline, clock.Received)
 	defer stopHeartbeat()
 	base, err := gitops.ParseOID(assignment.Run.Base)
 	if err != nil {
@@ -324,20 +323,11 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 			finish(err)
 			return
 		}
-		bundle, err := os.Open(bundlePath)
+		// Freeze the latest confirmed window at delivery start; later heartbeats
+		// cannot extend this upload's finite retry deadline.
+		artifact, err := uploadArtifact(ctx, r, assignment.Run.ID, record.Key+"-artifact", bundlePath, permissionUntil())
 		if err != nil {
 			finish(err)
-			return
-		}
-		var artifact domain.Artifact
-		_, err = r.request(ctx, "POST", "/api/v1/runs/"+assignment.Run.ID+"/artifacts", record.Key+"-artifact", bundle, "application/octet-stream", &artifact)
-		bundle.Close()
-		if err != nil {
-			finish(err)
-			return
-		}
-		if artifact.ID == "" || artifact.RunID != assignment.Run.ID {
-			finish(errors.New("artifact acknowledgement does not match Run"))
 			return
 		}
 		completion.Head, completion.ArtifactID = head.String(), artifact.ID
@@ -357,78 +347,6 @@ If task paths are insufficient, STOP before editing any files and return status=
 For major changes or other blockers, leave the fixed workspace unchanged and return status="blocked", requested_paths=[], and a nonempty reason. Never approve or carry out a major change yourself.
 When implementation and relevant checks are finished within current scope, return status="completed", requested_paths=[], reason="", and a summary. This is intent only: Runner still verifies actual changes, scope, fixed base, and process quiescence before snapshotting.
 `
-
-func (r *Runner) watchPermission(ctx context.Context, stop context.CancelFunc, assignment domain.Assignment, started, lease, deadline, lastSuccess time.Time) func() {
-	heartCtx, end := context.WithCancel(ctx)
-	var mu sync.Mutex
-	interval := 10 * time.Second
-	if assignment.HeartbeatSeconds > 0 && assignment.HeartbeatSeconds < 10 {
-		interval = time.Duration(assignment.HeartbeatSeconds) * time.Second
-	}
-	var workers sync.WaitGroup
-	workers.Add(2)
-	go func() {
-		defer workers.Done()
-		ticker := time.NewTicker(100 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-heartCtx.Done():
-				return
-			case now := <-ticker.C:
-				mu.Lock()
-				expired := !now.Before(lease) || !now.Before(deadline) || now.Sub(lastSuccess) >= 30*time.Second
-				mu.Unlock()
-				if expired {
-					r.report("permission.expired", assignment.Run.ID, "lease, deadline, or 30-second heartbeat silence exceeded")
-					stop()
-					return
-				}
-			}
-		}
-	}()
-	go func() {
-		defer workers.Done()
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-heartCtx.Done():
-				return
-			case <-ticker.C:
-				callCtx, cancel := context.WithTimeout(heartCtx, 5*time.Second)
-				var response domain.HeartbeatResponse
-				clock, err := r.json(callCtx, "POST", "/api/v1/runs/"+assignment.Run.ID+"/heartbeat", "", domain.HeartbeatRequest{Generation: assignment.Run.Generation, ElapsedSeconds: int64(time.Since(started) / time.Second), Detail: "managed activity"}, &response)
-				cancel()
-				if err != nil {
-					r.report("heartbeat.failed", assignment.Run.ID, shortDetail(err))
-					var remote *apiError
-					if errors.As(err, &remote) && (remote.Status == 401 || remote.Status == 403 || remote.Status == 409) {
-						stop()
-						return
-					}
-					continue
-				}
-				if response.Cancel {
-					r.report("permission.revoked", assignment.Run.ID, response.Reason)
-					stop()
-					return
-				}
-				newLease, err := localDeadline(response.LeaseUntil, clock)
-				if err != nil {
-					r.report("heartbeat.invalid", assignment.Run.ID, shortDetail(err))
-					stop()
-					return
-				}
-				mu.Lock()
-				lease = newLease
-				lastSuccess = clock.Received
-				mu.Unlock()
-			}
-		}
-	}()
-	return func() { end(); workers.Wait() }
-}
 
 func assignmentPrompt(a domain.Assignment, commitMode string) string {
 	var text strings.Builder
