@@ -125,4 +125,3 @@ def _validate_pe(layout):
     for index in range(count):
         size, offset = unpack('<II', table + index * 40 + 16)
         span(offset, size)
-
