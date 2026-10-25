@@ -227,8 +227,7 @@ func (s *Service) SavePlanning(ctx context.Context, a Actor, key string, req dom
 		d.Status = "planning"
 		d.AdmittedDocumentVersion = 0
 		d.AdmittedAuthorizationVersion = 0
-		d.LeaderResult = nil
-		d.LeaderSession = ""
+		resetLeaderAnswer(&d)
 		d.MissingItems = documentMissing(d)
 		d.UsedSeconds = old.UsedSeconds
 		d.ReservedSeconds = old.ReservedSeconds
@@ -319,56 +318,6 @@ func stopPlanning(tx *store.Tx) error {
 		}
 	}
 	return nil
-}
-func (s *Service) SchedulePlanning(ctx context.Context, a Actor, key string, req domain.PlanningMessageRequest) (json.RawMessage, error) {
-	if e := owner(a); e != nil {
-		return nil, e
-	}
-	if len(req.Text) > 64<<10 {
-		return nil, domain.Fail("invalid_input", "message too large")
-	}
-	return s.mutateWithCheck(ctx, a, key, "planning.evaluate", req, func(tx *store.Tx) error { return baselineGate(tx, nil, false) }, func(tx *store.Tx) (any, error) {
-		var d domain.PlanningDocument
-		if e := tx.Get("planning_document", "current", &d); e != nil {
-			return nil, e
-		}
-		if e := version(d.Version, req.ExpectedVersion); e != nil {
-			return nil, e
-		}
-		if pending, e := pendingGoalRequirementChange(tx, d); e != nil {
-			return nil, e
-		} else if pending {
-			return nil, domain.Fail("conflict", "先处理当前目标中的需求变更")
-		}
-		settings, e := automation(tx)
-		if e != nil {
-			return nil, e
-		}
-		runs, e := store.List[domain.PlanningRun](tx, "planning_run")
-		if e != nil {
-			return nil, e
-		}
-		for _, r := range runs {
-			if r.State == "queued" || r.State == "running" || r.State == "cancel_requested" || r.State == "unknown_live" {
-				return nil, domain.Fail("conflict", "planning run must stop before another evaluation")
-			}
-		}
-		if strings.TrimSpace(req.Text) != "" {
-			m := domain.LeaderMessage{ID: ID("msg_"), DocumentVersion: d.Version, Role: "owner", Text: req.Text, CreatedAt: s.Now()}
-			if e = tx.Put("leader_message", m.ID, m); e != nil {
-				return nil, e
-			}
-		}
-		baseline, e := initialization(tx)
-		if e != nil {
-			return nil, e
-		}
-		r := domain.PlanningRun{BaselineVersion: baseline.ApprovedVersion, BaselineDigest: baseline.ApprovedDigest, ID: ID("plan_"), Version: 1, DocumentVersion: d.Version, AuthorizationVersion: d.AuthorizationVersion, AutomationVersion: settings.Version, Generation: 1, State: "queued", MaxRetries: settings.PlanningMaxRetries}
-		if e = tx.Put("planning_run", r.ID, r); e != nil {
-			return nil, e
-		}
-		return r, s.audit(tx, a, "planning.scheduled", r.ID, "")
-	})
 }
 func (s *Service) CancelPlanning(ctx context.Context, a Actor, key string, req domain.VersionRequest) (json.RawMessage, error) {
 	if e := owner(a); e != nil {

@@ -24,6 +24,7 @@ type AutomationRequest struct {
 	Settings        AutomationSettings `json:"settings"`
 }
 type PlanningDocument struct {
+	LeaderRunID                  string        `json:"leader_run_id,omitempty"`
 	ApprovedAuthorizationVersion int64         `json:"approved_authorization_version"`
 	Version                      int64         `json:"version"`
 	AuthorizationVersion         int64         `json:"authorization_version"`
@@ -58,7 +59,15 @@ type LeaderMessage struct {
 	Text            string    `json:"text"`
 	CreatedAt       time.Time `json:"created_at"`
 }
+type PlanningAnswerReceipt struct {
+	ReplyToRunID string        `json:"reply_to_run_id"`
+	Run          PlanningRun   `json:"run"`
+	Message      LeaderMessage `json:"message"`
+}
+
 type PlanningMessageRequest struct {
+	ReplyToRunID    string `json:"reply_to_run_id,omitempty"`
+	Question        string `json:"question,omitempty"`
 	ExpectedVersion int64  `json:"expected_version"`
 	Text            string `json:"text"`
 }

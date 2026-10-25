@@ -17,11 +17,12 @@ export function GlassDock({ active, onSelect, appearance, items, label = '工作
       if (!element) return;
       const dock = element.getBoundingClientRect();
       const slots = Array.from(element.querySelectorAll<HTMLDivElement>('.dock-slot'));
+      const compact = window.matchMedia?.('(max-width: 620px)').matches;
       const samples = slots.map((slot) => {
         // Measure the fixed slot, never the animated button: hover stays stable.
         const bounds = slot.getBoundingClientRect();
         const distance = clientX === null ? 10000 : Math.abs(clientX - bounds.left - bounds.width / 2);
-        const influence = appearance.motion ? Math.exp(-(distance ** 2) / (76 ** 2)) : 0;
+        const influence = appearance.motion && !compact ? Math.exp(-(distance ** 2) / (76 ** 2)) : 0;
         return { influence, extra: bounds.width * influence * .30 };
       });
       const expansion = samples.reduce((sum, sample) => sum + sample.extra, 0);
@@ -52,7 +53,10 @@ export function GlassDock({ active, onSelect, appearance, items, label = '工作
     return () => window.removeEventListener('resize', reset);
   }, [magnify]);
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
-  return <nav className="glass-dock" aria-label={label} ref={root} onPointerMove={(event) => { if (event.pointerType !== 'touch') magnify(event.clientX); }} onPointerLeave={() => magnify(null)} onKeyDown={(event) => {
+  return <nav className="glass-dock" aria-label={label} ref={root}
+    style={{ '--dock-count': Math.max(1, items.length) } as CSSProperties}
+    onPointerMove={(event) => { if (event.pointerType !== 'touch') magnify(event.clientX); }}
+    onPointerLeave={() => magnify(null)} onKeyDown={(event) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('.dock-item'));
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
