@@ -133,8 +133,11 @@ func (m *metrics) nativeBraceSource(f File) {
 			m.scriptFunctionFinding(f, text, fn.name, fn.start, fn.body, fn.end, pairs)
 		}
 	}
-	nativeAnonymousFunctions(m, f, text, extension, pairs)
+	nativeAnonymousFunctions(m, f, text, extension, pairs, functions)
 	counts := nativeMethodCounts(m.ctx, text, functions)
+	if extension == ".java" {
+		javaAnonymousClasses(m, f, text, pairs, counts)
+	}
 	for _, match := range nativeClass.FindAllStringSubmatchIndex(text, -1) {
 		if m.cancelled() {
 			return
@@ -152,7 +155,7 @@ func (m *metrics) nativeBraceSource(f File) {
 		if extension == ".cs" && recordCSharpPartial(m, f, text, match, close, methods, pairs) {
 			continue
 		}
-		m.add(f.Path, m.lineAt(match[0]), "class_lines", name, m.lineAt(close)-m.lineAt(match[0])+1, MaxClass)
-		m.add(f.Path, m.lineAt(open), "class_methods", name, methods, MaxMethods)
+		scopedClassFinding(m, f, text, name, "class_lines", match[0], open, m.lineAt(close)-m.lineAt(match[0])+1, MaxClass, pairs)
+		scopedClassFinding(m, f, text, name, "class_methods", open, open, methods, MaxMethods, pairs)
 	}
 }

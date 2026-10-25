@@ -118,7 +118,7 @@ func supplementText(c domain.AcceptanceCoverage) string {
 			gap.CriterionID, gap.CaseID, gap.RunID, gap.Reason, gap.Action)
 	}
 	b.WriteString("人工验收项应保留给 Owner；只有实际结构化执行证据才算测试通过。完成代码仍须审查和固定提交的验证。")
-	b.WriteString("失败验证的修复提案应使用上述 Run 作为 test_run_id，沿既有修复链路获取报告。")
+	b.WriteString("仅当修复缺口明确提供失败验证 Run 时，才将该 Run 用作 test_run_id；没有 Run 的缺口使用普通任务，不得猜测验证身份。")
 	return b.String()
 }
 

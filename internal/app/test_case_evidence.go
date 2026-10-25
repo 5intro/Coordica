@@ -17,7 +17,17 @@ func (reader *coverageReader) criterionCoverage(plan domain.AcceptancePlan, crit
 	ref := domain.CriterionRef{RequirementID: plan.RequirementID, Revision: plan.Revision,
 		PlanVersion: plan.Version, CriterionID: criterion.ID}
 	for _, v := range cases {
-		if !v.Enabled || !slices.Contains(v.Coverage, ref) {
+		if !v.Enabled {
+			continue
+		}
+		if !slices.Contains(v.Coverage, ref) {
+			if slices.ContainsFunc(v.Coverage, func(old domain.CriterionRef) bool {
+				return old.RequirementID == ref.RequirementID && old.CriterionID == ref.CriterionID
+			}) {
+				out.Cases = append(out.Cases, domain.CaseEvidence{
+					Case: domain.TestCaseSummary{ID: v.ID, Version: v.Version, Name: v.Name}, State: "stale",
+				})
+			}
 			continue
 		}
 		evidence, found := cache[v.ID]
@@ -96,6 +106,9 @@ func (reader *coverageReader) caseEvidence(v domain.TestCase, commit string) (do
 		return out, nil
 	}
 	out.State = reportedCaseState(v, task, run, suite)
+	if out.State == "failed" && run.State != "failed" {
+		out.RunID = ""
+	}
 	return out, nil
 }
 

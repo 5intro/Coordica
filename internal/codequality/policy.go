@@ -74,6 +74,9 @@ func Included(name string) bool {
 	if strings.HasSuffix(name, ".generated.ts") || strings.HasSuffix(name, ".pb.go") {
 		return false
 	}
+	if csharpMetadata(name) {
+		return true
+	}
 	switch strings.ToLower(path.Ext(name)) {
 	case ".go", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".py",
 		".java", ".cs", ".rs", ".c", ".cc", ".cpp", ".h", ".hpp", ".swift",

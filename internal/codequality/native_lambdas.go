@@ -2,7 +2,7 @@ package codequality
 
 import "strings"
 
-func nativeAnonymousFunctions(m *metrics, f File, text, extension string, ends map[int]int) {
+func nativeAnonymousFunctions(m *metrics, f File, text, extension string, ends map[int]int, functions []nativeBlock) {
 	if extension == ".rs" {
 		rustClosures(m, f, text, ends)
 	}
@@ -21,22 +21,7 @@ func nativeAnonymousFunctions(m *metrics, f File, text, extension string, ends m
 		}
 	}
 	if extension == ".cs" || extension == ".java" {
-		starts := map[int]int{}
-		for open, close := range ends {
-			starts[close] = open
-		}
-		for at := 0; at < len(text)-1; at++ {
-			if m.cancelled() {
-				return
-			}
-			arrow := extension == ".cs" && strings.HasPrefix(text[at:], "=>") ||
-				extension == ".java" && strings.HasPrefix(text[at:], "->")
-			if body := scriptSpace(text, at+2); arrow && body < len(text) && text[body] == '{' {
-				if end, ok := ends[body]; ok {
-					m.scriptFunctionFinding(f, text, "lambda", scriptArrowStart(text, at, starts), body, end, ends)
-				}
-			}
-		}
+		nativeArrowLambdas(m, f, text, extension, ends, functions)
 	}
 }
 
