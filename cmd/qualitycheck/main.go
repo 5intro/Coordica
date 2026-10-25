@@ -1,4 +1,4 @@
-// qualitycheck uses the same fixed policy as the center's merge gate.
+// qualitycheck reports the same advisory signals used by independent review.
 package main
 
 import (
@@ -71,12 +71,10 @@ func compare(ctx context.Context, old, next []codequality.File) error {
 	if err != nil {
 		return err
 	}
-	for _, finding := range findings[:min(30, len(findings))] {
-		fmt.Fprintln(os.Stderr, finding)
+	if summary := codequality.Summary(findings); summary != "" {
+		fmt.Fprintln(os.Stderr, summary)
+	} else {
+		fmt.Printf("%s: no new risk signals\n", codequality.Version)
 	}
-	if len(findings) != 0 {
-		return fmt.Errorf("%s: %d regressions; merge refused", codequality.Version, len(findings))
-	}
-	fmt.Printf("%s: no new or increased structural debt\n", codequality.Version)
 	return nil
 }

@@ -179,6 +179,7 @@ type CheckResult struct {
 	DurationSeconds int64  `json:"duration_seconds"`
 }
 type Candidate struct {
+	Maintainability      string             `json:"maintainability_advisory,omitempty"`
 	PullRequest          *PullRequestStatus `json:"pull_request,omitempty"`
 	PreparationStopped   bool               `json:"preparation_stopped,omitempty"`
 	CheckPlan            *CheckPlan         `json:"check_plan,omitempty"`

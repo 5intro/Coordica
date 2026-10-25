@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestNativeQualityRegressionsReachBoundedRepairInsteadOfRetryingScan(t *testing.T) {
+func TestPhysicalSizeSignalsDoNotTriggerAutomaticRepair(t *testing.T) {
 	var dense strings.Builder
 	for i := 0; i < 2000; i++ {
 		fmt.Fprintf(&dense, "class C%d { void work() {} } ", i)
@@ -27,18 +27,18 @@ func TestNativeQualityRegressionsReachBoundedRepairInsteadOfRetryingScan(t *test
 				t.Fatal("deterministic regression became an operational retry", err)
 			}
 			after := f.snapshot(t)
-			if f.candidate(t).State != "rejected" || after.Tasks[0].Repairs != before.Tasks[0].Repairs+1 {
-				t.Fatal("fixed source was not rejected through bounded repair", after.Tasks, after.Candidates)
+			if f.candidate(t).State != "prechecking" || after.Tasks[0].Repairs != before.Tasks[0].Repairs || f.candidate(t).Maintainability == "" {
+				t.Fatal("advisory lost or incorrectly triggered repair", after.Tasks, after.Candidates)
 			}
 			if after.Project.UsedSeconds != before.Project.UsedSeconds || after.Project.ReservedSeconds != before.Project.ReservedSeconds {
-				t.Fatal("structural rejection changed cumulative spending")
+				t.Fatal("advisory changed cumulative spending")
 			}
 			if err := f.w.Tick(ctx); err != nil || f.snapshot(t).Tasks[0].Repairs != after.Tasks[0].Repairs {
-				t.Fatal("rejected source consumed another repair", err)
+				t.Fatal("advisory consumed a repair", err)
 			}
 			main, err := f.g.Query(ctx, f.remote, "refs/heads/main")
 			if err != nil || main != f.b {
-				t.Fatal("rejected source moved main", main, err)
+				t.Fatal("unreviewed source moved main", main, err)
 			}
 		})
 	}
