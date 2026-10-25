@@ -20,7 +20,7 @@ func TestCheckPlanStoreReadFailureCanRetryOriginalCandidate(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	_, failure := candidateCheckPlan(ctx, f.w, *before.Project, candidate)
+	_, failure := candidateCheckPlan(ctx, f.w, *before.Project, &candidate)
 	var quality *qualityScanFailure
 	if failure == nil || errors.As(failure, &quality) {
 		t.Fatal("did not reach the suite read after successful quality analysis", failure)
@@ -35,7 +35,7 @@ func TestCheckPlanStoreReadFailureCanRetryOriginalCandidate(t *testing.T) {
 	if !reflect.DeepEqual(before.Candidates, after.Candidates) || !reflect.DeepEqual(before.Tasks, after.Tasks) {
 		t.Fatal("infrastructure failure consumed repair authority")
 	}
-	if _, err := candidateCheckPlan(ctx, f.w, *after.Project, candidate); err != nil {
+	if _, err := candidateCheckPlan(ctx, f.w, *after.Project, &candidate); err != nil {
 		t.Fatal("original fixed candidate could not retry", err)
 	}
 }

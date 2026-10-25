@@ -9,7 +9,7 @@ import (
 	"coordica/internal/store"
 )
 
-func candidateCheckPlan(ctx context.Context, w *Integrator, p domain.Project, c domain.Candidate) (domain.CheckPlan, error) {
+func candidateCheckPlan(ctx context.Context, w *Integrator, p domain.Project, c *domain.Candidate) (domain.CheckPlan, error) {
 	if err := checkCandidateQuality(ctx, w, c); err != nil {
 		return domain.CheckPlan{}, &qualityScanFailure{err}
 	}

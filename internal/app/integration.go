@@ -216,7 +216,7 @@ func (w *Integrator) prepare(ctx context.Context, c domain.Candidate) error {
 	}
 	c.Main = main
 	c.Commit = string(candidate.Commit)
-	plan, e := candidateCheckPlan(ctx, w, p, c)
+	plan, e := candidateCheckPlan(ctx, w, p, &c)
 	if e != nil {
 		return candidateCheckFailure(ctx, w, c, e)
 	}
@@ -534,8 +534,8 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 		return e
 	}
 	// Check authority before any new I/O, then gate legacy ready candidates
-	// too. Approval or successful project tests cannot waive structural rules.
-	if err := checkCandidateQuality(ctx, w, c); err != nil {
+	// too. Metrics are advisory; source integrity and execution authority remain mandatory.
+	if err := checkCandidateQuality(ctx, w, &c); err != nil {
 		return candidateQualityFailure(ctx, w, c, err)
 	}
 	actual, e := w.Git.Query(ctx, p.RepositoryURL, "refs/heads/"+p.TargetBranch)

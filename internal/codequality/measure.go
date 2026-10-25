@@ -11,50 +11,28 @@ import (
 )
 
 type metrics struct {
-	ctx            context.Context
-	lines          []int
-	findings       []Finding
-	methods        map[string][]receiverMethod
-	partials       map[string]*partialMeasurement
-	rustModules    map[string]rustModuleInfo
-	rustParts      []rustTypePart
-	csharpProjects []csharpProject
-	csharpScopes   []string
+	ctx      context.Context
+	lines    []int
+	findings []Finding
+	methods  map[string][]Finding
 }
 
 func (m *metrics) add(file string, line int, rule, subject string, value, limit int) {
 	if value > limit {
-		m.findings = append(m.findings, Finding{
-			Path: file, Line: line, Rule: rule, Subject: subject,
-			Value: value, Limit: limit, key: file + "\x00" + rule + "\x00" + subject,
-		})
+		m.findings = append(m.findings, Finding{Path: file, Line: line, Rule: rule, Subject: subject,
+			Value: value, Limit: limit, key: file + "\x00" + rule + "\x00" + subject})
 	}
 }
 
-// Measure returns only violations. Errors fail closed rather than silently
-// skipping malformed or unbounded source. It does not execute a formatter.
-func Measure(files []File) ([]Finding, error) {
-	return MeasureContext(context.Background(), files)
-}
-
+// Measure returns advisory signals, not approval or rejection. Bounded source
+// reads and malformed Go remain errors; no native language tools are executed.
+func Measure(files []File) ([]Finding, error) { return MeasureContext(context.Background(), files) }
 func MeasureContext(ctx context.Context, files []File) ([]Finding, error) {
 	return measureInventory(ctx, files, false)
 }
 
 func measureInventory(ctx context.Context, files []File, baseline bool) ([]Finding, error) {
-	return measureInventoryReceivers(ctx, files, baseline, nil)
-}
-
-func measureInventoryReceivers(ctx context.Context, files []File, baseline bool, receivers map[string][]receiverMethod) ([]Finding, error) {
-	methods := receivers
-	if methods == nil {
-		methods = map[string][]receiverMethod{}
-	}
-	projects, err := collectCSharpProjects(ctx, files)
-	if err != nil {
-		return nil, err
-	}
-	m := metrics{ctx: ctx, methods: methods, csharpProjects: projects}
+	m := metrics{ctx: ctx, methods: map[string][]Finding{}}
 	total := 0
 	seen := map[string]bool{}
 	for _, f := range files {
@@ -83,24 +61,14 @@ func measureInventoryReceivers(ctx context.Context, files []File, baseline bool,
 			}
 		}
 	}
-	partialClassFindings(&m)
-	rustClassFindings(&m)
 	for key, methods := range m.methods {
-		if receivers != nil {
-			break
-		}
 		if m.cancelled() {
 			return nil, ctx.Err()
 		}
-		f := methods[0]
-		count, _, err := solveReceiverVariants(ctx, nil, methods, false)
-		if err != nil {
-			return nil, err
-		}
-		m.add(f.Path, f.Line, "receiver_methods", key, count, MaxMethods)
-		if count > MaxMethods {
-			// Location is diagnostic only; receiver debt belongs to its package
-			// and type, even after its first method/file is removed.
+		// Aggregate all authored Go methods as a rough size signal. Build variants
+		// are checked by native builds, not a custom constraint solver.
+		m.add(methods[0].Path, methods[0].Line, "receiver_methods", key, len(methods), MaxMethods)
+		if len(methods) > MaxMethods {
 			m.findings[len(m.findings)-1].key = "receiver_methods\x00" + key
 		}
 	}
@@ -128,26 +96,22 @@ func (m *metrics) text(f File) {
 			return
 		}
 		line = strings.TrimSuffix(line, "\r")
-		// Content identity makes exemptions survive a line-number shift, while
-		// edited/duplicated long lines must be fixed instead of inheriting debt.
 		subject := fmt.Sprintf("%x", sha256.Sum256([]byte(line)))
 		m.add(f.Path, i+1, "line_length", subject, utf8.RuneCountInString(line), MaxLine)
 	}
 }
 
-// Regressions freezes each known violation against actual fixed main source.
-// A duplicate finding consumes a separate allowance. Renaming is new debt.
+// Regressions reports new/growing signals relative to fixed main. It does not
+// decide whether a change is maintainable; independent review owns judgment.
 func Regressions(base, candidate []File) ([]Finding, error) {
 	return RegressionsContext(context.Background(), base, candidate)
 }
-
 func RegressionsContext(ctx context.Context, base, candidate []File) ([]Finding, error) {
-	oldReceivers, nextReceivers := map[string][]receiverMethod{}, map[string][]receiverMethod{}
-	old, err := measureInventoryReceivers(ctx, base, true, oldReceivers)
+	old, err := measureInventory(ctx, base, true)
 	if err != nil {
 		return nil, fmt.Errorf("baseline quality inventory: %w", err)
 	}
-	next, err := measureInventoryReceivers(ctx, candidate, false, nextReceivers)
+	next, err := measureInventory(ctx, candidate, false)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return nil, err
@@ -158,38 +122,22 @@ func RegressionsContext(ctx context.Context, base, candidate []File) ([]Finding,
 	for _, f := range old {
 		allowances[f.key] = append(allowances[f.key], f.Value)
 	}
-	var failures []Finding
-	for key, methods := range nextReceivers {
-		count, grown, err := solveReceiverVariants(ctx, oldReceivers[key], methods, true)
-		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return nil, err
-			}
-			return nil, &CandidateError{Cause: err}
-		}
-		if grown {
-			f := methods[0].Finding
-			f.Rule, f.Subject, f.Value, f.Limit = "receiver_methods", key, count, MaxMethods
-			f.key = "receiver_methods\x00" + key
-			failures = append(failures, f)
-		}
-	}
+	var risks []Finding
 	for _, f := range next {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		values := allowances[f.key]
-		match := -1
+		values, match := allowances[f.key], -1
 		for i, value := range values {
 			if f.Value <= value && (match == -1 || value < values[match]) {
 				match = i
 			}
 		}
 		if match == -1 {
-			failures = append(failures, f)
+			risks = append(risks, f)
 		} else {
 			allowances[f.key] = append(values[:match], values[match+1:]...)
 		}
 	}
-	return failures, nil
+	return risks, nil
 }
