@@ -126,7 +126,7 @@ func scriptTypedBody(text string, at int, ends map[int]int) int {
 }
 
 func (m *metrics) javaScriptSource(f File) {
-	text := maskedJavaScript(f.Text)
+	text := maskedJavaScript(f.Text, !strings.HasSuffix(strings.ToLower(f.Path), ".ts"))
 	ends := scriptPairs(text)
 	seen := map[int]bool{}
 	for _, match := range scriptClassMatches(f.Path, text) {

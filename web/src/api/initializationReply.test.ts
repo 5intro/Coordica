@@ -61,7 +61,9 @@ describe('initialization transport compatibility', () => {
       expect(result).toEqual({ ...value, omissions: omissions ?? [] });
       expect(result?.digest).toBe(value.digest);
       expect(result?.version).toBe(value.version);
-      expect(fetcher).toHaveBeenCalledWith(`/api/v1/${entry}`, expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer owner-token' }) }));
+      expect(fetcher).toHaveBeenCalledWith(`/api/v1/${entry}`, expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer owner-token' }),
+      }));
     });
 
     it.each(invalidReplies)('rejects malformed wire data %#', async (value) => {

@@ -30,13 +30,16 @@ func recordCSharpPartial(m *metrics, f File, text string, match []int, close, me
 	if m.partials == nil {
 		m.partials = map[string]*partialMeasurement{}
 	}
-	value := m.partials[name]
-	if value == nil {
-		value = &partialMeasurement{file: f.Path, line: m.lineAt(match[0]), name: name}
-		m.partials[name] = value
+	for _, scope := range m.csharpScopes {
+		key := scope + "\x00" + name
+		value := m.partials[key]
+		if value == nil {
+			value = &partialMeasurement{file: f.Path, line: m.lineAt(match[0]), name: name}
+			m.partials[key] = value
+		}
+		value.lines += m.lineAt(close) - m.lineAt(match[0]) + 1
+		value.methods += methods
 	}
-	value.lines += m.lineAt(close) - m.lineAt(match[0]) + 1
-	value.methods += methods
 	return true
 }
 

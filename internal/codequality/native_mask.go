@@ -17,6 +17,7 @@ func nativeMaskedSource(text, extension string) string {
 	if extension != ".rs" {
 		return maskedSource(text, false, nil)
 	}
+	text = maskedRustRawStrings(text)
 	// Rust lifetimes are not character literals. Mask just their apostrophe
 	// before generic quote handling; preserve real quoted character literals.
 	out := []byte(text)
