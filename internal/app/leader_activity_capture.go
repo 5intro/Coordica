@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,7 +33,7 @@ func ReportLeaderActivity(ctx context.Context, signal domain.LeaderActivitySigna
 }
 
 func executeObservedLeader(ctx context.Context, service *Service, ref domain.LeaderExecutionRef,
-	executor PlanningExecutor, dir, prompt string, onStarted func(int) error,
+	executor PlanningExecutor, selection domain.LeaderSelection, dir, prompt string, onStarted func(int) error,
 ) (PlanningOutcome, error) {
 	capture := &activityCapture{service: service, ref: ref, queue: make(chan domain.LeaderActivityEvent, 64), done: make(chan struct{})}
 	go capture.persist()
@@ -46,7 +47,14 @@ func executeObservedLeader(ctx context.Context, service *Service, ref domain.Lea
 		case <-time.After(250 * time.Millisecond): // Display failure never delays a process-stop receipt indefinitely.
 		}
 	}()
-	return executor.Execute(context.WithValue(ctx, leaderActivityContext{}, capture.report), dir, prompt, onStarted)
+	ctx = context.WithValue(ctx, leaderActivityContext{}, capture.report)
+	if selected, ok := executor.(SelectedPlanningExecutor); ok {
+		return selected.ExecuteSelected(ctx, selection, dir, prompt, onStarted)
+	}
+	if selection != domain.DefaultLeaderSelection() {
+		return PlanningOutcome{TreeStopped: true}, errors.New("executor cannot honor selected Leader; no fallback")
+	}
+	return executor.Execute(ctx, dir, prompt, onStarted)
 }
 
 func (c *activityCapture) report(signal domain.LeaderActivitySignal) {

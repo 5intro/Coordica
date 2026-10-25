@@ -404,6 +404,12 @@ func TestLeaderEnvironmentDoesNotForwardOwnerOrPublicationAuthority(t *testing.T
 		t.Setenv(strings.ToLower(key), "fixture-lower-"+key)
 	}
 	t.Setenv("OPENAI_API_KEY", "fixture-model")
+	modelEnvironment := map[string]string{"ANTHROPIC_API_KEY": "fixture-anthropic", "ANTHROPIC_AUTH_TOKEN": "fixture-auth",
+		"ANTHROPIC_BASE_URL": "https://model.invalid", "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-flash",
+		"DEEPSEEK_API_KEY": "fixture-deepseek", "CLAUDE_CONFIG_DIR": "/fixture/claude", "DSH_HOME": "/fixture/dsh"}
+	for key, value := range modelEnvironment {
+		t.Setenv(key, value)
+	}
 	for _, casing := range []string{"upper", "lower"} {
 		t.Run(casing, func(t *testing.T) {
 			proxies := map[string]string{"HTTPS_PROXY": "http://fixture-user:fixture-password@proxy.invalid:8080", "HTTP_PROXY": "http://proxy.invalid:8080", "ALL_PROXY": "socks5://proxy.invalid:1080", "NO_PROXY": "localhost,127.0.0.1,::1"}
@@ -427,6 +433,11 @@ func TestLeaderEnvironmentDoesNotForwardOwnerOrPublicationAuthority(t *testing.T
 			}
 			if env["OPENAI_API_KEY"] != "fixture-model" {
 				t.Fatal("official model authentication missing")
+			}
+			for key, value := range modelEnvironment {
+				if env[key] != value {
+					t.Fatalf("model authentication/configuration missing: %s", key)
+				}
 			}
 			for key, value := range proxies {
 				if casing == "lower" {

@@ -29,3 +29,9 @@
 .preparation-page .preserve-lines {
   overflow-wrap: anywhere;
 }
+
+.leader-selection { margin: 1.25rem 0 .75rem; padding: 0; border: 0; min-width: 0; }
+.leader-selection legend { padding: 0; margin-bottom: .75rem; font-weight: 600; }
+.leader-selection-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.leader-selection-fields select { width: 100%; min-width: 0; }
+@media (max-width: 700px) { .leader-selection-fields { grid-template-columns: minmax(0, 1fr); gap: .5rem; } }

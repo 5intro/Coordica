@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import type { Initialization } from '../../api.generated';
+import type { AutomationSettings, Initialization } from '../../api.generated';
 import { Feedback, Field } from '../../components/ui';
 import type { PreparationControls, PreparationState } from './types';
+import { LeaderSelector } from './LeaderSelector';
+import { useLeaderConfiguration } from './useLeaderConfiguration';
+import { leaderModelLabel } from './leaderLabels';
 
 const labels: Record<string, string> = {
   draft: '尚未准备', analyzing: 'Leader 正在分析', interview: '有问题待回答',
@@ -20,17 +23,40 @@ export function InitializationOperations({ project, current, client, action }: P
   const kind = choice?.kind ?? (current?.kind === 'new' ? 'new' : 'existing');
   const analyzing = current?.status === 'analyzing';
   const unknown = current?.operation_state === 'unknown_live';
+  const [leaderOpened, setLeaderOpened] = useState(false);
+  const leader = useLeaderConfiguration(client, leaderOpened);
   async function analyze() {
     const submitted = choice;
+    const selected = leader.draft;
     const accepted = await action.execute(() => client.write<Initialization>('/initialization/analyze', {
       expected_version: current?.version ?? 0, kind,
+      ...(selected && { leader: selected, leader_version: leader.configuration?.version }),
     }), '只读分析请求已登记。未授权任何开发任务。');
-    if (accepted) setChoice((latest) => latest === submitted ? undefined : latest);
+    if (accepted) {
+      setChoice((latest) => latest === submitted ? undefined : latest);
+      if (selected) leader.accepted(selected);
+    }
+  }
+  async function saveLeader() {
+    const submitted = leader.draft;
+    if (!submitted || !leader.configuration) return;
+    await action.execute(async () => {
+      const settings = await client.write<AutomationSettings>('/leader/configuration', {
+        expected_version: leader.configuration!.version, selection: submitted,
+      });
+      if (!Number.isSafeInteger(settings.version) || settings.leader_tool !== submitted.tool ||
+        settings.leader_model !== submitted.model || (settings.leader_reasoning_effort ?? '') !== (submitted.reasoning_effort ?? '')) {
+        throw new Error('Leader 保存回执不完整，请保留选择并重试。');
+      }
+      leader.accepted(submitted, settings);
+    }, 'Leader 已保存；项目暂停和自动化设置未改变。');
   }
   return (
     <section className="panel" aria-labelledby="initialization-status">
       <h2 id="initialization-status">{labels[current?.status ?? 'draft']}</h2>
       <p role="status">{guidance[current?.status ?? 'draft']}</p>
+      {current?.leader && <p className="muted">本轮 Leader：{current.leader.tool} · {leaderModelLabel(current.leader.model)}
+        {current.leader.reasoning_effort ? ` · ${current.leader.reasoning_effort}` : ''}</p>}
       {!project.checks?.length && <p role="status">当前尚无有效检查：可以先访谈，确认项目约定前请配置真实检查。</p>}
       {current?.detail && <p className="muted">{current.detail}</p>}
       <details open={!current?.kind}>
@@ -41,8 +67,15 @@ export function InitializationOperations({ project, current, client, action }: P
             <option value="new">新项目 · 需求与架构访谈</option>
           </select>
         </Field>
+        <details onToggle={(event) => { if (event.currentTarget.open) setLeaderOpened(true); }}>
+          <summary>Leader 工具与模型</summary>
+          <LeaderSelector leader={leader} disabled={action.busy} />
+          <button type="button" className="secondary" disabled={action.busy || leader.loading || !leader.draft || !leader.valid}
+            onClick={() => void saveLeader()}>保存 Leader 供交互层使用</button>
+        </details>
       </details>
-      <button className="primary" disabled={action.busy || !project.paused || analyzing || unknown}
+      <button className="primary" disabled={action.busy || !project.paused || analyzing || unknown ||
+        !!leader.draft && (!leader.valid || leader.loading || !leader.configuration)}
         onClick={() => void analyze()}>
         {current?.status === 'initialized' ? '暂停后重新初始化（使旧任务授权失效）' : '打开项目并请求只读初始化'}
       </button>

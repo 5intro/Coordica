@@ -5,6 +5,7 @@ import (
 	"coordica/internal/agent"
 	"coordica/internal/app"
 	"coordica/internal/domain"
+	"coordica/internal/process"
 	_ "embed"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,13 @@ import (
 )
 
 type CodexPlanningExecutor struct{ Executable string }
+
+// Registry and executable overrides are trusted center-host configuration. A
+// persisted selection contains only tool/model identifiers, never launch argv.
+type AgentPlanningExecutor struct {
+	Registry    *agent.Registry
+	Executables map[string]string
+}
 
 //go:embed leader.schema.json
 var leaderOutputSchema []byte
@@ -29,6 +37,24 @@ var consultOutputSchema []byte
 var requirementOutputSchema []byte
 
 func (e CodexPlanningExecutor) Execute(ctx context.Context, dir, prompt string, onStarted func(int) error) (app.PlanningOutcome, error) {
+	return (&AgentPlanningExecutor{Registry: agent.DefaultRegistry(), Executables: map[string]string{"codex": e.Executable}}).
+		ExecuteSelected(ctx, domain.DefaultLeaderSelection(), dir, prompt, onStarted)
+}
+
+func (e *AgentPlanningExecutor) Execute(ctx context.Context, dir, prompt string, onStarted func(int) error) (app.PlanningOutcome, error) {
+	return e.ExecuteSelected(ctx, domain.DefaultLeaderSelection(), dir, prompt, onStarted)
+}
+
+func (e *AgentPlanningExecutor) ExecuteSelected(ctx context.Context, selection domain.LeaderSelection,
+	dir, prompt string, onStarted func(int) error,
+) (app.PlanningOutcome, error) {
+	if err := domain.ValidateLeaderSelection(selection); err != nil {
+		return app.PlanningOutcome{TreeStopped: true}, err
+	}
+	def, ok := e.Registry.Resolve(selection.Tool)
+	if !ok || !def.Review || !def.Cancel {
+		return app.PlanningOutcome{TreeStopped: true}, errors.New("selected Leader protocol is unavailable")
+	}
 	scratch, err := os.MkdirTemp("", "coordica-leader-schema-")
 	if err != nil {
 		return app.PlanningOutcome{TreeStopped: true, Error: planningError(err)}, err
@@ -48,12 +74,21 @@ func (e CodexPlanningExecutor) Execute(ctx context.Context, dir, prompt string, 
 	if err = os.WriteFile(schemaPath, schema, 0600); err != nil {
 		return app.PlanningOutcome{TreeStopped: true, Error: planningError(err)}, err
 	}
+	req := agent.Request{Tool: selection.Tool, Model: selection.Model, ReasoningEffort: selection.ReasoningEffort,
+		Executable: e.Executables[selection.Tool], WorkDir: dir, Prompt: prompt, Role: "leader"}
+	if def.Protocol == agent.ProtocolCodex || def.Protocol == agent.ProtocolClaude {
+		req.OutputSchemaPath = schemaPath
+	} else {
+		// These drivers do not advertise native JSON-schema enforcement. The
+		// application still strictly decodes and validates the returned result.
+		req.Prompt += "\nReturn exactly one JSON object matching this schema, without Markdown or extra prose:\n" + string(schema)
+	}
 	execCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var persistenceErr error
 	processStarted := false
 	started := time.Now()
-	r, err := agent.Execute(execCtx, agent.Request{Tool: "codex", Executable: e.Executable, WorkDir: dir, Prompt: prompt, Role: "leader", OutputSchemaPath: schemaPath}, func(event agent.Event) {
+	r, err := e.Registry.Execute(execCtx, req, func(event agent.Event) {
 		if event.Type == "process.started" {
 			processStarted = true
 			var v struct {
@@ -68,12 +103,18 @@ func (e CodexPlanningExecutor) Execute(ctx context.Context, dir, prompt string, 
 				cancel()
 			}
 		}
-		if activity, ok := agent.CodexPublicActivity(event); ok {
+		if activity, ok := agent.LeaderPublicActivity(event); ok {
 			app.ReportLeaderActivity(execCtx, domain.LeaderActivitySignal{Key: activity.Key, Kind: activity.Kind, Text: activity.Text})
 		}
 	})
 	err = errors.Join(err, persistenceErr)
-	return app.PlanningOutcome{Output: r.OutputText, SessionID: r.SessionID, TreeStopped: r.TreeStopped || !processStarted, ElapsedSeconds: int64(time.Since(started)/time.Second) + 1, Error: planningError(err)}, err
+	if err == nil && r.OutputText != "" {
+		app.ReportLeaderActivity(execCtx, domain.LeaderActivitySignal{Key: "leader-result", Kind: "result_received",
+			Text: "结构化结果已返回，等待中心核对"})
+	}
+	stopped := r.TreeStopped || !processStarted && !errors.Is(err, process.ErrTreeNotStopped)
+	return app.PlanningOutcome{Output: r.OutputText, SessionID: r.SessionID, TreeStopped: stopped,
+		ElapsedSeconds: int64(time.Since(started)/time.Second) + 1, Error: planningError(err)}, err
 }
 
 func planningError(err error) string {

@@ -10,6 +10,7 @@ type AutomationSettings struct {
 	DevelopmentModel       string `json:"development_model"`
 	LeaderTool             string `json:"leader_tool"`
 	LeaderModel            string `json:"leader_model"`
+	LeaderReasoningEffort  string `json:"leader_reasoning_effort,omitempty"`
 	PlanningTimeoutSeconds int64  `json:"planning_timeout_seconds"`
 	PlanningBudgetSeconds  int64  `json:"planning_budget_seconds"`
 	PlanningMaxRetries     int    `json:"planning_max_retries"`
@@ -111,6 +112,7 @@ type ProposalTaskMapping struct {
 	TaskID string `json:"task_id"`
 }
 type PlanningRun struct {
+	Leader               *LeaderSelection      `json:"leader,omitempty"`
 	RequirementChangeID  string                `json:"requirement_change_id,omitempty"`
 	RequirementRevisions map[string]int64      `json:"requirement_revisions,omitempty"`
 	RequirementResult    *RequirementPlan      `json:"requirement_result,omitempty"`

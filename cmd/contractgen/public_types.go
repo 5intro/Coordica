@@ -45,6 +45,7 @@ func publicTestCatalogTypes() []any {
 
 func publicPreparationTypes() []any {
 	return []any{
+		domain.LeaderSelection{}, domain.LeaderConfiguration{}, domain.LeaderConfigureRequest{},
 		domain.InitializationOperation{},
 		domain.UserServiceStatus{},
 		domain.HostLifecycleStatus{},

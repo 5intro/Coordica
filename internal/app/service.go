@@ -23,13 +23,14 @@ import (
 
 type Actor struct{ ID, Role, NodeID, ChatScope string }
 type Service struct {
-	Source      AnalysisSource
-	initMu      sync.Mutex
-	initCancels map[string]context.CancelFunc
-	DB          *store.Store
-	Dir         string
-	Now         func() time.Time
-	Lease       time.Duration
+	LeaderCatalog LeaderCatalog
+	Source        AnalysisSource
+	initMu        sync.Mutex
+	initCancels   map[string]context.CancelFunc
+	DB            *store.Store
+	Dir           string
+	Now           func() time.Time
+	Lease         time.Duration
 }
 
 func New(db *store.Store, dir string) *Service {

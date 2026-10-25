@@ -175,6 +175,8 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if r.Method == http.MethodGet {
 		switch {
+		case path == "leader/configuration":
+			result, err = (app.LeaderConfigurations{Service: s.Service}).Read(ctx, a)
 		case path == "tests/readiness":
 			result, err = s.Service.TestReadiness(ctx, a, r.URL.Query().Get("commit"))
 		case path == "system/host":
@@ -338,6 +340,11 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		var in domain.AutomationRequest
 		if err = decode(r, &in); err == nil {
 			result, err = s.Service.ConfigureAutomation(ctx, a, key, in)
+		}
+	case path == "leader/configuration":
+		var in domain.LeaderConfigureRequest
+		if err = decode(r, &in); err == nil {
+			result, err = (app.LeaderConfigurations{Service: s.Service}).Configure(ctx, a, key, in)
 		}
 	case path == "planning/save":
 		var in domain.PlanningSaveRequest

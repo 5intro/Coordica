@@ -95,7 +95,7 @@ func (s *Service) SchedulePlanning(ctx context.Context, a Actor, key string,
 			r := domain.PlanningRun{
 				BaselineVersion: baseline.ApprovedVersion, BaselineDigest: baseline.ApprovedDigest,
 				ID: ID("plan_"), Version: 1, DocumentVersion: d.Version, AuthorizationVersion: d.AuthorizationVersion,
-				AutomationVersion: settings.Version, Generation: 1, State: "queued", MaxRetries: settings.PlanningMaxRetries,
+				AutomationVersion: settings.Version, Generation: 1, State: "queued", Leader: leaderChoice(settings), MaxRetries: settings.PlanningMaxRetries,
 			}
 			if e = tx.Put("planning_run", r.ID, r); e != nil {
 				return nil, e

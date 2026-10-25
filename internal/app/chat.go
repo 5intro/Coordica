@@ -170,7 +170,12 @@ func (s *Service) ConsultLeader(ctx context.Context, a Actor, key, kind string, 
 		if e != nil {
 			return nil, e
 		}
-		r := domain.PlanningRun{BaselineVersion: baseline.ApprovedVersion, BaselineDigest: baseline.ApprovedDigest, ID: ID("plan_"), Version: 1, Purpose: domain.ConsultationPurpose, ConversationID: q.ID, AccountingTarget: account.ID, DocumentVersion: d.Version, AuthorizationVersion: d.AuthorizationVersion, Generation: 1, State: "queued", MaxRetries: settings.PlanningMaxRetries, AutomationVersion: settings.Version}
+		r := domain.PlanningRun{
+			BaselineVersion: baseline.ApprovedVersion, BaselineDigest: baseline.ApprovedDigest, ID: ID("plan_"), Version: 1,
+			Purpose: domain.ConsultationPurpose, ConversationID: q.ID, AccountingTarget: account.ID, DocumentVersion: d.Version,
+			AuthorizationVersion: d.AuthorizationVersion, Generation: 1, State: "queued", Leader: leaderChoice(settings),
+			MaxRetries: settings.PlanningMaxRetries, AutomationVersion: settings.Version,
+		}
 		q.RunID = r.ID
 		if e = tx.Put("planning_run", r.ID, r); e != nil {
 			return nil, e

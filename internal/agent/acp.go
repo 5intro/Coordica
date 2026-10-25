@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -57,6 +58,7 @@ func executeACP(ctx context.Context, def Definition, req Request, onEvent func(E
 	canLoad, canResume, canClose := false, false, false
 	calls := map[string]acpMetadata{}
 	promptStarted := false
+	diagnosticLines, diagnosticBytes := 0, 0
 	cancelRun := func() {
 		if cancelled {
 			return
@@ -157,6 +159,20 @@ func executeACP(ctx context.Context, def Definition, req Request, onEvent func(E
 				return result, errors.Join(rpcFinished(status, waitErr, teardown), protocolErr)
 			}
 			if output.Stream != "stdout" {
+				continue
+			}
+			if !json.Valid(output.Line) {
+				// Some native ACP profiles print model-catalog diagnostics on
+				// stdout. Ignore bounded non-object noise, never derive facts
+				// from it. Malformed JSON-RPC objects still fail closed.
+				raw := bytes.TrimSpace(output.Line)
+				diagnosticLines++
+				diagnosticBytes += len(output.Line)
+				if (len(raw) == 0 || raw[0] != '{') && diagnosticLines <= 256 && diagnosticBytes <= 2<<20 {
+					continue
+				}
+				protocolErr = ErrProtocol
+				s.Stop()
 				continue
 			}
 			var message struct {

@@ -21,26 +21,28 @@ import (
 )
 
 type Config struct {
-	Version          int            `json:"version"`
-	Role             string         `json:"role"`
-	Executable       string         `json:"executable"`
-	DataDir          string         `json:"data_dir"`
-	ChatProfile      string         `json:"chat_profile"`
-	Repository       string         `json:"repository"`
-	TargetRepository string         `json:"target_repository,omitempty"`
-	Branch           string         `json:"branch"`
-	Name             string         `json:"name"`
-	ConsoleListen    string         `json:"console_listen"`
-	RunnerListen     string         `json:"runner_listen"`
-	RunnerURL        string         `json:"runner_url"`
-	CodexExecutable  string         `json:"codex_executable"`
-	RuntimePath      string         `json:"runtime_path"`
-	HTTPSProxy       string         `json:"https_proxy,omitempty"`
-	GitAuthFile      string         `json:"git_auth_file,omitempty"`
-	GitAuthRemote    string         `json:"git_auth_remote,omitempty"`
-	GitHubRepository string         `json:"github_repository,omitempty"`
-	GitHubTokenFile  string         `json:"github_token_file,omitempty"`
-	Checks           []domain.Check `json:"checks"`
+	Version           int               `json:"version"`
+	Role              string            `json:"role"`
+	Executable        string            `json:"executable"`
+	DataDir           string            `json:"data_dir"`
+	ChatProfile       string            `json:"chat_profile"`
+	Repository        string            `json:"repository"`
+	TargetRepository  string            `json:"target_repository,omitempty"`
+	Branch            string            `json:"branch"`
+	Name              string            `json:"name"`
+	ConsoleListen     string            `json:"console_listen"`
+	RunnerListen      string            `json:"runner_listen"`
+	RunnerURL         string            `json:"runner_url"`
+	CodexExecutable   string            `json:"codex_executable"`
+	LeaderToolsFile   string            `json:"leader_tools_file,omitempty"`
+	LeaderExecutables map[string]string `json:"leader_executables,omitempty"`
+	RuntimePath       string            `json:"runtime_path"`
+	HTTPSProxy        string            `json:"https_proxy,omitempty"`
+	GitAuthFile       string            `json:"git_auth_file,omitempty"`
+	GitAuthRemote     string            `json:"git_auth_remote,omitempty"`
+	GitHubRepository  string            `json:"github_repository,omitempty"`
+	GitHubTokenFile   string            `json:"github_token_file,omitempty"`
+	Checks            []domain.Check    `json:"checks"`
 }
 
 func (c Config) RepositoryURL() string {
@@ -66,9 +68,25 @@ func Validate(c Config, path string) error {
 	if c.Version != 1 || c.Role != "center" {
 		return errors.New("trusted center host configuration required")
 	}
-	for _, value := range []string{path, c.Executable, c.DataDir, c.ChatProfile, c.Repository, c.CodexExecutable} {
+	for _, value := range []string{path, c.Executable, c.DataDir, c.ChatProfile, c.Repository} {
 		if !filepath.IsAbs(value) || strings.ContainsAny(value, "\x00\r\n") {
 			return errors.New("host paths must be fixed absolute paths without control characters")
+		}
+	}
+	if len(c.LeaderExecutables) > 64 {
+		return errors.New("too many Leader executable overrides")
+	}
+	executablePaths := []string{c.CodexExecutable}
+	for tool, executable := range c.LeaderExecutables {
+		if domain.ValidateToolID(tool) != nil || executable == "" {
+			return errors.New("invalid Leader executable override")
+		}
+		executablePaths = append(executablePaths, executable)
+	}
+	optionalPaths := append([]string{c.LeaderToolsFile}, executablePaths...)
+	for _, value := range optionalPaths {
+		if value != "" && (!filepath.IsAbs(value) || strings.ContainsAny(value, "\x00\r\n")) {
+			return errors.New("Leader paths must be fixed absolute paths without control characters")
 		}
 	}
 	for _, value := range []string{c.RuntimePath, c.Name, c.Branch} {
@@ -111,7 +129,17 @@ func Validate(c Config, path string) error {
 	}
 	// Resolve parent symlinks before comparing assets. A configuration/profile
 	// cannot overwrite data credentials, repository source, or each other.
-	assets := []string{path, c.ChatProfile, c.Executable, c.CodexExecutable}
+	assets := []string{path, c.ChatProfile, c.Executable}
+	if c.LeaderToolsFile != "" {
+		assets = append(assets, c.LeaderToolsFile)
+	}
+	seenAssets := map[string]bool{}
+	for _, value := range executablePaths {
+		if value != "" && !seenAssets[value] {
+			assets = append(assets, value)
+			seenAssets[value] = true
+		}
+	}
 	for _, secret := range []string{c.GitAuthFile, c.GitHubTokenFile} {
 		if secret != "" {
 			assets = append(assets, secret)
@@ -177,7 +205,7 @@ func Validate(c Config, path string) error {
 			return errors.New("Git credentials must live outside the source repository")
 		}
 	}
-	return ValidateCredentialPaths(c.DataDir, []string{path, c.ChatProfile, c.GitAuthFile, c.GitHubTokenFile})
+	return ValidateCredentialPaths(c.DataDir, assets)
 }
 
 // ValidateCredentialPaths rejects aliases of center assets before bootstrap can

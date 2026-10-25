@@ -100,6 +100,12 @@ func main() {
 			properties["reasoning_efforts"].(map[string]any)["uniqueItems"] = true
 			properties["reasoning_efforts"].(map[string]any)["items"].(map[string]any)["maxLength"] = 64
 		}
+		if t == reflect.TypeOf(domain.LeaderSelection{}) {
+			properties["tool"].(map[string]any)["pattern"] = "^[a-z][a-z0-9_-]{0,63}$"
+			properties["model"].(map[string]any)["minLength"] = 1
+			properties["model"].(map[string]any)["maxLength"] = 128
+			properties["reasoning_effort"].(map[string]any)["maxLength"] = 64
+		}
 		if t == reflect.TypeOf(domain.Capability{}) {
 			properties["models"].(map[string]any)["maxItems"] = 64
 			properties["model_discovery"].(map[string]any)["enum"] = []string{"", "reported", "unavailable", "unsupported"}

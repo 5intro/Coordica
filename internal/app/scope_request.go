@@ -221,7 +221,12 @@ func (w *PlanningWorker) queueScopes(ctx context.Context) error {
 			if e != nil {
 				return e
 			}
-			r := domain.PlanningRun{BaselineVersion: baseline.ApprovedVersion, BaselineDigest: baseline.ApprovedDigest, ID: ID("plan_"), Version: 1, DocumentVersion: d.Version, AuthorizationVersion: d.AuthorizationVersion, AutomationVersion: settings.Version, Generation: 1, State: "queued", MaxRetries: settings.PlanningMaxRetries, ScopeRequestID: v.ID}
+			r := domain.PlanningRun{
+				BaselineVersion: baseline.ApprovedVersion, BaselineDigest: baseline.ApprovedDigest, ID: ID("plan_"), Version: 1,
+				DocumentVersion: d.Version, AuthorizationVersion: d.AuthorizationVersion, AutomationVersion: settings.Version,
+				Generation: 1, State: "queued", Leader: leaderChoice(settings), MaxRetries: settings.PlanningMaxRetries,
+				ScopeRequestID: v.ID,
+			}
 			v.State = "queued"
 			v.TaskVersion = t.Version
 			v.Version++

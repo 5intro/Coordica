@@ -89,7 +89,10 @@ func serve(ctx context.Context, args []string) error { return serveFixed(ctx, ar
 func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hostPath string) error {
 	f := flag.NewFlagSet("serve", flag.ContinueOnError)
 	dir := f.String("data", ".coordica-center", "Center directory")
-	leaderExecutable := f.String("leader-executable", "", "Trusted native Codex executable (gpt-6.1-sol)")
+	leaderExecutable := f.String("leader-executable", "", "Optional trusted native Codex executable override")
+	leaderTools := f.String("leader-tools-file", "", "Optional trusted local Leader tool registrations")
+	leaderExecutables := executableFlags{}
+	f.Var(&leaderExecutables, "leader-tool-executable", "Trusted Leader tool=executable override (repeatable)")
 	addr := f.String("listen", "127.0.0.1:8080", "HTTP(S) listen address")
 	console := f.String("console-listen", "127.0.0.1:8080", "Machine-local HTTP console address")
 	runnerURL := f.String("runner-url", "", "Advertised HTTPS Runner URL (required for wildcard listeners to produce remote setup instructions)")
@@ -101,6 +104,10 @@ func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hos
 	githubRepository := f.String("github-repository", "", "Fixed owner/repository allowed for GitHub PR operations")
 	githubTokenFile := f.String("github-token-file", "", "Center-only absolute file containing a GitHub API token")
 	if e := f.Parse(args); e != nil {
+		return e
+	}
+	leader, e := newLeaderExecutor(*leaderExecutable, *leaderTools, leaderExecutables)
+	if e != nil {
 		return e
 	}
 	runnerAddr, consoleAddr, shared, e := centerAddresses(*addr, *console, *cert, *key)
@@ -138,6 +145,7 @@ func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hos
 	}
 	defer db.Close()
 	s := app.New(db, absolute)
+	s.LeaderCatalog = leader
 	tokenPath, e := s.Bootstrap(ctx)
 	if e != nil {
 		return e
@@ -176,11 +184,14 @@ func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hos
 	if e = s.RecoverCenter(ctx); e != nil {
 		return e
 	}
-	planning := &app.PlanningWorker{Service: s, Executor: CodexPlanningExecutor{Executable: *leaderExecutable}, ExecutionAdapter: "codex"}
+	planning := &app.PlanningWorker{Service: s, Executor: leader, ExecutionAdapter: "codex"}
 	if e = planning.Recover(ctx); e != nil {
 		return e
 	}
 	privatePaths := []string{absolute}
+	if *leaderTools != "" {
+		privatePaths = append(privatePaths, *leaderTools)
+	}
 	for _, secret := range []string{*authFile, *githubTokenFile} {
 		if secret != "" {
 			privatePaths = append(privatePaths, secret)
@@ -190,7 +201,7 @@ func serveFixed(ctx context.Context, args []string, host *centerhost.Config, hos
 		privatePaths = append(privatePaths, host.ChatProfile, hostPath)
 	}
 	s.Source = g.WithAnalysisPrivatePaths(privatePaths)
-	initialization := &app.InitializationWorker{Service: s, Executor: CodexPlanningExecutor{Executable: *leaderExecutable}}
+	initialization := &app.InitializationWorker{Service: s, Executor: leader}
 	if e = initialization.Recover(ctx); e != nil {
 		return e
 	}

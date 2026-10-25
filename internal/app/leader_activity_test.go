@@ -42,7 +42,7 @@ func TestLeaderCaptureFencesRedactsBoundsAndIgnoresLateCallback(t *testing.T) {
 		ReportLeaderActivity(ctx, domain.LeaderActivitySignal{Key: "reasoning", Kind: "reasoning", Text: "PRIVATE_REASONING"})
 		return PlanningOutcome{TreeStopped: true}, nil
 	})
-	out, err := executeObservedLeader(context.Background(), f.s, ref, executor, "", "", nil)
+	out, err := executeObservedLeader(context.Background(), f.s, ref, executor, domain.DefaultLeaderSelection(), "", "", nil)
 	if err != nil || !out.TreeStopped {
 		t.Fatal(out, err)
 	}

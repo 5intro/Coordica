@@ -19,19 +19,30 @@ func mutationDigest(key, action string, input any) (string, error) {
 	return Hash(action + "\x00" + string(data)), nil
 }
 
-// A use case must check its audience first. This read only preserves an
-// accepted receipt before expensive I/O; mutate rechecks it atomically later.
-func readMutationReplay(ctx context.Context, s *Service, actor Actor, key, action string, input any) (json.RawMessage, bool, error) {
+func readMutationReplay(ctx context.Context, s *Service, a Actor, key, action string, input any) (json.RawMessage, bool, error) {
+	return replayMutation(ctx, s, a, key, action, input, nil)
+}
+
+// Replay before external discovery, retaining the same authorization check and
+// digest as mutateWithCheck. The final write still rechecks both atomically.
+func replayMutation(ctx context.Context, s *Service, a Actor, key, action string, input any,
+	check func(*store.Tx) error,
+) (json.RawMessage, bool, error) {
 	digest, err := mutationDigest(key, action, input)
 	if err != nil {
 		return nil, false, err
 	}
-	var raw json.RawMessage
+	var result json.RawMessage
 	var found bool
 	err = s.DB.View(ctx, func(tx *store.Tx) error {
+		if check != nil {
+			if err := check(tx); err != nil {
+				return err
+			}
+		}
 		var err error
-		raw, found, err = tx.Replay(actor.ID, key, digest)
+		result, found, err = tx.Replay(a.ID, key, digest)
 		return err
 	})
-	return raw, found, err
+	return result, found, err
 }

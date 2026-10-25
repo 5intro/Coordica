@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"coordica/internal/apiclient"
@@ -32,7 +33,10 @@ func hostConfig(args []string) error {
 	branch := f.String("branch", "main", "Fixed repository branch")
 	name := f.String("name", "", "Project name")
 	executable := f.String("binary", "", "Fixed installed Coordica executable")
-	leader := f.String("codex-executable", "", "Fixed native Codex executable; always gpt-6.1-sol")
+	leader := f.String("codex-executable", "", "Optional fixed native Codex executable override")
+	leaderTools := f.String("leader-tools-file", "", "Optional trusted local Leader tool registrations")
+	leaderExecutables := executableFlags{}
+	f.Var(&leaderExecutables, "leader-tool-executable", "Fixed Leader tool=absolute executable override (repeatable)")
 	console := f.String("console-listen", "127.0.0.1:8080", "Fixed loopback Owner console")
 	runner := f.String("runner-listen", "127.0.0.1:8080", "Fixed Runner listener; different address uses generated TLS")
 	runnerURL := f.String("runner-url", "", "Fixed HTTPS URL covered by generated TLS")
@@ -58,9 +62,6 @@ func hostConfig(args []string) error {
 			return e
 		}
 	}
-	if *leader == "" {
-		return errors.New("explicit --codex-executable is required; no model probe is performed")
-	}
 	checks := []domain.Check{}
 	if *checksFile != "" {
 		raw, e := os.ReadFile(*checksFile)
@@ -76,6 +77,7 @@ func hostConfig(args []string) error {
 	}
 	c := centerhost.Config{Version: 1, Role: *role, Executable: *executable, DataDir: *data, ChatProfile: *profile, Repository: *repository, TargetRepository: *target, Branch: *branch, Name: *name, ConsoleListen: *console, RunnerListen: *runner, RunnerURL: *runnerURL, CodexExecutable: *leader, RuntimePath: *runtimePath, HTTPSProxy: *proxy, Checks: checks}
 	c.GitAuthFile, c.GitAuthRemote, c.GitHubRepository, c.GitHubTokenFile = *gitAuthFile, *gitAuthRemote, *githubRepository, *githubTokenFile
+	c.LeaderToolsFile, c.LeaderExecutables = *leaderTools, leaderExecutables
 	if e := centerhost.Save(*path, c); e != nil {
 		return e
 	}
@@ -182,6 +184,17 @@ func centerServe(ctx context.Context, args []string) error {
 		return errors.New("saved center service/data identity conflicts")
 	}
 	argv := []string{"--data", c.DataDir, "--listen", c.RunnerListen, "--console-listen", c.ConsoleListen, "--leader-executable", c.CodexExecutable}
+	if c.LeaderToolsFile != "" {
+		argv = append(argv, "--leader-tools-file", c.LeaderToolsFile)
+	}
+	toolIDs := make([]string, 0, len(c.LeaderExecutables))
+	for id := range c.LeaderExecutables {
+		toolIDs = append(toolIDs, id)
+	}
+	sort.Strings(toolIDs)
+	for _, id := range toolIDs {
+		argv = append(argv, "--leader-tool-executable", id+"="+c.LeaderExecutables[id])
+	}
 	if c.GitAuthFile != "" {
 		argv = append(argv, "--git-auth-file", c.GitAuthFile, "--git-auth-remote", c.GitAuthRemote)
 	}
@@ -222,10 +235,12 @@ func serveCenterInteraction(ctx context.Context, path, profile, runnerData, disc
 	if executables == nil {
 		executables = executableFlags{}
 	}
-	if chosen := executables["codex"]; chosen != "" && chosen != c.CodexExecutable {
+	if chosen := executables["codex"]; c.CodexExecutable != "" && chosen != "" && chosen != c.CodexExecutable {
 		return errors.New("native Codex discovery executable conflicts with trusted center")
 	}
-	executables["codex"] = c.CodexExecutable
+	if c.CodexExecutable != "" {
+		executables["codex"] = c.CodexExecutable
+	}
 	if runnerData == "" {
 		base, err := os.UserConfigDir()
 		if err != nil {

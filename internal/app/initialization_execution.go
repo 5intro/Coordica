@@ -30,7 +30,7 @@ func executeInitializationLeader(callCtx context.Context, w *InitializationWorke
 	}
 	return executeObservedLeader(callCtx, s,
 		domain.LeaderExecutionRef{Kind: "initialization", ID: op.ID, Generation: op.Generation, InputVersion: op.InitializationVersion},
-		w.Executor, dir, prompt, func(pid int) error {
+		w.Executor, pinnedLeader(op.Leader), dir, prompt, func(pid int) error {
 			return s.DB.Update(callCtx, func(tx *store.Tx) error {
 				var current domain.InitializationOperation
 				if e := tx.Get("initialization_operation", op.ID, &current); e != nil {

@@ -14,7 +14,12 @@
 - Tests should exercise actual failure modes: contention, stale requests, duplicate messages, cancellation, scope violations, candidate/main changes, and restart recovery.
 - Do not claim an OS/tool combination is verified without running it. Cross-compilation is recorded separately.
 - Use native Codex search/browser tools. Do not import Claude web-access or CDP proxy workflows.
-- Use native Codex CLI for Leader planning and development. The default model remains `gpt-6.1-sol`; Owner may explicitly select any model and reasoning effort actually reported by a Runner's Codex tool. Pin the selected values per Run, with no silent model fallback. Do not invoke nested agents or CLI/model wrappers. Claude and dsh are for tests only (including independent read-only review acceptance), not development.
+- Leader configuration uses any compatible harness/model/effort actually reported on the center host. Keep the legacy
+  default `codex` / `gpt-6.1-sol` for unselected and old records; pin explicit choices per
+  initialization/planning/consultation, with no silent fallback. Configuration is not development authorization. For
+  this repository's implementation use native Codex or the primary assistant when Owner asks it to develop personally;
+  Claude and dsh remain test-only unless Owner explicitly authorizes an experiment. Do not invoke nested agents or
+  CLI/model wrappers.
 
 - Each physical host reuses one limited interaction MCP/profile. Center chat credentials are Owner-issued and may contact Leader only on admin/shared loopback. Paired Runner hosts mint node-bound chat credentials; remote TLS accepts only node-chat, shared safe facts, requirements and own-node safe runtime queries. Persisted scope/node registration is checked transactionally before replay. Legacy unscoped credentials require explicit renewal; never infer authority from profile flags/source IDs.
 - Consultation accounts are cumulative statistics/reservation targets, not lifetime allowances. Each consultation retains a finite timeout and bounded retries. Do not add progress polling timers or a runtime mailbox module.
