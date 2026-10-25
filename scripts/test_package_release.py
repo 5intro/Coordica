@@ -1,4 +1,5 @@
 """Public release wording and archive safety regression checks."""
+import hashlib
 import importlib.util
 from pathlib import Path
 import re
@@ -69,6 +70,17 @@ class ReleaseTests(unittest.TestCase):
                                         '验收已通过', '验收通过', 'Phase A', 'Phase B',
                                         'fixtures', '真实存活 PID', 'macOS Go race 套件'):
                     self.assertNotIn(internal_status, text)
+
+    def test_start_here_rendering_preserves_exact_prior_guide(self):
+        expected = {
+            'darwin-arm64': '29073f513929e58d18ce7f53bf732bb782bcd827986f30b28648c2b7c2d7021d',
+            'windows-amd64': 'c52a3d5ed74f1d49f316ca0e89bc9cde5df8f362e0b6e5f2e3f04891578da7e0',
+            'linux-amd64': '2333226fa56f258ff170b3dc2f0f99864ce4361b7ce6e5df999555ee586144aa',
+        }
+        for platform, _, binary, _ in release.PLATFORMS:
+            with self.subTest(platform=platform):
+                text = release.start_here('0.2.5-dev', platform, binary)
+                self.assertEqual(hashlib.sha256(text).hexdigest(), expected[platform])
 
     def test_hosted_setup_and_budget_recovery_documented(self):
         readme = (release.ROOT / 'README.md').read_text(encoding='utf-8')
