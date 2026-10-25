@@ -27,11 +27,18 @@ describe('protected candidate approval', () => {
   });
 });
 
-const pending: Candidate = { baseline_version: 1, baseline_digest: 'fixture', id: 'pending', version: 1, task_id: 'task-1', source_run_id: 'run-1', authorization_version: 1, policy_version: 1, base: 'base', head: 'head', main: '', commit: '', state: 'accepted', detail: '', protected: false, approved_commit: '', checks: null, created_at: '' };
+const pending: Candidate = {
+  baseline_version: 1, baseline_digest: 'fixture', id: 'pending', version: 1, task_id: 'task-1', source_run_id: 'run-1',
+  authorization_version: 1, policy_version: 1, base: 'base', head: 'head', main: '', commit: '', state: 'accepted',
+  detail: '', protected: false, approved_commit: '', checks: null, created_at: '',
+};
 const activeStates = ['accepted', 'prechecking', 'reviewing', 'validating', 'ready_to_land', 'landing', 'reconciling'];
 const historyStates = ['failed', 'landed', 'rejected', 'invalidated', 'cancelled'];
 function renderCandidates(candidates: Candidate[]) {
-  const snapshot: Snapshot = { ...emptyPhaseB, api_version: 'v1', project: null, tasks: null, requirements: null, runs: null, candidates, nodes: null, events: null };
+  const snapshot: Snapshot = {
+    ...emptyPhaseB, api_version: 'v1', project: null, tasks: null, requirements: null,
+    runs: null, candidates, nodes: null, events: null,
+  };
   const props = { snapshot, client: new ApiClient('token'), refresh: () => undefined };
   return { ...render(<Candidates {...props} />), props };
 }
