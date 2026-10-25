@@ -11,13 +11,15 @@ import (
 )
 
 type metrics struct {
-	ctx         context.Context
-	lines       []int
-	findings    []Finding
-	methods     map[string][]receiverMethod
-	partials    map[string]*partialMeasurement
-	rustModules map[string]rustModuleInfo
-	rustParts   []rustTypePart
+	ctx            context.Context
+	lines          []int
+	findings       []Finding
+	methods        map[string][]receiverMethod
+	partials       map[string]*partialMeasurement
+	rustModules    map[string]rustModuleInfo
+	rustParts      []rustTypePart
+	csharpProjects []csharpProject
+	csharpScopes   []string
 }
 
 func (m *metrics) add(file string, line int, rule, subject string, value, limit int) {
@@ -48,7 +50,11 @@ func measureInventoryReceivers(ctx context.Context, files []File, baseline bool,
 	if methods == nil {
 		methods = map[string][]receiverMethod{}
 	}
-	m := metrics{ctx: ctx, methods: methods}
+	projects, err := collectCSharpProjects(ctx, files)
+	if err != nil {
+		return nil, err
+	}
+	m := metrics{ctx: ctx, methods: methods, csharpProjects: projects}
 	total := 0
 	seen := map[string]bool{}
 	for _, f := range files {

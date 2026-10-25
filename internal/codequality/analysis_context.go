@@ -29,6 +29,17 @@ func (m *metrics) lineAt(offset int) int { return indexedLine(m.lines, offset) }
 func (m *metrics) cancelled() bool { return m.ctx != nil && m.ctx.Err() != nil }
 
 func measureSource(m *metrics, f File) error {
+	if csharpMetadata(f.Path) {
+		return nil
+	}
+	m.csharpScopes = nil
+	if strings.EqualFold(path.Ext(f.Path), ".cs") {
+		var err error
+		m.csharpScopes, err = csharpSourceScopes(m.csharpProjects, f.Path)
+		if err != nil {
+			return err
+		}
+	}
 	m.lines = sourceLineOffsets(f.Text)
 	m.text(f)
 	if m.cancelled() {
