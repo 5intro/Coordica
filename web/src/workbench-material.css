@@ -154,6 +154,12 @@ button, a, input, textarea, select { touch-action:manipulation; }
 .agent-settings fieldset { margin:20px 0; border:0; padding:0; }
 .agent-settings fieldset .field { display:flex; align-items:center; justify-content:space-between; }
 .agent-settings fieldset input { width:auto; }
+.settings-form fieldset.development-defaults { margin:20px 0; border:0; padding:0; min-width:0; }
+.development-defaults legend { padding:0; font-weight:600; }
+.development-defaults select { width:100%; min-width:0; }
+@media (max-width:680px) {
+  .settings-form .development-defaults .field { grid-template-columns:minmax(0,1fr); gap:8px; }
+}
 .agent-settings .actions { margin-top:20px; }
 .agent-permissions { margin-top:20px; }
 @media (max-width:1100px) { .agent-layout.has-selection { grid-template-columns:minmax(0,1fr); } .agent-layout .pool-inspector { position:static; max-height:none; } }

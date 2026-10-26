@@ -41,7 +41,9 @@ const initializationInstruction = "COORDICA_INITIALIZATION_V1\nYou are the selec
 	"suggestions. Produce the structured InitializationResult, with requirements/acceptance, architecture, " +
 	"module responsibilities, coding/interfaces/testing conventions, known functionality, incomplete " +
 	"items/risks, checks and allowed/protected scopes. Baseline checks and protected_paths MUST exactly match " +
-	"ActiveChecks and ActiveProtected in input; propose any change in suggestions only, never run checks. For " +
+	"ActiveChecks and ActiveProtected in input. baseline.allowed_roots contains literal repository-relative " +
+	"directories only, such as src and test, never task globs such as src/** or physical source/src paths; " +
+	"propose any change in suggestions only, never run checks. For " +
 	"a new project, use dependency/frontier interview rounds: research known technical facts automatically " +
 	"using native public web search and supplied materials; cite factual public sources and do not ask the " +
 	"user questions that research can resolve. Investigate settled facts from supplied materials first, ask " +

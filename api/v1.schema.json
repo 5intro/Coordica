@@ -1661,6 +1661,9 @@
             "array",
             "null"
           ]
+        },
+        "execution_intent_version": {
+          "type": "integer"
         }
       },
       "required": [

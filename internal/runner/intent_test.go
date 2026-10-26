@@ -370,18 +370,17 @@ func TestPendingNativeIntentCannotSubmitUnknownTreeAfterRestart(t *testing.T) {
 	}
 }
 
-func TestLegacyPhaseAAndCustomToolsKeepTheirExistingCompletionProtocol(t *testing.T) {
+func TestLegacyPhaseAToolsKeepTheirExistingCompletionProtocol(t *testing.T) {
 	for _, custom := range []bool{false, true} {
-		t.Run(map[bool]string{false: "Phase A builtin", true: "Phase B custom tool"}[custom], func(t *testing.T) {
+		t.Run(map[bool]string{false: "Phase A builtin", true: "Phase A custom tool"}[custom], func(t *testing.T) {
 			f := newIntentFixture(t)
+			f.record.Assignment.GoalContext = nil
 			if custom {
 				def := agent.Definition{ID: "legacy-fixture", Executables: []string{"unused-fixture"}, Protocol: agent.ProtocolACP, CommitMode: "runner", Cancel: true, Review: true}
 				if err := f.r.registry.Register(def); err != nil {
 					t.Fatal(err)
 				}
 				f.record.Assignment.Run.Tool = def.ID
-			} else {
-				f.record.Assignment.GoalContext = nil
 			}
 			f.r.execute = func(_ context.Context, req agent.Request, _ func(agent.Event)) (agent.Result, error) {
 				if req.OutputSchemaPath != "" || strings.Contains(req.Prompt, nativeIntentPrompt) {

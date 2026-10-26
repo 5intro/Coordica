@@ -308,6 +308,7 @@ const AssignmentContextVersion = 1
 type ClaimRequest struct {
 	Capabilities             []Capability `json:"capabilities"`
 	AssignmentContextVersion int          `json:"assignment_context_version,omitempty"`
+	ExecutionIntentVersion   int          `json:"execution_intent_version,omitempty"`
 }
 type Assignment struct {
 	Requirements     []RequirementContext `json:"requirements,omitempty"`
