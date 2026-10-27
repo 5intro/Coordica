@@ -106,6 +106,8 @@
           "type": "string"
         },
         "budget_seconds": {
+          "maximum": 31536000,
+          "minimum": 1,
           "type": "integer"
         },
         "dependencies": {
@@ -124,12 +126,19 @@
           "type": "string"
         },
         "max_repairs": {
+          "maximum": 2,
+          "minimum": 0,
           "type": "integer"
         },
         "max_retries": {
+          "maximum": 2,
+          "minimum": 0,
           "type": "integer"
         },
         "max_run_seconds": {
+          "description": "Finite single Run limit; must be \u003c= budget_seconds.",
+          "maximum": 604800,
+          "minimum": 1,
           "type": "integer"
         },
         "objective": {

@@ -16,7 +16,7 @@ func executePlanningLeader(execCtx context.Context, w *PlanningWorker, r domain.
 				if e := tx.Get("planning_run", r.ID, &current); e != nil {
 					return e
 				}
-				if current.State != "running" || current.Generation != r.Generation || current.Purpose == domain.ConsultationPurpose && !consultationCurrent(tx, current) {
+				if current.State != "running" || current.Generation != r.Generation || !failurePlanningCurrent(tx, current) || current.Purpose == domain.ConsultationPurpose && !consultationCurrent(tx, current) {
 					return domain.Fail("stale_run", "planning authority changed before process-start receipt")
 				}
 				current.ProcessID = pid
@@ -71,7 +71,7 @@ func watchPlanningLeader(execCtx context.Context, w *PlanningWorker, r domain.Pl
 				}
 				if current.State != "running" || current.Generation != r.Generation || doc.Version != r.DocumentVersion ||
 					p.Paused || !w.Service.Now().Before(current.LeaseUntil) ||
-					current.Purpose != domain.ConsultationPurpose && !requirementPlanCurrent(tx, current) {
+					current.Purpose != domain.ConsultationPurpose && !requirementPlanCurrent(tx, current) || !failurePlanningCurrent(tx, current) {
 					return context.Canceled
 				}
 				current.LeaseUntil = w.Service.Now().Add(w.Service.Lease)

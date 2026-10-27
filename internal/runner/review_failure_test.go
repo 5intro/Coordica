@@ -92,7 +92,7 @@ func runReviewFailure(t *testing.T, test reviewFailureCase, base gitops.OID, bun
 	r.execute = func(_ context.Context, request agent.Request, _ func(agent.Event)) (agent.Result, error) {
 		if test.schemaTool != "" {
 			raw, err := os.ReadFile(request.OutputSchemaPath)
-			if err != nil || string(raw) != string(reviewOutputSchema(base.String())) ||
+			if err != nil || string(raw) != string(reviewOutputSchema(base.String(), 0)) ||
 				strings.Join(request.AllowedTools, ",") != "Read,Glob,Grep" || strings.Contains(request.Prompt, nativeIntentPrompt) {
 				t.Fatal("review schema or read-only restrictions lost", err)
 			}

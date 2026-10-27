@@ -344,6 +344,19 @@
             }
           ]
         },
+        "failure_context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FailureContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "failure_recovery_version": {
+          "type": "integer"
+        },
         "goal_context": {
           "anyOf": [
             {
@@ -2122,6 +2135,264 @@
       ],
       "type": "object"
     },
+    "FailureAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "followup_task_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "policy_version": {
+          "type": "integer"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FailureRecoveryPlan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "source_candidate_id": {
+          "type": "string"
+        },
+        "source_candidate_version": {
+          "type": "integer"
+        },
+        "source_commit": {
+          "type": "string"
+        },
+        "source_run_id": {
+          "type": "string"
+        },
+        "source_run_version": {
+          "type": "integer"
+        },
+        "source_task": {
+          "$ref": "#/$defs/Task"
+        },
+        "state": {
+          "type": "string"
+        },
+        "test_policy_version": {
+          "type": "integer"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "waiting_task_version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "source_task",
+        "source_run_id",
+        "source_run_version",
+        "source_candidate_id",
+        "source_candidate_version",
+        "source_commit",
+        "policy_version",
+        "test_policy_version",
+        "state",
+        "run_id",
+        "followup_task_id",
+        "waiting_task_version",
+        "detail",
+        "created_at",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "FailureContext": {
+      "additionalProperties": false,
+      "properties": {
+        "assessment_id": {
+          "type": "string"
+        },
+        "check_results": {
+          "items": {
+            "$ref": "#/$defs/CheckResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "execution_detail": {
+          "type": "string"
+        },
+        "findings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "source_acceptance": {
+          "type": "string"
+        },
+        "source_checks": {
+          "items": {
+            "$ref": "#/$defs/Check"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "source_commit": {
+          "type": "string"
+        },
+        "source_run_id": {
+          "type": "string"
+        },
+        "source_task_id": {
+          "type": "string"
+        },
+        "source_title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "assessment_id",
+        "source_task_id",
+        "source_run_id",
+        "source_commit",
+        "source_title",
+        "source_acceptance",
+        "reason",
+        "findings",
+        "execution_detail",
+        "source_checks",
+        "check_results"
+      ],
+      "type": "object"
+    },
+    "FailureRecoveryPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/TaskProposal"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "category",
+        "reason",
+        "action",
+        "tasks"
+      ],
+      "type": "object"
+    },
+    "GoalBudgetRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "budget_seconds": {
+          "maximum": 31536000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expected_authorization_version": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expected_goal_version": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expected_version": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reason": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected_version",
+        "expected_goal_version",
+        "expected_authorization_version",
+        "budget_seconds",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "GoalBudgetState": {
+      "additionalProperties": false,
+      "properties": {
+        "budget_seconds": {
+          "type": "integer"
+        },
+        "goal_authorization_version": {
+          "type": "integer"
+        },
+        "goal_version": {
+          "type": "integer"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "reserved_seconds": {
+          "type": "integer"
+        },
+        "used_seconds": {
+          "type": "integer"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "goal_version",
+        "goal_authorization_version",
+        "budget_seconds",
+        "used_seconds",
+        "reserved_seconds"
+      ],
+      "type": "object"
+    },
     "GoalContext": {
       "additionalProperties": false,
       "properties": {
@@ -3488,6 +3759,19 @@
         "execution_adapter": {
           "type": "string"
         },
+        "failure_assessment_id": {
+          "type": "string"
+        },
+        "failure_result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FailureRecoveryPlan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "generation": {
           "type": "integer"
         },
@@ -3908,6 +4192,22 @@
         "merge_ready",
         "detail",
         "synced_at"
+      ],
+      "type": "object"
+    },
+    "RecoveryHint": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "reason"
       ],
       "type": "object"
     },
@@ -4455,6 +4755,16 @@
             "null"
           ]
         },
+        "recovery": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecoveryHint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "run_id": {
           "type": "string"
         },
@@ -4471,6 +4781,51 @@
         "summary",
         "findings",
         "run_id"
+      ],
+      "type": "object"
+    },
+    "ReviewInputRetryRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_candidate_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$",
+          "type": "string"
+        },
+        "expected_candidate_version": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expected_commit": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$",
+          "type": "string"
+        },
+        "expected_version": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "reason": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        "review_run_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected_version",
+        "expected_candidate_id",
+        "expected_candidate_version",
+        "expected_commit",
+        "review_run_id",
+        "reason"
       ],
       "type": "object"
     },
@@ -5030,6 +5385,12 @@
         "description": {
           "type": "string"
         },
+        "failure_assessment_id": {
+          "type": "string"
+        },
+        "failure_source_task_id": {
+          "type": "string"
+        },
         "generation": {
           "type": "integer"
         },
@@ -5055,9 +5416,13 @@
           "type": "string"
         },
         "max_repairs": {
+          "maximum": 2,
+          "minimum": 0,
           "type": "integer"
         },
         "max_retries": {
+          "maximum": 2,
+          "minimum": 0,
           "type": "integer"
         },
         "max_run_seconds": {
@@ -5159,6 +5524,38 @@
       ],
       "type": "object"
     },
+    "TaskAcceptanceRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "type": "string"
+        },
+        "expected_candidate_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]{1,128}$",
+          "type": "string"
+        },
+        "expected_version": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "reason": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected_version",
+        "expected_candidate_id",
+        "acceptance",
+        "reason"
+      ],
+      "type": "object"
+    },
     "TaskProposal": {
       "additionalProperties": false,
       "properties": {
@@ -5192,9 +5589,13 @@
           "type": "string"
         },
         "max_repairs": {
+          "maximum": 2,
+          "minimum": 0,
           "type": "integer"
         },
         "max_retries": {
+          "maximum": 2,
+          "minimum": 0,
           "type": "integer"
         },
         "max_run_seconds": {
@@ -5244,6 +5645,26 @@
         "max_run_seconds",
         "max_repairs",
         "max_retries"
+      ],
+      "type": "object"
+    },
+    "TaskToolRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_version": {
+          "type": "integer"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected_version",
+        "tool",
+        "reason"
       ],
       "type": "object"
     },

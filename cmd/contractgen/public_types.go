@@ -4,6 +4,7 @@ import "coordica/internal/domain"
 
 func publicTypes() []any {
 	types := publicPreparationTypes()
+	types = append(types, domain.FailureContext{}, domain.RecoveryHint{}, domain.FailureRecoveryPlan{}, domain.FailureAssessment{})
 	types = append(types, publicRuntimeTypes()...)
 	types = append(types, domain.PublicationPolicy{},
 		domain.PublicationRequest{},
@@ -127,6 +128,10 @@ func publicRuntimeTypes() []any {
 		domain.Snapshot{},
 		domain.VersionRequest{},
 		domain.ScopeRequest{},
+		domain.TaskAcceptanceRequest{},
+		domain.ReviewInputRetryRequest{},
+		domain.GoalBudgetRequest{},
+		domain.GoalBudgetState{},
 		domain.RegisterRequest{},
 		domain.RegisterResponse{},
 		domain.ClaimRequest{},
@@ -137,6 +142,7 @@ func publicRuntimeTypes() []any {
 		domain.Problem{},
 		domain.StopConfirmation{},
 		domain.BudgetRequest{},
+		domain.TaskToolRequest{},
 		domain.Artifact{},
 	}
 	return types

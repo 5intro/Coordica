@@ -133,15 +133,13 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			} else if t.State != "ready" {
 				continue
 			} else if t.Repairs > 0 {
-				previous, err := store.List[domain.Candidate](tx, "candidate")
-				if err != nil {
-					return nil, err
+				var blocked bool
+				candidate, blocked, e = repairInputForClaim(s, tx, a, &t, p)
+				if e != nil {
+					return nil, e
 				}
-				for _, old := range previous {
-					if old.TaskID == t.ID && old.State == "rejected" && old.AuthorizationVersion == t.AuthorizationVersion && (candidate == nil || old.CreatedAt.After(candidate.CreatedAt)) {
-						copy := old
-						candidate = &copy
-					}
+				if blocked {
+					continue
 				}
 				if candidate != nil && candidate.Commit != "" {
 					runBase = candidate.Commit
@@ -210,26 +208,12 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			// Reject unusable fixed inputs before acquiring resources, reserving
 			// time or minting a Run. Other compatible work may still proceed.
 			contextRun := domain.Run{RequirementRevisions: copyRequirementBindings(t), GoalVersion: t.GoalVersion, GoalAuthorizationVersion: t.GoalAuthorizationVersion}
-			contextRequirements, e := assignedRequirements(tx, t, contextRun)
+			assignment, e := assignedTaskContext(tx, t, contextRun, p, candidate)
 			if e != nil {
 				var problem *domain.Error
 				if !errors.As(e, &problem) {
 					return nil, e
 				}
-				if err := s.blockTaskContext(tx, a, &t, e); err != nil {
-					return nil, err
-				}
-				continue
-			}
-			contextGoal, e := assignedRunGoal(tx, contextRun)
-			if e != nil {
-				return nil, e
-			}
-			contextBaseline, e := initialization(tx)
-			if e != nil {
-				return nil, e
-			}
-			if e = domain.ValidateAssignmentContext(domain.Assignment{Task: t, Run: contextRun, Baseline: contextBaseline.ApprovedBaseline, GoalContext: contextGoal, Requirements: contextRequirements, Project: p, Candidate: candidate}); e != nil {
 				if err := s.blockTaskContext(tx, a, &t, e); err != nil {
 					return nil, err
 				}
@@ -276,19 +260,9 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			if e = s.audit(tx, a, "run.claimed", r.ID, kind+":"+tool); e != nil {
 				return nil, e
 			}
-			goalContext, e := assignedRunGoal(tx, r)
-			if e != nil {
-				return nil, e
-			}
-			v, e := initialization(tx)
-			if e != nil {
-				return nil, e
-			}
-			requirements, e := assignedRequirements(tx, t, r)
-			if e != nil {
-				return nil, e
-			}
-			return domain.Assignment{Requirements: requirements, Baseline: v.ApprovedBaseline, GoalContext: goalContext, Run: r, Task: t, Project: p, Candidate: candidate, InputURL: "/api/v1/runs/" + r.ID + "/input.bundle", HeartbeatSeconds: 10}, nil
+			assignment.Task, assignment.Run, assignment.Project = t, r, p
+			assignment.InputURL = "/api/v1/runs/" + r.ID + "/input.bundle"
+			return assignment, nil
 		}
 		return nil, nil
 	})
@@ -365,7 +339,7 @@ func (s *Service) Heartbeat(ctx context.Context, a Actor, id string, req domain.
 			reason = "stale_run"
 		} else if p.Paused || t.HoldReason != "" || t.State == "cancelled" || r.State == "cancel_requested" {
 			reason = "paused"
-		} else if baselineRun(tx, r) != nil || t.AuthorizationVersion != r.AuthorizationVersion || p.PolicyVersion != r.PolicyVersion {
+		} else if baselineRun(tx, r) != nil || t.AuthorizationVersion != r.AuthorizationVersion || p.PolicyVersion != r.PolicyVersion || failureTaskAuthority(tx, t) != nil {
 			reason = "authorization_changed"
 		}
 		if active(r) && owns {
@@ -390,9 +364,13 @@ func (s *Service) Heartbeat(ctx context.Context, a Actor, id string, req domain.
 				r.LeaseUntil = r.Deadline
 			}
 		}
-		r.Detail = req.Detail
-		if len(r.Detail) > 4096 {
-			r.Detail = r.Detail[:4096]
+		// Terminal or displaced Runs are historical evidence. A late heartbeat
+		// can request cancellation but cannot replace their recorded failure.
+		if active(r) && owns {
+			r.Detail = req.Detail
+			if len(r.Detail) > 4096 {
+				r.Detail = r.Detail[:4096]
+			}
 		}
 		out.LeaseUntil = r.LeaseUntil
 		if e = tx.Put("run", r.ID, r); e != nil {
@@ -561,6 +539,9 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 				if review.Verdict != "approve" && review.Verdict != "changes_requested" && review.Verdict != "blocked" {
 					return nil, domain.Fail("invalid_input", "未知评审结论")
 				}
+				if err := domain.ValidateRecoveryHint(review.Recovery, review.Verdict); err != nil {
+					return nil, err
+				}
 				c.Review = &review
 				c.Version++
 				if review.Verdict == "approve" {
@@ -571,7 +552,16 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 				} else {
 					c.State = "rejected"
 					c.Detail = review.Summary
-					queueRepair(&t, &c, review.Verdict == "changes_requested")
+					settings, err := automation(tx)
+					if err != nil {
+						return nil, err
+					}
+					if review.Recovery != nil && t.GoalVersion != 0 && settings.Enabled {
+						t.HoldReason = "failure_assessment"
+						t.CurrentRunID = ""
+					} else {
+						queueRepair(&t, &c, review.Verdict == "changes_requested")
+					}
 				}
 				if e = tx.Put("candidate", c.ID, c); e != nil {
 					return nil, e
@@ -796,7 +786,15 @@ func (s *Service) RunContext(ctx context.Context, a Actor, id string) (domain.As
 			}
 			out.Candidate = &c
 		}
-		return nil
+		out.FailureRecoveryVersion = 1
+		if out.Task.GoalVersion == 0 {
+			out.FailureRecoveryVersion = 0
+		}
+		out.FailureContext, e = assignmentFailureContext(tx, out.Task)
+		if e != nil {
+			return e
+		}
+		return domain.ValidateAssignmentContext(out)
 	})
 	return out, e
 }

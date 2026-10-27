@@ -15,6 +15,8 @@ type planningFacts struct {
 	Document               domain.PlanningDocument      `json:"document"`
 	Messages               []domain.LeaderMessage       `json:"messages"`
 	Tasks                  []domain.Task                `json:"-"`
+	Decisions              []domain.Decision            `json:"-"`
+	DecisionIndex          []planningDecisionIndex      `json:"decision_index,omitempty"`
 	TaskIndex              []planningTaskIndex          `json:"existing_tasks"`
 	Baseline               leaderBaselineContext        `json:"shared_baseline"`
 	Materials              leaderMaterials              `json:"materials"`
@@ -89,7 +91,8 @@ func (w *PlanningWorker) planningPrompt(ctx context.Context, r domain.PlanningRu
 			return err
 		}
 		facts.ProtectedPaths = project.ProtectedPaths
-		return nil
+		facts.Decisions, err = currentPlanningDecisions(tx, d)
+		return err
 	})
 	if e != nil {
 		return "", e
@@ -103,6 +106,10 @@ func buildPlanningContext(dir string, r domain.PlanningRun, facts planningFacts,
 	history := currentLeaderHistory(messages, facts.Document.Version)
 	var err error
 	facts.Materials, err = writeLeaderMaterials(dir, r, facts.Tasks, facts.Requirements, facts.Requests, history, nil)
+	if err != nil {
+		return "", err
+	}
+	facts.DecisionIndex, err = appendPlanningDecisions(dir, &facts.Materials, facts.Decisions)
 	if err != nil {
 		return "", err
 	}

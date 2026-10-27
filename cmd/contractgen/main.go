@@ -21,6 +21,7 @@ func main() {
 	must(os.WriteFile("cmd/coordica/leader.schema.json", leaderSchema(), 0644))
 	must(os.WriteFile("cmd/coordica/consult.schema.json", consultSchema(), 0644))
 	must(os.WriteFile("cmd/coordica/requirement-change.schema.json", requirementSchema(), 0644))
+	must(os.WriteFile("cmd/coordica/failure-recovery.schema.json", failureRecoverySchema(), 0644))
 	if *leaderOnly {
 		return
 	}
@@ -124,15 +125,12 @@ func main() {
 			properties["max_retries"].(map[string]any)["minimum"] = 0
 			properties["max_retries"].(map[string]any)["maximum"] = 2
 		}
-		if t == reflect.TypeOf(domain.Task{}) || t == reflect.TypeOf(domain.TaskProposal{}) || t == reflect.TypeOf(domain.PlanningDocument{}) {
+		if t == reflect.TypeOf(domain.PlanningDocument{}) {
 			properties["budget_seconds"].(map[string]any)["minimum"] = 1
 			properties["budget_seconds"].(map[string]any)["maximum"] = domain.MaxTaskBudgetSeconds
 		}
-		if t == reflect.TypeOf(domain.Task{}) || t == reflect.TypeOf(domain.TaskProposal{}) {
-			properties["max_run_seconds"].(map[string]any)["minimum"] = 1
-			properties["max_run_seconds"].(map[string]any)["maximum"] = domain.MaxRunDurationSeconds
-			properties["max_run_seconds"].(map[string]any)["description"] = "Finite single Run limit; must be <= budget_seconds."
-		}
+		applyTaskLimits(t, properties)
+		applyGoalBudgetLimits(t, properties)
 		if t == reflect.TypeOf(domain.Project{}) {
 			properties["total_budget_seconds"].(map[string]any)["deprecated"] = true
 			properties["total_budget_seconds"].(map[string]any)["description"] = "Ignored legacy field. Project used/reserved are cumulative statistics, never an allowance."
@@ -242,6 +240,8 @@ func strictNativeSchema(rootName string, types ...any) []byte {
 			properties[name] = schemaTypeMode(f.Type, true)
 			required = append(required, name)
 		}
+		applyTaskLimits(t, properties)
+		applyGoalBudgetLimits(t, properties)
 		defs[t.Name()] = map[string]any{"type": "object", "properties": properties, "required": required, "additionalProperties": false}
 	}
 	root := defs[rootName].(map[string]any)

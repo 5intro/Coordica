@@ -19,7 +19,7 @@ func TestReviewSchemaPinsCandidateAndCannotAssertRunIdentity(t *testing.T) {
 			Enum []string `json:"enum"`
 		} `json:"properties"`
 	}
-	if err := json.Unmarshal(reviewOutputSchema(candidate), &schema); err != nil {
+	if err := json.Unmarshal(reviewOutputSchema(candidate, 1), &schema); err != nil {
 		t.Fatal(err)
 	}
 	var fields []string
@@ -31,5 +31,18 @@ func TestReviewSchemaPinsCandidateAndCannotAssertRunIdentity(t *testing.T) {
 	slices.Sort(schema.Required)
 	if schema.AdditionalProperties || !slices.Equal(fields, schema.Required) || len(schema.Properties) != len(fields) || !slices.Equal(schema.Properties["candidate"].Enum, []string{candidate}) || !slices.Equal(schema.Properties["run_id"].Enum, []string{""}) {
 		t.Fatal("review schema drifted from exact domain contract or fixed identity", schema)
+	}
+}
+
+func TestReviewSchemaLegacyAssignmentKeepsOriginalFields(t *testing.T) {
+	var schema struct {
+		Required   []string       `json:"required"`
+		Properties map[string]any `json:"properties"`
+	}
+	if err := json.Unmarshal(reviewOutputSchema(strings.Repeat("b", 40), 0), &schema); err != nil {
+		t.Fatal(err)
+	}
+	if len(schema.Required) != 5 || schema.Properties["recovery"] != nil {
+		t.Fatal("old center was sent a new review contract")
 	}
 }

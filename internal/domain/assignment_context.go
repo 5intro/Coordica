@@ -6,6 +6,16 @@ import "encoding/json"
 const MaxAssignmentContextBytes = 240 << 10
 
 func ValidateAssignmentContext(a Assignment) error {
+	if a.FailureRecoveryVersion < 0 || a.FailureRecoveryVersion > 1 {
+		return Fail("invalid_context", "unsupported failure recovery contract version")
+	}
+	if a.Task.FailureAssessmentID != "" {
+		if a.FailureRecoveryVersion != 1 || a.FailureContext == nil ||
+			a.FailureContext.AssessmentID != a.Task.FailureAssessmentID || a.FailureContext.SourceTaskID != a.Task.FailureSourceTaskID ||
+			a.FailureContext.SourceRunID == "" {
+			return Fail("invalid_context", "follow-up requires its fixed failure source context")
+		}
+	}
 	if err := ValidateAssignmentRequirements(a); err != nil {
 		return err
 	}
@@ -15,6 +25,7 @@ func ValidateAssignmentContext(a Assignment) error {
 		feedback, review = a.Candidate.Detail, a.Candidate.Review
 	}
 	raw, err := json.Marshal(struct {
+		Failure      *FailureContext
 		Task         Task
 		Baseline     *Baseline
 		Goal         *GoalContext
@@ -22,7 +33,7 @@ func ValidateAssignmentContext(a Assignment) error {
 		Protected    []string
 		Feedback     string
 		Review       *Review
-	}{a.Task, a.Baseline, a.GoalContext, a.Requirements, a.Project.ProtectedPaths, feedback, review})
+	}{a.FailureContext, a.Task, a.Baseline, a.GoalContext, a.Requirements, a.Project.ProtectedPaths, feedback, review})
 	if err != nil {
 		return err
 	}

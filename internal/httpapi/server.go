@@ -175,8 +175,12 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if r.Method == http.MethodGet {
 		switch {
+		case len(parts) == 2 && parts[0] == "failure-assessments":
+			result, err = (app.FailureRecoveries{Service: s.Service}).Read(ctx, a, parts[1])
 		case path == "leader/configuration":
 			result, err = (app.LeaderConfigurations{Service: s.Service}).Read(ctx, a)
+		case path == "planning/budget":
+			result, err = app.ReadGoalBudget(ctx, s.Service, a)
 		case path == "tests/readiness":
 			result, err = s.Service.TestReadiness(ctx, a, r.URL.Query().Get("commit"))
 		case path == "system/host":
@@ -346,6 +350,11 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		if err = decode(r, &in); err == nil {
 			result, err = (app.LeaderConfigurations{Service: s.Service}).Configure(ctx, a, key, in)
 		}
+	case path == "planning/budget":
+		var in domain.GoalBudgetRequest
+		if err = decode(r, &in); err == nil {
+			result, err = app.IncreaseGoalBudget(ctx, s.Service, a, key, in)
+		}
 	case path == "planning/save":
 		var in domain.PlanningSaveRequest
 		if err = decode(r, &in); err == nil {
@@ -432,6 +441,21 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		var in domain.StopConfirmation
 		if err = decode(r, &in); err == nil {
 			result, err = s.Service.ConfirmStopped(ctx, a, key, parts[1], in)
+		}
+	case len(parts) == 3 && parts[0] == "tasks" && parts[2] == "retry-review-input":
+		var in domain.ReviewInputRetryRequest
+		if err = decode(r, &in); err == nil {
+			result, err = app.RetryReviewInput(ctx, s.Service, a, key, parts[1], in)
+		}
+	case len(parts) == 3 && parts[0] == "tasks" && parts[2] == "acceptance":
+		var in domain.TaskAcceptanceRequest
+		if err = decode(r, &in); err == nil {
+			result, err = app.ReviseTaskAcceptance(ctx, s.Service, a, key, parts[1], in)
+		}
+	case len(parts) == 3 && parts[0] == "tasks" && parts[2] == "tool":
+		var in domain.TaskToolRequest
+		if err = decode(r, &in); err == nil {
+			result, err = app.ChangeTaskTool(ctx, s.Service, a, key, parts[1], in)
 		}
 	case len(parts) == 3 && parts[0] == "tasks" && parts[2] == "budget":
 		var in domain.BudgetRequest

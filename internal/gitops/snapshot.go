@@ -309,11 +309,11 @@ func walkSnapshotInputs(ctx context.Context, repo string, files map[string]bool)
 		}
 		for _, component := range strings.Split(name, "/") {
 			if component == ".git" {
-				return ErrUnsupportedObject
+				return fault("snapshot", ErrUnsupportedObject, "nested Git metadata: "+name)
 			}
 		}
 		if err := ValidatePath(name); err != nil {
-			return ErrUnsupportedObject
+			return fault("snapshot", ErrUnsupportedObject, "unsupported input path")
 		}
 		if entry.IsDir() {
 			return nil
@@ -323,7 +323,7 @@ func walkSnapshotInputs(ctx context.Context, repo string, files map[string]bool)
 			return err
 		}
 		if !info.Mode().IsRegular() {
-			return ErrUnsupportedObject
+			return fault("snapshot", ErrUnsupportedObject, "input is not an ordinary file: "+name)
 		}
 		if files != nil && !files[name] {
 			return fault("snapshot", ErrDirty, "private input absent from fixed snapshot")

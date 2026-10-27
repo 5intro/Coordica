@@ -169,6 +169,9 @@ func goalGate(tx *store.Tx, t *domain.Task, bind bool) error {
 // Existing grants retain authority while their own reservation fills the goal.
 // Admission of new work additionally requires availability through goalGate.
 func goalAuthority(tx *store.Tx, t *domain.Task, bind bool) error {
+	if err := failureTaskAuthority(tx, *t); err != nil {
+		return err
+	}
 	if e := requirementTaskGate(tx, *t); e != nil {
 		return e
 	}
@@ -594,6 +597,9 @@ func nodeAllows(n domain.Node, tool, kind string) bool {
 // Persist actionable terminal task problems after bounded Phase A recovery.
 // Scheduling waits and ordinary repairable failures do not become decisions.
 func (s *Service) taskDecision(tx *store.Tx, t domain.Task, evidence string) error {
+	if err := captureTaskFailure(tx, s, t, evidence); err != nil {
+		return err
+	}
 	if t.HoldReason != "human_decision" && t.HoldReason != "budget" {
 		return nil
 	}
