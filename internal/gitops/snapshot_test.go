@@ -231,7 +231,10 @@ func TestCommitScopedReportsGeneratedDependencyInputWithoutDiscardingIt(t *testi
 	if head, headErr := g.Head(context.Background(), repo); headErr != nil || head != base {
 		t.Fatalf("snapshot refusal changed fixed HEAD: %s %v", head, headErr)
 	}
-	if target, readErr := os.Readlink(link); readErr != nil || target != "bin/tool" {
+	if target, readErr := os.Readlink(link); readErr != nil || filepath.ToSlash(target) != "bin/tool" {
 		t.Fatalf("snapshot refusal discarded dependency inputs: %q %v", target, readErr)
+	}
+	if data, readErr := os.ReadFile(filepath.Join(repo, "cache", "package", "bin", "tool")); readErr != nil || string(data) != "dependency executable\n" {
+		t.Fatalf("snapshot refusal altered dependency contents: %q %v", data, readErr)
 	}
 }

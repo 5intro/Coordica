@@ -23,6 +23,17 @@ func (g *Client) DiffTextPreview(ctx context.Context, repo string, from, to OID)
 	if err != nil {
 		return nil, nil, err
 	}
+	binary, err := binaryPathsInNumstat(stat)
+	if err != nil {
+		return nil, nil, err
+	}
+	patch, err := g.run(ctx, repo, nil, "diff", "--patch", "--full-index", "--no-renames", "--no-ext-diff", "--no-textconv", string(from), string(to), "--")
+	return patch, binary, err
+}
+
+// Numstat is a Git object protocol: tabs may occur in its NUL-delimited
+// paths even on hosts whose worktree filesystem cannot create those names.
+func binaryPathsInNumstat(stat []byte) ([]string, error) {
 	var binary []string
 	for _, record := range bytes.Split(stat, []byte{0}) {
 		if len(record) == 0 {
@@ -30,17 +41,16 @@ func (g *Client) DiffTextPreview(ctx context.Context, repo string, from, to OID)
 		}
 		fields := bytes.SplitN(record, []byte{'\t'}, 3)
 		if len(fields) != 3 || ValidatePath(string(fields[2])) != nil {
-			return nil, nil, fault("diff", ErrGit, "malformed numstat record")
+			return nil, fault("diff", ErrGit, "malformed numstat record")
 		}
 		if string(fields[0]) == "-" || string(fields[1]) == "-" {
 			if string(fields[0]) != "-" || string(fields[1]) != "-" {
-				return nil, nil, fault("diff", ErrGit, "inconsistent binary numstat")
+				return nil, fault("diff", ErrGit, "inconsistent binary numstat")
 			}
 			binary = append(binary, string(fields[2]))
 		}
 	}
-	patch, err := g.run(ctx, repo, nil, "diff", "--patch", "--full-index", "--no-renames", "--no-ext-diff", "--no-textconv", string(from), string(to), "--")
-	return patch, binary, err
+	return binary, nil
 }
 
 // ReadBlob reads a pinned object with the same managed output/stop bounds as
