@@ -1,0 +1,172 @@
+{
+  "$defs": {
+    "FailureRecoveryPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "repair_current",
+            "retry_review_input",
+            "follow_up",
+            "needs_owner"
+          ],
+          "type": "string"
+        },
+        "category": {
+          "enum": [
+            "execution_failure",
+            "test_error",
+            "product_defect",
+            "evidence_missing",
+            "contract_mismatch",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/TaskProposal"
+          },
+          "maxItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "category",
+        "reason",
+        "action",
+        "tasks"
+      ],
+      "type": "object"
+    },
+    "TaskProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "type": "string"
+        },
+        "budget_seconds": {
+          "maximum": 31536000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "dependencies": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "hot_resources": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "key": {
+          "type": "string"
+        },
+        "max_repairs": {
+          "maximum": 2,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_retries": {
+          "maximum": 2,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_run_seconds": {
+          "description": "Finite single Run limit; must be \u003c= budget_seconds.",
+          "maximum": 604800,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "requirement_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "test_run_id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "test_run_id",
+        "key",
+        "title",
+        "objective",
+        "acceptance",
+        "requirement_ids",
+        "paths",
+        "dependencies",
+        "hot_resources",
+        "budget_seconds",
+        "max_run_seconds",
+        "max_repairs",
+        "max_retries"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "enum": [
+        "repair_current",
+        "retry_review_input",
+        "follow_up",
+        "needs_owner"
+      ],
+      "type": "string"
+    },
+    "category": {
+      "enum": [
+        "execution_failure",
+        "test_error",
+        "product_defect",
+        "evidence_missing",
+        "contract_mismatch",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "reason": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "type": "string"
+    },
+    "tasks": {
+      "items": {
+        "$ref": "#/$defs/TaskProposal"
+      },
+      "maxItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "category",
+    "reason",
+    "action",
+    "tasks"
+  ],
+  "type": "object"
+}

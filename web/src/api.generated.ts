@@ -333,6 +333,49 @@ export interface ChatDetail {
   version: number;
   item: ChatItem;
 }
+export interface FailureContext {
+  assessment_id: string;
+  source_task_id: string;
+  source_run_id: string;
+  source_commit: string;
+  source_title: string;
+  source_acceptance: string;
+  reason: string;
+  findings: (string)[] | null;
+  execution_detail: string;
+  source_checks: (Check)[] | null;
+  check_results: (CheckResult)[] | null;
+}
+export interface RecoveryHint {
+  category: string;
+  reason: string;
+}
+export interface FailureRecoveryPlan {
+  category: string;
+  reason: string;
+  action: string;
+  tasks: (TaskProposal)[] | null;
+}
+export interface FailureAssessment {
+  id: string;
+  version: number;
+  source_task: Task;
+  source_run_id: string;
+  source_run_version: number;
+  source_candidate_id: string;
+  source_candidate_version: number;
+  source_commit: string;
+  policy_version: number;
+  test_policy_version: number;
+  state: string;
+  run_id: string;
+  result?: FailureRecoveryPlan | null;
+  followup_task_id: string;
+  waiting_task_version: number;
+  detail: string;
+  created_at: string;
+  updated_at: string;
+}
 export interface ExecutionIntent {
   version: 1;
   status: "completed" | "scope_requested" | "blocked";
@@ -465,6 +508,8 @@ export interface LeaderResult {
   major_decisions: (MajorDecisionProposal)[] | null;
 }
 export interface PlanningRun {
+  failure_assessment_id?: string;
+  failure_result?: FailureRecoveryPlan | null;
   leader?: LeaderSelection | null;
   requirement_change_id?: string;
   requirement_revisions?: Record<string, number>;
@@ -627,6 +672,8 @@ export interface NodeSnapshot {
   requirements: (Requirement)[] | null;
 }
 export interface Task {
+  failure_source_task_id?: string;
+  failure_assessment_id?: string;
   requirement_hold_reason?: string;
   requirement_revisions?: Record<string, number>;
   requirement_change_id?: string;
@@ -726,6 +773,7 @@ export interface Run {
   finished_at?: string | null;
 }
 export interface Review {
+  recovery?: RecoveryHint | null;
   candidate: string;
   verdict: string;
   summary: string;
@@ -802,6 +850,36 @@ export interface ScopeRequest {
   allowed_paths: (string)[] | null;
   reason: string;
 }
+export interface TaskAcceptanceRequest {
+  expected_version: number;
+  expected_candidate_id: string;
+  acceptance: string;
+  reason: string;
+}
+export interface ReviewInputRetryRequest {
+  expected_version: number;
+  expected_candidate_id: string;
+  expected_candidate_version: number;
+  expected_commit: string;
+  review_run_id: string;
+  reason: string;
+}
+export interface GoalBudgetRequest {
+  expected_version: number;
+  expected_goal_version: number;
+  expected_authorization_version: number;
+  budget_seconds: number;
+  reason: string;
+}
+export interface GoalBudgetState {
+  version: number;
+  goal_version: number;
+  goal_authorization_version: number;
+  budget_seconds: number;
+  used_seconds: number;
+  reserved_seconds: number;
+  reason?: string;
+}
 export interface RegisterRequest {
   code: string;
   name: string;
@@ -819,6 +897,8 @@ export interface ClaimRequest {
   execution_intent_version?: number;
 }
 export interface Assignment {
+  failure_recovery_version?: number;
+  failure_context?: FailureContext | null;
   requirements?: (RequirementContext)[] | null;
   baseline?: Baseline | null;
   goal_context?: GoalContext | null;
@@ -864,6 +944,11 @@ export interface BudgetRequest {
   budget_seconds: number;
   max_repairs: number;
   max_retries: number;
+  reason: string;
+}
+export interface TaskToolRequest {
+  expected_version: number;
+  tool: string;
   reason: string;
 }
 export interface Artifact {

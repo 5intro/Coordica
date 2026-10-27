@@ -151,3 +151,44 @@ printf '%s\n' '{"type":"turn.completed"}'
 		t.Fatal("wrong native consult contract", e)
 	}
 }
+
+func TestCodexFailureRecoveryUsesDedicatedReadOnlySchema(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix synthetic CLI fixture")
+	}
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "fake-codex")
+	script := `#!/bin/sh
+model=0
+readonly=0
+isolated=0
+schema=''
+previous=''
+for arg in "$@"; do
+ if [ "$previous" = '--model' ] && [ "$arg" = 'gpt-6.1-sol' ]; then model=1; fi
+ if [ "$previous" = '--sandbox' ] && [ "$arg" = 'read-only' ]; then readonly=1; fi
+ if [ "$arg" = '--ignore-user-config' ]; then isolated=1; fi
+ if [ "$previous" = '--output-schema' ]; then schema="$arg"; fi
+ previous="$arg"
+done
+if [ "$model$readonly$isolated" != '111' ]; then exit 42; fi
+cp "$schema" consult-schema.json
+cat >/dev/null
+printf '%s\n' '{"type":"thread.started","thread_id":"consult-session"}'
+printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"{\"reply\":\"advice\"}"}}'
+printf '%s\n' '{"type":"turn.completed"}'
+`
+	if e := os.WriteFile(exe, []byte(script), 0700); e != nil {
+		t.Fatal(e)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, e := (CodexPlanningExecutor{Executable: exe}).Execute(ctx, dir, "COORDICA_FAILURE_RECOVERY_V1\nFixed failure diagnosis", func(int) error { return nil })
+	if e != nil || !out.TreeStopped || out.Output != `{"reply":"advice"}` {
+		t.Fatal(out, e)
+	}
+	raw, e := os.ReadFile(filepath.Join(dir, "consult-schema.json"))
+	if e != nil || string(raw) != string(failureRecoveryOutputSchema) || !strings.Contains(string(raw), "repair_current") {
+		t.Fatal("wrong native failure contract", e)
+	}
+}

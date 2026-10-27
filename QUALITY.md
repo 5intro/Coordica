@@ -67,3 +67,18 @@ go run ./cmd/qualitycheck --base <full-main-sha> --candidate <full-candidate-sha
 
 Also run project-native build/type checks and relevant failure-mode regressions.
 An advisory-only exit status does not replace those required checks.
+
+## Parallel execution review
+
+Prefer useful parallel work when dependencies, scopes and host resources allow it.
+For scheduling changes, review stable shared interfaces, independent workspaces,
+ports/databases/output isolation and actual shared-resource contention. Separate
+light development work from expensive builds or browser tests where supported;
+static capacity alone is not measured CPU/memory headroom or OS isolation.
+
+Keep per-Run source/authority fencing and main/candidate revalidation intact.
+Report actual overlapping Run intervals and completed useful work when claiming
+parallel speedup. Explain necessary serialization and avoid task fragmentation
+whose coordination/review cost exceeds its benefit. Missing or stale resource
+telemetry must not silently justify higher concurrency. These are engineering
+review requirements, not an automatic numeric merge veto.

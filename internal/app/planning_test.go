@@ -878,6 +878,11 @@ func TestLeaderPromptDeclaresProposalTypesAndInitialScopeRule(t *testing.T) {
 				t.Errorf("missing prompt rule %q", rule)
 			}
 		}
+		for _, rule := range []string{"Separate module acceptance from final delivery acceptance", "an upstream module's acceptance require a downstream task", "actual shared contention"} {
+			if !strings.Contains(prompt, rule) {
+				t.Errorf("missing task-boundary planning rule %q", rule)
+			}
+		}
 		raw, _ := json.Marshal(result)
 		return PlanningOutcome{Output: string(raw), TreeStopped: true, ElapsedSeconds: 2}, nil
 	})}

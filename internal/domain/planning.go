@@ -112,6 +112,8 @@ type ProposalTaskMapping struct {
 	TaskID string `json:"task_id"`
 }
 type PlanningRun struct {
+	FailureAssessmentID  string                `json:"failure_assessment_id,omitempty"`
+	FailureResult        *FailureRecoveryPlan  `json:"failure_result,omitempty"`
 	Leader               *LeaderSelection      `json:"leader,omitempty"`
 	RequirementChangeID  string                `json:"requirement_change_id,omitempty"`
 	RequirementRevisions map[string]int64      `json:"requirement_revisions,omitempty"`

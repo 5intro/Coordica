@@ -18,6 +18,8 @@ const SourceVersion = "0.2.5-dev"
 // Explicit finite task and execution deadlines; project spending is telemetry.
 const MaxTaskBudgetSeconds int64 = 31536000 // 365 days, including manual extensions
 const MaxRunDurationSeconds int64 = 604800  // 7 days; leases renew independently
+const MaxTaskRepairs = 2
+const MaxTaskRetries = 2
 
 type Check struct {
 	Name           string   `json:"name"`
@@ -64,6 +66,8 @@ type RequirementProposal struct {
 	Body  string `json:"body"`
 }
 type Task struct {
+	FailureSourceTaskID      string            `json:"failure_source_task_id,omitempty"`
+	FailureAssessmentID      string            `json:"failure_assessment_id,omitempty"`
 	RequirementHoldReason    string            `json:"requirement_hold_reason,omitempty"`
 	RequirementRevisions     map[string]int64  `json:"requirement_revisions,omitempty"`
 	RequirementChangeID      string            `json:"requirement_change_id,omitempty"`
@@ -165,11 +169,12 @@ type Run struct {
 	FinishedAt               *time.Time       `json:"finished_at,omitempty"`
 }
 type Review struct {
-	Candidate string   `json:"candidate"`
-	Verdict   string   `json:"verdict"`
-	Summary   string   `json:"summary"`
-	Findings  []string `json:"findings"`
-	RunID     string   `json:"run_id"`
+	Recovery  *RecoveryHint `json:"recovery,omitempty"`
+	Candidate string        `json:"candidate"`
+	Verdict   string        `json:"verdict"`
+	Summary   string        `json:"summary"`
+	Findings  []string      `json:"findings"`
+	RunID     string        `json:"run_id"`
 }
 type CheckResult struct {
 	Name            string `json:"name"`
@@ -311,15 +316,17 @@ type ClaimRequest struct {
 	ExecutionIntentVersion   int          `json:"execution_intent_version,omitempty"`
 }
 type Assignment struct {
-	Requirements     []RequirementContext `json:"requirements,omitempty"`
-	Baseline         *Baseline            `json:"baseline,omitempty"`
-	GoalContext      *GoalContext         `json:"goal_context,omitempty"`
-	Run              Run                  `json:"run"`
-	Task             Task                 `json:"task"`
-	Project          Project              `json:"project"`
-	Candidate        *Candidate           `json:"candidate,omitempty"`
-	InputURL         string               `json:"input_url"`
-	HeartbeatSeconds int                  `json:"heartbeat_seconds"`
+	FailureRecoveryVersion int                  `json:"failure_recovery_version,omitempty"`
+	FailureContext         *FailureContext      `json:"failure_context,omitempty"`
+	Requirements           []RequirementContext `json:"requirements,omitempty"`
+	Baseline               *Baseline            `json:"baseline,omitempty"`
+	GoalContext            *GoalContext         `json:"goal_context,omitempty"`
+	Run                    Run                  `json:"run"`
+	Task                   Task                 `json:"task"`
+	Project                Project              `json:"project"`
+	Candidate              *Candidate           `json:"candidate,omitempty"`
+	InputURL               string               `json:"input_url"`
+	HeartbeatSeconds       int                  `json:"heartbeat_seconds"`
 }
 type HeartbeatRequest struct {
 	Generation     int64  `json:"generation"`
@@ -411,7 +418,9 @@ func ValidateTask(t Task) error {
 		}
 		seenRequirements[id] = true
 	}
-	if t.BudgetSeconds <= 0 || t.BudgetSeconds > MaxTaskBudgetSeconds || t.MaxRunSeconds <= 0 || t.MaxRunSeconds > MaxRunDurationSeconds || t.MaxRunSeconds > t.BudgetSeconds || t.MaxRepairs < 0 || t.MaxRepairs > 2 || t.MaxRetries < 0 || t.MaxRetries > 2 {
+	if t.BudgetSeconds <= 0 || t.BudgetSeconds > MaxTaskBudgetSeconds || t.MaxRunSeconds <= 0 ||
+		t.MaxRunSeconds > MaxRunDurationSeconds || t.MaxRunSeconds > t.BudgetSeconds ||
+		t.MaxRepairs < 0 || t.MaxRepairs > MaxTaskRepairs || t.MaxRetries < 0 || t.MaxRetries > MaxTaskRetries {
 		return Fail("invalid_input", "无效的任务预算或次数限制")
 	}
 	for _, p := range t.AllowedPaths {

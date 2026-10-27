@@ -265,6 +265,9 @@ func (w *VerificationWorker) finish(ctx context.Context, r domain.Run, results [
 					return e
 				}
 			}
+			if e = captureTaskFailure(tx, s, t, current.Detail); e != nil {
+				return e
+			}
 		}
 		return s.audit(tx, Actor{ID: "center"}, "tests.completed", r.ID, fmt.Sprintf("%s; accepted=%t; historical=%t", current.State, valid, !owns))
 	})

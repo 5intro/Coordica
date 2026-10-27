@@ -165,9 +165,13 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 			finish(err)
 			return
 		}
-		if definition.Protocol == agent.ProtocolCodex || definition.Protocol == agent.ProtocolClaude {
+		if definition.Protocol == agent.ProtocolCodex {
 			request.OutputSchemaPath = schemaPath
 		} else {
+			// Development uses an exact terminal JSON contract for Claude/RPC
+			// tools. A native --json-schema output tool is not available on all
+			// Claude backends. ParseExecutionIntent remains authoritative; this
+			// is selected before launch, never a fallback from a failed schema.
 			request.Prompt += "\nReturn exactly one JSON object matching this schema, without Markdown or extra prose:\n" + string(executionOutputSchema)
 		}
 		request.Prompt += nativeIntentPrompt
@@ -176,7 +180,7 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 		request.AllowedTools = []string{"Read", "Glob", "Grep"}
 		if definition.Protocol == agent.ProtocolCodex || definition.Protocol == agent.ProtocolClaude {
 			schemaPath := filepath.Join(dir, "review.schema.json")
-			if err = os.WriteFile(schemaPath, reviewOutputSchema(assignment.Run.Base), 0600); err != nil {
+			if err = os.WriteFile(schemaPath, reviewOutputSchema(assignment.Run.Base, assignment.FailureRecoveryVersion), 0600); err != nil {
 				finish(err)
 				return
 			}
@@ -308,12 +312,18 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 			return
 		}
 		review, err := parseReview(result.OutputText, assignment.Run.Base)
+		if err == nil && assignment.FailureRecoveryVersion != 1 && review.Recovery != nil {
+			err = errors.New("center has not enabled review recovery hints")
+		}
 		if err != nil {
 			finish(err)
 			return
 		}
 		completion.Review = &review
 		completion.Review.Summary = r.safeText(completion.Review.Summary)
+		if completion.Review.Recovery != nil {
+			completion.Review.Recovery.Reason = r.safeText(completion.Review.Recovery.Reason)
+		}
 		for i, finding := range completion.Review.Findings {
 			completion.Review.Findings[i] = r.safeText(finding)
 		}
@@ -370,6 +380,9 @@ func parseReview(text, candidate string) (domain.Review, error) {
 	}
 	if review.RunID != "" {
 		return review, errors.New("review cannot assert a Run identity")
+	}
+	if err := domain.ValidateRecoveryHint(review.Recovery, review.Verdict); err != nil {
+		return review, err
 	}
 	return review, nil
 }

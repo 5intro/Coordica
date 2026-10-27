@@ -36,6 +36,9 @@ var consultOutputSchema []byte
 //go:embed requirement-change.schema.json
 var requirementOutputSchema []byte
 
+//go:embed failure-recovery.schema.json
+var failureRecoveryOutputSchema []byte
+
 func (e CodexPlanningExecutor) Execute(ctx context.Context, dir, prompt string, onStarted func(int) error) (app.PlanningOutcome, error) {
 	return (&AgentPlanningExecutor{Registry: agent.DefaultRegistry(), Executables: map[string]string{"codex": e.Executable}}).
 		ExecuteSelected(ctx, domain.DefaultLeaderSelection(), dir, prompt, onStarted)
@@ -70,6 +73,9 @@ func (e *AgentPlanningExecutor) ExecuteSelected(ctx context.Context, selection d
 	}
 	if strings.HasPrefix(prompt, "COORDICA_REQUIREMENT_CHANGE_V1\n") {
 		schema = requirementOutputSchema
+	}
+	if strings.HasPrefix(prompt, "COORDICA_FAILURE_RECOVERY_V1\n") {
+		schema = failureRecoveryOutputSchema
 	}
 	if err = os.WriteFile(schemaPath, schema, 0600); err != nil {
 		return app.PlanningOutcome{TreeStopped: true, Error: planningError(err)}, err

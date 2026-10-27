@@ -63,3 +63,32 @@ func assignedRequirements(tx *store.Tx, t domain.Task, r domain.Run) ([]domain.R
 	}
 	return out, nil
 }
+
+// Construct and validate the complete fixed context before a claim reserves
+// resources. The caller adds the new Run identity inside the same transaction.
+func assignedTaskContext(tx *store.Tx, task domain.Task, run domain.Run, project domain.Project, candidate *domain.Candidate) (domain.Assignment, error) {
+	result := domain.Assignment{Task: task, Run: run, Project: project, Candidate: candidate,
+		FailureRecoveryVersion: 1, HeartbeatSeconds: 10}
+	if task.GoalVersion == 0 {
+		result.FailureRecoveryVersion = 0
+	}
+	var err error
+	result.Requirements, err = assignedRequirements(tx, task, run)
+	if err != nil {
+		return result, err
+	}
+	result.GoalContext, err = assignedRunGoal(tx, run)
+	if err != nil {
+		return result, err
+	}
+	baseline, err := initialization(tx)
+	if err != nil {
+		return result, err
+	}
+	result.Baseline = baseline.ApprovedBaseline
+	result.FailureContext, err = assignmentFailureContext(tx, task)
+	if err != nil {
+		return result, err
+	}
+	return result, domain.ValidateAssignmentContext(result)
+}

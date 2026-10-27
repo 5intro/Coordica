@@ -35,7 +35,7 @@ func currentLeaderBaseline(tx *store.Tx, r domain.PlanningRun) (leaderBaselineCo
 	if err != nil {
 		return out, err
 	}
-	if current.State != "running" || current.Generation != r.Generation || current.DocumentVersion != r.DocumentVersion || current.AuthorizationVersion != r.AuthorizationVersion || current.Purpose != r.Purpose || current.RequirementChangeID != r.RequirementChangeID || d.Version != r.DocumentVersion || d.AuthorizationVersion != r.AuthorizationVersion || !requirementPlanCurrent(tx, r) {
+	if current.State != "running" || current.Generation != r.Generation || current.DocumentVersion != r.DocumentVersion || current.AuthorizationVersion != r.AuthorizationVersion || current.Purpose != r.Purpose || current.RequirementChangeID != r.RequirementChangeID || current.FailureAssessmentID != r.FailureAssessmentID || !failurePlanningCurrent(tx, r) || d.Version != r.DocumentVersion || d.AuthorizationVersion != r.AuthorizationVersion || !requirementPlanCurrent(tx, r) {
 		return out, domain.Fail("stale_run", "规划上下文所属执行或需求版本已变化")
 	}
 	p, err := getProject(tx)
@@ -60,6 +60,8 @@ func currentLeaderBaseline(tx *store.Tx, r domain.PlanningRun) (leaderBaselineCo
 
 // The index excludes verbose prose, never versions, roots or cumulative limits.
 type planningTaskIndex struct {
+	FailureSourceTaskID      string           `json:"failure_source_task_id,omitempty"`
+	FailureAssessmentID      string           `json:"failure_assessment_id,omitempty"`
 	ID                       string           `json:"id"`
 	Version                  int64            `json:"version"`
 	Title                    string           `json:"title"`
@@ -92,7 +94,7 @@ type planningTaskIndex struct {
 func indexPlanningTasks(tasks []domain.Task) []planningTaskIndex {
 	out := make([]planningTaskIndex, 0, len(tasks))
 	for _, t := range tasks {
-		out = append(out, planningTaskIndex{ID: t.ID, Version: t.Version, Title: t.Title, State: t.State, AuthorizationVersion: t.AuthorizationVersion, GoalVersion: t.GoalVersion, GoalAuthorizationVersion: t.GoalAuthorizationVersion, BaselineVersion: t.BaselineVersion, BaselineDigest: t.BaselineDigest, RequirementIDs: t.RequirementIDs, RequirementRevisions: t.RequirementRevisions, Dependencies: t.Dependencies, AllowedPaths: t.AllowedPaths, HotResources: t.HotResources, Tool: t.Tool, HoldReason: t.HoldReason, BudgetSeconds: t.BudgetSeconds, UsedSeconds: t.UsedSeconds, ReservedSeconds: t.ReservedSeconds, MaxRunSeconds: t.MaxRunSeconds, MaxRepairs: t.MaxRepairs, MaxRetries: t.MaxRetries, Repairs: t.Repairs, Retries: t.Retries, CurrentRunID: t.CurrentRunID, CurrentCandidateID: t.CurrentCandidateID, TestRunID: t.TestRunID})
+		out = append(out, planningTaskIndex{FailureSourceTaskID: t.FailureSourceTaskID, FailureAssessmentID: t.FailureAssessmentID, ID: t.ID, Version: t.Version, Title: t.Title, State: t.State, AuthorizationVersion: t.AuthorizationVersion, GoalVersion: t.GoalVersion, GoalAuthorizationVersion: t.GoalAuthorizationVersion, BaselineVersion: t.BaselineVersion, BaselineDigest: t.BaselineDigest, RequirementIDs: t.RequirementIDs, RequirementRevisions: t.RequirementRevisions, Dependencies: t.Dependencies, AllowedPaths: t.AllowedPaths, HotResources: t.HotResources, Tool: t.Tool, HoldReason: t.HoldReason, BudgetSeconds: t.BudgetSeconds, UsedSeconds: t.UsedSeconds, ReservedSeconds: t.ReservedSeconds, MaxRunSeconds: t.MaxRunSeconds, MaxRepairs: t.MaxRepairs, MaxRetries: t.MaxRetries, Repairs: t.Repairs, Retries: t.Retries, CurrentRunID: t.CurrentRunID, CurrentCandidateID: t.CurrentCandidateID, TestRunID: t.TestRunID})
 	}
 	return out
 }

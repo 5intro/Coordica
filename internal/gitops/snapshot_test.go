@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -209,5 +210,31 @@ func TestCommitScopedRejectsLinkedMetadataBeforeAnyWrites(t *testing.T) {
 	head, err := g.Head(context.Background(), repo)
 	if err != nil || head != base {
 		t.Fatal("linked metadata refusal advanced HEAD", err)
+	}
+}
+
+func TestCommitScopedReportsGeneratedDependencyInputWithoutDiscardingIt(t *testing.T) {
+	g, repo, base, scope := scopedFixture(t)
+	writeFile(t, repo, "src/modify.txt", "intended change\n")
+	writeFile(t, repo, "cache/package/bin/tool", "dependency executable\n")
+	link := filepath.Join(repo, "cache", "package", "tool")
+	if err := os.Symlink("bin/tool", link); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows symlink privilege unavailable")
+		}
+		t.Fatal(err)
+	}
+	_, err := g.CommitScoped(context.Background(), repo, base, scope, "must preserve rejected inputs", testIdentity)
+	if !errors.Is(err, ErrUnsupportedObject) || !strings.Contains(err.Error(), "cache/package/tool") {
+		t.Fatalf("snapshot failure must identify the relative unsupported input: %v", err)
+	}
+	if head, headErr := g.Head(context.Background(), repo); headErr != nil || head != base {
+		t.Fatalf("snapshot refusal changed fixed HEAD: %s %v", head, headErr)
+	}
+	if target, readErr := os.Readlink(link); readErr != nil || filepath.ToSlash(target) != "bin/tool" {
+		t.Fatalf("snapshot refusal discarded dependency inputs: %q %v", target, readErr)
+	}
+	if data, readErr := os.ReadFile(filepath.Join(repo, "cache", "package", "bin", "tool")); readErr != nil || string(data) != "dependency executable\n" {
+		t.Fatalf("snapshot refusal altered dependency contents: %q %v", data, readErr)
 	}
 }

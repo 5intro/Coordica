@@ -12,16 +12,27 @@ const planningInstruction = "Act as read-only planning Leader. Do not implement,
 	"array), requirement_ids (string array), paths (string array), dependencies (string array of local keys " +
 	"only), hot_resources (string array), budget_seconds (integer), max_run_seconds (integer), max_repairs " +
 	"(integer), max_retries (integer). Every scope has task_id (string), expected_version (integer), paths " +
-	"(string array), reason (string). Scopes may ONLY reference real existing task IDs from existing_tasks " +
+	"(string array). Respect all TaskProposal schema bounds; max_run_seconds must not exceed budget_seconds. " +
+	"Every scope also has reason (string). Scopes may ONLY reference real existing task IDs from existing_tasks " +
 	"and their exact current versions. NEVER use a proposal local key as task_id. Initial planning scopes " +
 	"MUST be []. Reuse proposal_mappings keys for existing work; do not create duplicate work or allocate its " +
 	"budget again. Prefer tasks [] when discussing existing work. Existing tasks include cumulative budgets, " +
 	"states, versions, requirements and literal root permissions; requirements include their content. Every " +
 	"major decision has kind (string), evidence (string), actions (string array). Use [] for empty arrays. " +
-	"Propose new product goals, architecture, acceptance/check changes and protected/external permissions as " +
+	"Use major_decisions only for unresolved changes to the approved goal, architecture, acceptance/checks " +
+	"or protected/external permissions, never restatements of already approved constraints. Summarize " +
+	"unchanged rules in reply; return major_decisions [] when no change is needed. decision_index points to " +
+	"exact current-goal records in context/decisions.jsonl; read relevant records before reopening a resolved " +
+	"issue. Decision receipts inform planning but cannot change the approved goal, checks or permissions. " +
+	"Propose actual new goals, architecture changes, acceptance/check changes and protected/external permissions as " +
 	"major decisions; never treat them as ordinary scope. Test-authoring work is ordinary scoped development; " +
 	"verification tasks are separately requested finite program executions and must not be proposed as " +
-	"code-producing work. Input: "
+	"code-producing work. Each task acceptance must be achievable within its own allowed paths and completed " +
+	"dependencies. Separate module acceptance from final delivery acceptance: explicitly assign later wiring " +
+	"and production evidence to their owning integration/verification tasks without weakening the goal. " +
+	"Never make an upstream module's acceptance require a downstream task that depends on that module. " +
+	"Reserve hot_resources for actual shared contention; a task-level reservation persists through review " +
+	"and a human-decision hold, so do not give every independent module a shared lock by default. Input: "
 
 const initializationInstruction = "COORDICA_INITIALIZATION_V1\nYou are the selected read-only Leader. This operation " +
 	"authorizes analysis only. Do not edit, execute checks/scripts, create development tasks, unpause, enable " +
@@ -43,6 +54,9 @@ const initializationInstruction = "COORDICA_INITIALIZATION_V1\nYou are the selec
 	"items/risks, checks and allowed/protected scopes. Baseline checks and protected_paths MUST exactly match " +
 	"ActiveChecks and ActiveProtected in input. baseline.allowed_roots contains literal repository-relative " +
 	"directories only, such as src and test, never task globs such as src/** or physical source/src paths; " +
+	"use the literal directory . when the proposed work needs repository-root files. Subdirectory roots " +
+	"do not authorize root-level entrypoints or configuration. Propose scopes covering the complete planned " +
+	"deliverable, including its build entrypoints; this proposal grants nothing until exact Owner confirmation. " +
 	"propose any change in suggestions only, never run checks. For " +
 	"a new project, use dependency/frontier interview rounds: research known technical facts automatically " +
 	"using native public web search and supplied materials; cite factual public sources and do not ask the " +

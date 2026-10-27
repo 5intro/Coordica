@@ -2,7 +2,6 @@ package runner
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 
@@ -25,13 +24,8 @@ func TestRegisteredGoalToolsUseStructuredScopeHandoff(t *testing.T) {
 				if req.Tool != tool || req.Model != "provider/flash" || !strings.Contains(req.Prompt, nativeIntentPrompt) {
 					t.Fatal("registered tool lost its selection or intent contract")
 				}
-				if tool == "claude" {
-					data, err := os.ReadFile(req.OutputSchemaPath)
-					if err != nil || string(data) != string(executionOutputSchema) {
-						t.Fatal("native schema was not supplied", err)
-					}
-				} else if req.OutputSchemaPath != "" || !strings.Contains(req.Prompt, string(executionOutputSchema)) {
-					t.Fatal("RPC intent did not carry the trusted schema")
+				if req.OutputSchemaPath != "" || !strings.Contains(req.Prompt, string(executionOutputSchema)) {
+					t.Fatal("terminal JSON intent did not carry the trusted schema")
 				}
 				return agent.Result{ExitCode: 0, TreeStopped: true, OutputText: scopeIntentText()}, nil
 			}
