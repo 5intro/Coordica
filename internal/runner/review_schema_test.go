@@ -25,7 +25,11 @@ func TestReviewSchemaPinsCandidateAndCannotAssertRunIdentity(t *testing.T) {
 	var fields []string
 	typ := reflect.TypeOf(domain.Review{})
 	for i := 0; i < typ.NumField(); i++ {
-		fields = append(fields, strings.Split(typ.Field(i).Tag.Get("json"), ",")[0])
+		name := strings.Split(typ.Field(i).Tag.Get("json"), ",")[0]
+		if name == "rules_digest" || name == "issues" || name == "resolutions" {
+			continue
+		}
+		fields = append(fields, name)
 	}
 	slices.Sort(fields)
 	slices.Sort(schema.Required)

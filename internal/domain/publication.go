@@ -15,8 +15,9 @@ var ErrPublicationNotReady = errors.New("publication gates not ready")
 
 // PublicationPolicy contains no credentials. Empty mode preserves local Git.
 type PublicationPolicy struct {
-	Mode           string   `json:"mode"`
-	RequiredChecks []string `json:"required_checks"`
+	ReviewProviders []ExternalReviewPolicy `json:"review_providers,omitempty"`
+	Mode            string                 `json:"mode"`
+	RequiredChecks  []string               `json:"required_checks"`
 }
 
 type PublicationRequest struct {
@@ -26,14 +27,15 @@ type PublicationRequest struct {
 
 // PullRequestSpec is a fixed protocol request, not a task or scheduling rule.
 type PullRequestSpec struct {
-	Repository     string
-	Branch         string
-	TargetBranch   string
-	Head           string
-	Base           string
-	Title          string
-	Number         int
-	RequiredChecks []string
+	ReviewProviders []ExternalReviewPolicy
+	Repository      string
+	Branch          string
+	TargetBranch    string
+	Head            string
+	Base            string
+	Title           string
+	Number          int
+	RequiredChecks  []string
 }
 
 type RemoteCheck struct {
@@ -55,21 +57,22 @@ type RemoteReview struct {
 
 // PullRequestStatus is an observed fact, never an independent execution grant.
 type PullRequestStatus struct {
-	Number      int            `json:"number"`
-	URL         string         `json:"url"`
-	Branch      string         `json:"branch"`
-	Head        string         `json:"head"`
-	Base        string         `json:"base"`
-	State       string         `json:"state"`
-	CI          string         `json:"ci"`
-	Review      string         `json:"review"`
-	Checks      []RemoteCheck  `json:"checks"`
-	Reviews     []RemoteReview `json:"reviews"`
-	MergeCommit string         `json:"merge_commit"`
-	MergeReady  bool           `json:"merge_ready"`
-	Detail      string         `json:"detail"`
-	SyncError   string         `json:"sync_error,omitempty"`
-	SyncedAt    time.Time      `json:"synced_at"`
+	ExternalReviews []ExternalReview `json:"external_reviews,omitempty"`
+	Number          int              `json:"number"`
+	URL             string           `json:"url"`
+	Branch          string           `json:"branch"`
+	Head            string           `json:"head"`
+	Base            string           `json:"base"`
+	State           string           `json:"state"`
+	CI              string           `json:"ci"`
+	Review          string           `json:"review"`
+	Checks          []RemoteCheck    `json:"checks"`
+	Reviews         []RemoteReview   `json:"reviews"`
+	MergeCommit     string           `json:"merge_commit"`
+	MergeReady      bool             `json:"merge_ready"`
+	Detail          string           `json:"detail"`
+	SyncError       string           `json:"sync_error,omitempty"`
+	SyncedAt        time.Time        `json:"synced_at"`
 }
 
 func GitHubPublication(p Project) bool { return p.Publication != nil && p.Publication.Mode == "github" }
@@ -94,13 +97,16 @@ func ValidatePublication(p Project) error {
 	}
 	policy := p.Publication
 	if policy.Mode == "" || policy.Mode == "git" {
-		if len(policy.RequiredChecks) != 0 {
+		if len(policy.RequiredChecks) != 0 || len(policy.ReviewProviders) != 0 {
 			return Fail("invalid_input", "本地 Git 模式不接受 GitHub 检查配置")
 		}
 		return nil
 	}
 	if policy.Mode != "github" {
 		return Fail("invalid_input", "不支持的发布模式")
+	}
+	if err := ValidateExternalReviewPolicy(policy.ReviewProviders); err != nil {
+		return err
 	}
 	if _, e := GitHubRepository(p.RepositoryURL); e != nil {
 		return e

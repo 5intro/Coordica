@@ -61,6 +61,10 @@ func (c *Client) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.
 	if e != nil {
 		return out, e
 	}
+	out.ExternalReviews, e = c.externalReviews(ctx, s)
+	if e != nil {
+		return out, e
+	}
 	out.Review = "none"
 	for _, r := range out.Reviews {
 		if r.State == "CHANGES_REQUESTED" {
@@ -141,7 +145,7 @@ requiredChecks:
 	if out.Review == "changes_requested" {
 		out.Detail = "GitHub 评审要求修改"
 	}
-	if p.MergeCommit != "" {
+	if p.MergeCommit != "" || len(s.ReviewProviders) > 0 {
 		current, err := c.getPull(ctx, s)
 		if err != nil {
 			return out, err
@@ -153,6 +157,16 @@ requiredChecks:
 		p = current
 	}
 	out.MergeReady = out.CI == "success" && out.Review != "changes_requested" && !p.Draft && p.Mergeable != nil && *p.Mergeable && (p.MergeableState == "clean" || p.MergeableState == "has_hooks" || p.MergeableState == "unstable")
+	for _, review := range out.ExternalReviews {
+		if review.State == "success" {
+			continue
+		}
+		out.MergeReady = false
+		out.Detail = review.Kind + ": " + review.Summary
+		if review.State == "failure" {
+			out.Review = "changes_requested"
+		}
+	}
 	if !out.MergeReady && out.Detail == "" {
 		out.Detail = "等待 GitHub 合并条件；不追加 Coordica 人工审批"
 	}

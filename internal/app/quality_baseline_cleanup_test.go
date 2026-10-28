@@ -49,7 +49,7 @@ func TestInvalidMainSourceCanBeRepairedThroughPreparationAndLanding(t *testing.T
 		review := f.claim(t, "review")
 		_, err := f.s.Complete(ctx, f.node, ID("review_"), review.Run.ID, domain.CompleteRequest{
 			Generation: review.Run.Generation, Status: "succeeded", SessionID: "review-cleanup", Quiescent: true,
-			Review: &domain.Review{Candidate: candidate.Commit, Verdict: "approve", Summary: "Fixed invalid source", Findings: []string{}},
+			Review: testReview(review, domain.Review{Candidate: candidate.Commit, Verdict: "approve", Summary: "Fixed invalid source", Findings: []string{}}),
 		})
 		if err != nil {
 			t.Fatal(err)

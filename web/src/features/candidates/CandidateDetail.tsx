@@ -6,6 +6,7 @@ import { PullRequestStatus } from '../PullRequestStatus';
 import { CandidateApproval } from './CandidateApproval';
 import { CandidateChecks, CandidateReview, CandidateVersions } from './CandidateEvidence';
 import { activeCandidate, candidateStageGuidance } from './candidateView';
+import { ReviewIssues } from './ReviewIssues';
 
 type Props = { candidate: Candidate; snapshot: Snapshot; client: ApiClient; refresh: () => void };
 
@@ -26,6 +27,7 @@ export function CandidateDetail({ candidate, snapshot, client, refresh }: Props)
     <CandidateApproval candidate={candidate} busy={action.busy} approve={approve} />
     <Feedback {...action} />
     <CandidateReview candidate={candidate} />
+    <ReviewIssues key={`${candidate.id}:${candidate.commit}`} candidate={candidate} client={client} refresh={refresh} />
     <CandidateChecks candidate={candidate} />
     <p className="fine-print">普通候选由中心自动放行。已进入主线与运行版本启用分别记录。</p>
   </article>;

@@ -618,6 +618,9 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 			if current.PullRequest == nil || current.PullRequest.Head != current.Commit || current.PullRequest.State != "merged" && current.PullRequest.Base != current.Main || (!current.PullRequest.MergeReady && current.PullRequest.State != "merged") || w.PullRequests == nil {
 				return nil
 			}
+			if current.PullRequest.State != "merged" && !domain.ExternalReviewsReady(project.Publication.ReviewProviders, current.PullRequest.ExternalReviews, current.Commit) {
+				return nil
+			}
 		}
 		blockingTests, e := blockingTestFailures(tx, current.Main, current.Commit)
 		if e != nil {
@@ -625,6 +628,17 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 		}
 		if len(blockingTests) != 0 {
 			return nil
+		}
+		if current.ReviewRules != nil {
+			if err := domain.ValidateReviewRules(*current.ReviewRules, current.Main); err != nil {
+				return err
+			}
+			if current.Review == nil || current.Review.RulesDigest != current.ReviewRules.Digest {
+				return domain.Fail("rules_changed", "fixed trusted review rules were not acknowledged")
+			}
+			if err := reviewLedgerReady(tx, t.ID, current.Commit); err != nil {
+				return err
+			}
 		}
 		if current.Review == nil || current.Review.Candidate != current.Commit || current.Review.Verdict != "approve" || !domain.ChecksPassed(candidateChecks(project, current), current.Checks) {
 			return domain.Fail("conflict", "缺少完整固定候选证据")
@@ -810,6 +824,7 @@ func (w *Integrator) invalidate(ctx context.Context, c domain.Candidate, reason 
 		current.Review = nil
 		current.Checks = nil
 		current.CheckPlan = nil
+		current.ReviewRules = nil
 		current.CheckRunID = ""
 		current.ApprovedCommit = ""
 		current.Detail = reason

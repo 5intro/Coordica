@@ -257,7 +257,7 @@ func (r *Runner) pendingClaim(ctx context.Context, capabilities []domain.Capabil
 	path := filepath.Join(r.config.DataDir, "claim.json")
 	var pending claimPending
 	if err := readJSON(path, &pending); errors.Is(err, os.ErrNotExist) {
-		pending = claimPending{Key: randomKey(), Request: domain.ClaimRequest{ProgressVersion: domain.ProgressVersion, Capabilities: capabilities,
+		pending = claimPending{Key: randomKey(), Request: domain.ClaimRequest{ReviewContractVersion: domain.ReviewContractVersion, ProgressVersion: domain.ProgressVersion, Capabilities: capabilities,
 			AssignmentContextVersion: domain.AssignmentContextVersion, ExecutionIntentVersion: domain.ExecutionIntentVersion}}
 		if err := writePrivateJSON(path, pending); err != nil {
 			return claimPending{}, err
@@ -271,7 +271,7 @@ func (r *Runner) pendingClaim(ctx context.Context, capabilities []domain.Capabil
 func (r *Runner) presence(ctx context.Context, capabilities []domain.Capability) error {
 	// Presence uses current cached discovery, independently of durable claims.
 	// It never creates claim.json while recovery holds every execution slot.
-	request := domain.ClaimRequest{ProgressVersion: domain.ProgressVersion, Capabilities: capabilities, AssignmentContextVersion: domain.AssignmentContextVersion,
+	request := domain.ClaimRequest{ReviewContractVersion: domain.ReviewContractVersion, ProgressVersion: domain.ProgressVersion, Capabilities: capabilities, AssignmentContextVersion: domain.AssignmentContextVersion,
 		ExecutionIntentVersion: domain.ExecutionIntentVersion}
 	_, err := r.json(ctx, "POST", "/api/v1/runner/presence", "", request, nil)
 	return err

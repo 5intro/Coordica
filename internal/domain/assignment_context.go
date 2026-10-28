@@ -20,6 +20,14 @@ func ValidateAssignmentContext(a Assignment) error {
 		(a.FailureContext.AssessmentID != a.Task.FailureRecheckID || a.FailureContext.SourceTaskID != a.Task.ID) {
 		return Fail("invalid_context", "recheck context must identify its original task")
 	}
+	if a.Candidate != nil && a.Candidate.ReviewRules != nil {
+		if err := ValidateReviewRules(*a.Candidate.ReviewRules, a.Candidate.Main); err != nil {
+			return err
+		}
+		if a.Run.Kind == "review" && (a.Run.ReviewContractVersion != ReviewContractVersion || a.Run.ReviewRulesDigest != a.Candidate.ReviewRules.Digest) {
+			return Fail("invalid_context", "review assignment must negotiate its exact trusted rules")
+		}
+	}
 	if err := ValidateAssignmentRequirements(a); err != nil {
 		return err
 	}
@@ -29,6 +37,7 @@ func ValidateAssignmentContext(a Assignment) error {
 		feedback, review = a.Candidate.Detail, a.Candidate.Review
 	}
 	raw, err := json.Marshal(struct {
+		Rules         *ReviewRules
 		ReviewContext *ReviewContext
 		Failure       *FailureContext
 		Task          Task
@@ -38,12 +47,19 @@ func ValidateAssignmentContext(a Assignment) error {
 		Protected     []string
 		Feedback      string
 		Review        *Review
-	}{a.ReviewContext, a.FailureContext, a.Task, a.Baseline, a.GoalContext, a.Requirements, a.Project.ProtectedPaths, feedback, review})
+	}{assignmentReviewRules(a), a.ReviewContext, a.FailureContext, a.Task, a.Baseline, a.GoalContext, a.Requirements, a.Project.ProtectedPaths, feedback, review})
 	if err != nil {
 		return err
 	}
 	if len(raw) > MaxAssignmentContextBytes {
 		return Fail("context_limit", "完整任务上下文超过上限，需要拆分任务；未省略需求、验收或权限")
+	}
+	return nil
+}
+
+func assignmentReviewRules(a Assignment) *ReviewRules {
+	if a.Candidate != nil {
+		return a.Candidate.ReviewRules
 	}
 	return nil
 }

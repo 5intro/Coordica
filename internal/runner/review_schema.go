@@ -2,6 +2,33 @@ package runner
 
 import "encoding/json"
 
+import "coordica/internal/domain"
+
+func assignedReviewSchema(a domain.Assignment) []byte {
+	if a.Run.ReviewContractVersion != domain.ReviewContractVersion {
+		return reviewOutputSchema(a.Run.Base, a.FailureRecoveryVersion)
+	}
+	var schema map[string]any
+	_ = json.Unmarshal(reviewOutputSchema(a.Run.Base, a.FailureRecoveryVersion), &schema)
+	props := schema["properties"].(map[string]any)
+	props["rules_digest"] = map[string]any{"type": "string", "enum": []string{a.Run.ReviewRulesDigest}}
+	fields := map[string]any{}
+	for _, key := range []string{"key", "severity", "title", "path", "trigger", "evidence", "impact"} {
+		fields[key] = map[string]any{"type": "string"}
+	}
+	fields["severity"] = map[string]any{"type": "string", "enum": []string{"P0", "P1", "P2", "P3"}}
+	fields["line"] = map[string]any{"type": "integer", "minimum": 0}
+	props["issues"] = map[string]any{"type": "array", "maxItems": 32, "items": map[string]any{"type": "object", "additionalProperties": false,
+		"required": []string{"key", "severity", "title", "path", "line", "trigger", "evidence", "impact"}, "properties": fields}}
+	props["resolutions"] = map[string]any{"type": "array", "maxItems": 64, "items": map[string]any{"type": "object", "additionalProperties": false,
+		"required": []string{"issue_id", "expected_version", "disposition", "reason"}, "properties": map[string]any{
+			"issue_id": map[string]any{"type": "string"}, "expected_version": map[string]any{"type": "integer", "minimum": 1},
+			"disposition": map[string]any{"type": "string", "enum": []string{"fixed", "false_positive"}}, "reason": map[string]any{"type": "string"}}}}
+	schema["required"] = append(schema["required"].([]any), "rules_digest", "issues", "resolutions")
+	b, _ := json.Marshal(schema)
+	return b
+}
+
 func reviewOutputSchema(candidate string, version int) []byte {
 	schema := map[string]any{
 		"type": "object", "additionalProperties": false,

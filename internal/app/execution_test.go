@@ -65,7 +65,7 @@ func newServiceFixture(t *testing.T) *serviceFixture {
 }
 func (f *serviceFixture) claim(t *testing.T, key string) *domain.Assignment {
 	t.Helper()
-	b, e := f.s.Claim(context.Background(), f.node, key, domain.ClaimRequest{AssignmentContextVersion: domain.AssignmentContextVersion, Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}}}, strings.Repeat("a", 40))
+	b, e := f.s.Claim(context.Background(), f.node, key, domain.ClaimRequest{ReviewContractVersion: domain.ReviewContractVersion, AssignmentContextVersion: domain.AssignmentContextVersion, Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}}}, strings.Repeat("a", 40))
 	return decodeTest[*domain.Assignment](t, b, e)
 }
 func (f *serviceFixture) snapshot(t *testing.T) domain.Snapshot {

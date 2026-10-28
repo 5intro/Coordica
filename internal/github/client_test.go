@@ -17,6 +17,8 @@ import (
 )
 
 type protocolFixture struct {
+	comments              []map[string]any
+	onComments            func()
 	client                *Client
 	spec                  domain.PullRequestSpec
 	create, merge, status int
@@ -87,6 +89,11 @@ func protocol(t *testing.T) *protocolFixture {
 			return map[string]any{"number": 7, "state": state, "merged": false, "draft": false, "mergeable": !f.unmergeable, "mergeable_state": mergeableState, "merge_commit_sha": f.testMerge, "head": map[string]any{"sha": head, "ref": f.spec.Branch, "repo": map[string]string{"full_name": headRepository}}, "base": map[string]any{"sha": f.spec.Base, "ref": "main", "repo": map[string]string{"full_name": baseRepository}}}
 		}
 		switch {
+		case p == "/issues/7/comments" && r.Method == "GET":
+			if f.onComments != nil {
+				f.onComments()
+			}
+			write(f.comments)
 		case p == "/pulls" && r.Method == "GET":
 			if f.created {
 				write([]any{pull()})

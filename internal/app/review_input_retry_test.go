@@ -20,7 +20,7 @@ func blockedReviewInputFixture(t *testing.T) (*itFixture, domain.Task, domain.Ca
 	_, err := f.s.Complete(context.Background(), f.node, "preflight-result", review.Run.ID, domain.CompleteRequest{
 		Generation: review.Run.Generation, Status: "succeeded", Quiescent: true, ElapsedSeconds: 1,
 		Detail: "review blocked before agent execution: complete review diff exceeds 1 MiB",
-		Review: &domain.Review{Candidate: c.Commit, Verdict: "blocked", Summary: "Complete fixed review input is unavailable", Findings: []string{"input size"}},
+		Review: testReview(review, domain.Review{Candidate: c.Commit, Verdict: "blocked", Summary: "Complete fixed review input is unavailable", Findings: []string{"input size"}}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -86,7 +86,7 @@ func TestReviewInputRetryPreservesCodeAccountingHistoryAndRequiresNewReview(t *t
 	}
 	_, err = f.s.Complete(ctx, f.node, "fresh-review", next.Run.ID, domain.CompleteRequest{Generation: next.Run.Generation,
 		Status: "succeeded", Quiescent: true, SessionID: "new-independent-model", ElapsedSeconds: 2,
-		Review: &domain.Review{Candidate: old.Commit, Verdict: "approve", Summary: "New independent review", Findings: []string{}}})
+		Review: testReview(next, domain.Review{Candidate: old.Commit, Verdict: "approve", Summary: "New independent review", Findings: []string{}})})
 	if err != nil || f.candidate(t).Review == nil || f.candidate(t).Review.RunID != next.Run.ID {
 		t.Fatal("new independent review could not finish", err)
 	}

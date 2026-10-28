@@ -162,8 +162,8 @@ func TestFailureRecoveryUnplannedReviewNeverGetsAnUnserviceableHold(t *testing.T
 		t.Fatal("unplanned project advertised automatic diagnosis")
 	}
 	_, err := f.s.Complete(context.Background(), f.node, "hint-without-goal", review.Run.ID, domain.CompleteRequest{Generation: review.Run.Generation,
-		Status: "succeeded", Quiescent: true, ElapsedSeconds: 1, Review: &domain.Review{Candidate: c.Commit, Verdict: "blocked", Summary: "Need evidence", Findings: []string{},
-			Recovery: &domain.RecoveryHint{Category: "evidence_missing", Reason: "No admitted goal for a follow-up"}}})
+		Status: "succeeded", Quiescent: true, ElapsedSeconds: 1, Review: testReview(review, domain.Review{Candidate: c.Commit, Verdict: "blocked", Summary: "Need evidence", Findings: []string{},
+			Recovery: &domain.RecoveryHint{Category: "evidence_missing", Reason: "No admitted goal for a follow-up"}})})
 	if err != nil {
 		t.Fatal(err)
 	}

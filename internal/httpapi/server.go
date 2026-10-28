@@ -59,6 +59,7 @@ func (s *Server) handler(runners, admin bool) http.Handler {
 	}
 	if admin {
 		registerAdminWorkspaces(mux, s)
+		registerReviewIssues(mux, s)
 	}
 	chatAPI := s.auth("chat", func(w http.ResponseWriter, r *http.Request) {
 		a := r.Context().Value(actorKey{}).(app.Actor)

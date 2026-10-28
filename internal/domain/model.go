@@ -137,6 +137,8 @@ type Node struct {
 	TokenHash            string           `json:"-"`
 }
 type Run struct {
+	ReviewContractVersion    int              `json:"review_contract_version,omitempty"`
+	ReviewRulesDigest        string           `json:"review_rules_digest,omitempty"`
 	ProgressVersion          int              `json:"progress_version,omitempty"`
 	ProgressCheckSeconds     int64            `json:"progress_check_seconds,omitempty"`
 	Progress                 *RunProgress     `json:"progress,omitempty"`
@@ -173,12 +175,15 @@ type Run struct {
 	FinishedAt               *time.Time       `json:"finished_at,omitempty"`
 }
 type Review struct {
-	Recovery  *RecoveryHint `json:"recovery,omitempty"`
-	Candidate string        `json:"candidate"`
-	Verdict   string        `json:"verdict"`
-	Summary   string        `json:"summary"`
-	Findings  []string      `json:"findings"`
-	RunID     string        `json:"run_id"`
+	RulesDigest string             `json:"rules_digest,omitempty"`
+	Issues      []ReviewFinding    `json:"issues,omitempty"`
+	Resolutions []ReviewResolution `json:"resolutions,omitempty"`
+	Recovery    *RecoveryHint      `json:"recovery,omitempty"`
+	Candidate   string             `json:"candidate"`
+	Verdict     string             `json:"verdict"`
+	Summary     string             `json:"summary"`
+	Findings    []string           `json:"findings"`
+	RunID       string             `json:"run_id"`
 }
 type CheckResult struct {
 	Name            string `json:"name"`
@@ -188,6 +193,7 @@ type CheckResult struct {
 	DurationSeconds int64  `json:"duration_seconds"`
 }
 type Candidate struct {
+	ReviewRules          *ReviewRules       `json:"review_rules,omitempty"`
 	Maintainability      string             `json:"maintainability_advisory,omitempty"`
 	PullRequest          *PullRequestStatus `json:"pull_request,omitempty"`
 	PreparationStopped   bool               `json:"preparation_stopped,omitempty"`
@@ -315,6 +321,7 @@ type RegisterResponse struct {
 const AssignmentContextVersion = 1
 
 type ClaimRequest struct {
+	ReviewContractVersion    int          `json:"review_contract_version,omitempty"`
 	ProgressVersion          int          `json:"progress_version,omitempty"`
 	Capabilities             []Capability `json:"capabilities"`
 	AssignmentContextVersion int          `json:"assignment_context_version,omitempty"`

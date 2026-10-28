@@ -160,6 +160,12 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 				return
 			}
 			completion.Detail = "review blocked before agent execution: " + shortDetail(err)
+			if assignment.Run.ReviewContractVersion == domain.ReviewContractVersion && completion.Review != nil {
+				completion.Review.RulesDigest = assignment.Run.ReviewRulesDigest
+				completion.Review.Findings = []string{}
+				completion.Review.Issues = []domain.ReviewFinding{}
+				completion.Review.Resolutions = []domain.ReviewResolution{}
+			}
 			r.report("review.blocked", assignment.Run.ID, completion.Detail)
 			finish(nil)
 			return
@@ -189,7 +195,7 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 		request.AllowedTools = []string{"Read", "Glob", "Grep"}
 		if definition.Protocol == agent.ProtocolCodex || definition.Protocol == agent.ProtocolClaude {
 			schemaPath := filepath.Join(dir, "review.schema.json")
-			if err = os.WriteFile(schemaPath, reviewOutputSchema(assignment.Run.Base, assignment.FailureRecoveryVersion), 0600); err != nil {
+			if err = os.WriteFile(schemaPath, assignedReviewSchema(assignment), 0600); err != nil {
 				finish(err)
 				return
 			}
@@ -322,6 +328,11 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 			return
 		}
 		review, err := parseReview(result.OutputText, assignment.Run.Base)
+		if err == nil && assignment.Run.ReviewContractVersion == domain.ReviewContractVersion {
+			err = validateAssignedReview(assignment, review)
+		} else if err == nil && (review.RulesDigest != "" || len(review.Issues) > 0 || len(review.Resolutions) > 0) {
+			err = errors.New("structured review was not negotiated")
+		}
 		if err == nil && assignment.FailureRecoveryVersion != 1 && review.Recovery != nil {
 			err = errors.New("center has not enabled review recovery hints")
 		}
@@ -336,6 +347,14 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 		}
 		for i, finding := range completion.Review.Findings {
 			completion.Review.Findings[i] = r.safeText(finding)
+		}
+		for i := range completion.Review.Issues {
+			issue := &completion.Review.Issues[i]
+			issue.Title, issue.Trigger, issue.Evidence, issue.Impact = r.safeText(issue.Title), r.safeText(issue.Trigger), r.safeText(issue.Evidence), r.safeText(issue.Impact)
+			issue.Path = r.safeText(issue.Path)
+		}
+		for i := range completion.Review.Resolutions {
+			completion.Review.Resolutions[i].Reason = r.safeText(completion.Review.Resolutions[i].Reason)
 		}
 	} else {
 		if head == base {

@@ -69,7 +69,7 @@ func (s *Service) ConfigurePublication(ctx context.Context, a Actor, key string,
 
 func pullSpec(p domain.Project, t domain.Task, c domain.Candidate, b pullRequestBinding) domain.PullRequestSpec {
 	repository, _ := domain.GitHubRepository(p.RepositoryURL)
-	return domain.PullRequestSpec{Repository: repository, Branch: b.Branch, TargetBranch: p.TargetBranch, Head: c.Commit, Base: c.Main, Title: t.Title, Number: b.Number, RequiredChecks: p.Publication.RequiredChecks}
+	return domain.PullRequestSpec{ReviewProviders: p.Publication.ReviewProviders, Repository: repository, Branch: b.Branch, TargetBranch: p.TargetBranch, Head: c.Commit, Base: c.Main, Title: t.Title, Number: b.Number, RequiredChecks: p.Publication.RequiredChecks}
 }
 
 func reviewCheck(p domain.Project, t domain.Task, c domain.Candidate) string {
@@ -208,6 +208,9 @@ func (w *Integrator) syncPullRequest(ctx context.Context, c domain.Candidate, fo
 			}
 		}
 	}
+	if !domain.ExternalReviewsReady(spec.ReviewProviders, facts.ExternalReviews, c.Commit) {
+		facts.MergeReady = false
+	}
 	facts.SyncedAt = s.Now()
 	accepted := false
 	e = s.DB.Update(ctx, func(tx *store.Tx) error {
@@ -244,6 +247,9 @@ func (w *Integrator) syncPullRequest(ctx context.Context, c domain.Candidate, fo
 			return e
 		}
 		current.PullRequest = &facts
+		if err := (ReviewIssues{Service: s}).observeExternal(tx, task, current, facts); err != nil {
+			return err
+		}
 		current.Version++
 		c = current
 		if e = tx.Put("candidate", current.ID, current); e != nil {
@@ -281,6 +287,11 @@ func hostedFeedback(facts domain.PullRequestStatus) string {
 	for _, review := range facts.Reviews {
 		if review.State == "CHANGES_REQUESTED" {
 			add(review.Author + "\n" + review.Summary + "\n" + review.URL)
+		}
+	}
+	for _, review := range facts.ExternalReviews {
+		if review.State == "failure" {
+			add(review.Kind + "\n" + review.Summary + "\n" + review.URL + "\n" + review.Evidence)
 		}
 	}
 	return strings.Join(parts, "\n")
