@@ -106,7 +106,10 @@ it.each(['active-run', 'no-material', 'authority', 'policy', 'baseline', 'budget
   if (reason === 'authority') task = { ...task, authorization_version: 2 };
   if (reason === 'policy') state.project = { ...state.project!, policy_version: 2 };
   if (reason === 'baseline') task = { ...task, baseline_digest: 'changed' };
-  if (reason === 'budget') task = { ...task, used_seconds: task.budget_seconds };
+  if (reason === 'budget') {
+    task = { ...task, used_seconds: task.budget_seconds };
+    state.automation = { ...state.automation, enforce_time_limits: true };
+  }
   if (reason === 'retries') task = { ...task, retries: task.max_retries };
   if (reason === 'not-stopped') state.candidates = [{ ...candidate, preparation_stopped: false }];
   if (reason === 'bad-handoff') state.runs = [{ ...stoppedRun, head: 'changed' }];
@@ -172,4 +175,40 @@ it('translates known task blocks while preserving the raw reason and unknown val
   view.unmount();
   render(<Overview snapshot={{ ...centerSnapshot, tasks: [{ ...localTask, hold_reason: 'owner-custom-reason' }] }} navigate={vi.fn()} />);
   expect(within(screen.getByRole('region', { name: '任务池' })).getByText('阻断原因：owner-custom-reason')).toBeTruthy();
+});
+
+
+it.each([
+  { name: 'zero allowance', budget: 0, enforce: false, retry: true },
+  { name: 'spent legacy allowance', budget: 100, enforce: false, retry: true },
+  { name: 'zero optional allowance with enforcement', budget: 0, enforce: true, retry: true },
+  { name: 'explicitly enforced spent allowance', budget: 100, enforce: true, retry: false },
+  { name: 'remaining enforced allowance', budget: 300, enforce: true, retry: true },
+])('uses optional time policy for preparation retry: $name', async ({ budget, enforce, retry }) => {
+  const task = { ...recoverTask, budget_seconds: budget, used_seconds: 120, reserved_seconds: 0 };
+  const state = { ...recovery, tasks: [task], automation: { ...recovery.automation, enforce_time_limits: enforce } };
+  const client = new ApiClient('owner');
+  const write = vi.spyOn(client, 'write').mockResolvedValue({});
+  render(<PreparationRecovery task={task} snapshot={state} client={client} refresh={refresh} />);
+  fireEvent.click(screen.getByText('高级恢复 · 候选准备失败'));
+  const button = screen.getByRole('button', { name: '重试候选准备' });
+  expect(button).toHaveProperty('disabled', !retry);
+  fireEvent.click(button);
+  if (retry) await waitFor(() => expect(write).toHaveBeenCalledWith(`/tasks/${task.id}/retry-integration`, { expected_version: task.version }));
+  else expect(write).not.toHaveBeenCalled();
+});
+
+it.each(['retries', 'stop evidence', 'live run'])('keeps %s as an independent preparation retry gate without a time allowance', (gate) => {
+  const task = { ...recoverTask, budget_seconds: 0, used_seconds: 120, reserved_seconds: 0 };
+  const state = { ...recovery, tasks: [task], automation: { ...recovery.automation, enforce_time_limits: false } };
+  if (gate === 'retries') task.retries = task.max_retries;
+  if (gate === 'stop evidence') state.candidates = [{ ...candidate, preparation_stopped: false }];
+  if (gate === 'live run') state.runs = [{ ...stoppedRun, quiescent: false }];
+  const client = new ApiClient('owner');
+  const write = vi.spyOn(client, 'write');
+  render(<PreparationRecovery task={task} snapshot={state} client={client} refresh={refresh} />);
+  fireEvent.click(screen.getByText('高级恢复 · 候选准备失败'));
+  fireEvent.click(screen.getByRole('button', { name: '重试候选准备' }));
+  expect(screen.getByRole('button', { name: '重试候选准备' })).toHaveProperty('disabled', true);
+  expect(write).not.toHaveBeenCalled();
 });
