@@ -116,3 +116,12 @@ describe('goal-bound development tool', () => {
     expect((screen.getByLabelText(/^实现工具/) as HTMLInputElement).readOnly).toBe(true);
   });
 });
+
+it('creates a task without installing hidden default time allowances', async () => {
+  const client = new ApiClient('fixture');
+  const write = vi.spyOn(client, 'write').mockResolvedValue({ id: 'unbounded-task' });
+  const { container } = form(mixedNodes, client, goalSnapshot);
+  fillDraft(container);
+  fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
+  await waitFor(() => expect(write).toHaveBeenCalledWith('/tasks', expect.objectContaining({ budget_seconds: 0, max_run_seconds: 0 })));
+});

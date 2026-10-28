@@ -106,6 +106,9 @@ func (s *Service) StartVerification(ctx context.Context, a Actor, key string, in
 	if e := owner(a); e != nil {
 		return nil, e
 	}
+	if in.MaxRunSeconds < 1 || in.MaxRunSeconds > domain.MaxRunDurationSeconds {
+		return nil, domain.Fail("invalid_input", "verification requires a finite program-operation timeout")
+	}
 	if _, e := gitops.ParseOID(in.Commit); e != nil {
 		return nil, domain.Fail("invalid_input", "full fixed commit required")
 	}

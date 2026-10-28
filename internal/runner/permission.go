@@ -19,7 +19,7 @@ func (w *permissionWindow) until() time.Time {
 	defer w.mu.Unlock()
 	until := w.lease
 	for _, limit := range []time.Time{w.deadline, w.lastSuccess.Add(30 * time.Second)} {
-		if limit.Before(until) {
+		if !limit.IsZero() && limit.Before(until) {
 			until = limit
 		}
 	}
@@ -33,7 +33,11 @@ func (w *permissionWindow) renew(lease, success time.Time) {
 }
 
 func (r *Runner) watchPermission(ctx context.Context, stop context.CancelFunc, assignment domain.Assignment, started, lease, deadline, lastSuccess time.Time,
-) (func(), func() time.Time) {
+	progress ...*progressObserver) (func(), func() time.Time) {
+	var observer *progressObserver
+	if len(progress) > 0 {
+		observer = progress[0]
+	}
 	heartCtx, end := context.WithCancel(ctx)
 	window := &permissionWindow{lease: lease, deadline: deadline, lastSuccess: lastSuccess}
 	interval := 10 * time.Second
@@ -72,6 +76,7 @@ func (r *Runner) watchPermission(ctx context.Context, stop context.CancelFunc, a
 				var response domain.HeartbeatResponse
 				clock, err := r.json(callCtx, "POST", "/api/v1/runs/"+assignment.Run.ID+"/heartbeat", "", domain.HeartbeatRequest{
 					Generation: assignment.Run.Generation, ElapsedSeconds: int64(time.Since(started) / time.Second), Detail: "managed activity",
+					Progress: observer.snapshot(time.Now()),
 				}, &response)
 				cancel()
 				if err != nil {

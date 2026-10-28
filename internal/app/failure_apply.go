@@ -68,7 +68,7 @@ func (c FailureRecoveries) apply(tx *store.Tx, run *domain.PlanningRun, goal *do
 
 func (c FailureRecoveries) repairCurrent(tx *store.Tx, f domain.FailureAssessment) error {
 	task := f.SourceTask
-	if task.BudgetSeconds-task.UsedSeconds-task.ReservedSeconds <= 0 {
+	if taskTimeExhausted(tx, task) {
 		return domain.Fail("budget", "source task allowance is exhausted")
 	}
 	if task.Verification != nil {

@@ -58,7 +58,7 @@ func retryReviewInput(tx *store.Tx, s *Service, actor Actor, id string, in domai
 	if err := goalGate(tx, &task, false); err != nil {
 		return nil, err
 	}
-	if task.Retries >= task.MaxRetries || task.UsedSeconds >= task.BudgetSeconds {
+	if task.Retries >= task.MaxRetries || taskTimeSpent(tx, task) {
 		return nil, domain.Fail("budget", "finite review retry allowance exhausted")
 	}
 	project, err := getProject(tx)

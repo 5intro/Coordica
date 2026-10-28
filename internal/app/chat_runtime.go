@@ -16,6 +16,7 @@ func chatRuns(tx *store.Tx, binding domain.Credential) ([]domain.ChatRun, error)
 			continue
 		}
 		v := domain.ChatRun{ID: r.ID, Version: r.Version, State: r.State, Tool: redacted(r.Tool), Kind: r.Kind, NodeID: r.NodeID, StartedAt: r.StartedAt, FinishedAt: r.FinishedAt, Deadline: r.Deadline, LeaseUntil: r.LeaseUntil, GrantSeconds: r.GrantSeconds, ElapsedSeconds: r.ElapsedSeconds, Quiet: r.Quiescent}
+		v.ProgressVersion, v.ProgressCheckSeconds, v.Progress = r.ProgressVersion, r.ProgressCheckSeconds, r.Progress
 		var t domain.Task
 		// Historical ownership cannot reveal newer assignments or goal changes.
 		if tx.Get("task", r.TaskID, &t) == nil && t.CurrentRunID == r.ID && t.Generation == r.Generation && t.GoalVersion == r.GoalVersion && t.GoalAuthorizationVersion == r.GoalAuthorizationVersion && t.AuthorizationVersion == r.AuthorizationVersion {

@@ -64,8 +64,7 @@ func (c FailureRecoveries) queue(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			if d.UsedSeconds+d.ReservedSeconds >= d.BudgetSeconds ||
-				d.PlanningUsedSeconds+d.PlanningReservedSeconds >= settings.PlanningBudgetSeconds {
+			if planningGrant(settings, d) <= 0 {
 				f.State, f.Detail = "needs_owner", "finite goal or planning allowance exhausted"
 				if err := c.save(tx, &f); err != nil {
 					return err

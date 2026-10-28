@@ -72,13 +72,9 @@ func (w *VerificationWorker) claim(ctx context.Context) (*domain.Task, *domain.R
 			if !ready {
 				continue
 			}
-			grant := limit(t.MaxRunSeconds, t.BudgetSeconds-t.UsedSeconds-t.ReservedSeconds)
-			if t.GoalVersion != 0 {
-				var d domain.PlanningDocument
-				if e = tx.Get("planning_document", "current", &d); e != nil {
-					return e
-				}
-				grant = limit(grant, d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds)
+			grant, _, e := executionGrant(tx, t, "verification")
+			if e != nil {
+				return e
 			}
 			if grant <= 0 {
 				t.HoldReason = "budget"

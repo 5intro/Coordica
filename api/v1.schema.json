@@ -429,6 +429,9 @@
         "enabled": {
           "type": "boolean"
         },
+        "enforce_time_limits": {
+          "type": "boolean"
+        },
         "leader_model": {
           "type": "string"
         },
@@ -439,9 +442,9 @@
           "type": "string"
         },
         "planning_budget_seconds": {
-          "description": "Finite goal planning cumulative limit; must be \u003e= planning_timeout_seconds. Not a consultation lifetime cap.",
+          "description": "Optional cumulative limit, enforced only when enforce_time_limits=true; 0 means no cumulative limit.",
           "maximum": 31536000,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         },
         "planning_max_retries": {
@@ -451,6 +454,11 @@
         },
         "planning_timeout_seconds": {
           "maximum": 604800,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "progress_check_seconds": {
+          "maximum": 86400,
           "minimum": 1,
           "type": "integer"
         },
@@ -1509,6 +1517,22 @@
         "node_id": {
           "type": "string"
         },
+        "progress": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunProgress"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "progress_check_seconds": {
+          "type": "integer"
+        },
+        "progress_version": {
+          "type": "integer"
+        },
         "quiet": {
           "type": "boolean"
         },
@@ -1676,6 +1700,9 @@
           ]
         },
         "execution_intent_version": {
+          "type": "integer"
+        },
+        "progress_version": {
           "type": "integer"
         }
       },
@@ -2450,6 +2477,16 @@
         },
         "generation": {
           "type": "integer"
+        },
+        "progress": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProgressObservation"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -3607,7 +3644,7 @@
         },
         "budget_seconds": {
           "maximum": 31536000,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         },
         "directory_outline": {
@@ -3936,6 +3973,34 @@
       "required": [
         "code",
         "message"
+      ],
+      "type": "object"
+    },
+    "ProgressObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "messages": {
+          "type": "integer"
+        },
+        "plans": {
+          "type": "integer"
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "tool_completed": {
+          "type": "integer"
+        },
+        "tool_started": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sequence",
+        "tool_started",
+        "tool_completed",
+        "messages",
+        "plans"
       ],
       "type": "object"
     },
@@ -4905,6 +4970,22 @@
         "policy_version": {
           "type": "integer"
         },
+        "progress": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunProgress"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "progress_check_seconds": {
+          "type": "integer"
+        },
+        "progress_version": {
+          "type": "integer"
+        },
         "quiescent": {
           "type": "boolean"
         },
@@ -4973,6 +5054,27 @@
         "detail",
         "quiescent",
         "started_at"
+      ],
+      "type": "object"
+    },
+    "RunProgress": {
+      "additionalProperties": false,
+      "properties": {
+        "checked_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "observation": {
+          "$ref": "#/$defs/ProgressObservation"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "observation",
+        "checked_at",
+        "state"
       ],
       "type": "object"
     },
@@ -5360,7 +5462,7 @@
         },
         "budget_seconds": {
           "maximum": 31536000,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         },
         "created_at": {
@@ -5426,9 +5528,9 @@
           "type": "integer"
         },
         "max_run_seconds": {
-          "description": "Finite single Run limit; must be \u003c= budget_seconds.",
+          "description": "Optional finite operation limit; 0 uses the operation default. Development is progress-managed unless time limits are explicitly enabled.",
           "maximum": 604800,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         },
         "repairs": {
@@ -5564,7 +5666,7 @@
         },
         "budget_seconds": {
           "maximum": 31536000,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         },
         "dependencies": {
@@ -5599,9 +5701,9 @@
           "type": "integer"
         },
         "max_run_seconds": {
-          "description": "Finite single Run limit; must be \u003c= budget_seconds.",
+          "description": "Optional finite operation limit; 0 uses the operation default. Development is progress-managed unless time limits are explicitly enabled.",
           "maximum": 604800,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         },
         "objective": {
@@ -6200,7 +6302,7 @@
       "properties": {
         "budget_seconds": {
           "maximum": 31536000,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         },
         "commit": {

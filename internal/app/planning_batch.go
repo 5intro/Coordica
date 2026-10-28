@@ -115,7 +115,7 @@ func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.Plan
 			total += q.BudgetSeconds
 		}
 	}
-	if total > d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds {
+	if settings.EnforceTimeLimits && d.BudgetSeconds > 0 && total > d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds {
 		return domain.Fail("budget", "whole batch exceeds remaining goal budget")
 	}
 	// Account for already admitted unspent task allowances as well as reservations.
@@ -126,10 +126,13 @@ func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.Plan
 	allocated := int64(0)
 	for _, t := range existing {
 		if t.GoalVersion == d.Version && !domain.TaskFinished(t) {
-			allocated += t.BudgetSeconds - t.UsedSeconds - t.ReservedSeconds
+			remaining := t.BudgetSeconds - t.UsedSeconds - t.ReservedSeconds
+			if remaining > 0 {
+				allocated += remaining
+			}
 		}
 	}
-	if total+allocated > d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds {
+	if settings.EnforceTimeLimits && d.BudgetSeconds > 0 && total+allocated > d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds {
 		return domain.Fail("budget", "batch would overallocate the goal")
 	}
 	visited := map[string]int{}
@@ -202,7 +205,7 @@ func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.Plan
 		if t.HoldReason != "" {
 			return domain.Fail("conflict", "held tasks require their exact scoped request assessment")
 		}
-		if t.UsedSeconds+t.ReservedSeconds >= t.BudgetSeconds || t.Retries >= t.MaxRetries {
+		if taskTimeExhausted(tx, t) || t.Retries >= t.MaxRetries {
 			return domain.Fail("budget", "task scope budget or retries exhausted")
 		}
 		if strings.TrimSpace(q.Reason) == "" {

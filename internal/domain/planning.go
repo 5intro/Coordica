@@ -4,6 +4,8 @@ import "time"
 
 // Goal authorization is independent of the mandatory shared project baseline.
 type AutomationSettings struct {
+	EnforceTimeLimits      bool   `json:"enforce_time_limits,omitempty"`
+	ProgressCheckSeconds   int64  `json:"progress_check_seconds,omitempty"`
 	Version                int64  `json:"version"`
 	Enabled                bool   `json:"enabled"`
 	DevelopmentTool        string `json:"development_tool"`
@@ -17,7 +19,7 @@ type AutomationSettings struct {
 }
 
 func DefaultAutomationSettings() AutomationSettings {
-	return AutomationSettings{Version: 1, DevelopmentTool: "codex", DevelopmentModel: "gpt-6.1-sol", LeaderTool: "codex", LeaderModel: "gpt-6.1-sol", PlanningTimeoutSeconds: 300, PlanningBudgetSeconds: 900, PlanningMaxRetries: 2}
+	return AutomationSettings{Version: 1, ProgressCheckSeconds: DefaultProgressCheckSeconds, DevelopmentTool: "codex", DevelopmentModel: "gpt-6.1-sol", LeaderTool: "codex", LeaderModel: "gpt-6.1-sol", PlanningTimeoutSeconds: 300, PlanningMaxRetries: 2}
 }
 
 type AutomationRequest struct {

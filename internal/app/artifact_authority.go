@@ -28,8 +28,9 @@ func artifactUploadRun(tx *store.Tx, a Actor, id string, now time.Time) (domain.
 	if err != nil {
 		return run, err
 	}
-	if run.Kind != "implement" || run.State != "running" || !now.Before(run.LeaseUntil) || !now.Before(run.Deadline) ||
-		run.GrantSeconds <= 0 || run.ElapsedSeconds >= run.GrantSeconds || task.UsedSeconds >= task.BudgetSeconds ||
+	if run.Kind != "implement" || run.State != "running" || !now.Before(run.LeaseUntil) || !domain.RunTimeValid(run, now) ||
+		!domain.ProgressManaged(run) && run.ElapsedSeconds >= run.GrantSeconds ||
+		!domain.ProgressManaged(run) && taskTimeSpent(tx, task) ||
 		task.CurrentRunID != run.ID || task.Generation != run.Generation || task.State != "executing" || task.HoldReason != "" ||
 		project.Paused || project.PolicyVersion != run.PolicyVersion {
 		return run, domain.Fail("stale_run", "当前执行已失效，不能接收代码材料")

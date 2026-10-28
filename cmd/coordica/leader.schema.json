@@ -109,7 +109,7 @@
         },
         "budget_seconds": {
           "maximum": 31536000,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         },
         "dependencies": {
@@ -138,9 +138,9 @@
           "type": "integer"
         },
         "max_run_seconds": {
-          "description": "Finite single Run limit; must be \u003c= budget_seconds.",
+          "description": "Optional finite operation limit; 0 uses the operation default. Development is progress-managed unless time limits are explicitly enabled.",
           "maximum": 604800,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         },
         "objective": {

@@ -634,10 +634,13 @@ func (s *Service) applyRequirementPlan(tx *store.Tx, r *domain.PlanningRun, d do
 			return e
 		}
 		if t.GoalVersion == d.Version && !domain.TaskFinished(t) {
-			allocated += t.BudgetSeconds - t.UsedSeconds - t.ReservedSeconds
+			remaining := t.BudgetSeconds - t.UsedSeconds - t.ReservedSeconds
+			if remaining > 0 {
+				allocated += remaining
+			}
 		}
 	}
-	if allocated > d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds {
+	if cumulativeLimit(tx, d.BudgetSeconds, d.UsedSeconds+d.ReservedSeconds, allocated) && allocated > d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds {
 		return domain.Fail("budget", "变更计划超过目标剩余额度")
 	}
 	for id, t := range proposed {

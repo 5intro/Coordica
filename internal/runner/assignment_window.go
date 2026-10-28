@@ -11,6 +11,11 @@ import (
 // Execution limits are fixed facts from the assignment, not scheduling grants
 // made by the Agent. Keep the per-Run window distinct from cumulative task use.
 func appendExecutionWindow(text *strings.Builder, a domain.Assignment) {
+	if domain.ProgressManaged(a.Run) {
+		fmt.Fprintf(text, "Development has no fixed duration or cumulative allowance by default. Progress observations every %d seconds do not imply completion, failure or new authority.\n", a.Run.ProgressCheckSeconds)
+		text.WriteString("The Runner keeps its renewable lease and reports activity without interrupting this turn. Preserve the execution scope, cancellation and structured result contract. Never claim an unrun check passed.\n")
+		return
+	}
 	if a.Run.GrantSeconds <= 0 || a.Run.Deadline.IsZero() {
 		return // Compatibility with old fixtures/records that omitted these facts.
 	}

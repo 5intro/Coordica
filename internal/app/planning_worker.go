@@ -139,7 +139,7 @@ func (w *PlanningWorker) reserve(ctx context.Context) (domain.PlanningRun, domai
 			if p.Paused || baselineGate(tx, nil, false) != nil || r.BaselineVersion != baseline.ApprovedVersion || r.BaselineDigest != baseline.ApprovedDigest {
 				return nil
 			}
-			grant := limit(settings.PlanningTimeoutSeconds, settings.PlanningBudgetSeconds-d.PlanningUsedSeconds-d.PlanningReservedSeconds, d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds)
+			grant := planningGrant(settings, d)
 			if grant <= 0 {
 				r.State = "blocked"
 				r.Detail = "planning or goal budget exhausted"

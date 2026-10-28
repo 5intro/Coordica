@@ -11,7 +11,7 @@
 - Keep formatting-only changes separate from behavior changes where practical. Split by responsibility, not arbitrary line counts. Preserve transaction atomicity, identity/generation fencing, cumulative accounting, process-stop evidence and final candidate/version checks during extraction.
 - Run `make quality` before handoff. It reports physical-size/standard Go AST risk hints. Use project-native lint/build/type checks and regression tests; do not maintain a custom multi-language parser. Source inventory safety, scope/authorization, fixed versions and test/review evidence remain mandatory.
 - Persist state, audit, and outbox together. Keep Git/process/network I/O outside database transactions.
-- Never infer completion from model prose. Preserve fixed candidate, lease, authorization, and cumulative accounting invariants. Project used/reserved spending is telemetry, never a lifetime cap; goal/task/Run policies remain finite and independent.
+- Never infer completion from model prose. Preserve fixed candidate, lease, authorization, and cumulative accounting invariants. Project used/reserved spending is telemetry, never a lifetime cap; cumulative allowances are optional and disabled by default; development uses progress observations with renewable leases. Finite operation timeouts and retry/repair limits remain independent.
 - Tests should exercise actual failure modes: contention, stale requests, duplicate messages, cancellation, scope violations, candidate/main changes, and restart recovery.
 - Do not claim an OS/tool combination is verified without running it. Cross-compilation is recorded separately.
 - Use native Codex search/browser tools. Do not import Claude web-access or CDP proxy workflows.
@@ -31,4 +31,4 @@
   protection. Do not silently replace this boundary with a sandbox claim or weaken an externally provisioned sandbox.
 
 - Each physical host reuses one limited interaction MCP/profile. Center chat credentials are Owner-issued and may contact Leader only on admin/shared loopback. Paired Runner hosts mint node-bound chat credentials; remote TLS accepts only node-chat, shared safe facts, requirements and own-node safe runtime queries. Persisted scope/node registration is checked transactionally before replay. Legacy unscoped credentials require explicit renewal; never infer authority from profile flags/source IDs.
-- Consultation accounts are cumulative statistics/reservation targets, not lifetime allowances. Each consultation retains a finite timeout and bounded retries. Do not add progress polling timers or a runtime mailbox module.
+- Consultation accounts are cumulative statistics/reservation targets, not lifetime allowances. Each consultation retains a finite timeout and bounded retries. Development progress checks default to 30 minutes (configurable), reuse Runner heartbeats and structured activity, and never infer failure from missing replies or activity alone. Do not add a runtime mailbox module.

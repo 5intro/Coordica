@@ -189,15 +189,14 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			if !ready {
 				continue
 			}
-			grant := limit(t.MaxRunSeconds, t.BudgetSeconds-t.UsedSeconds-t.ReservedSeconds)
-			if t.GoalVersion != 0 {
-				var d domain.PlanningDocument
-				if e = tx.Get("planning_document", "current", &d); e != nil {
-					return nil, e
-				}
-				grant = limit(grant, d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds)
+			grant, progressManaged, e := executionGrant(tx, t, kind)
+			if e != nil {
+				return nil, e
 			}
-			if grant <= 0 {
+			if progressManaged && req.ProgressVersion != domain.ProgressVersion {
+				continue
+			}
+			if !progressManaged && grant <= 0 {
 				t.HoldReason = "budget"
 				t.Version++
 				if e = tx.Put("task", t.ID, t); e != nil {
@@ -229,9 +228,12 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			r := domain.Run{BaselineVersion: t.BaselineVersion, BaselineDigest: t.BaselineDigest, ID: ID("run_"), Version: 1, TaskID: t.ID, NodeID: n.ID, Kind: kind, Tool: tool, State: "running", Generation: t.Generation, AuthorizationVersion: t.AuthorizationVersion, PolicyVersion: p.PolicyVersion, LeaseUntil: now.Add(s.Lease), Deadline: now.Add(time.Duration(grant) * time.Second), GrantSeconds: grant, Base: runBase, StartedAt: now}
 			r.RequirementRevisions = copyRequirementBindings(t)
 			r.Model, r.ReasoningEffort = model, effort
-			if r.Deadline.Before(r.LeaseUntil) {
-				r.LeaseUntil = r.Deadline
+			if progressManaged {
+				r.ProgressVersion = domain.ProgressVersion
+				r.ProgressCheckSeconds = settings.ProgressCheckSeconds
+				r.Deadline = time.Time{}
 			}
+			limitLease(&r)
 			if candidate != nil {
 				r.CandidateID = candidate.ID
 			}
@@ -268,37 +270,6 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 	})
 }
 
-// settle only debits the delta. A lost acknowledgement cannot double-charge.
-func (s *Service) settle(p *domain.Project, t *domain.Task, r *domain.Run, elapsed int64, finish bool) {
-	duration := s.Now().Sub(r.StartedAt)
-	wall := int64(duration / time.Second)
-	if duration%time.Second > 0 {
-		wall++
-	} // Sub-second activity is not free.
-	if elapsed < wall {
-		elapsed = wall
-	}
-	if elapsed < r.ElapsedSeconds {
-		elapsed = r.ElapsedSeconds
-	}
-	if elapsed > r.GrantSeconds {
-		elapsed = r.GrantSeconds
-	}
-	delta := elapsed - r.ElapsedSeconds
-	t.UsedSeconds += delta
-	p.UsedSeconds += delta
-	t.ReservedSeconds -= delta
-	p.ReservedSeconds -= delta
-	r.ElapsedSeconds = elapsed
-	if finish {
-		remaining := r.GrantSeconds - r.ElapsedSeconds
-		t.ReservedSeconds -= remaining
-		p.ReservedSeconds -= remaining
-	}
-	t.Version++
-	p.Version++
-	r.Version++
-}
 func (s *Service) Heartbeat(ctx context.Context, a Actor, id string, req domain.HeartbeatRequest) (domain.HeartbeatResponse, error) {
 	var out domain.HeartbeatResponse
 	if a.Role != "node" {
@@ -345,10 +316,10 @@ func (s *Service) Heartbeat(ctx context.Context, a Actor, id string, req domain.
 		if active(r) && owns {
 			before := r.ElapsedSeconds
 			s.settle(&p, &t, &r, req.ElapsedSeconds, false)
-			if e = settleGoal(tx, t, r.ElapsedSeconds-before, 0); e != nil {
+			if e = settleRunGoal(tx, t, r, r.ElapsedSeconds-before, 0); e != nil {
 				return e
 			}
-			if r.ElapsedSeconds >= r.GrantSeconds || t.UsedSeconds >= t.BudgetSeconds {
+			if !domain.RunTimeValid(r, s.Now()) || !domain.ProgressManaged(r) && taskTimeSpent(tx, t) {
 				reason = "budget"
 			}
 		}
@@ -359,10 +330,11 @@ func (s *Service) Heartbeat(ctx context.Context, a Actor, id string, req domain.
 				r.State = "cancel_requested"
 			}
 		} else {
-			r.LeaseUntil = s.Now().Add(s.Lease)
-			if r.Deadline.Before(r.LeaseUntil) {
-				r.LeaseUntil = r.Deadline
+			if e = s.observeProgress(tx, &r, req.Progress); e != nil {
+				return e
 			}
+			r.LeaseUntil = s.Now().Add(s.Lease)
+			limitLease(&r)
 		}
 		// Terminal or displaced Runs are historical evidence. A late heartbeat
 		// can request cancellation but cannot replace their recorded failure.
@@ -443,7 +415,7 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 			}
 			return r, s.audit(tx, a, "run.completed", id, fmt.Sprintf("%s; accepted=false; historical=true", r.State))
 		}
-		valid := grantedGoalAuthority(tx, &t, r) && active(r) && r.State != "cancel_requested" && s.Now().Before(r.LeaseUntil) && s.Now().Before(r.Deadline) && r.GrantSeconds > 0 && req.ElapsedSeconds <= r.GrantSeconds && t.AuthorizationVersion == r.AuthorizationVersion && p.PolicyVersion == r.PolicyVersion && !p.Paused && t.HoldReason == "" && t.State != "cancelled"
+		valid := grantedGoalAuthority(tx, &t, r) && active(r) && r.State != "cancel_requested" && s.Now().Before(r.LeaseUntil) && runElapsedAllowed(r, req.ElapsedSeconds, s.Now()) && t.AuthorizationVersion == r.AuthorizationVersion && p.PolicyVersion == r.PolicyVersion && !p.Paused && t.HoldReason == "" && t.State != "cancelled"
 		if r.State != "lost" {
 			elapsed := req.ElapsedSeconds
 			if !s.Now().Before(r.LeaseUntil) || !req.Quiescent {
@@ -453,7 +425,7 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 			}
 			before := r.ElapsedSeconds
 			s.settle(&p, &t, &r, elapsed, true)
-			if e = settleGoal(tx, t, r.ElapsedSeconds-before, r.GrantSeconds-r.ElapsedSeconds); e != nil {
+			if e = settleRunGoal(tx, t, r, r.ElapsedSeconds-before, runRemainingReservation(r)); e != nil {
 				return nil, e
 			}
 		}
@@ -470,7 +442,7 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 			r.State = "lost"
 			valid = false
 		}
-		if t.UsedSeconds >= t.BudgetSeconds {
+		if !domain.ProgressManaged(r) && taskTimeSpent(tx, t) {
 			if t.HoldReason == "" || t.HoldReason == "offline" {
 				t.HoldReason = "budget"
 			}
@@ -661,7 +633,7 @@ func (s *Service) Expire(ctx context.Context) error {
 			if owns {
 				before := r.ElapsedSeconds
 				s.settle(&p, &t, &r, r.GrantSeconds, true)
-				if e = settleGoal(tx, t, r.ElapsedSeconds-before, 0); e != nil {
+				if e = settleRunGoal(tx, t, r, r.ElapsedSeconds-before, 0); e != nil {
 					return e
 				}
 			}

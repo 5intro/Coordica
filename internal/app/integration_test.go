@@ -93,6 +93,7 @@ func newITFixture(t *testing.T) *itFixture {
 		t.Fatal(err)
 	}
 	seedReadyBaseline(t, f.s)
+	setTestTimeLimits(t, f.s, true)
 	data, err := f.s.CreateTask(ctx, f.owner, "task", domain.Task{Title: "Implement feature", Description: "Add source file", Acceptance: "The fixed candidate adds the source file", AllowedPaths: []string{"src/**"}, Tool: "codex", BudgetSeconds: 14400, MaxRunSeconds: 3600, MaxRepairs: 2, MaxRetries: 2})
 	task := itDecode[domain.Task](t, data, err)
 	if _, err = f.s.TaskAction(ctx, f.owner, "approve", task.ID, "approve", domain.VersionRequest{ExpectedVersion: task.Version}); err != nil {

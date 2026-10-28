@@ -15,7 +15,7 @@ import (
 const APIVersion = "v1"
 const SourceVersion = "0.2.5-dev"
 
-// Explicit finite task and execution deadlines; project spending is telemetry.
+// Optional explicit time limits; cumulative spending is telemetry by default.
 const MaxTaskBudgetSeconds int64 = 31536000 // 365 days, including manual extensions
 const MaxRunDurationSeconds int64 = 604800  // 7 days; leases renew independently
 const MaxTaskRepairs = 2
@@ -136,6 +136,9 @@ type Node struct {
 	TokenHash            string           `json:"-"`
 }
 type Run struct {
+	ProgressVersion          int              `json:"progress_version,omitempty"`
+	ProgressCheckSeconds     int64            `json:"progress_check_seconds,omitempty"`
+	Progress                 *RunProgress     `json:"progress,omitempty"`
 	RequirementRevisions     map[string]int64 `json:"requirement_revisions,omitempty"`
 	Model                    string           `json:"model,omitempty"`
 	ReasoningEffort          string           `json:"reasoning_effort,omitempty"`
@@ -311,6 +314,7 @@ type RegisterResponse struct {
 const AssignmentContextVersion = 1
 
 type ClaimRequest struct {
+	ProgressVersion          int          `json:"progress_version,omitempty"`
 	Capabilities             []Capability `json:"capabilities"`
 	AssignmentContextVersion int          `json:"assignment_context_version,omitempty"`
 	ExecutionIntentVersion   int          `json:"execution_intent_version,omitempty"`
@@ -329,9 +333,10 @@ type Assignment struct {
 	HeartbeatSeconds       int                  `json:"heartbeat_seconds"`
 }
 type HeartbeatRequest struct {
-	Generation     int64  `json:"generation"`
-	ElapsedSeconds int64  `json:"elapsed_seconds"`
-	Detail         string `json:"detail"`
+	Progress       *ProgressObservation `json:"progress,omitempty"`
+	Generation     int64                `json:"generation"`
+	ElapsedSeconds int64                `json:"elapsed_seconds"`
+	Detail         string               `json:"detail"`
 }
 type HeartbeatResponse struct {
 	Cancel     bool      `json:"cancel"`
@@ -418,8 +423,8 @@ func ValidateTask(t Task) error {
 		}
 		seenRequirements[id] = true
 	}
-	if t.BudgetSeconds <= 0 || t.BudgetSeconds > MaxTaskBudgetSeconds || t.MaxRunSeconds <= 0 ||
-		t.MaxRunSeconds > MaxRunDurationSeconds || t.MaxRunSeconds > t.BudgetSeconds ||
+	if t.BudgetSeconds < 0 || t.BudgetSeconds > MaxTaskBudgetSeconds || t.MaxRunSeconds < 0 ||
+		t.MaxRunSeconds > MaxRunDurationSeconds || t.BudgetSeconds > 0 && t.MaxRunSeconds > t.BudgetSeconds ||
 		t.MaxRepairs < 0 || t.MaxRepairs > MaxTaskRepairs || t.MaxRetries < 0 || t.MaxRetries > MaxTaskRetries {
 		return Fail("invalid_input", "无效的任务预算或次数限制")
 	}

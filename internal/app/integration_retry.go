@@ -21,7 +21,7 @@ func (s *Service) retryCandidatePreparation(tx *store.Tx, a Actor, t *domain.Tas
 	if err := goalGate(tx, t, false); err != nil {
 		return err
 	}
-	if t.Retries >= t.MaxRetries || t.UsedSeconds+t.ReservedSeconds >= t.BudgetSeconds {
+	if t.Retries >= t.MaxRetries || taskTimeExhausted(tx, *t) {
 		return domain.Fail("budget", "task retries or budget exhausted")
 	}
 	var c domain.Candidate
