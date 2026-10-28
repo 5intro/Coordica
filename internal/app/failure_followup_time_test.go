@@ -27,7 +27,7 @@ func TestFailureFollowupUsesOptionalTimePolicyAndIndependentCounters(t *testing.
 			{name: "spent legacy allowance", legacySpent: true, resume: true},
 			{name: "explicitly enforced allowance", legacySpent: true, enforce: true},
 			{name: "zero optional allowance under enforcement", enforce: true, resume: true},
-			{name: "repair or retry exhausted", counterSpent: true},
+			{name: "repair or retry exhausted", counterSpent: true, resume: true},
 		} {
 			t.Run(kind+"/"+scenario.name, func(t *testing.T) {
 				f, source := failureFixture(t)
@@ -61,10 +61,10 @@ func TestFailureFollowupUsesOptionalTimePolicyAndIndependentCounters(t *testing.
 					t.Fatal("disabled allowance blocked recovery or accounting/authority changed", got, after)
 				}
 				if verification {
-					if after.Retries != before.Retries+1 || after.Repairs != before.Repairs || after.Verification.Commit != landed {
+					if after.Retries != before.Retries || after.Repairs != before.Repairs || after.Verification.Commit != landed {
 						t.Fatal("verification lost its counter or fixed candidate", after)
 					}
-				} else if after.Repairs != before.Repairs+1 || after.Retries != before.Retries {
+				} else if after.Repairs != before.Repairs || after.Retries != before.Retries {
 					t.Fatal("development repair counter changed", after)
 				}
 				if err := (FailureRecoveries{Service: f.s}).queue(context.Background()); err != nil {
@@ -138,7 +138,9 @@ func completeTimeFollowup(t *testing.T, f *serviceFixture, assessment domain.Fai
 		if err := tx.Put("task", child.ID, child); err != nil {
 			return err
 		}
-		return tx.Put("candidate", child.CurrentCandidateID, domain.Candidate{ID: child.CurrentCandidateID, TaskID: child.ID, State: "landed", Commit: landed})
+		return tx.Put("candidate", child.CurrentCandidateID, domain.Candidate{ID: child.CurrentCandidateID, TaskID: child.ID, State: "landed", Commit: landed,
+			AuthorizationVersion: child.AuthorizationVersion, PolicyVersion: assessment.PolicyVersion,
+			BaselineVersion: child.BaselineVersion, BaselineDigest: child.BaselineDigest})
 	}); err != nil {
 		t.Fatal(err)
 	}

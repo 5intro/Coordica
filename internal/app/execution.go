@@ -206,7 +206,12 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			}
 			// Reject unusable fixed inputs before acquiring resources, reserving
 			// time or minting a Run. Other compatible work may still proceed.
-			contextRun := domain.Run{RequirementRevisions: copyRequirementBindings(t), GoalVersion: t.GoalVersion, GoalAuthorizationVersion: t.GoalAuthorizationVersion}
+			contextRun := domain.Run{Kind: kind, PolicyVersion: p.PolicyVersion,
+				BaselineVersion: t.BaselineVersion, BaselineDigest: t.BaselineDigest,
+				RequirementRevisions: copyRequirementBindings(t), GoalVersion: t.GoalVersion, GoalAuthorizationVersion: t.GoalAuthorizationVersion}
+			if candidate != nil {
+				contextRun.CandidateID = candidate.ID
+			}
 			assignment, e := assignedTaskContext(tx, t, contextRun, p, candidate)
 			if e != nil {
 				var problem *domain.Error

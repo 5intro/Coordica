@@ -104,10 +104,15 @@ const failureInstruction = "COORDICA_FAILURE_RECOVERY_V1\nAct as the selected re
 	"Return category, reason, action and tasks exactly as the schema. repair_current uses the original " +
 	"scope and remaining finite counters. retry_review_input is only for a proven pre-Agent material " +
 	"failure, uses the same fixed candidate and remaining platform retries, never code repairs. " +
-	"follow_up is only for different test/product work within the " +
+	"follow_up is for test-script errors, product defects or missing evidence within the " +
 	"existing goal, with the source requirements; ordinary source tasks require disjoint write scopes. " +
 	"Only one automatic follow-up per source task is allowed; follow-up tasks cannot recursively create " +
-	"another follow-up. Existing task counters and failed verdicts are never reset. Verification is " +
+	"another follow-up. After its independently reviewed integration, the center grants one fresh source " +
+	"recheck, independently of exhausted original repair/retry counters; those counters and failed verdicts " +
+	"are never reset. Do not consume ordinary report repairs to address out-of-scope product/test faults. " +
+	"For evidence_missing propose only the minimum missing measurement/test artifact work; never fabricate " +
+	"results or turn a failing product into a passing report. For test_error demonstrate the test conflicts " +
+	"with the unchanged contract; do not weaken assertions to accommodate a product bug. Verification is " +
 	"read-only, not a product repair. For follow_up tasks must contain one ordinary code-producing task with " +
 	"dependencies []; the center supplies its stable key. Otherwise tasks must be an empty array. Preserve goal, " +
 	"baseline, commands, protected paths, permissions and all acceptance. Use needs_owner when the " +
@@ -191,7 +196,7 @@ func decodeFailurePlan(raw string) (domain.FailureRecoveryPlan, error) {
 			return result, nil
 		}
 	case "follow_up":
-		if len(result.Tasks) == 1 && (result.Category == "test_error" || result.Category == "product_defect") {
+		if len(result.Tasks) == 1 && (result.Category == "test_error" || result.Category == "product_defect" || result.Category == "evidence_missing") {
 			return result, nil
 		}
 	}

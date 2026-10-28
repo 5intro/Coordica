@@ -337,6 +337,8 @@ export interface ChatDetail {
   item: ChatItem;
 }
 export interface FailureContext {
+  category?: string;
+  followup_commit?: string;
   assessment_id: string;
   source_task_id: string;
   source_run_id: string;
@@ -375,9 +377,19 @@ export interface FailureAssessment {
   result?: FailureRecoveryPlan | null;
   followup_task_id: string;
   waiting_task_version: number;
+  recheck_authorization_version?: number;
+  followup_commit?: string;
+  precheck_task_id?: string;
   detail: string;
   created_at: string;
   updated_at: string;
+}
+export interface ReviewContext {
+  round: number;
+  previous_candidate: string;
+  previous_main: string;
+  summary: string;
+  findings: (string)[] | null;
 }
 export interface ExecutionIntent {
   version: 1;
@@ -677,6 +689,7 @@ export interface NodeSnapshot {
   requirements: (Requirement)[] | null;
 }
 export interface Task {
+  failure_recheck_id?: string;
   failure_source_task_id?: string;
   failure_assessment_id?: string;
   requirement_hold_reason?: string;
@@ -918,6 +931,7 @@ export interface ClaimRequest {
   execution_intent_version?: number;
 }
 export interface Assignment {
+  review_context?: ReviewContext | null;
   failure_recovery_version?: number;
   failure_context?: FailureContext | null;
   requirements?: (RequirementContext)[] | null;

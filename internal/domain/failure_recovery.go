@@ -41,28 +41,33 @@ type FailureRecoveryPlan struct {
 // FailureAssessment preserves the source contract separately from later
 // diagnosis and follow-up work. It never grants an old result new authority.
 type FailureAssessment struct {
-	ID                     string               `json:"id"`
-	Version                int64                `json:"version"`
-	SourceTask             Task                 `json:"source_task"`
-	SourceRunID            string               `json:"source_run_id"`
-	SourceRunVersion       int64                `json:"source_run_version"`
-	SourceCandidateID      string               `json:"source_candidate_id"`
-	SourceCandidateVersion int64                `json:"source_candidate_version"`
-	SourceCommit           string               `json:"source_commit"`
-	PolicyVersion          int64                `json:"policy_version"`
-	TestPolicyVersion      int64                `json:"test_policy_version"`
-	State                  string               `json:"state"`
-	RunID                  string               `json:"run_id"`
-	Result                 *FailureRecoveryPlan `json:"result,omitempty"`
-	FollowupTaskID         string               `json:"followup_task_id"`
-	WaitingTaskVersion     int64                `json:"waiting_task_version"`
-	Detail                 string               `json:"detail"`
-	CreatedAt              time.Time            `json:"created_at"`
-	UpdatedAt              time.Time            `json:"updated_at"`
+	ID                          string               `json:"id"`
+	Version                     int64                `json:"version"`
+	SourceTask                  Task                 `json:"source_task"`
+	SourceRunID                 string               `json:"source_run_id"`
+	SourceRunVersion            int64                `json:"source_run_version"`
+	SourceCandidateID           string               `json:"source_candidate_id"`
+	SourceCandidateVersion      int64                `json:"source_candidate_version"`
+	SourceCommit                string               `json:"source_commit"`
+	PolicyVersion               int64                `json:"policy_version"`
+	TestPolicyVersion           int64                `json:"test_policy_version"`
+	State                       string               `json:"state"`
+	RunID                       string               `json:"run_id"`
+	Result                      *FailureRecoveryPlan `json:"result,omitempty"`
+	FollowupTaskID              string               `json:"followup_task_id"`
+	WaitingTaskVersion          int64                `json:"waiting_task_version"`
+	RecheckAuthorizationVersion int64                `json:"recheck_authorization_version,omitempty"`
+	FollowupCommit              string               `json:"followup_commit,omitempty"`
+	PrecheckTaskID              string               `json:"precheck_task_id,omitempty"`
+	Detail                      string               `json:"detail"`
+	CreatedAt                   time.Time            `json:"created_at"`
+	UpdatedAt                   time.Time            `json:"updated_at"`
 }
 
 // FailureContext is fixed historical input for related work, never a new grant.
 type FailureContext struct {
+	Category         string        `json:"category,omitempty"`
+	FollowupCommit   string        `json:"followup_commit,omitempty"`
 	AssessmentID     string        `json:"assessment_id"`
 	SourceTaskID     string        `json:"source_task_id"`
 	SourceRunID      string        `json:"source_run_id"`

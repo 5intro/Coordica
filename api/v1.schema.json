@@ -385,6 +385,16 @@
             "null"
           ]
         },
+        "review_context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "run": {
           "$ref": "#/$defs/Run"
         },
@@ -2172,6 +2182,9 @@
         "detail": {
           "type": "string"
         },
+        "followup_commit": {
+          "type": "string"
+        },
         "followup_task_id": {
           "type": "string"
         },
@@ -2179,6 +2192,12 @@
           "type": "string"
         },
         "policy_version": {
+          "type": "integer"
+        },
+        "precheck_task_id": {
+          "type": "string"
+        },
+        "recheck_authorization_version": {
           "type": "integer"
         },
         "result": {
@@ -2256,6 +2275,9 @@
         "assessment_id": {
           "type": "string"
         },
+        "category": {
+          "type": "string"
+        },
         "check_results": {
           "items": {
             "$ref": "#/$defs/CheckResult"
@@ -2276,6 +2298,9 @@
             "array",
             "null"
           ]
+        },
+        "followup_commit": {
+          "type": "string"
         },
         "reason": {
           "type": "string"
@@ -4849,6 +4874,40 @@
       ],
       "type": "object"
     },
+    "ReviewContext": {
+      "additionalProperties": false,
+      "properties": {
+        "findings": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "previous_candidate": {
+          "type": "string"
+        },
+        "previous_main": {
+          "type": "string"
+        },
+        "round": {
+          "type": "integer"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "round",
+        "previous_candidate",
+        "previous_main",
+        "summary",
+        "findings"
+      ],
+      "type": "object"
+    },
     "ReviewInputRetryRequest": {
       "additionalProperties": false,
       "properties": {
@@ -5488,6 +5547,9 @@
           "type": "string"
         },
         "failure_assessment_id": {
+          "type": "string"
+        },
+        "failure_recheck_id": {
           "type": "string"
         },
         "failure_source_task_id": {
