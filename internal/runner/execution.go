@@ -79,19 +79,28 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 			r.report("handoff.persistence_failed", assignment.Run.ID, shortDetail(err))
 		}
 	}
+	if assignment.Run.ProgressVersion != 0 && (!domain.ProgressManaged(assignment.Run) ||
+		assignment.Run.ProgressCheckSeconds < 1 || assignment.Run.ProgressCheckSeconds > domain.MaxProgressCheckSeconds) {
+		finish(errors.New("unsupported progress-managed execution contract"))
+		return
+	}
 	lease, err := localDeadline(assignment.Run.LeaseUntil, clock)
 	if err != nil {
 		finish(err)
 		return
 	}
-	deadline, err := localDeadline(assignment.Run.Deadline, clock)
-	if err != nil {
-		finish(err)
-		return
+	var deadline time.Time
+	if !domain.ProgressManaged(assignment.Run) {
+		deadline, err = localDeadline(assignment.Run.Deadline, clock)
+		if err != nil {
+			finish(err)
+			return
+		}
 	}
 	ctx, stop := context.WithCancel(parent)
 	defer stop()
-	stopHeartbeat, permissionUntil := r.watchPermission(ctx, stop, assignment, record.StartedAt, lease, deadline, clock.Received)
+	progress := newProgressObserver(assignment.Run, record.StartedAt)
+	stopHeartbeat, permissionUntil := r.watchPermission(ctx, stop, assignment, record.StartedAt, lease, deadline, clock.Received, progress)
 	defer stopHeartbeat()
 	base, err := gitops.ParseOID(assignment.Run.Base)
 	if err != nil {
@@ -190,6 +199,7 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 	started := false
 	var persistErr error
 	result, err := r.execute(ctx, request, func(event agent.Event) {
+		progress.record(event)
 		evidenceLog.append(event, false)
 		if evidenceLog.err != nil {
 			persistErr = evidenceLog.err

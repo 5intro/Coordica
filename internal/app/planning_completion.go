@@ -108,7 +108,7 @@ func (w *PlanningWorker) record(ctx context.Context, original domain.PlanningRun
 			if e != nil {
 				return e
 			}
-			if r.Attempt < r.MaxRetries && d.PlanningUsedSeconds+d.PlanningReservedSeconds < settings.PlanningBudgetSeconds && d.UsedSeconds+d.ReservedSeconds < d.BudgetSeconds {
+			if r.Attempt < r.MaxRetries && planningGrant(settings, d) > 0 {
 				retry := r
 				retry.ID = ID("plan_")
 				retry.Version = 1

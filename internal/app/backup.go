@@ -561,7 +561,7 @@ func freezeRestoredState(ctx context.Context, s *Service) error {
 			}
 			before := r.ElapsedSeconds
 			s.settle(&p, &task, &r, r.GrantSeconds, true)
-			if err = settleGoal(tx, task, r.ElapsedSeconds-before, 0); err != nil {
+			if err = settleRunGoal(tx, task, r, r.ElapsedSeconds-before, 0); err != nil {
 				return err
 			}
 			r.State = "lost"

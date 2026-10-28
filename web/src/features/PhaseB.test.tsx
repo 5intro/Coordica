@@ -255,7 +255,7 @@ describe('Phase B owner writes and authority fences', () => {
   });
   it.each([
     ['规划 / 初始化超时（秒）', '0'], ['规划 / 初始化超时（秒）', '604801'], ['规划 / 初始化超时（秒）', '1.5'],
-    ['规划累计预算（秒）', '1'], ['规划累计预算（秒）', '31536001'], ['规划累计预算（秒）', '900.5'],
+    ['规划累计预算（秒）', '-1'], ['规划累计预算（秒）', '31536001'], ['规划累计预算（秒）', '900.5'],
     ['规划 / 初始化最大重试次数', '-1'], ['规划 / 初始化最大重试次数', '0.5'],
   ])('rejects out-of-contract automation %s=%s', (label, value) => {
     const { client, refresh, write } = controls();
@@ -314,4 +314,28 @@ it.each([[3601, 14401], [604800, 31536000]])('allows finite long planning timeou
   fireEvent.change(screen.getByLabelText('规划累计预算（秒）'), { target: { value: String(budget) } });
   fireEvent.submit(screen.getByRole('button', { name: '保存系统自动化' }).closest('form')!);
   await waitFor(() => expect(write).toHaveBeenCalledWith('/system/automation', expect.objectContaining({ settings: expect.objectContaining({ planning_timeout_seconds: timeout, planning_budget_seconds: budget }) })));
+});
+
+it('saves configurable progress checks without requiring a cumulative allowance', async () => {
+  const client = new ApiClient('owner');
+  const write = vi.spyOn(client, 'write').mockResolvedValue({});
+  render(<Automation settings={{ ...centerSnapshot.automation, planning_budget_seconds: 0, enforce_time_limits: false }} client={client} refresh={vi.fn()} />);
+  const interval = screen.getByLabelText('进度检查间隔（分钟）') as HTMLInputElement;
+  expect(interval.value).toBe('30');
+  expect((screen.getByLabelText('启用累计额度与开发限时') as HTMLInputElement).checked).toBe(false);
+  fireEvent.change(interval, { target: { value: '45' } });
+  fireEvent.submit(screen.getByRole('button', { name: '保存系统自动化' }).closest('form')!);
+  await waitFor(() => expect(write).toHaveBeenCalledWith('/system/automation', expect.objectContaining({
+    settings: expect.objectContaining({ progress_check_seconds: 2700, planning_budget_seconds: 0, enforce_time_limits: false }),
+  })));
+});
+
+it('rejects an invalid progress interval before making a write', () => {
+  const client = new ApiClient('owner');
+  const write = vi.spyOn(client, 'write').mockResolvedValue({});
+  render(<Automation settings={centerSnapshot.automation} client={client} refresh={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText('进度检查间隔（分钟）'), { target: { value: '0' } });
+  fireEvent.submit(screen.getByRole('button', { name: '保存系统自动化' }).closest('form')!);
+  expect(write).not.toHaveBeenCalled();
+  expect(screen.getByRole('alert').textContent).toContain('进度检查间隔');
 });

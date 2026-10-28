@@ -23,6 +23,11 @@ import (
 
 func newIntentFixtureWithRemote(t *testing.T, bare bool) *intentFixture {
 	t.Helper()
+	return newIntentFixtureWithPolicy(t, bare, false)
+}
+
+func newIntentFixtureWithPolicy(t *testing.T, bare, progressManaged bool) *intentFixture {
+	t.Helper()
 	dir := t.TempDir()
 	source, bundle, base := intentRepository(t, dir, bare)
 	db, err := store.Open(filepath.Join(dir, "center.db"))
@@ -35,6 +40,15 @@ func newIntentFixtureWithRemote(t *testing.T, bare bool) *intentFixture {
 	}
 	requirement, doc := prepareIntentGoal(t, f, source)
 	admitIntentTask(t, f, requirement, doc)
+	if progressManaged {
+		settings := f.snapshot(t).Automation
+		settings.EnforceTimeLimits = false
+		if _, err := f.s.ConfigureAutomation(context.Background(), f.owner, "progress-mode", domain.AutomationRequest{
+			ExpectedVersion: settings.Version, Settings: settings,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	connectIntentRunner(t, f, dir, bundle)
 	return f
 }
@@ -125,6 +139,8 @@ func admitIntentTask(t *testing.T, f *intentFixture, requirement domain.Requirem
 	ctx := context.Background()
 	settings := domain.DefaultAutomationSettings()
 	settings.Enabled = true
+	settings.EnforceTimeLimits = true
+	settings.PlanningBudgetSeconds = 900
 	if _, err := f.s.ConfigureAutomation(ctx, f.owner, "auto", domain.AutomationRequest{
 		ExpectedVersion: 1, Settings: settings,
 	}); err != nil {
@@ -162,7 +178,7 @@ func connectIntentRunner(t *testing.T, f *intentFixture, dir, bundle string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err = f.s.Claim(ctx, f.node, "claim", domain.ClaimRequest{
+	raw, err = f.s.Claim(ctx, f.node, "claim", domain.ClaimRequest{ProgressVersion: domain.ProgressVersion,
 		AssignmentContextVersion: domain.AssignmentContextVersion,
 		Capabilities:             []domain.Capability{{Tool: "codex", Available: true, Structured: true, Review: true, Cancel: true}},
 	}, f.base.String())

@@ -88,9 +88,11 @@ func main() {
 		if t == reflect.TypeOf(domain.AutomationSettings{}) {
 			properties["planning_timeout_seconds"].(map[string]any)["minimum"] = 1
 			properties["planning_timeout_seconds"].(map[string]any)["maximum"] = domain.MaxRunDurationSeconds
-			properties["planning_budget_seconds"].(map[string]any)["minimum"] = 1
+			properties["planning_budget_seconds"].(map[string]any)["minimum"] = 0
 			properties["planning_budget_seconds"].(map[string]any)["maximum"] = domain.MaxTaskBudgetSeconds
-			properties["planning_budget_seconds"].(map[string]any)["description"] = "Finite goal planning cumulative limit; must be >= planning_timeout_seconds. Not a consultation lifetime cap."
+			properties["planning_budget_seconds"].(map[string]any)["description"] = "Optional cumulative limit, enforced only when enforce_time_limits=true; 0 means no cumulative limit."
+			properties["progress_check_seconds"].(map[string]any)["minimum"] = 1
+			properties["progress_check_seconds"].(map[string]any)["maximum"] = domain.MaxProgressCheckSeconds
 			properties["planning_max_retries"].(map[string]any)["minimum"] = 0
 			properties["planning_max_retries"].(map[string]any)["maximum"] = 2
 		}
@@ -118,7 +120,7 @@ func main() {
 			properties["checks"].(map[string]any)["maxItems"] = 32
 		}
 		if t == reflect.TypeOf(domain.VerificationRequest{}) {
-			properties["budget_seconds"].(map[string]any)["minimum"] = 1
+			properties["budget_seconds"].(map[string]any)["minimum"] = 0
 			properties["budget_seconds"].(map[string]any)["maximum"] = domain.MaxTaskBudgetSeconds
 			properties["max_run_seconds"].(map[string]any)["minimum"] = 1
 			properties["max_run_seconds"].(map[string]any)["maximum"] = domain.MaxRunDurationSeconds
@@ -126,7 +128,7 @@ func main() {
 			properties["max_retries"].(map[string]any)["maximum"] = 2
 		}
 		if t == reflect.TypeOf(domain.PlanningDocument{}) {
-			properties["budget_seconds"].(map[string]any)["minimum"] = 1
+			properties["budget_seconds"].(map[string]any)["minimum"] = 0
 			properties["budget_seconds"].(map[string]any)["maximum"] = domain.MaxTaskBudgetSeconds
 		}
 		applyTaskLimits(t, properties)

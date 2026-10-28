@@ -182,7 +182,7 @@ func (w *PlanningWorker) queueScopes(ctx context.Context) error {
 			if literalScope(v.Paths, d.AllowedRoots) != nil || protectedOverlap(v.Paths, p.ProtectedPaths) {
 				reason = "requested paths outside ordinary goal permissions"
 			}
-			if t.UsedSeconds+t.ReservedSeconds >= t.BudgetSeconds || t.Retries >= t.MaxRetries || d.PlanningUsedSeconds+d.PlanningReservedSeconds >= settings.PlanningBudgetSeconds {
+			if taskTimeExhausted(tx, t) || t.Retries >= t.MaxRetries || planningGrant(settings, d) <= 0 {
 				reason = "scope assessment budget or retries exhausted"
 			}
 			count := 0
@@ -357,7 +357,7 @@ func (s *Service) deriveScope(tx *store.Tx, r *domain.PlanningRun, d domain.Plan
 	if protectedOverlap(q.Paths, p.ProtectedPaths) {
 		return domain.Fail("protected_scope", "ordinary scope intersects protected paths")
 	}
-	if t.UsedSeconds+t.ReservedSeconds >= t.BudgetSeconds || t.Retries >= t.MaxRetries || d.UsedSeconds+d.ReservedSeconds >= d.BudgetSeconds {
+	if taskTimeExhausted(tx, t) || t.Retries >= t.MaxRetries || goalTimeExhausted(tx, d) {
 		return domain.Fail("budget", "cumulative budget or retries exhausted")
 	}
 	for _, hot := range t.HotResources {

@@ -47,7 +47,7 @@ func (s *Service) recoverStopped(tx *store.Tx, p domain.Project, t *domain.Task,
 		t.HoldReason = "offline"
 		return changed, nil
 	}
-	if t.BudgetSeconds-t.UsedSeconds-t.ReservedSeconds <= 0 {
+	if taskTimeExhausted(tx, *t) {
 		return block("budget", "停止已确认，但累计剩余预算不足")
 	}
 	if r.Kind == "implement" && t.CurrentCandidateID != "" {
@@ -126,7 +126,7 @@ func (s *Service) RecoverCenter(ctx context.Context) error {
 			if owns {
 				before := r.ElapsedSeconds
 				s.settle(&p, &t, &r, r.GrantSeconds, true)
-				if e = settleGoal(tx, t, r.ElapsedSeconds-before, 0); e != nil {
+				if e = settleRunGoal(tx, t, r, r.ElapsedSeconds-before, 0); e != nil {
 					return e
 				}
 			}
@@ -285,7 +285,7 @@ func verifyLegacyBudgetResume(tx *store.Tx, t *domain.Task) error {
 			return nil
 		}
 	}
-	if p.Paused || t.ReservedSeconds != 0 || t.BudgetSeconds-t.UsedSeconds <= 0 || t.Retries >= t.MaxRetries {
+	if p.Paused || t.ReservedSeconds != 0 || taskTimeExhausted(tx, *t) || t.Retries >= t.MaxRetries {
 		return domain.Fail("budget", "legacy hold requires remaining task budget and bounded retries with settled execution")
 	}
 	if e = goalGate(tx, t, false); e != nil {

@@ -21,6 +21,9 @@ func automation(tx *store.Tx) (domain.AutomationSettings, error) {
 		v = domain.DefaultAutomationSettings()
 		err = tx.Put("automation", "current", v)
 	}
+	if v.ProgressCheckSeconds == 0 {
+		v.ProgressCheckSeconds = domain.DefaultProgressCheckSeconds
+	}
 	return v, err
 }
 func (s *Service) ConfigureAutomation(ctx context.Context, a Actor, key string, req domain.AutomationRequest) (json.RawMessage, error) {
@@ -28,12 +31,17 @@ func (s *Service) ConfigureAutomation(ctx context.Context, a Actor, key string, 
 		return nil, e
 	}
 	v := req.Settings
+	if v.ProgressCheckSeconds == 0 {
+		v.ProgressCheckSeconds = domain.DefaultProgressCheckSeconds
+	}
 	if domain.ValidateToolID(v.DevelopmentTool) != nil || strings.TrimSpace(v.DevelopmentModel) == "" ||
 		len(v.DevelopmentModel) > 128 ||
 		domain.ValidateLeaderSelection(leaderSelection(v)) != nil || v.PlanningTimeoutSeconds < 1 ||
-		v.PlanningTimeoutSeconds > domain.MaxRunDurationSeconds || v.PlanningBudgetSeconds < v.PlanningTimeoutSeconds ||
+		v.PlanningTimeoutSeconds > domain.MaxRunDurationSeconds || v.PlanningBudgetSeconds < 0 ||
+		v.EnforceTimeLimits && v.PlanningBudgetSeconds > 0 && v.PlanningBudgetSeconds < v.PlanningTimeoutSeconds ||
+		v.ProgressCheckSeconds < 1 || v.ProgressCheckSeconds > domain.MaxProgressCheckSeconds ||
 		v.PlanningBudgetSeconds > domain.MaxTaskBudgetSeconds || v.PlanningMaxRetries < 0 || v.PlanningMaxRetries > 2 {
-		return nil, domain.Fail("invalid_input", "valid tool/model choices and finite planning settings required")
+		return nil, domain.Fail("invalid_input", "valid tool/model choices, finite operation timeout and bounded progress settings required")
 	}
 	if raw, found, err := replayMutation(ctx, s, a, key, "automation.configure", req, nil); found || err != nil {
 		return raw, err
@@ -83,9 +91,6 @@ func documentMissing(d domain.PlanningDocument) []string {
 	}
 	if len(d.AllowedRoots) == 0 {
 		out = append(out, "allowed_roots")
-	}
-	if d.BudgetSeconds <= 0 {
-		out = append(out, "budget_seconds")
 	}
 	return out
 }
@@ -160,7 +165,7 @@ func goalGate(tx *store.Tx, t *domain.Task, bind bool) error {
 	if err != nil {
 		return err
 	}
-	if d.UsedSeconds+d.ReservedSeconds >= d.BudgetSeconds {
+	if goalTimeExhausted(tx, d) {
 		return domain.Fail("budget", "goal budget exhausted")
 	}
 	return nil
@@ -219,8 +224,8 @@ func (s *Service) SavePlanning(ctx context.Context, a Actor, key string, req dom
 	if e := validateRoots(req.Document.AllowedRoots); e != nil {
 		return nil, e
 	}
-	if req.Document.BudgetSeconds <= 0 || req.Document.BudgetSeconds > domain.MaxTaskBudgetSeconds {
-		return nil, domain.Fail("invalid_input", "finite goal budget required")
+	if req.Document.BudgetSeconds < 0 || req.Document.BudgetSeconds > domain.MaxTaskBudgetSeconds {
+		return nil, domain.Fail("invalid_input", "optional goal allowance must be a bounded nonnegative integer")
 	}
 	return s.mutate(ctx, a, key, "planning.save", req, func(tx *store.Tx) (any, error) {
 		_, e := getProject(tx)
@@ -258,7 +263,7 @@ func (s *Service) SavePlanning(ctx context.Context, a Actor, key string, req dom
 		d.ReservedSeconds = old.ReservedSeconds
 		d.PlanningUsedSeconds = old.PlanningUsedSeconds
 		d.PlanningReservedSeconds = old.PlanningReservedSeconds
-		if d.BudgetSeconds < d.UsedSeconds+d.ReservedSeconds {
+		if goalTimeExhausted(tx, d) && d.BudgetSeconds < d.UsedSeconds+d.ReservedSeconds {
 			return nil, domain.Fail("budget", "goal budget must cover cumulative accounting")
 		}
 		tasks, e := store.List[domain.Task](tx, "task")
@@ -678,7 +683,7 @@ func (s *Service) goalBudgetDecision(tx *store.Tx) error {
 	if e != nil {
 		return e
 	}
-	if d.UsedSeconds < d.BudgetSeconds {
+	if !goalTimeExhausted(tx, d) {
 		return nil
 	}
 	all, e := store.List[domain.Decision](tx, "decision")

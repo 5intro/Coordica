@@ -120,6 +120,8 @@ func publicRuntimeTypes() []any {
 		domain.Task{},
 		domain.Capability{},
 		domain.Node{},
+		domain.ProgressObservation{},
+		domain.RunProgress{},
 		domain.Run{},
 		domain.Review{},
 		domain.CheckResult{},

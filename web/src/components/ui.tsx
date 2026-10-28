@@ -59,6 +59,7 @@ export function time(value: string | Date | undefined) {
 export function short(value: string, length = 10) { return value ? value.slice(0, length) : '尚未生成'; }
 export function lines(value: string) { return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean); }
 export function Budget({ used, reserved, total }: { used: number; reserved: number; total: number }) {
+  if (total <= 0) return <p>累计用时 {duration(used)} · 当前预留 {duration(reserved)}</p>;
   const consumed = total > 0 ? Math.min(100, (used / total) * 100) : 0;
   const held = total > 0 ? Math.min(100 - consumed, (reserved / total) * 100) : 0;
   return <div className="budget"><div className="budget-track" role="meter" aria-label="累计预算" aria-valuemin={0} aria-valuemax={total} aria-valuenow={used}><span style={{ width: `${consumed}%` }} /><span className="reserved" style={{ width: `${held}%` }} /></div><div className="budget-caption"><span>已用 {duration(used)} · 预留 {duration(reserved)}</span><span>上限 {duration(total)}</span></div></div>;

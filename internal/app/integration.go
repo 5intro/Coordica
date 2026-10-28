@@ -139,7 +139,7 @@ func (w *Integrator) eligible(ctx context.Context, c domain.Candidate) (bool, er
 		if e != nil {
 			return e
 		}
-		ok = candidateAuthority(tx, t, p, c) && t.UsedSeconds < t.BudgetSeconds
+		ok = candidateAuthority(tx, t, p, c) && !taskTimeSpent(tx, t)
 		return nil
 	})
 	return ok, e
@@ -276,13 +276,9 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 		if c.State != "prechecking" && (c.Review == nil || c.Review.Verdict != "approve" || c.Review.Candidate != c.Commit) {
 			return domain.Fail("conflict", "缺少固定候选独立评审")
 		}
-		grant := limit(t.MaxRunSeconds, t.BudgetSeconds-t.UsedSeconds-t.ReservedSeconds)
-		if t.GoalVersion != 0 {
-			var d domain.PlanningDocument
-			if e = tx.Get("planning_document", "current", &d); e != nil {
-				return e
-			}
-			grant = limit(grant, d.BudgetSeconds-d.UsedSeconds-d.ReservedSeconds)
+		grant, _, e := executionGrant(tx, t, "validation")
+		if e != nil {
+			return e
 		}
 		if grant <= 0 {
 			return domain.Fail("budget", "验证预算不足")
@@ -469,7 +465,7 @@ func (w *Integrator) finishValidation(ctx context.Context, r domain.Run, c domai
 				return err
 			}
 		}
-		if (t.UsedSeconds >= t.BudgetSeconds) && (t.HoldReason == "" || t.HoldReason == "offline") && t.State != "cancelled" && t.State != "integrated" {
+		if (taskTimeSpent(tx, t)) && (t.HoldReason == "" || t.HoldReason == "offline") && t.State != "cancelled" && t.State != "integrated" {
 			t.HoldReason = "budget"
 		}
 		t.Version++
@@ -602,7 +598,7 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 				return domain.Fail("version_conflict", "goal changed during final scope check")
 			}
 		}
-		if c.BaselineVersion != t.BaselineVersion || c.BaselineDigest != t.BaselineDigest || goalGate(tx, &t, false) != nil || current.State != "ready_to_land" || t.CurrentCandidateID != c.ID || project.Paused || t.HoldReason != "" || t.State != "awaiting_integration" || t.AuthorizationVersion != c.AuthorizationVersion || project.PolicyVersion != c.PolicyVersion || t.UsedSeconds >= t.BudgetSeconds {
+		if c.BaselineVersion != t.BaselineVersion || c.BaselineDigest != t.BaselineDigest || goalGate(tx, &t, false) != nil || current.State != "ready_to_land" || t.CurrentCandidateID != c.ID || project.Paused || t.HoldReason != "" || t.State != "awaiting_integration" || t.AuthorizationVersion != c.AuthorizationVersion || project.PolicyVersion != c.PolicyVersion || taskTimeSpent(tx, t) {
 			return domain.Fail("conflict", "放行条件已变化")
 		}
 		if current.Protected && current.ApprovedCommit != current.Commit {

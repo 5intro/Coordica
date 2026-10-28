@@ -35,12 +35,11 @@ func (c FailureRecoveries) finishFollowup(tx *store.Tx, f *domain.FailureAssessm
 	if err := tx.Get("task", f.SourceTask.ID, &source); err != nil {
 		return err
 	}
-	remaining := source.BudgetSeconds - source.UsedSeconds - source.ReservedSeconds
 	canRetry := source.Repairs < source.MaxRepairs
 	if source.Verification != nil {
 		canRetry = source.Retries < source.MaxRetries
 	}
-	if remaining <= 0 || !canRetry {
+	if taskTimeExhausted(tx, source) || !canRetry {
 		f.State, f.Detail = "needs_owner", "follow-up completed; original task allowance or retry/repair limit remains exhausted"
 		goal, err := goalDocument(tx)
 		if err != nil {
@@ -90,7 +89,7 @@ func (c FailureRecoveries) finishFollowup(tx *store.Tx, f *domain.FailureAssessm
 	if err := tx.Put("task", source.ID, source); err != nil {
 		return err
 	}
-	f.State, f.Detail = "applied", "follow-up integrated; original task queued for a fresh bounded execution"
+	f.State, f.Detail = "applied", "follow-up integrated; original task queued for a fresh authorized execution"
 	if err := c.save(tx, f); err != nil {
 		return err
 	}

@@ -302,12 +302,6 @@ func (s *Service) CreateTask(ctx context.Context, a Actor, key string, t domain.
 	if t.Verification != nil {
 		return nil, domain.Fail("invalid_input", "use the versioned test-suite operation to create verification tasks")
 	}
-	if t.BudgetSeconds == 0 {
-		t.BudgetSeconds = 14400
-	}
-	if t.MaxRunSeconds == 0 {
-		t.MaxRunSeconds = 3600
-	}
 	if err := domain.ValidateTask(t); err != nil {
 		return nil, err
 	}

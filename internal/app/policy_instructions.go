@@ -12,7 +12,11 @@ const planningInstruction = "Act as read-only planning Leader. Do not implement,
 	"array), requirement_ids (string array), paths (string array), dependencies (string array of local keys " +
 	"only), hot_resources (string array), budget_seconds (integer), max_run_seconds (integer), max_repairs " +
 	"(integer), max_retries (integer). Every scope has task_id (string), expected_version (integer), paths " +
-	"(string array). Respect all TaskProposal schema bounds; max_run_seconds must not exceed budget_seconds. " +
+	"(string array). Respect all TaskProposal schema bounds. Use 0 for optional budget_seconds and " +
+	"max_run_seconds unless explicit time limits are requested. When budget_seconds is positive, " +
+	"max_run_seconds must not exceed it. Cumulative use is telemetry when automation.enforce_time_limits " +
+	"is false; development uses renewable leases and noninterrupting progress observations instead of a " +
+	"fixed deadline. Silence or missing status replies never prove failure. " +
 	"Every scope also has reason (string). Scopes may ONLY reference real existing task IDs from existing_tasks " +
 	"and their exact current versions. NEVER use a proposal local key as task_id. Initial planning scopes " +
 	"MUST be []. Reuse proposal_mappings keys for existing work; do not create duplicate work or allocate its " +

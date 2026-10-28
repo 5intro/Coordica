@@ -46,6 +46,7 @@ func newServiceFixture(t *testing.T) *serviceFixture {
 		t.Fatal(e)
 	}
 	seedReadyBaseline(t, f.s)
+	setTestTimeLimits(t, f.s, true)
 	b, e := f.s.CreateTask(ctx, f.owner, "task", domain.Task{Title: "Task", Description: "Change source", Acceptance: "Test", AllowedPaths: []string{"src/**"}, Tool: "codex", BudgetSeconds: 14400, MaxRunSeconds: 3600, MaxRepairs: 2, MaxRetries: 2})
 	f.task = decodeTest[domain.Task](t, b, e)
 	b, e = f.s.TaskAction(ctx, f.owner, "approve", f.task.ID, "approve", domain.VersionRequest{ExpectedVersion: f.task.Version})

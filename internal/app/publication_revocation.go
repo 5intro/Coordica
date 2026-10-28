@@ -120,7 +120,7 @@ func (w *Integrator) reserveReviewStatus(ctx context.Context, c domain.Candidate
 		if e = tx.Get("pull_request", c.TaskID, &b); e != nil {
 			return e
 		}
-		if current.Commit != c.Commit || !candidateAuthority(tx, t, p, current) || t.UsedSeconds >= t.BudgetSeconds || b.CandidateID != c.ID || b.Desired != c.Commit || current.State != "reviewing" && current.State != "ready_to_land" {
+		if current.Commit != c.Commit || !candidateAuthority(tx, t, p, current) || taskTimeSpent(tx, t) || b.CandidateID != c.ID || b.Desired != c.Commit || current.State != "reviewing" && current.State != "ready_to_land" {
 			return queuePullReviewRevocation(tx, c)
 		}
 		state, allowed = reviewCheck(p, t, current), true
@@ -157,7 +157,7 @@ func (w *Integrator) reconcilePullReviewRevocations(ctx context.Context) (bool, 
 				return e
 			}
 			validState := c.State == "reviewing" || c.State == "ready_to_land" || c.State == "landing"
-			if c.State != "landed" && (!validState || t.State != "awaiting_integration" || c.Commit != b.Desired || !candidateAuthority(tx, t, p, c) || reviewCheck(p, t, c) != "success" || t.UsedSeconds >= t.BudgetSeconds) {
+			if c.State != "landed" && (!validState || t.State != "awaiting_integration" || c.Commit != b.Desired || !candidateAuthority(tx, t, p, c) || reviewCheck(p, t, c) != "success" || taskTimeSpent(tx, t)) {
 				if e = queuePullReviewRevocation(tx, c); e != nil {
 					return e
 				}

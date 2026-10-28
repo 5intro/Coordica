@@ -41,11 +41,8 @@ func applyTaskLimits(t reflect.Type, properties map[string]any) {
 		"max_repairs": domain.MaxTaskRepairs, "max_retries": domain.MaxTaskRetries,
 	} {
 		minimum := int64(0)
-		if field == "budget_seconds" || field == "max_run_seconds" {
-			minimum = 1
-		}
 		properties[field].(map[string]any)["minimum"] = minimum
 		properties[field].(map[string]any)["maximum"] = maximum
 	}
-	properties["max_run_seconds"].(map[string]any)["description"] = "Finite single Run limit; must be <= budget_seconds."
+	properties["max_run_seconds"].(map[string]any)["description"] = "Optional finite operation limit; 0 uses the operation default. Development is progress-managed unless time limits are explicitly enabled."
 }

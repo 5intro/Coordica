@@ -105,7 +105,7 @@ func TestMCPHTTPApplicationScopeTriggerAndReplay(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	b, e = s.Claim(ctx, node, "transport-claim", domain.ClaimRequest{AssignmentContextVersion: domain.AssignmentContextVersion, Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}}}, strings.Repeat("a", 40))
+	b, e = s.Claim(ctx, node, "transport-claim", domain.ClaimRequest{ProgressVersion: domain.ProgressVersion, AssignmentContextVersion: domain.AssignmentContextVersion, Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}}}, strings.Repeat("a", 40))
 	if e != nil {
 		t.Fatal(e)
 	}

@@ -277,6 +277,9 @@ export interface ChatAgentCapability {
   review: boolean;
 }
 export interface ChatRun {
+  progress_version?: number;
+  progress_check_seconds?: number;
+  progress?: RunProgress | null;
   id: string;
   version: number;
   state: string;
@@ -405,6 +408,8 @@ export interface ScopeAssessment {
   state: string;
 }
 export interface AutomationSettings {
+  enforce_time_limits?: boolean;
+  progress_check_seconds?: number;
   version: number;
   enabled: boolean;
   development_tool: string;
@@ -739,7 +744,22 @@ export interface Node {
   revoked: boolean;
   last_seen: string;
 }
+export interface ProgressObservation {
+  sequence: number;
+  tool_started: number;
+  tool_completed: number;
+  messages: number;
+  plans: number;
+}
+export interface RunProgress {
+  observation: ProgressObservation;
+  checked_at: string;
+  state: string;
+}
 export interface Run {
+  progress_version?: number;
+  progress_check_seconds?: number;
+  progress?: RunProgress | null;
   requirement_revisions?: Record<string, number>;
   model?: string;
   reasoning_effort?: string;
@@ -892,6 +912,7 @@ export interface RegisterResponse {
   token: string;
 }
 export interface ClaimRequest {
+  progress_version?: number;
   capabilities: (Capability)[] | null;
   assignment_context_version?: number;
   execution_intent_version?: number;
@@ -910,6 +931,7 @@ export interface Assignment {
   heartbeat_seconds: number;
 }
 export interface HeartbeatRequest {
+  progress?: ProgressObservation | null;
   generation: number;
   elapsed_seconds: number;
   detail: string;

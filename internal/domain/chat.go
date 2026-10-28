@@ -176,19 +176,22 @@ type ChatDetail struct {
 // Safe execution evidence. Historical ownership never grants access to a task's
 // subsequent assignment, its current goal or private execution output.
 type ChatRun struct {
-	ID             string     `json:"id"`
-	Version        int64      `json:"version"`
-	State          string     `json:"state"`
-	Tool           string     `json:"tool"`
-	Kind           string     `json:"kind"`
-	NodeID         string     `json:"node_id"`
-	StartedAt      time.Time  `json:"started_at"`
-	FinishedAt     *time.Time `json:"finished_at,omitempty"`
-	Deadline       time.Time  `json:"deadline"`
-	LeaseUntil     time.Time  `json:"lease_until"`
-	GrantSeconds   int64      `json:"grant_seconds"`
-	ElapsedSeconds int64      `json:"elapsed_seconds"`
-	Quiet          bool       `json:"quiet"`
-	TaskTitle      string     `json:"task_title,omitempty"`
-	TaskText       string     `json:"task_text,omitempty"`
+	ProgressVersion      int          `json:"progress_version,omitempty"`
+	ProgressCheckSeconds int64        `json:"progress_check_seconds,omitempty"`
+	Progress             *RunProgress `json:"progress,omitempty"`
+	ID                   string       `json:"id"`
+	Version              int64        `json:"version"`
+	State                string       `json:"state"`
+	Tool                 string       `json:"tool"`
+	Kind                 string       `json:"kind"`
+	NodeID               string       `json:"node_id"`
+	StartedAt            time.Time    `json:"started_at"`
+	FinishedAt           *time.Time   `json:"finished_at,omitempty"`
+	Deadline             time.Time    `json:"deadline"`
+	LeaseUntil           time.Time    `json:"lease_until"`
+	GrantSeconds         int64        `json:"grant_seconds"`
+	ElapsedSeconds       int64        `json:"elapsed_seconds"`
+	Quiet                bool         `json:"quiet"`
+	TaskTitle            string       `json:"task_title,omitempty"`
+	TaskText             string       `json:"task_text,omitempty"`
 }
