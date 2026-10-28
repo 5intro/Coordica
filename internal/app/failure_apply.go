@@ -106,6 +106,9 @@ func (c FailureRecoveries) followup(tx *store.Tx, f *domain.FailureAssessment,
 	if len(f.Result.Tasks) != 1 {
 		return domain.Fail("invalid_result", "one follow-up task required")
 	}
+	if taskTimeExhausted(tx, f.SourceTask) {
+		return domain.Fail("budget", "source task's explicit time allowance cannot fund a recheck")
+	}
 	proposal := &f.Result.Tasks[0]
 	if f.SourceTask.FailureSourceTaskID != "" || len(proposal.Dependencies) != 0 {
 		return domain.Fail("conflict", "automatic follow-up must be one independent task, never a recursive replacement")

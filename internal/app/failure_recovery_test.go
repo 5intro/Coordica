@@ -126,14 +126,11 @@ func TestFailureRecoveryFollowupIsOrdinaryBoundedWorkAndResumesFreshSource(t *te
 		if context.SourceRunID != source.SourceRunID || context.SourceAcceptance != source.SourceTask.Acceptance {
 			t.Fatal("follow-up lost source contract", context)
 		}
-		// Integration completion is injected here; the integration suite separately
-		// exercises code, fixed candidate, review and landing gates.
-		task.State = "integrated"
-		task.Version++
-		return tx.Put("task", task.ID, task)
+		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
+	completeTimeFollowup(t, f, recovery)
 	if err := (FailureRecoveries{Service: f.s}).queue(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +138,7 @@ func TestFailureRecoveryFollowupIsOrdinaryBoundedWorkAndResumesFreshSource(t *te
 	if err := f.s.DB.View(context.Background(), func(tx *store.Tx) error { return tx.Get("task", source.SourceTask.ID, &task) }); err != nil {
 		t.Fatal(err)
 	}
-	if task.State != "ready" || task.HoldReason != "" || task.Repairs != source.SourceTask.Repairs+1 || task.UsedSeconds != source.SourceTask.UsedSeconds ||
+	if task.State != "ready" || task.HoldReason != "" || task.Repairs != source.SourceTask.Repairs || task.UsedSeconds != source.SourceTask.UsedSeconds ||
 		task.AuthorizationVersion != source.SourceTask.AuthorizationVersion+1 || task.CurrentCandidateID != "" {
 		t.Fatal("source did not retain finite fresh execution", task)
 	}
@@ -351,19 +348,11 @@ func TestFailureRecoveryPlannerRetriesAreFiniteAndReboundToCase(t *testing.T) {
 	}
 }
 
-func TestFailureRecoveryFollowupDoesNotRefreshExhaustedSourceAllowance(t *testing.T) {
+func TestFailureRecoveryFollowupGrantsOneRecheckWithoutRefreshingExhaustedCounters(t *testing.T) {
 	f, source := failureFixture(t)
 	got := runRecovery(t, f, followupPlan(source))
+	completeTimeFollowup(t, f, got)
 	if err := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
-		var child domain.Task
-		if err := tx.Get("task", got.FollowupTaskID, &child); err != nil {
-			return err
-		}
-		child.State = "integrated"
-		child.Version++
-		if err := tx.Put("task", child.ID, child); err != nil {
-			return err
-		}
 		// The original allowance was already exhausted when diagnosis began.
 		var task domain.Task
 		if err := tx.Get("task", source.SourceTask.ID, &task); err != nil {
@@ -383,8 +372,9 @@ func TestFailureRecoveryFollowupDoesNotRefreshExhaustedSourceAllowance(t *testin
 		t.Fatal(err)
 	}
 	got = failureCases(t, f.s)[0]
-	if got.State != "needs_owner" {
-		t.Fatal("follow-up reset source allowance", got)
+	task := requirementTask(t, f, source.SourceTask.ID)
+	if got.State != "applied" || task.Repairs != task.MaxRepairs || task.FailureRecheckID != got.ID || task.State != "ready" {
+		t.Fatal("follow-up lost independent bounded recheck or reset counters", got, task)
 	}
 }
 
@@ -417,21 +407,8 @@ func TestFailureRecoveryVerificationRepinsExactLandedCodeButNotChangedTestPolicy
 				t.Fatal(err)
 			}
 			got := runRecovery(t, f, followupPlan(source))
-			landed := strings.Repeat("e", 40)
+			landed := completeTimeFollowup(t, f, got)
 			if err := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
-				var child domain.Task
-				if err := tx.Get("task", got.FollowupTaskID, &child); err != nil {
-					return err
-				}
-				child.State = "integrated"
-				child.CurrentCandidateID = "landed"
-				child.Version++
-				if err := tx.Put("task", child.ID, child); err != nil {
-					return err
-				}
-				if err := tx.Put("candidate", "landed", domain.Candidate{ID: "landed", TaskID: child.ID, State: "landed", Commit: landed}); err != nil {
-					return err
-				}
 				if changed {
 					suite.Version++
 					return tx.Put("test_suite", suite.ID, suite)
@@ -452,7 +429,7 @@ func TestFailureRecoveryVerificationRepinsExactLandedCodeButNotChangedTestPolicy
 				if got.State != "needs_owner" || task.Verification.Commit == landed || task.Retries != 0 {
 					t.Fatal("test suite silently changed", got, task)
 				}
-			} else if got.State != "applied" || task.Verification.Commit != landed || task.Retries != 1 || task.Repairs != source.SourceTask.Repairs {
+			} else if got.State != "applied" || task.Verification.Commit != landed || task.Retries != source.SourceTask.Retries || task.Repairs != source.SourceTask.Repairs {
 				t.Fatal("verification used wrong candidate or counters", got, task)
 			}
 		})

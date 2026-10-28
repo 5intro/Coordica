@@ -16,6 +16,10 @@ func ValidateAssignmentContext(a Assignment) error {
 			return Fail("invalid_context", "follow-up requires its fixed failure source context")
 		}
 	}
+	if a.Task.FailureRecheckID != "" && a.FailureContext != nil &&
+		(a.FailureContext.AssessmentID != a.Task.FailureRecheckID || a.FailureContext.SourceTaskID != a.Task.ID) {
+		return Fail("invalid_context", "recheck context must identify its original task")
+	}
 	if err := ValidateAssignmentRequirements(a); err != nil {
 		return err
 	}
@@ -25,15 +29,16 @@ func ValidateAssignmentContext(a Assignment) error {
 		feedback, review = a.Candidate.Detail, a.Candidate.Review
 	}
 	raw, err := json.Marshal(struct {
-		Failure      *FailureContext
-		Task         Task
-		Baseline     *Baseline
-		Goal         *GoalContext
-		Requirements []RequirementContext
-		Protected    []string
-		Feedback     string
-		Review       *Review
-	}{a.FailureContext, a.Task, a.Baseline, a.GoalContext, a.Requirements, a.Project.ProtectedPaths, feedback, review})
+		ReviewContext *ReviewContext
+		Failure       *FailureContext
+		Task          Task
+		Baseline      *Baseline
+		Goal          *GoalContext
+		Requirements  []RequirementContext
+		Protected     []string
+		Feedback      string
+		Review        *Review
+	}{a.ReviewContext, a.FailureContext, a.Task, a.Baseline, a.GoalContext, a.Requirements, a.Project.ProtectedPaths, feedback, review})
 	if err != nil {
 		return err
 	}

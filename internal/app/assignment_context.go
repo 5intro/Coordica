@@ -90,5 +90,9 @@ func assignedTaskContext(tx *store.Tx, task domain.Task, run domain.Run, project
 	if err != nil {
 		return result, err
 	}
+	result.ReviewContext, err = assignedReviewContext(tx, task, run)
+	if err != nil {
+		return result, err
+	}
 	return result, domain.ValidateAssignmentContext(result)
 }

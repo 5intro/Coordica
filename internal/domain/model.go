@@ -66,6 +66,7 @@ type RequirementProposal struct {
 	Body  string `json:"body"`
 }
 type Task struct {
+	FailureRecheckID         string            `json:"failure_recheck_id,omitempty"`
 	FailureSourceTaskID      string            `json:"failure_source_task_id,omitempty"`
 	FailureAssessmentID      string            `json:"failure_assessment_id,omitempty"`
 	RequirementHoldReason    string            `json:"requirement_hold_reason,omitempty"`
@@ -320,6 +321,7 @@ type ClaimRequest struct {
 	ExecutionIntentVersion   int          `json:"execution_intent_version,omitempty"`
 }
 type Assignment struct {
+	ReviewContext          *ReviewContext       `json:"review_context,omitempty"`
 	FailureRecoveryVersion int                  `json:"failure_recovery_version,omitempty"`
 	FailureContext         *FailureContext      `json:"failure_context,omitempty"`
 	Requirements           []RequirementContext `json:"requirements,omitempty"`
