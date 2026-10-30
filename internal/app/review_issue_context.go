@@ -36,20 +36,10 @@ func applicableReviewIssues(tx *store.Tx, task domain.Task, policy int64) ([]dom
 			!maps.Equal(r.RequirementRevisions, task.RequirementRevisions) {
 			continue
 		}
-		var c domain.Candidate
-		if err := tx.Get("candidate", r.CandidateID, &c); err != nil {
-			if errors.Is(err, domain.ErrNotFound) {
-				if issue.RulesDigest != "" {
-					return nil, domain.Fail("invalid_context", "structured issue candidate is missing; review history requires repair")
-				}
-				continue
-			}
+		if err := reviewIssueSource(tx, issue, r); err != nil {
 			return nil, err
 		}
-		if c.TaskID == task.ID && c.Commit == r.Base && c.PolicyVersion == r.PolicyVersion && c.AuthorizationVersion == r.AuthorizationVersion &&
-			c.BaselineVersion == r.BaselineVersion && c.BaselineDigest == r.BaselineDigest {
-			result = append(result, issue)
-		}
+		result = append(result, issue)
 	}
 	return result, nil
 }

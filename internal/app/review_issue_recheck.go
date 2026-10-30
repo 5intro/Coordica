@@ -65,7 +65,11 @@ func (c ReviewIssues) recheck(tx *store.Tx, a Actor, t domain.Task, candidate do
 	if err := reviewLedgerReady(tx, t.ID, candidate.Commit); err != nil {
 		return err
 	}
-	if err := tx.Put("review_receipt", candidate.Review.RunID, *candidate.Review); err != nil {
+	var reviewRun domain.Run
+	if err := tx.Get("run", candidate.Review.RunID, &reviewRun); err != nil {
+		return err
+	}
+	if err := saveReviewReceipt(tx, reviewRun, *candidate.Review); err != nil {
 		return err
 	}
 	// The immutable review_receipt retains the former verdict. Approval is

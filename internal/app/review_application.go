@@ -33,7 +33,7 @@ func applyCandidateReview(tx *store.Tx, s *Service, t *domain.Task, r domain.Run
 	}
 	// A later re-review may replace candidate.Review; retain every validated
 	// receipt under its immutable source Run in the same transaction.
-	if err := tx.Put("review_receipt", r.ID, review); err != nil {
+	if err := saveReviewReceipt(tx, r, review); err != nil {
 		return err
 	}
 	c.Review = &review

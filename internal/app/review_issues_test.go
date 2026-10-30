@@ -11,7 +11,7 @@ import (
 )
 
 func TestReviewLedgerMissingProvenanceCannotSilentlyClearIssue(t *testing.T) {
-	for _, kind := range []string{"run", "candidate"} {
+	for _, kind := range []string{"run", "review_receipt"} {
 		t.Run(kind, func(t *testing.T) {
 			f, a := ledgerReviewFixture(t)
 			if err := ledgerComplete(f, a, "negative", negativeLedgerReview(a)); err != nil {
@@ -19,9 +19,6 @@ func TestReviewLedgerMissingProvenanceCannotSilentlyClearIssue(t *testing.T) {
 			}
 			if err := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
 				id := a.Run.ID
-				if kind == "candidate" {
-					id = a.Candidate.ID
-				}
 				return tx.Delete(kind, id)
 			}); err != nil {
 				t.Fatal(err)

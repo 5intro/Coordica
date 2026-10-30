@@ -61,6 +61,7 @@ func (c ReviewIssues) record(tx *store.Tx, task domain.Task, run domain.Run, can
 		issue.State, issue.ResolutionCommit, issue.ResolutionReason = resolution.Disposition, candidate.Commit, resolution.Reason
 		issue.LastCandidate, issue.ResolvedBy = candidate.Commit, run.ID
 		issue.SourceRunID = run.ID
+		issue.RulesDigest = run.ReviewRulesDigest
 		if err := c.save(tx, &issue, Actor{ID: "center"}, "review.issue_resolved"); err != nil {
 			return err
 		}

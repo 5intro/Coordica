@@ -35,6 +35,13 @@ key reopens the same issue; omitting it does not close it. The center rechecks
 source authority, exact versions and stop receipts transactionally. Legacy
 string findings are retained as unclassified excerpts, not invented locations
 or severity. Every accepted review and issue revision is durably retained.
+Historical issue provenance uses immutable source review receipts and their
+source identity, not the candidate object's mutable current commit or rules.
+Rebuilding the same candidate ID therefore requires fresh issue verification;
+missing or inconsistent receipts cannot silently waive an issue. Older receipts
+remain readable with their surviving candidate identity and authority binding.
+For older issue records, the receipt's pinned rules digest is authoritative;
+later dispositions also refresh the issue's rules metadata.
 
 The Owner-only admin-loopback API exposes:
 

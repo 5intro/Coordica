@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -62,12 +63,12 @@ func TestReviewClaimCarriesFixedPreviousFindings(t *testing.T) {
 func TestReviewHistoryDoesNotCrossAuthorityOrUseUnstoppedEvidence(t *testing.T) {
 	for _, mode := range []string{"authority", "policy", "goal", "requirements", "unstopped", "wrong candidate"} {
 		t.Run(mode, func(t *testing.T) {
-			f, task := nextReview(t, func(task *domain.Task, c *domain.Candidate, r *domain.Run) {
+			f, task := nextReview(t, func(task *domain.Task, _ *domain.Candidate, r *domain.Run) {
 				switch mode {
 				case "authority":
 					task.AuthorizationVersion++
 				case "policy":
-					c.PolicyVersion++
+					r.PolicyVersion++
 				case "goal":
 					r.GoalAuthorizationVersion++
 				case "requirements":
@@ -84,6 +85,12 @@ func TestReviewHistoryDoesNotCrossAuthorityOrUseUnstoppedEvidence(t *testing.T) 
 					GoalVersion: task.GoalVersion, GoalAuthorizationVersion: task.GoalAuthorizationVersion,
 					RequirementRevisions: task.RequirementRevisions}
 				got, err := assignedReviewContext(tx, task, r)
+				if mode == "wrong candidate" && err != nil && got == nil {
+					var problem *domain.Error
+					if errors.As(err, &problem) && problem.Code == "invalid_context" {
+						return nil
+					}
+				}
 				if err != nil {
 					return err
 				}
