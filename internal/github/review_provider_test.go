@@ -104,7 +104,7 @@ func TestExternalReviewRejectsAmbiguousOrOversizedEnvelopes(t *testing.T) {
 
 func TestExternalReviewIncompleteSiblingDoesNotHideValidResult(t *testing.T) {
 	for _, incomplete := range []string{"code_review", "security_review"} {
-		for _, status := range []string{"running", "completed"} {
+		for _, status := range []string{"running", "completed", "null"} {
 			for _, includeIncomplete := range []bool{false, true} {
 				t.Run(incomplete+"/"+status+"/"+fmt.Sprint(includeIncomplete), func(t *testing.T) {
 					f := protocol(t)
@@ -122,6 +122,9 @@ func TestExternalReviewIncompleteSiblingDoesNotHideValidResult(t *testing.T) {
 					reports := map[string]any{
 						complete:   map[string]any{"commit_sha": f.spec.Head, "status": "completed", "has_any_findings": false, "has_unresolved_findings": false},
 						incomplete: map[string]any{"commit_sha": f.spec.Head, "status": status, "has_any_findings": nil, "has_unresolved_findings": nil},
+					}
+					if status == "null" {
+						reports[incomplete] = nil
 					}
 					raw, _ := json.Marshal(reports)
 					comment["body"] = codexReviewMarker + string(raw) + " -->"
@@ -148,6 +151,44 @@ func TestExternalReviewIncompleteSiblingDoesNotHideValidResult(t *testing.T) {
 					}
 				})
 			}
+		}
+	}
+}
+
+func TestExternalReviewNullSiblingDoesNotHideActionableFinding(t *testing.T) {
+	for _, incomplete := range []string{"code_review", "security_review"} {
+		for _, includeIncomplete := range []bool{false, true} {
+			t.Run(incomplete+"/"+fmt.Sprint(includeIncomplete), func(t *testing.T) {
+				f := protocol(t)
+				f.spec.Number = 7
+				complete := "code_review"
+				if incomplete == complete {
+					complete = "security_review"
+				}
+				kinds := []string{complete}
+				if includeIncomplete {
+					kinds = append(kinds, incomplete)
+				}
+				f.spec.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, Kinds: kinds}}
+				comment := externalComment(10, f.spec.Head, "completed", true)
+				reports := map[string]any{
+					complete:   map[string]any{"commit_sha": f.spec.Head, "status": "completed", "has_any_findings": true, "has_unresolved_findings": true},
+					incomplete: nil,
+				}
+				raw, _ := json.Marshal(reports)
+				comment["body"] = codexReviewMarker + string(raw) + " -->"
+				f.comments = []map[string]any{comment}
+				facts, err := f.client.Inspect(context.Background(), f.spec)
+				if err != nil || facts.MergeReady || facts.Review != "changes_requested" {
+					t.Fatal("null sibling hid actionable provider findings", facts, err)
+				}
+				if len(facts.ExternalReviews) != len(kinds) || facts.ExternalReviews[0].State != "failure" || facts.ExternalReviews[0].Evidence == "" {
+					t.Fatal("repair feedback lost the valid report", facts.ExternalReviews)
+				}
+				if includeIncomplete && facts.ExternalReviews[1].State != "pending" {
+					t.Fatal("null report became an approval", facts.ExternalReviews)
+				}
+			})
 		}
 	}
 }

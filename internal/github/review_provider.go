@@ -76,7 +76,7 @@ func (c *Client) externalReviews(ctx context.Context, s domain.PullRequestSpec) 
 				if err == nil && !exists {
 					continue
 				}
-				if err == nil && report.Commit != s.Head {
+				if err == nil && report != nil && report.Commit != s.Head {
 					continue
 				}
 				v := current[kind]
@@ -98,7 +98,7 @@ func (c *Client) externalReviews(ctx context.Context, s domain.PullRequestSpec) 
 	return out, nil
 }
 
-func decodeCodexReports(body string) (map[string]codexReviewReport, error) {
+func decodeCodexReports(body string) (map[string]*codexReviewReport, error) {
 	if len(body) > 64<<10 || strings.Count(body, codexReviewMarker) != 1 {
 		return nil, errors.New("ambiguous or oversized review envelope")
 	}
@@ -107,21 +107,24 @@ func decodeCodexReports(body string) (map[string]codexReviewReport, error) {
 	if end < 0 {
 		return nil, errors.New("review envelope incomplete")
 	}
-	var reports map[string]codexReviewReport
+	var reports map[string]*codexReviewReport
 	if err := jsoninput.DecodeNullable([]byte(body[start:start+end]), &reports, 64<<10); err != nil {
 		return nil, err
 	}
 	for _, v := range reports {
-		if !fullSHA.MatchString(v.Commit) {
+		if v != nil && !fullSHA.MatchString(v.Commit) {
 			return nil, errors.New("review commit identity is invalid")
 		}
 	}
 	return reports, nil
 }
 
-func codexReportState(v codexReviewReport, err error) (string, string) {
+func codexReportState(v *codexReviewReport, err error) (string, string) {
 	if err != nil {
 		return "pending", "Trusted review report is malformed; cannot establish current approval"
+	}
+	if v == nil {
+		return "pending", "Trusted review result is null; cannot establish current approval"
 	}
 	if v.Status != "completed" {
 		return "pending", "Trusted review operation is incomplete or failed; no code repair inferred"
