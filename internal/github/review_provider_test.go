@@ -26,7 +26,7 @@ func TestExternalReviewRequiresTrustedCurrentCompleteReports(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			f := protocol(t)
 			f.spec.Number = 7
-			f.spec.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, Kinds: []string{"code_review", "security_review"}}}
+			f.spec.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, CheckNames: map[string]string{"code_review": "Codex code", "security_review": "Codex security"}, Kinds: []string{"code_review", "security_review"}}}
 			comment := externalComment(10, f.spec.Head, "completed", false)
 			f.comments = []map[string]any{comment}
 			switch mode {
@@ -64,6 +64,10 @@ func TestExternalReviewRequiresTrustedCurrentCompleteReports(t *testing.T) {
 				comment["body"] = strings.ReplaceAll(comment["body"].(string), `"has_any_findings":false`, `"has_any_findings":true`)
 			case "head moved":
 				f.onComments = func() { f.wrongHead = true }
+			}
+			fixtureReviewChecks(f, nil)
+			if mode == "unresolved" || mode == "old green cannot hide failure" {
+				fixtureReviewChecks(f, map[string]string{"code_review": "failure", "security_review": "failure"})
 			}
 			facts, err := f.client.Inspect(context.Background(), f.spec)
 			if err != nil {
@@ -117,7 +121,7 @@ func TestExternalReviewIncompleteSiblingDoesNotHideValidResult(t *testing.T) {
 					if includeIncomplete {
 						kinds = append(kinds, incomplete)
 					}
-					f.spec.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, Kinds: kinds}}
+					f.spec.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, CheckNames: reviewCheckNames(kinds), Kinds: kinds}}
 					comment := externalComment(10, f.spec.Head, "completed", false)
 					reports := map[string]any{
 						complete:   map[string]any{"commit_sha": f.spec.Head, "status": "completed", "has_any_findings": false, "has_unresolved_findings": false},
@@ -130,6 +134,7 @@ func TestExternalReviewIncompleteSiblingDoesNotHideValidResult(t *testing.T) {
 					comment["body"] = codexReviewMarker + string(raw) + " -->"
 					// The newest incomplete result must also replace its own prior green.
 					f.comments = []map[string]any{externalComment(9, f.spec.Head, "completed", false), comment}
+					fixtureReviewChecks(f, map[string]string{incomplete: "pending"})
 					facts, err := f.client.Inspect(context.Background(), f.spec)
 					if err != nil {
 						t.Fatal(err)
@@ -169,7 +174,7 @@ func TestExternalReviewNullSiblingDoesNotHideActionableFinding(t *testing.T) {
 				if includeIncomplete {
 					kinds = append(kinds, incomplete)
 				}
-				f.spec.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, Kinds: kinds}}
+				f.spec.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, CheckNames: reviewCheckNames(kinds), Kinds: kinds}}
 				comment := externalComment(10, f.spec.Head, "completed", true)
 				reports := map[string]any{
 					complete:   map[string]any{"commit_sha": f.spec.Head, "status": "completed", "has_any_findings": true, "has_unresolved_findings": true},
@@ -178,6 +183,7 @@ func TestExternalReviewNullSiblingDoesNotHideActionableFinding(t *testing.T) {
 				raw, _ := json.Marshal(reports)
 				comment["body"] = codexReviewMarker + string(raw) + " -->"
 				f.comments = []map[string]any{comment}
+				fixtureReviewChecks(f, map[string]string{complete: "failure", incomplete: "pending"})
 				facts, err := f.client.Inspect(context.Background(), f.spec)
 				if err != nil || facts.MergeReady || facts.Review != "changes_requested" {
 					t.Fatal("null sibling hid actionable provider findings", facts, err)

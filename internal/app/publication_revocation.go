@@ -126,6 +126,9 @@ func (w *Integrator) reserveReviewStatus(ctx context.Context, c domain.Candidate
 		if facts.Head != current.Commit || facts.Number <= 0 || facts.Branch != b.Branch || b.Number != 0 && b.Number != facts.Number {
 			return domain.Fail("invalid_result", "review status requires the exact bound PR head")
 		}
+		if err := (ReviewIssues{Service: w.Service}).fenceExternal(tx, t, current, &facts); err != nil {
+			return err
+		}
 		current.PullRequest = &facts
 		state, allowed = reviewCheck(p, t, current), true
 		b.DesiredReview = state

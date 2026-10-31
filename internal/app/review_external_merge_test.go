@@ -20,7 +20,7 @@ func mergedExternalFixture(t *testing.T, path, mode string) (*itFixture, *testPu
 		if err != nil {
 			return err
 		}
-		p.Publication.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, Kinds: []string{"security_review"}}}
+		p.Publication.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, CheckNames: map[string]string{"security_review": "Codex security"}, Kinds: []string{"security_review"}}}
 		return tx.Put("project", p.ID, p)
 	}); err != nil {
 		t.Fatal(err)
@@ -70,12 +70,16 @@ func mergedExternalFixture(t *testing.T, path, mode string) (*itFixture, *testPu
 }
 
 func mergedExternalReport(state string) func(domain.PullRequestSpec) []domain.ExternalReview {
+	return mergedExternalReportAt(state, 20)
+}
+
+func mergedExternalReportAt(state string, checkID int64) func(domain.PullRequestSpec) []domain.ExternalReview {
 	return func(spec domain.PullRequestSpec) []domain.ExternalReview {
 		if state == "missing" {
 			return nil
 		}
-		return []domain.ExternalReview{{Provider: "codex", Kind: "security_review", ActorID: 42, AppID: 99,
-			ReportID: 10, Commit: spec.Head, State: state, Summary: "provider result", URL: "https://github.com/owner/repo/pull/7"}}
+		return []domain.ExternalReview{stampExternalReport(domain.ExternalReview{Provider: "codex", Kind: "security_review", ActorID: 42, AppID: 99,
+			CheckID: checkID, CheckName: "Codex security", ReportID: 10, Commit: spec.Head, State: state, Summary: "provider result", URL: "https://github.com/owner/repo/pull/7"})}
 	}
 }
 
@@ -107,7 +111,7 @@ func TestExternalReviewMergedPRCannotBypassGateOrRecovery(t *testing.T) {
 						after.Retries != before.Retries || after.Repairs != before.Repairs {
 						t.Fatal("merged flag bypassed current provider evidence or spent repair counts", after, f.candidate(t))
 					}
-					h.external = mergedExternalReport("success")
+					h.external = mergedExternalReportAt("success", 21)
 					f.w = &Integrator{Service: f.s, Git: f.g, PullRequests: h}
 					if path == "intent" {
 						if err := f.w.Tick(ctx); err != nil {

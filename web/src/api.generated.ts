@@ -399,12 +399,18 @@ export interface ReviewRules {
   changed: (string)[] | null;
 }
 export interface ExternalReviewPolicy {
+  check_names?: Record<string, string>;
   provider: string;
   actor_id: number;
   app_id: number;
   kinds: (string)[] | null;
 }
 export interface ExternalReview {
+  check_state?: string;
+  report_state?: string;
+  report_updated_at?: string;
+  check_id?: number;
+  check_name?: string;
   provider: string;
   kind: string;
   actor_id: number;
@@ -1092,6 +1098,7 @@ export interface PublicationRequest {
   policy: PublicationPolicy;
 }
 export interface RemoteCheck {
+  id?: number;
   summary?: string;
   name: string;
   state: string;

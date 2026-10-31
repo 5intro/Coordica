@@ -14,7 +14,7 @@ func TestExternalReviewMergedReceiptStillRequiresProviderEvidence(t *testing.T) 
 		t.Run(mode, func(t *testing.T) {
 			f := protocol(t)
 			f.spec.Number, f.merged, f.testMerge = 7, true, strings.Repeat("d", 40)
-			f.spec.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, Kinds: []string{"security_review"}}}
+			f.spec.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, CheckNames: map[string]string{"security_review": "Codex security"}, Kinds: []string{"security_review"}}}
 			head, status := f.spec.Head, "completed"
 			if mode == "stale" {
 				head = f.spec.Base
@@ -24,6 +24,10 @@ func TestExternalReviewMergedReceiptStillRequiresProviderEvidence(t *testing.T) 
 			}
 			if mode != "missing" {
 				f.comments = []map[string]any{externalComment(10, head, status, mode == "unresolved")}
+			}
+			fixtureReviewChecks(f, nil)
+			if mode == "unresolved" {
+				fixtureReviewChecks(f, map[string]string{"security_review": "failure"})
 			}
 			facts, err := f.client.Inspect(context.Background(), f.spec)
 			if err != nil || facts.State != "merged" || len(facts.ExternalReviews) != 1 {

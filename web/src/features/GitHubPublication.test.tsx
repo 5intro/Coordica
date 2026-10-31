@@ -25,8 +25,12 @@ describe('GitHub publication', () => {
     fireEvent.click(screen.getByLabelText('安全审查'));
     expect(save.disabled).toBe(true);
     fireEvent.click(screen.getByLabelText('安全审查'));
+    expect(save.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText('安全审查检查名称'), { target: { value: 'coordica/review' } });
+    expect(save.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText('安全审查检查名称'), { target: { value: 'Codex security' } });
     fireEvent.click(save);
-    await waitFor(() => expect(write).toHaveBeenCalledWith('/project/publication', { expected_version: 1, policy: { mode: 'github', required_checks: ['ci'], review_providers: [{ provider: 'codex', actor_id: 42, app_id: 99, kinds: ['security_review'] }] } }));
+    await waitFor(() => expect(write).toHaveBeenCalledWith('/project/publication', { expected_version: 1, policy: { mode: 'github', required_checks: ['ci'], review_providers: [{ provider: 'codex', actor_id: 42, app_id: 99, kinds: ['security_review'], check_names: { security_review: 'Codex security' } }] } }));
   });
 
   it('shows exact-head external review results without unsafe report links', () => {

@@ -618,6 +618,9 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 			if current.PullRequest == nil || current.PullRequest.Head != current.Commit || current.PullRequest.State != "merged" && current.PullRequest.Base != current.Main || (!current.PullRequest.MergeReady && current.PullRequest.State != "merged") || w.PullRequests == nil {
 				return nil
 			}
+			if err := (ReviewIssues{Service: s}).fenceExternal(tx, t, current, current.PullRequest); err != nil {
+				return err
+			}
 			if !domain.ExternalReviewsReady(project.Publication.ReviewProviders, current.PullRequest.ExternalReviews, current.Commit) {
 				return nil
 			}

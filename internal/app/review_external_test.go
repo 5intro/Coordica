@@ -30,7 +30,7 @@ func TestExternalReviewGateCannotBeBypassedByAdapterMergeReady(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				p.Publication.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, Kinds: []string{"code_review"}}}
+				p.Publication.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, CheckNames: map[string]string{"code_review": "Codex code"}, Kinds: []string{"code_review"}}}
 				return tx.Put("project", p.ID, p)
 			}); err != nil {
 				t.Fatal(err)
@@ -45,7 +45,7 @@ func TestExternalReviewGateCannotBeBypassedByAdapterMergeReady(t *testing.T) {
 				if mode == "missing" {
 					return nil
 				}
-				report := domain.ExternalReview{Provider: "codex", Kind: "code_review", ActorID: 42, AppID: 99, ReportID: 10, Commit: spec.Head, State: "success"}
+				report := domain.ExternalReview{Provider: "codex", Kind: "code_review", ActorID: 42, AppID: 99, CheckID: 20, CheckName: "Codex code", ReportID: 10, Commit: spec.Head, State: "success"}
 				if mode == "stale" {
 					report.Commit = spec.Base
 				}
@@ -55,7 +55,7 @@ func TestExternalReviewGateCannotBeBypassedByAdapterMergeReady(t *testing.T) {
 				if mode == "pending" || mode == "failure" {
 					report.State = mode
 				}
-				return []domain.ExternalReview{report}
+				return []domain.ExternalReview{stampExternalReport(report)}
 			}
 			c := f.candidate(t)
 			if _, err := f.s.RequestPullRequestSync(context.Background(), f.owner, "sync", c.ID, domain.VersionRequest{ExpectedVersion: c.Version}); err != nil {
@@ -76,14 +76,15 @@ func TestExternalReviewGateCannotBeBypassedByAdapterMergeReady(t *testing.T) {
 func TestExternalReviewIssueRequiresProviderResolutionOnCurrentCommit(t *testing.T) {
 	f, a := ledgerReviewFixture(t)
 	api := ReviewIssues{Service: f.s}
-	report := domain.ExternalReview{Provider: "codex", Kind: "security_review", ActorID: 42, AppID: 99, ReportID: 10, Commit: a.Run.Base, State: "failure", Summary: "Unresolved security finding", URL: "https://github.com/owner/repo/pull/7#issuecomment-10"}
+	report := domain.ExternalReview{Provider: "codex", Kind: "security_review", ActorID: 42, AppID: 99, CheckID: 20, CheckName: "Codex security", ReportID: 10, Commit: a.Run.Base, State: "failure", Summary: "Unresolved security finding", URL: "https://github.com/owner/repo/pull/7#issuecomment-10"}
 	observe := func(report domain.ExternalReview) error {
+		report = stampExternalReport(report)
 		return f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
 			p, err := getProject(tx)
 			if err != nil {
 				return err
 			}
-			p.Publication = &domain.PublicationPolicy{Mode: "github", ReviewProviders: []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, Kinds: []string{"security_review"}}}}
+			p.Publication = &domain.PublicationPolicy{Mode: "github", ReviewProviders: []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, CheckNames: map[string]string{"security_review": "Codex security"}, Kinds: []string{"security_review"}}}}
 			if err := tx.Put("project", p.ID, p); err != nil {
 				return err
 			}

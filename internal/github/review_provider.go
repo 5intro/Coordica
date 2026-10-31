@@ -57,6 +57,11 @@ func (c *Client) externalReviews(ctx context.Context, s domain.PullRequestSpec) 
 		}
 		return comments[i].UpdatedAt.Before(comments[j].UpdatedAt)
 	})
+	remaining := 64 << 10
+	checks, err := c.checks(ctx, s.Head, &remaining)
+	if err != nil {
+		return nil, err
+	}
 	out := []domain.ExternalReview{}
 	for _, policy := range s.ReviewProviders {
 		current := map[string]domain.ExternalReview{}
@@ -81,6 +86,7 @@ func (c *Client) externalReviews(ctx context.Context, s domain.PullRequestSpec) 
 				}
 				v := current[kind]
 				v.ReportID = comment.ID
+				v.ReportUpdatedAt = comment.UpdatedAt
 				v.URL = "https://github.com/" + c.repository + "/pull/" + strconv.Itoa(s.Number) + "#issuecomment-" + strconv.FormatInt(comment.ID, 10)
 				v.State, v.Summary = codexReportState(report, err)
 				v.Evidence = ""
@@ -92,7 +98,7 @@ func (c *Client) externalReviews(ctx context.Context, s domain.PullRequestSpec) 
 			}
 		}
 		for _, kind := range policy.Kinds {
-			out = append(out, current[kind])
+			out = append(out, bindReviewCheck(policy, kind, current[kind], checks))
 		}
 	}
 	return out, nil

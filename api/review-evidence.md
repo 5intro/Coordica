@@ -67,10 +67,17 @@ context-limit hold rather than silently dropping evidence.
 In GitHub publication settings, Owner may configure `review_providers`:
 
 ```json
-[{"provider":"codex","actor_id":123,"app_id":456,"kinds":["code_review","security_review"]}]
+[{"provider":"codex","actor_id":123,"app_id":456,"kinds":["code_review","security_review"],"check_names":{"code_review":"Actual code-review check name","security_review":"Actual security-review check name"}}]
 ```
 
-The numbers are placeholders. Obtain the actual comment's `user.id` and
+The numbers and check names are placeholders. Each check must represent a complete
+review verdict for that kind, not merely a scan-completed notification. The source
+App must publish the Check Run on the fixed head, and branch protection must require
+that exact check name pinned to the same App ID. A deletable comment or legacy
+commit status alone cannot approve integration. If the provider does not publish
+such a check, use GitHub for manual review; this automatic gate remains unavailable.
+
+The configured identities are explicit. Obtain the actual comment's `user.id` and
 `performed_via_github_app.id` from GitHub before configuring them. Display names,
 prose and a model's self-asserted identity cannot enroll a provider. Policy changes
 require a paused, quiet project; an empty policy preserves existing GitHub gates
@@ -82,13 +89,15 @@ The current adapter reads bot comments containing one structured envelope:
 <!-- codex-review-state:v1 {"code_review":{"commit_sha":"<full current SHA>","status":"completed","has_any_findings":false,"has_unresolved_findings":false}} -->
 ```
 
-Each configured kind must have a complete current-head result from the configured
-numeric actor and App. The latest applicable update wins.
+Each configured kind must have both a complete current-head structured result from
+the configured numeric actor/App and a matching App-owned Check Run. Both verdicts
+must agree. A failing/timed-out check without actionable structured findings, or
+contradictory sources, remains pending instead of consuming a code repair. The
+latest applicable comment update supplies context; it never grants authority alone.
 An explicit null result remains pending for that kind without invalidating a
 complete sibling result in the same envelope. Enabling both kinds still requires
 both to pass; a newer incomplete result replaces that kind's earlier success.
-Old-head success,
-missing App attribution, malformed/contradictory/ambiguous results, incomplete
+Old-head success, missing App attribution, malformed/contradictory/ambiguous results, incomplete
 pagination and running/failed operations cannot approve a merge. Operational
 failure waits for evidence instead of consuming code repairs. Only a completed
 result with unresolved findings enters the existing repair flow and updates the
@@ -98,6 +107,17 @@ or automatically post review-trigger comments. A bounded, attributed raw comment
 excerpt and source URL accompany a failed gate into the existing repair context;
 missing private-report details are not invented. Other providers require explicit
 protocol adapters; unsupported formats fail closed.
+
+The center persists independent Check Run and comment-version receipts per task,
+fixed head, enrolled provider and review kind. Lower check IDs and older comment
+updates cannot replace newer observations, even when API reads span different
+snapshots. Once a completed check regresses or disappears, that ID cannot
+resurrect its former approval; a newer App-owned Check Run is required. An older
+or disappeared terminal report requires a fresh comment update. Pending checks
+may complete normally. Receipts survive restart and backup/restore, and are stored with audit
+in the same transaction before a remote status can be reported. A writer deleting
+a new comment before the first Center read still cannot hide the App-owned check.
+Legacy comment-only policies and receipts never inherit approval.
 
 The branch-protected `coordica/review` status stays pending until the configured
 external gates and internal review pass. Already merged PRs still fetch external

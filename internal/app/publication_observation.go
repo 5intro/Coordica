@@ -68,6 +68,9 @@ func (w *Integrator) observePullRequest(ctx context.Context, c domain.Candidate)
 		if current.Commit != c.Commit || task.CurrentCandidateID != c.ID {
 			return nil
 		}
+		if err := (ReviewIssues{Service: w.Service}).fenceExternal(tx, task, current, &facts); err != nil {
+			return err
+		}
 		current.PullRequest = &facts
 		current.Version++
 		if e := tx.Put("candidate", c.ID, current); e != nil {

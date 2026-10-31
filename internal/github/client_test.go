@@ -38,7 +38,9 @@ type protocolFixture struct {
 	mergeableState        string
 	unmergeable           bool
 	reviewAppID           *int64
+	externalUnpinned      bool
 	statusState           string
+	extraStatuses         []map[string]any
 	ciUnpinned            bool
 	testMerge             string
 	mergeParents          []string
@@ -152,7 +154,8 @@ func protocol(t *testing.T) *protocolFixture {
 				if state == "" {
 					state = "success"
 				}
-				write([]any{map[string]any{"id": 9, "context": domain.ReviewCheckContext, "state": state}})
+				values := []map[string]any{{"id": 9, "context": domain.ReviewCheckContext, "state": state}}
+				write(append(values, f.extraStatuses...))
 			}
 		case p == "/pulls/7/reviews":
 			if f.reviews != nil {
@@ -165,7 +168,17 @@ func protocol(t *testing.T) *protocolFixture {
 			if f.ciUnpinned {
 				ciApp = nil
 			}
-			write(map[string]any{"enforce_admins": map[string]bool{"enabled": f.admins}, "required_status_checks": map[string]any{"strict": f.strict, "checks": []any{map[string]any{"context": "ci", "app_id": ciApp}, map[string]any{"context": domain.ReviewCheckContext, "app_id": f.reviewAppID}}}})
+			required := []any{map[string]any{"context": "ci", "app_id": ciApp}, map[string]any{"context": domain.ReviewCheckContext, "app_id": f.reviewAppID}}
+			for _, source := range f.spec.ReviewProviders {
+				for _, name := range source.CheckNames {
+					var app any = source.AppID
+					if f.externalUnpinned {
+						app = nil
+					}
+					required = append(required, map[string]any{"context": name, "app_id": app})
+				}
+			}
+			write(map[string]any{"enforce_admins": map[string]bool{"enabled": f.admins}, "required_status_checks": map[string]any{"strict": f.strict, "checks": required}})
 		case p == "/pulls/7/merge" && r.Method == "PUT":
 			var in map[string]string
 			if e := json.NewDecoder(r.Body).Decode(&in); e != nil {

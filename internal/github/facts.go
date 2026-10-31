@@ -111,7 +111,23 @@ func (c *Client) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.
 			return out, nil
 		}
 	}
+	for _, provider := range s.ReviewProviders {
+		for _, kind := range provider.Kinds {
+			name := provider.CheckNames[kind]
+			app, ok := required[name]
+			if !ok || app == nil || *app != provider.AppID {
+				out.Detail = "外部审查检查必须在分支保护中绑定可信 GitHub App：" + name
+				return out, nil
+			}
+		}
+	}
 	out.CI = "success"
+	externalNames := map[string]bool{}
+	for _, provider := range s.ReviewProviders {
+		for _, name := range provider.CheckNames {
+			externalNames[name] = true
+		}
+	}
 requiredChecks:
 	for name, appID := range required {
 		matched := []domain.RemoteCheck{}
@@ -139,6 +155,10 @@ requiredChecks:
 		// matching provider must pass; one green result cannot mask another.
 		for _, check := range matched {
 			if check.State == "failure" {
+				if externalNames[name] {
+					out.CI, out.Detail = "pending", "等待可信外部审查证据："+name
+					continue
+				}
 				out.CI = "failure"
 				out.Detail = "必需检查失败：" + name
 				break requiredChecks
@@ -269,7 +289,7 @@ func (c *Client) checks(ctx context.Context, head string, feedbackBytes *int) ([
 					state = "failure"
 				}
 			}
-			check := domain.RemoteCheck{Name: r.Name, AppID: r.App.ID, State: state, URL: "https://github.com/" + c.repository + "/commit/" + head + "/checks"}
+			check := domain.RemoteCheck{ID: r.ID, Name: r.Name, AppID: r.App.ID, State: state, URL: "https://github.com/" + c.repository + "/commit/" + head + "/checks"}
 			if state == "failure" {
 				check.Summary = boundedFeedback(r.Output.Summary, feedbackBytes)
 			}

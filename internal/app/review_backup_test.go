@@ -32,6 +32,9 @@ func TestReviewBackupRestoreKeepsIssuesRulesAndImmutableReceipts(t *testing.T) {
 		if err := tx.Put("review_issue_history", issue.ID+"_v2", issue); err != nil {
 			return err
 		}
+		if err := tx.Put("external_review_receipt", "receipt-backup", externalReviewReceipt{CheckID: 42, State: "success", Invalidated: true, ReportID: 11, ReportUpdatedAt: s.Now().UTC(), ReportState: "failure", ReportInvalidated: true}); err != nil {
+			return err
+		}
 		return saveReviewReceipt(tx, domain.Run{ID: "run_review_backup", CandidateID: candidate.ID}, domain.Review{RunID: "run_review_backup", Candidate: candidate.Commit, Verdict: "changes_requested", RulesDigest: rules.Digest, Findings: []string{}, Issues: []domain.ReviewFinding{}, Resolutions: []domain.ReviewResolution{}})
 	}); err != nil {
 		t.Fatal(err)
@@ -54,6 +57,13 @@ func TestReviewBackupRestoreKeepsIssuesRulesAndImmutableReceipts(t *testing.T) {
 		var c domain.Candidate
 		var receipt domain.Review
 		var sourceCandidateID string
+		var external externalReviewReceipt
+		if err := tx.Get("external_review_receipt", "receipt-backup", &external); err != nil {
+			return err
+		}
+		if external.CheckID != 42 || !external.Invalidated || external.ReportID != 11 || external.ReportUpdatedAt.IsZero() || !external.ReportInvalidated || external.ReportState != "failure" {
+			t.Fatal("external replay fence lost during restore", external)
+		}
 		if err := tx.Get("review_issue", issue.ID, &got); err != nil {
 			return err
 		}

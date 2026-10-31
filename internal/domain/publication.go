@@ -39,6 +39,7 @@ type PullRequestSpec struct {
 }
 
 type RemoteCheck struct {
+	ID      int64  `json:"id,omitempty"`
 	Summary string `json:"summary,omitempty"`
 	Name    string `json:"name"`
 	State   string `json:"state"`

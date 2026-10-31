@@ -2194,6 +2194,15 @@
         "app_id": {
           "type": "integer"
         },
+        "check_id": {
+          "type": "integer"
+        },
+        "check_name": {
+          "type": "string"
+        },
+        "check_state": {
+          "type": "string"
+        },
         "commit": {
           "type": "string"
         },
@@ -2208,6 +2217,13 @@
         },
         "report_id": {
           "type": "integer"
+        },
+        "report_state": {
+          "type": "string"
+        },
+        "report_updated_at": {
+          "format": "date-time",
+          "type": "string"
         },
         "state": {
           "type": "string"
@@ -2240,6 +2256,12 @@
         },
         "app_id": {
           "type": "integer"
+        },
+        "check_names": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
         },
         "kinds": {
           "items": {
@@ -4463,6 +4485,9 @@
       "additionalProperties": false,
       "properties": {
         "app_id": {
+          "type": "integer"
+        },
+        "id": {
           "type": "integer"
         },
         "name": {

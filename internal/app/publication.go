@@ -250,6 +250,9 @@ func (w *Integrator) syncPullRequest(ctx context.Context, c domain.Candidate, fo
 		if e = tx.Put("pull_request", t.ID, binding); e != nil {
 			return e
 		}
+		if err := (ReviewIssues{Service: s}).fenceExternal(tx, task, current, &facts); err != nil {
+			return err
+		}
 		current.PullRequest = &facts
 		if err := (ReviewIssues{Service: s}).observeExternal(tx, task, current, facts); err != nil {
 			return err

@@ -11,7 +11,8 @@ export function PublicationSettings({ project, client, refresh }: { project: Pro
   const [checks, setChecks] = useState((project.publication?.required_checks ?? []).join('\n'));
   const [version, setVersion] = useState(project.version);
   const [provider, setProvider] = useState<ExternalReviewPolicy | undefined>(project.publication?.review_providers?.[0]);
-  const sourceInvalid = mode === 'github' && provider && (!Number.isSafeInteger(provider.actor_id) || provider.actor_id < 1 || !Number.isSafeInteger(provider.app_id) || provider.app_id < 1 || !(provider.kinds?.length));
+  const names = (provider?.kinds ?? []).map((kind) => provider?.check_names?.[kind]?.trim() ?? '');
+  const sourceInvalid = mode === 'github' && provider && (!Number.isSafeInteger(provider.actor_id) || provider.actor_id < 1 || !Number.isSafeInteger(provider.app_id) || provider.app_id < 1 || !names.length || names.some((name) => !name || name === 'coordica/review' || /[\u0000\r\n]/.test(name)) || new Set(names).size !== names.length);
   const stale = version !== project.version;
   return <section aria-labelledby="publication-settings"><h2 id="publication-settings">代码集成</h2><form className="settings-group" onSubmit={(event) => {
     event.preventDefault();

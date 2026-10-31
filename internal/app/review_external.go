@@ -18,6 +18,9 @@ func (c ReviewIssues) mergedEvidenceReady(tx *store.Tx, task domain.Task, candid
 	if err != nil {
 		return false, err
 	}
+	if err := c.fenceExternal(tx, task, *candidate, facts); err != nil {
+		return false, err
+	}
 	candidate.PullRequest = facts
 	if err := c.observeExternal(tx, task, *candidate, *facts); err != nil {
 		return false, err
@@ -35,11 +38,15 @@ func (c ReviewIssues) observeExternal(tx *store.Tx, task domain.Task, candidate 
 	}
 	for _, report := range facts.ExternalReviews {
 		trusted := false
+		var enrolled domain.ExternalReviewPolicy
 		if project.Publication != nil {
 			for _, p := range project.Publication.ReviewProviders {
 				if p.Provider == report.Provider && p.ActorID == report.ActorID && p.AppID == report.AppID {
 					for _, kind := range p.Kinds {
 						trusted = trusted || kind == report.Kind
+						if kind == report.Kind {
+							enrolled = p
+						}
 					}
 				}
 			}
@@ -49,6 +56,9 @@ func (c ReviewIssues) observeExternal(tx *store.Tx, task domain.Task, candidate 
 		}
 		if report.Commit != candidate.Commit {
 			return domain.Fail("stale_run", "external review describes a different candidate")
+		}
+		if (report.State == "success" || report.State == "failure") && !domain.ExternalReviewVerdict(enrolled, report, candidate.Commit, report.State) {
+			return domain.Fail("invalid_result", "external verdict lacks matching App-check and structured evidence")
 		}
 		source := fmt.Sprintf("external/%s/%s/%d/%d", report.Provider, report.Kind, report.ActorID, report.AppID)
 		evidence := report.Summary + "\n" + report.URL + "\n" + report.Evidence
