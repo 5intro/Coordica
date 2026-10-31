@@ -83,7 +83,11 @@ The current adapter reads bot comments containing one structured envelope:
 ```
 
 Each configured kind must have a complete current-head result from the configured
-numeric actor and App. The latest applicable update wins. Old-head success,
+numeric actor and App. The latest applicable update wins.
+An explicit null result remains pending for that kind without invalidating a
+complete sibling result in the same envelope. Enabling both kinds still requires
+both to pass; a newer incomplete result replaces that kind's earlier success.
+Old-head success,
 missing App attribution, malformed/contradictory/ambiguous results, incomplete
 pagination and running/failed operations cannot approve a merge. Operational
 failure waits for evidence instead of consuming code repairs. Only a completed

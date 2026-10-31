@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -97,6 +98,56 @@ func TestExternalReviewRejectsAmbiguousOrOversizedEnvelopes(t *testing.T) {
 	for _, bad := range []string{body + body, body + strings.Repeat("x", 64<<10), codexReviewMarker + "{}"} {
 		if _, err := decodeCodexReports(bad); err == nil {
 			t.Fatal("unsafe envelope accepted")
+		}
+	}
+}
+
+func TestExternalReviewIncompleteSiblingDoesNotHideValidResult(t *testing.T) {
+	for _, incomplete := range []string{"code_review", "security_review"} {
+		for _, status := range []string{"running", "completed"} {
+			for _, includeIncomplete := range []bool{false, true} {
+				t.Run(incomplete+"/"+status+"/"+fmt.Sprint(includeIncomplete), func(t *testing.T) {
+					f := protocol(t)
+					f.spec.Number = 7
+					complete := "code_review"
+					if incomplete == complete {
+						complete = "security_review"
+					}
+					kinds := []string{complete}
+					if includeIncomplete {
+						kinds = append(kinds, incomplete)
+					}
+					f.spec.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, Kinds: kinds}}
+					comment := externalComment(10, f.spec.Head, "completed", false)
+					reports := map[string]any{
+						complete:   map[string]any{"commit_sha": f.spec.Head, "status": "completed", "has_any_findings": false, "has_unresolved_findings": false},
+						incomplete: map[string]any{"commit_sha": f.spec.Head, "status": status, "has_any_findings": nil, "has_unresolved_findings": nil},
+					}
+					raw, _ := json.Marshal(reports)
+					comment["body"] = codexReviewMarker + string(raw) + " -->"
+					// The newest incomplete result must also replace its own prior green.
+					f.comments = []map[string]any{externalComment(9, f.spec.Head, "completed", false), comment}
+					facts, err := f.client.Inspect(context.Background(), f.spec)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if facts.MergeReady == includeIncomplete || len(facts.ExternalReviews) != len(kinds) {
+						t.Fatal("incomplete sibling changed configured gate readiness", facts)
+					}
+					for _, review := range facts.ExternalReviews {
+						want := "success"
+						if review.Kind == incomplete {
+							want = "pending"
+							if review.Evidence != "" || facts.Review == "changes_requested" {
+								t.Fatal("missing evidence inferred actionable code failure", facts)
+							}
+						}
+						if review.State != want {
+							t.Fatal("one review's missing result contaminated another", review)
+						}
+					}
+				})
+			}
 		}
 	}
 }

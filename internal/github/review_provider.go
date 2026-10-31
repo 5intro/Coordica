@@ -108,12 +108,12 @@ func decodeCodexReports(body string) (map[string]codexReviewReport, error) {
 		return nil, errors.New("review envelope incomplete")
 	}
 	var reports map[string]codexReviewReport
-	if err := jsoninput.Decode([]byte(body[start:start+end]), &reports, 64<<10); err != nil {
+	if err := jsoninput.DecodeNullable([]byte(body[start:start+end]), &reports, 64<<10); err != nil {
 		return nil, err
 	}
 	for _, v := range reports {
-		if !fullSHA.MatchString(v.Commit) || v.Any == nil || v.Unresolved == nil || !*v.Any && *v.Unresolved {
-			return nil, errors.New("review identity or required result flags missing")
+		if !fullSHA.MatchString(v.Commit) {
+			return nil, errors.New("review commit identity is invalid")
 		}
 	}
 	return reports, nil
@@ -125,6 +125,9 @@ func codexReportState(v codexReviewReport, err error) (string, string) {
 	}
 	if v.Status != "completed" {
 		return "pending", "Trusted review operation is incomplete or failed; no code repair inferred"
+	}
+	if v.Any == nil || v.Unresolved == nil || !*v.Any && *v.Unresolved {
+		return "pending", "Trusted review result flags are missing or inconsistent; cannot establish current approval"
 	}
 	if *v.Unresolved {
 		return "failure", "Trusted provider reports unresolved findings on the fixed commit"
