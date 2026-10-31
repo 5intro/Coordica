@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -19,6 +20,8 @@ import (
 type protocolFixture struct {
 	comments              []map[string]any
 	onComments            func()
+	commentListings       int
+	commentReads          []int
 	client                *Client
 	spec                  domain.PullRequestSpec
 	create, merge, status int
@@ -93,10 +96,35 @@ func protocol(t *testing.T) *protocolFixture {
 		}
 		switch {
 		case p == "/issues/7/comments" && r.Method == "GET":
+			f.commentListings++
 			if f.onComments != nil {
 				f.onComments()
 			}
-			write(f.comments)
+			page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+			start := max(0, (page-1)*100)
+			if start >= len(f.comments) {
+				write([]any{})
+			} else {
+				write(f.comments[start:min(start+100, len(f.comments))])
+			}
+		case strings.HasPrefix(p, "/issues/comments/") && r.Method == "GET":
+			id, _ := strconv.Atoi(strings.TrimPrefix(p, "/issues/comments/"))
+			f.commentReads = append(f.commentReads, id)
+			for _, comment := range f.comments {
+				if comment["id"] != id {
+					continue
+				}
+				if f.onComments != nil {
+					f.onComments()
+				}
+				copy := map[string]any{"issue_url": "https://api.github.com/repos/owner/repo/issues/7"}
+				for key, value := range comment {
+					copy[key] = value
+				}
+				write(copy)
+				return
+			}
+			w.WriteHeader(404)
 		case p == "/pulls" && r.Method == "GET":
 			if f.created {
 				write([]any{pull()})

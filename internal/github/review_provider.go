@@ -3,8 +3,6 @@ package github
 import (
 	"context"
 	"errors"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +13,7 @@ import (
 const codexReviewMarker = "<!-- codex-review-state:v1 "
 
 type providerComment struct {
+	IssueURL  string    `json:"issue_url"`
 	ID        int64     `json:"id"`
 	Body      string    `json:"body"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -37,68 +36,25 @@ func (c *Client) externalReviews(ctx context.Context, s domain.PullRequestSpec) 
 	if len(s.ReviewProviders) == 0 {
 		return nil, nil
 	}
-	var comments []providerComment
-	for page := 1; page <= 10; page++ {
-		var batch []providerComment
-		if err := c.request(ctx, "GET", "/issues/"+strconv.Itoa(s.Number)+"/comments?per_page=100&page="+strconv.Itoa(page), nil, &batch); err != nil {
-			return nil, err
-		}
-		comments = append(comments, batch...)
-		if len(batch) < 100 {
-			break
-		}
-		if page == 10 {
-			return nil, errors.New("external review history exceeds complete synchronization bound")
-		}
-	}
-	sort.SliceStable(comments, func(i, j int) bool {
-		if comments[i].UpdatedAt.Equal(comments[j].UpdatedAt) {
-			return comments[i].ID < comments[j].ID
-		}
-		return comments[i].UpdatedAt.Before(comments[j].UpdatedAt)
-	})
 	remaining := 64 << 10
-	checks, err := c.checks(ctx, s.Head, &remaining)
+	details := map[int64]string{}
+	checks, err := c.checksWithDetails(ctx, s.Head, &remaining, details)
 	if err != nil {
 		return nil, err
 	}
 	out := []domain.ExternalReview{}
 	for _, policy := range s.ReviewProviders {
-		current := map[string]domain.ExternalReview{}
 		for _, kind := range policy.Kinds {
-			current[kind] = domain.ExternalReview{Provider: policy.Provider, Kind: kind, ActorID: policy.ActorID, AppID: policy.AppID, Commit: s.Head, State: "pending", Summary: "Trusted review result missing on current commit"}
-		}
-		for _, comment := range comments {
-			if comment.User.ID != policy.ActorID || comment.App == nil || comment.App.ID != policy.AppID || !strings.Contains(comment.Body, codexReviewMarker) {
-				continue
-			}
-			reports, err := decodeCodexReports(comment.Body)
-			if comment.ID <= 0 || comment.UpdatedAt.IsZero() {
-				return nil, errors.New("invalid trusted review comment identity")
-			}
-			for _, kind := range policy.Kinds {
-				report, exists := reports[kind]
-				if err == nil && !exists {
-					continue
+			report := domain.ExternalReview{Provider: policy.Provider, Kind: kind, ActorID: policy.ActorID, AppID: policy.AppID,
+				Commit: s.Head, State: "pending", Summary: "Trusted review result missing on current commit"}
+			check := reviewCheckSource(policy, kind, checks)
+			if check.ID > 0 {
+				report, err = c.linkedReview(ctx, s, report, details[check.ID])
+				if err != nil {
+					return nil, err
 				}
-				if err == nil && report != nil && report.Commit != s.Head {
-					continue
-				}
-				v := current[kind]
-				v.ReportID = comment.ID
-				v.ReportUpdatedAt = comment.UpdatedAt
-				v.URL = "https://github.com/" + c.repository + "/pull/" + strconv.Itoa(s.Number) + "#issuecomment-" + strconv.FormatInt(comment.ID, 10)
-				v.State, v.Summary = codexReportState(report, err)
-				v.Evidence = ""
-				if v.State == "failure" {
-					remaining := 4096
-					v.Evidence = "Provider comment excerpt (at most 4096 bytes; full report at source URL):\n" + boundedFeedback(comment.Body, &remaining)
-				}
-				current[kind] = v
 			}
-		}
-		for _, kind := range policy.Kinds {
-			out = append(out, bindReviewCheck(policy, kind, current[kind], checks))
+			out = append(out, bindReviewCheck(policy, kind, report, checks))
 		}
 	}
 	return out, nil

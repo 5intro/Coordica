@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"coordica/internal/domain"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -16,6 +17,10 @@ func reviewCheckNames(kinds []string) map[string]string {
 }
 
 func fixtureReviewChecks(f *protocolFixture, states map[string]string) {
+	commentID := 10
+	for _, comment := range f.comments {
+		commentID = max(commentID, comment["id"].(int))
+	}
 	f.checks = []map[string]any{{"id": 1, "name": "ci", "status": "completed", "conclusion": "success", "head_sha": f.spec.Head, "app": map[string]int{"id": 42}}}
 	for _, policy := range f.spec.ReviewProviders {
 		for i, kind := range policy.Kinds {
@@ -28,7 +33,8 @@ func fixtureReviewChecks(f *protocolFixture, states map[string]string) {
 				status = "in_progress"
 			}
 			f.checks = append(f.checks, map[string]any{"id": 20 + i, "name": policy.CheckNames[kind], "status": status,
-				"conclusion": state, "head_sha": f.spec.Head, "app": map[string]int64{"id": policy.AppID}})
+				"conclusion": state, "head_sha": f.spec.Head, "app": map[string]int64{"id": policy.AppID},
+				"details_url": fmt.Sprintf("https://github.com/owner/repo/pull/7#issuecomment-%d", commentID)})
 		}
 	}
 }

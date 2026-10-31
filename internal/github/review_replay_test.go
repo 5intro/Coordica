@@ -9,7 +9,7 @@ import (
 )
 
 func TestExternalReviewDeletedUnseenCommentCannotReplayOldApproval(t *testing.T) {
-	for _, state := range []string{"pending", "failure"} {
+	for _, state := range []string{"pending", "failure", "success"} {
 		t.Run(state, func(t *testing.T) {
 			f := protocol(t)
 			f.spec.Number = 7
@@ -25,8 +25,8 @@ func TestExternalReviewDeletedUnseenCommentCannotReplayOldApproval(t *testing.T)
 			}
 			f.checks = []map[string]any{
 				{"id": 1, "name": "ci", "head_sha": f.spec.Head, "status": "completed", "conclusion": "success", "app": map[string]int{"id": 42}},
-				{"id": 10, "name": "Codex security", "head_sha": f.spec.Head, "status": "completed", "conclusion": "success", "app": map[string]int{"id": 99}},
-				{"id": 20, "name": "Codex security", "head_sha": f.spec.Head, "status": status, "conclusion": state, "app": map[string]int{"id": 99}},
+				{"id": 10, "name": "Codex security", "head_sha": f.spec.Head, "status": "completed", "conclusion": "success", "app": map[string]int{"id": 99}, "details_url": "https://github.com/owner/repo/pull/7#issuecomment-10"},
+				{"id": 20, "name": "Codex security", "head_sha": f.spec.Head, "status": status, "conclusion": state, "app": map[string]int{"id": 99}, "details_url": "https://github.com/owner/repo/pull/7#issuecomment-11"},
 			}
 			facts, err := f.client.Inspect(context.Background(), f.spec)
 			if err != nil || facts.MergeReady || len(facts.ExternalReviews) != 1 || facts.ExternalReviews[0].State == "success" {

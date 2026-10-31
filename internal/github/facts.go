@@ -232,6 +232,10 @@ func (c *Client) evaluatedChecks(ctx context.Context, s domain.PullRequestSpec, 
 }
 
 func (c *Client) checks(ctx context.Context, head string, feedbackBytes *int) ([]domain.RemoteCheck, error) {
+	return c.checksWithDetails(ctx, head, feedbackBytes, nil)
+}
+
+func (c *Client) checksWithDetails(ctx context.Context, head string, feedbackBytes *int, details map[int64]string) ([]domain.RemoteCheck, error) {
 	checks := []domain.RemoteCheck{}
 	// Keep the latest run for each source/name. A different source with the same
 	// name remains distinct, so one provider cannot mask another's failure.
@@ -245,6 +249,7 @@ func (c *Client) checks(ctx context.Context, head string, feedbackBytes *int) ([
 				Name       string `json:"name"`
 				Status     string `json:"status"`
 				Conclusion string `json:"conclusion"`
+				DetailsURL string `json:"details_url"`
 				Output     struct {
 					Summary string `json:"summary"`
 				} `json:"output"`
@@ -269,6 +274,9 @@ func (c *Client) checks(ctx context.Context, head string, feedbackBytes *int) ([
 				continue
 			}
 			latestIDs[key] = r.ID
+			if details != nil {
+				details[r.ID] = r.DetailsURL
+			}
 			state := "pending"
 			if r.Status == "completed" {
 				if r.Conclusion == "success" {

@@ -83,7 +83,15 @@ prose and a model's self-asserted identity cannot enroll a provider. Policy chan
 require a paused, quiet project; an empty policy preserves existing GitHub gates
 without adding these external gates. It does not assert that external review ran.
 
-The current adapter reads bot comments containing one structured envelope:
+The Check Run's `details_url` must reference the exact report comment on this PR,
+for example `https://github.com/owner/repo/pull/7#issuecomment-123`. The adapter
+fetches only that comment ID through the fixed repository API and verifies its
+actor/App, PR binding and version. Unrelated public comments are never listed;
+neither comment spam nor unrelated large bodies consume the evidence-read bound.
+Missing, deleted, foreign or malformed references remain pending and never fall
+back to older comments. Response and envelope size limits remain in force.
+
+That App-selected bot comment contains one structured envelope:
 
 ```text
 <!-- codex-review-state:v1 {"code_review":{"commit_sha":"<full current SHA>","status":"completed","has_any_findings":false,"has_unresolved_findings":false}} -->
@@ -93,12 +101,12 @@ Each configured kind must have both a complete current-head structured result fr
 the configured numeric actor/App and a matching App-owned Check Run. Both verdicts
 must agree. A failing/timed-out check without actionable structured findings, or
 contradictory sources, remains pending instead of consuming a code repair. The
-latest applicable comment update supplies context; it never grants authority alone.
+App-selected comment update supplies context; it never grants authority alone.
 An explicit null result remains pending for that kind without invalidating a
 complete sibling result in the same envelope. Enabling both kinds still requires
-both to pass; a newer incomplete result replaces that kind's earlier success.
+both to pass; a newer App-selected incomplete result replaces that kind's earlier success.
 Old-head success, missing App attribution, malformed/contradictory/ambiguous results, incomplete
-pagination and running/failed operations cannot approve a merge. Operational
+check pagination and running/failed operations cannot approve a merge. Operational
 failure waits for evidence instead of consuming code repairs. Only a completed
 result with unresolved findings enters the existing repair flow and updates the
 original PR. Provider-cleared findings are recorded as `resolved_external`, not
