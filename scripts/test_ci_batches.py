@@ -26,6 +26,7 @@ func sample(t *testing.T) {
 }
 func TestAlpha(t *testing.T) { sample(t); t.Run("TestZulu", sample) }
 func TestMiddle(t *testing.T) { sample(t) }
+func TestNovember(t *testing.T) { sample(t); t.Run("TestAlpha", sample) }
 func TestZulu(t *testing.T) { sample(t); t.Run("TestAlpha", sample) }
 func Test_Extra(t *testing.T) { sample(t) }
 func TestΩ(t *testing.T) { sample(t) }
@@ -53,27 +54,35 @@ class CIBatchTests(unittest.TestCase):
             self.go = shutil.which("go")
         self.assertTrue(self.go, "Go is required to verify CI coverage")
         workflow = (guard.REPO / ".github/workflows/ci.yml").read_text()
-        self.pattern = re.search(r"GO_TEST_BATCH_PATTERN: '([^']+)'", workflow)[1]
-        for flag in ("-skip", "-run"):
-            self.assertIn(flag + " '${{ env.GO_TEST_BATCH_PATTERN }}' ./...", workflow)
+        patterns = dict(re.findall(r"(GO_TEST_BATCH_[A-Z]+): '([^']+)'", workflow))
+        commands = re.findall(
+            r"python scripts/test-go.py -- -race -timeout=15m (-run|-skip) "
+            r"'\$\{\{ env\.(GO_TEST_BATCH_[A-Z]+) \}\}' ./\.\.\.",
+            workflow,
+        )
+        self.assertEqual(len(commands), 4)
+        self.assertEqual(workflow.count("run: python scripts/test-go.py --"), len(commands))
+        self.batches = [(flag, patterns[key]) for flag, key in commands]
 
-    def batch(self, flag, failure=""):
+    def batch(self, selection, failure=""):
+        flag, pattern = selection
         with patch.dict(os.environ, BATCH_RECORD=str(self.record), BATCH_FAILURE=failure):
             code = guard.run([str(self.go), "-C", str(self.module), "test", "-race", "-count=1", "-timeout=30s",
-                              flag, self.pattern, "./..."], self.parent, 120, 8 * guard.GIB, 4 * guard.GIB)
+                              flag, pattern, "./..."], self.parent, 120, 8 * guard.GIB, 4 * guard.GIB)
         self.assertEqual(list(self.parent.glob(guard.PREFIX + "*")), [])
         return code
 
     def test_union_runs_each_test_example_and_fuzz_seed_once(self):
-        self.assertEqual(self.batch("-skip"), 0)
-        self.assertEqual(self.batch("-run"), 0)
-        expected = ["TestAlpha", "TestAlpha/TestZulu", "TestMiddle", "TestZulu", "TestZulu/TestAlpha",
-                    "Test_Extra", "TestΩ", "FuzzAlpha/seed#0", "Example"]
+        for selection in self.batches:
+            self.assertEqual(self.batch(selection), 0)
+        expected = ["TestAlpha", "TestAlpha/TestZulu", "TestMiddle", "TestNovember", "TestNovember/TestAlpha",
+                    "TestZulu", "TestZulu/TestAlpha", "Test_Extra", "TestΩ", "FuzzAlpha/seed#0", "Example"]
         self.assertEqual(Counter(self.record.read_text(encoding="utf-8").splitlines()), Counter(expected))
 
-    def test_failure_in_either_half_fails_its_batch(self):
-        self.assertEqual(self.batch("-skip", "TestZulu"), 1)
-        self.assertEqual(self.batch("-run", "TestAlpha"), 1)
+    def test_failure_in_each_group_fails_its_batch(self):
+        for selection, failure in zip(self.batches, ("TestAlpha", "TestMiddle", "TestNovember", "TestZulu")):
+            with self.subTest(failure=failure):
+                self.assertEqual(self.batch(selection, failure), 1)
 
 
 if __name__ == "__main__":
