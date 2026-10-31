@@ -106,7 +106,7 @@ func ValidatePublication(p Project) error {
 	if policy.Mode != "github" {
 		return Fail("invalid_input", "不支持的发布模式")
 	}
-	if err := ValidateExternalReviewPolicy(policy.ReviewProviders); err != nil {
+	if err := ValidateExternalReviewGates(policy.RequiredChecks, policy.ReviewProviders); err != nil {
 		return err
 	}
 	if _, e := GitHubRepository(p.RepositoryURL); e != nil {
@@ -117,7 +117,7 @@ func ValidatePublication(p Project) error {
 	}
 	seen := map[string]bool{}
 	for _, name := range policy.RequiredChecks {
-		if strings.TrimSpace(name) != name || !ChatText(name, 256, true) || strings.ContainsAny(name, "\r\n") || name == ReviewCheckContext || seen[name] {
+		if strings.TrimSpace(name) != name || !ChatText(name, 256, true) || strings.ContainsAny(name, "\r\n") || strings.EqualFold(name, ReviewCheckContext) || seen[name] {
 			return Fail("invalid_input", "GitHub CI 检查名称无效或重复")
 		}
 		seen[name] = true

@@ -27,6 +27,7 @@ func (c ReviewIssues) fenceExternal(tx *store.Tx, task domain.Task, candidate do
 		return err
 	}
 	policies := project.Publication.ReviewProviders
+	validPolicy := domain.ValidateExternalReviewGates(project.Publication.RequiredChecks, policies) == nil
 	normalized := []domain.ExternalReview{}
 	for _, policy := range policies {
 		for _, kind := range policy.Kinds {
@@ -40,7 +41,7 @@ func (c ReviewIssues) fenceExternal(tx *store.Tx, task domain.Task, candidate do
 					matches++
 				}
 			}
-			if matches != 1 || domain.ValidateExternalReviewPolicy([]domain.ExternalReviewPolicy{policy}) != nil {
+			if matches != 1 || !validPolicy {
 				report.CheckID, report.ReportID, report.ReportUpdatedAt = 0, 0, time.Time{}
 			}
 			if !domain.ExternalReviewVerdict(policy, report, candidate.Commit, "success") &&

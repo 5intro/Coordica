@@ -49,3 +49,19 @@ func TestExternalReviewVerdictRequiresBothAuthoritativeSources(t *testing.T) {
 		t.Fatal("coherent finding verdict lost or granted approval")
 	}
 }
+
+func TestExternalReviewGateNamesCannotCollapseIndependentControls(t *testing.T) {
+	for _, names := range []map[string]string{
+		{"code_review": "Code review", "security_review": "CODE REVIEW"},
+		{"code_review": "Code review", "security_review": "COORDICA/REVIEW"},
+	} {
+		policy := ExternalReviewPolicy{Provider: "codex", ActorID: 42, AppID: 99,
+			Kinds: []string{"code_review", "security_review"}, CheckNames: names}
+		if ValidateExternalReviewGates([]string{"ci"}, []ExternalReviewPolicy{policy}) == nil {
+			t.Fatal("review controls shared a reserved name", names)
+		}
+	}
+	if ValidateExternalReviewGates(nil, nil) != nil {
+		t.Fatal("exact-head status downgrade now requires gate enrollment")
+	}
+}

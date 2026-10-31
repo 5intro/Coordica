@@ -22,7 +22,7 @@ func TestExternalReviewFailureFeedbackRetainsAttributedExcerpt(t *testing.T) {
 }
 
 func TestExternalReviewGateCannotBeBypassedByAdapterMergeReady(t *testing.T) {
-	for _, mode := range []string{"missing", "pending", "failure", "stale", "forged", "success"} {
+	for _, mode := range []string{"missing", "pending", "failure", "stale", "forged", "CI alias", "success"} {
 		t.Run(mode, func(t *testing.T) {
 			f, h := hostedFixture(t)
 			if err := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
@@ -31,6 +31,9 @@ func TestExternalReviewGateCannotBeBypassedByAdapterMergeReady(t *testing.T) {
 					return err
 				}
 				p.Publication.ReviewProviders = []domain.ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99, CheckNames: map[string]string{"code_review": "Codex code"}, Kinds: []string{"code_review"}}}
+				if mode == "CI alias" {
+					p.Publication.RequiredChecks = []string{"Codex code"}
+				}
 				return tx.Put("project", p.ID, p)
 			}); err != nil {
 				t.Fatal(err)

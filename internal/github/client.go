@@ -153,7 +153,7 @@ func (c *Client) validate(spec domain.PullRequestSpec) error {
 	if !strings.EqualFold(spec.Repository, c.repository) || !workBranch.MatchString(spec.Branch) || spec.TargetBranch == "" || strings.ContainsAny(spec.TargetBranch, "\x00\r\n") || !fullSHA.MatchString(spec.Head) || !fullSHA.MatchString(spec.Base) {
 		return errors.New("GitHub request outside fixed repository or candidate")
 	}
-	return domain.ValidateExternalReviewPolicy(spec.ReviewProviders)
+	return domain.ValidateExternalReviewGates(spec.RequiredChecks, spec.ReviewProviders)
 }
 func (c *Client) getPull(ctx context.Context, s domain.PullRequestSpec) (pull, error) {
 	var p pull

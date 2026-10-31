@@ -54,10 +54,29 @@ func ValidateExternalReviewPolicy(policies []ExternalReviewPolicy) error {
 			}
 			kinds[kind] = true
 			name := p.CheckNames[kind]
-			if strings.TrimSpace(name) != name || name == "" || len(name) > 256 || strings.ContainsAny(name, "\x00\r\n") || name == ReviewCheckContext || names[name] {
+			if strings.TrimSpace(name) != name || name == "" || len(name) > 256 || strings.ContainsAny(name, "\x00\r\n") || strings.EqualFold(name, ReviewCheckContext) || names[strings.ToLower(name)] {
 				return Fail("invalid_input", "distinct nonempty external review check names are required")
 			}
-			names[name] = true
+			names[strings.ToLower(name)] = true
+		}
+	}
+	return nil
+}
+
+// Required tests, internal review and external review are independent controls.
+// Reject ambiguous namespaces before configuration or protocol facts can bind a
+// review App's check to a required test name.
+func ValidateExternalReviewGates(required []string, policies []ExternalReviewPolicy) error {
+	if err := ValidateExternalReviewPolicy(policies); err != nil {
+		return err
+	}
+	for _, policy := range policies {
+		for _, name := range policy.CheckNames {
+			for _, ci := range required {
+				if strings.EqualFold(name, strings.TrimSpace(ci)) {
+					return Fail("invalid_input", "external review and required CI checks must have distinct names")
+				}
+			}
 		}
 	}
 	return nil

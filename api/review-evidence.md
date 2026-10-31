@@ -72,6 +72,8 @@ In GitHub publication settings, Owner may configure `review_providers`:
 
 The numbers and check names are placeholders. Each check must represent a complete
 review verdict for that kind, not merely a scan-completed notification. The source
+names must be disjoint from required CI and `coordica/review`, including case
+variants, so testing and each review kind retain independent controls. The source
 App must publish the Check Run on the fixed head, and branch protection must require
 that exact check name pinned to the same App ID. A deletable comment or legacy
 commit status alone cannot approve integration. If the provider does not publish

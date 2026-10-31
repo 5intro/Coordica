@@ -76,6 +76,9 @@ func reviewCheck(p domain.Project, t domain.Task, c domain.Candidate) string {
 	if t.HoldReason != "" || p.Paused {
 		return "pending"
 	}
+	if domain.GitHubPublication(p) && domain.ValidateExternalReviewGates(p.Publication.RequiredChecks, p.Publication.ReviewProviders) != nil {
+		return "pending"
+	}
 	if c.Review == nil || c.Review.Candidate != c.Commit {
 		return "pending"
 	}

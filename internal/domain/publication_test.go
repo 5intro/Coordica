@@ -19,6 +19,9 @@ func TestPublicationPolicyValidation(t *testing.T) {
 		func(p *Project) {
 			p.Publication = &PublicationPolicy{Mode: "github", RequiredChecks: []string{ReviewCheckContext}}
 		},
+		func(p *Project) {
+			p.Publication = &PublicationPolicy{Mode: "github", RequiredChecks: []string{"COORDICA/REVIEW"}}
+		},
 		func(p *Project) { p.Publication = &PublicationPolicy{Mode: "git", RequiredChecks: []string{"ci"}} },
 	} {
 		p := base
@@ -29,5 +32,16 @@ func TestPublicationPolicyValidation(t *testing.T) {
 	}
 	if e := ValidatePublication(Project{RepositoryURL: "/local/repo"}); e != nil {
 		t.Fatal("legacy local mode rejected", e)
+	}
+}
+
+func TestPublicationRejectsCIAndReviewGateAliases(t *testing.T) {
+	for _, name := range []string{"ci", "CI"} {
+		p := Project{RepositoryURL: "https://github.com/owner/repo", Publication: &PublicationPolicy{
+			Mode: "github", RequiredChecks: []string{"ci"}, ReviewProviders: []ExternalReviewPolicy{{Provider: "codex", ActorID: 42, AppID: 99,
+				Kinds: []string{"security_review"}, CheckNames: map[string]string{"security_review": name}}}}}
+		if err := ValidatePublication(p); err == nil {
+			t.Fatal("one name was accepted for two independent gates", name)
+		}
 	}
 }
