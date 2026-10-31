@@ -214,6 +214,9 @@ func (c *Client) Merge(ctx context.Context, s domain.PullRequestSpec) (string, e
 		return "", e
 	}
 	if facts.State == "merged" && facts.Head == s.Head {
+		if !domain.ExternalReviewsReady(s.ReviewProviders, facts.ExternalReviews, s.Head) {
+			return "", domain.ErrPublicationNotReady
+		}
 		return facts.MergeCommit, nil
 	}
 	if !facts.MergeReady || facts.Head != s.Head || facts.Base != s.Base {

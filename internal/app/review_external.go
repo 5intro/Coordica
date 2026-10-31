@@ -8,6 +8,23 @@ import (
 	"coordica/internal/store"
 )
 
+// An already merged PR is an observed write, not permission to acknowledge
+// integration. Keep its raw evidence while the configured provider gate waits.
+func (c ReviewIssues) mergedEvidenceReady(tx *store.Tx, task domain.Task, candidate *domain.Candidate, facts *domain.PullRequestStatus, commit string) (bool, error) {
+	if facts == nil {
+		return false, nil
+	}
+	project, err := getProject(tx)
+	if err != nil {
+		return false, err
+	}
+	candidate.PullRequest = facts
+	if err := c.observeExternal(tx, task, *candidate, *facts); err != nil {
+		return false, err
+	}
+	return domain.GitHubPublication(project) && domain.ExternalReviewsReady(project.Publication.ReviewProviders, facts.ExternalReviews, commit), nil
+}
+
 // External summaries are gate-level evidence, not invented per-line findings.
 // Only the configured provider can clear them; an internal Agent cannot waive
 // an external finding by changing its local issue disposition.

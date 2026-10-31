@@ -24,6 +24,7 @@ type protocolFixture struct {
 	create, merge, status int
 	created               bool
 	closed                bool
+	merged                bool
 	wrongHead             bool
 	strict                bool
 	admins                bool
@@ -73,7 +74,7 @@ func protocol(t *testing.T) *protocolFixture {
 				head = strings.Repeat("e", 40)
 			}
 			state := "open"
-			if f.closed {
+			if f.closed || f.merged {
 				state = "closed"
 			}
 			headRepository, baseRepository, mergeableState := f.headRepository, f.baseRepository, f.mergeableState
@@ -86,7 +87,7 @@ func protocol(t *testing.T) *protocolFixture {
 			if mergeableState == "" {
 				mergeableState = "clean"
 			}
-			return map[string]any{"number": 7, "state": state, "merged": false, "draft": false, "mergeable": !f.unmergeable, "mergeable_state": mergeableState, "merge_commit_sha": f.testMerge, "head": map[string]any{"sha": head, "ref": f.spec.Branch, "repo": map[string]string{"full_name": headRepository}}, "base": map[string]any{"sha": f.spec.Base, "ref": "main", "repo": map[string]string{"full_name": baseRepository}}}
+			return map[string]any{"number": 7, "state": state, "merged": f.merged, "draft": false, "mergeable": !f.unmergeable, "mergeable_state": mergeableState, "merge_commit_sha": f.testMerge, "head": map[string]any{"sha": head, "ref": f.spec.Branch, "repo": map[string]string{"full_name": headRepository}}, "base": map[string]any{"sha": f.spec.Base, "ref": "main", "repo": map[string]string{"full_name": baseRepository}}}
 		}
 		switch {
 		case p == "/issues/7/comments" && r.Method == "GET":

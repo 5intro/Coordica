@@ -85,6 +85,10 @@ func reviewCheck(p domain.Project, t domain.Task, c domain.Candidate) string {
 	if c.Protected && c.ApprovedCommit != c.Commit {
 		return "pending"
 	}
+	if domain.GitHubPublication(p) && len(p.Publication.ReviewProviders) > 0 &&
+		(c.PullRequest == nil || c.PullRequest.Head != c.Commit || !domain.ExternalReviewsReady(p.Publication.ReviewProviders, c.PullRequest.ExternalReviews, c.Commit)) {
+		return "pending"
+	}
 	return "success"
 }
 
@@ -191,7 +195,7 @@ func (w *Integrator) syncPullRequest(ctx context.Context, c domain.Candidate, fo
 		return c, w.recordPullError(ctx, c, "PR 同步失败；保留原分支与 PR 绑定等待核对")
 	}
 	if facts.Head == c.Commit && facts.State == "open" {
-		state, allowed, err := w.reserveReviewStatus(ctx, c)
+		state, allowed, err := w.reserveReviewStatus(ctx, c, facts)
 		if err != nil || !allowed {
 			return c, err
 		}
@@ -249,6 +253,11 @@ func (w *Integrator) syncPullRequest(ctx context.Context, c domain.Candidate, fo
 		current.PullRequest = &facts
 		if err := (ReviewIssues{Service: s}).observeExternal(tx, task, current, facts); err != nil {
 			return err
+		}
+		if binding.ReviewState == "success" && reviewCheck(project, task, current) != "success" {
+			if err := queuePullReviewRevocation(tx, current); err != nil {
+				return err
+			}
 		}
 		current.Version++
 		c = current

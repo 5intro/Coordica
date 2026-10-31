@@ -618,7 +618,7 @@ func (w *Integrator) land(ctx context.Context, c domain.Candidate) error {
 			if current.PullRequest == nil || current.PullRequest.Head != current.Commit || current.PullRequest.State != "merged" && current.PullRequest.Base != current.Main || (!current.PullRequest.MergeReady && current.PullRequest.State != "merged") || w.PullRequests == nil {
 				return nil
 			}
-			if current.PullRequest.State != "merged" && !domain.ExternalReviewsReady(project.Publication.ReviewProviders, current.PullRequest.ExternalReviews, current.Commit) {
+			if !domain.ExternalReviewsReady(project.Publication.ReviewProviders, current.PullRequest.ExternalReviews, current.Commit) {
 				return nil
 			}
 		}
@@ -734,7 +734,7 @@ func (w *Integrator) reconcile(ctx context.Context, in domain.Intent) error {
 			return e
 		}
 		if c.PullRequest != nil {
-			if facts, err := w.PullRequests.Inspect(ctx, pullSpec(p, t, c, pullRequestBinding{Branch: c.PullRequest.Branch, Number: in.PullRequestNumber})); err == nil && facts.State == "merged" && facts.Head == in.Desired && facts.Number == in.PullRequestNumber {
+			if facts, err := w.PullRequests.Inspect(ctx, pullSpec(p, t, c, pullRequestBinding{Branch: c.PullRequest.Branch, Number: in.PullRequestNumber})); err == nil && facts.State == "merged" && facts.Head == in.Desired && facts.Number == in.PullRequestNumber && facts.Branch == c.PullRequest.Branch && facts.MergeCommit != "" {
 				facts.SyncedAt = s.Now()
 				hosted = &facts
 			}
@@ -749,11 +749,19 @@ func (w *Integrator) reconcile(ctx context.Context, in domain.Intent) error {
 		if e := tx.Get("task", c.TaskID, &t); e != nil {
 			return e
 		}
-		if contains && in.PublicationMode == "github" && hosted == nil {
+		hostedReady := hosted != nil
+		if contains && in.PublicationMode == "github" {
+			var err error
+			hostedReady, err = (ReviewIssues{Service: s}).mergedEvidenceReady(tx, t, &c, hosted, in.Desired)
+			if err != nil {
+				return err
+			}
+		}
+		if contains && in.PublicationMode == "github" && !hostedReady {
 			// Ancestry alone cannot acknowledge a hosted merge: another actor
 			// may have landed the same commit through a different PR.
 			in.State = "unknown"
-			in.Detail = "等待原 GitHub PR 的已合并凭据；主线包含代码不能替代 PR 确认"
+			in.Detail = "等待原 GitHub PR 的已合并凭据及当前提交的外部审查证据；主线包含代码不能替代门禁"
 			c.State = "reconciling"
 			c.Detail = in.Detail
 		} else if contains {

@@ -22,7 +22,7 @@ func TestExternalReviewFailureFeedbackRetainsAttributedExcerpt(t *testing.T) {
 }
 
 func TestExternalReviewGateCannotBeBypassedByAdapterMergeReady(t *testing.T) {
-	for _, mode := range []string{"missing", "stale", "forged", "success"} {
+	for _, mode := range []string{"missing", "pending", "failure", "stale", "forged", "success"} {
 		t.Run(mode, func(t *testing.T) {
 			f, h := hostedFixture(t)
 			if err := f.s.DB.Update(context.Background(), func(tx *store.Tx) error {
@@ -52,6 +52,9 @@ func TestExternalReviewGateCannotBeBypassedByAdapterMergeReady(t *testing.T) {
 				if mode == "forged" {
 					report.ActorID++
 				}
+				if mode == "pending" || mode == "failure" {
+					report.State = mode
+				}
 				return []domain.ExternalReview{report}
 			}
 			c := f.candidate(t)
@@ -63,7 +66,7 @@ func TestExternalReviewGateCannotBeBypassedByAdapterMergeReady(t *testing.T) {
 				if err != nil || h.merges != 1 || f.candidate(t).State != "landed" {
 					t.Fatal(err, h.merges, f.candidate(t))
 				}
-			} else if h.merges != 0 || f.candidate(t).State == "landed" {
+			} else if h.merges != 0 || f.candidate(t).State == "landed" || h.reviewCheck == "success" {
 				t.Fatal("adapter boolean bypassed exact external evidence", mode)
 			}
 		})

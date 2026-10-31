@@ -99,6 +99,13 @@ excerpt and source URL accompany a failed gate into the existing repair context;
 missing private-report details are not invented. Other providers require explicit
 protocol adapters; unsupported formats fail closed.
 
+The branch-protected `coordica/review` status stays pending until the configured
+external gates and internal review pass. Already merged PRs still fetch external
+evidence for the fixed head. External merges and lost-response reconciliation
+cannot mark a task integrated or release its resources without that evidence;
+waiting does not spend retry/repair counts or submit a second merge. Observing an
+unauthorized external write does not undo it or turn it into an approval.
+
 GitHub CI, branch protection, internal review, fixed head/base checks, protected
 Owner approval and final candidate revalidation continue to apply independently.
 External success does not replace any of them. These are trusted-private-host

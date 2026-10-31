@@ -41,6 +41,13 @@ func (c *Client) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.
 	if p.Merged || p.MergedAt != nil {
 		out.State = "merged"
 		out.MergeCommit = p.MergeCommit
+		out.ExternalReviews, e = c.externalReviews(ctx, s)
+		if e != nil {
+			return out, e
+		}
+		if !domain.ExternalReviewsReady(s.ReviewProviders, out.ExternalReviews, s.Head) {
+			out.Detail = "PR 已合并；仍需当前固定提交的外部审查证据，不能推断已集成"
+		}
 		return out, nil
 	}
 	if p.State != "open" {
