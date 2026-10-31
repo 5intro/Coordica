@@ -114,6 +114,9 @@ func (w *PlanningWorker) apply(ctx context.Context, id string) error {
 		if err := tx.Put("planning_run", id, r); err != nil {
 			return err
 		}
+		if queued, err := retryPlanningInputRejection(tx, s, r, d, e); err != nil || queued {
+			return err
+		}
 		return s.decision(tx, "planning_run", id, r.Version, d, "invalid_plan", r.Detail, []string{"dismiss", "edit_goal", "evaluate"})
 	})
 }

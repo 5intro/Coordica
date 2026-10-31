@@ -10,7 +10,7 @@ export function InitializationPolicy({ project, current, client, action }: Prepa
         <summary>Owner 配置实际检查政策</summary>
         <p>保存会使旧基线与任务授权失效。请保持暂停，并等待分析进程停止。</p>
         <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
-          <Field label="实际检查 JSON" hint="非空数组；包含 name、command、args、timeout_seconds（1–3600）。">
+          <Field label="实际检查 JSON" hint="包含 name、command、args、timeout_seconds（1–3600）。required_paths 声明必需输入；output_paths 声明构建、依赖和缓存输出，例如 dist/**、node_modules/**。输出声明不允许修改已跟踪源码。">
             <textarea rows={6} required disabled={!!pending} value={draft.checks}
               onChange={(event) => edit(event.target.value)} />
           </Field>

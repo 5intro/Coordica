@@ -313,6 +313,7 @@ func mergeCheckPlan(p domain.Project, suites []domain.TestSuite, paths []string,
 		}
 		plan.OutputPaths = append(plan.OutputPaths, suite.OutputPaths...)
 	}
+	plan.OutputPaths = append(plan.OutputPaths, domain.CheckOutputs(plan.Checks)...)
 	b, e := json.Marshal(plan)
 	plan.Digest = Hash(string(b))
 	return plan, e

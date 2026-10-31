@@ -33,6 +33,7 @@ func assignmentFailureContext(tx *store.Tx, task domain.Task) (*domain.FailureCo
 		return nil, err
 	}
 	result.ExecutionDetail = run.Detail
+	result.CheckResults = run.CheckResults
 	if run.TestReport != nil {
 		result.CheckResults = run.TestReport.Checks
 	}

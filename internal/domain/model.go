@@ -22,6 +22,8 @@ const MaxTaskRepairs = 2
 const MaxTaskRetries = 2
 
 type Check struct {
+	RequiredPaths  []string `json:"required_paths,omitempty"`
+	OutputPaths    []string `json:"output_paths,omitempty"`
 	Name           string   `json:"name"`
 	Command        string   `json:"command"`
 	Args           []string `json:"args"`
@@ -137,6 +139,8 @@ type Node struct {
 	TokenHash            string           `json:"-"`
 }
 type Run struct {
+	FailureKind              string           `json:"failure_kind,omitempty"`
+	CheckResults             []CheckResult    `json:"check_results,omitempty"`
 	ReviewContractVersion    int              `json:"review_contract_version,omitempty"`
 	ReviewRulesDigest        string           `json:"review_rules_digest,omitempty"`
 	ProgressVersion          int              `json:"progress_version,omitempty"`
@@ -414,6 +418,9 @@ func ValidateProject(p Project) error {
 	for _, c := range p.Checks {
 		if c.Name == "" || c.Command == "" || c.TimeoutSeconds <= 0 || c.TimeoutSeconds > 3600 {
 			return Fail("invalid_input", "检查必须包含名称、可执行文件和不超过一小时的超时")
+		}
+		if e := ValidateCheckPaths(c); e != nil {
+			return e
 		}
 	}
 	return nil

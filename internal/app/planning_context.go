@@ -11,6 +11,8 @@ import (
 )
 
 type planningFacts struct {
+	CheckInputPaths        []string                     `json:"check_input_paths,omitempty"`
+	PreviousRejection      string                       `json:"previous_rejection,omitempty"`
 	TestSuites             []domain.TestSuite           `json:"test_suites"`
 	Document               domain.PlanningDocument      `json:"document"`
 	Messages               []domain.LeaderMessage       `json:"messages"`
@@ -37,6 +39,7 @@ type planningFacts struct {
 func (w *PlanningWorker) planningPrompt(ctx context.Context, r domain.PlanningRun, d domain.PlanningDocument, messages []domain.LeaderMessage, dir string) (string, error) {
 	var facts planningFacts
 	facts.Document = d
+	facts.PreviousRejection = r.Detail
 	e := w.Service.DB.View(ctx, func(tx *store.Tx) error {
 		var err error
 		facts.Baseline, err = currentLeaderBaseline(tx, r)
@@ -75,6 +78,11 @@ func (w *PlanningWorker) planningPrompt(ctx context.Context, r domain.PlanningRu
 			return err
 		}
 		facts.Checks = project.Checks
+		baseline, err := initialization(tx)
+		if err != nil {
+			return err
+		}
+		facts.CheckInputPaths = baseline.CheckInputPaths
 		facts.TestSuites, err = store.List[domain.TestSuite](tx, "test_suite")
 		if err != nil {
 			return err

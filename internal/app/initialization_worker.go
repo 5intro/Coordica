@@ -22,6 +22,7 @@ type InitializationWorker struct {
 	Executor PlanningExecutor
 }
 type initializationReceipt struct {
+	CheckInputs    []string                `json:"check_inputs,omitempty"`
 	OperationID    string                  `json:"operation_id"`
 	Version        int64                   `json:"version"`
 	Generation     int64                   `json:"generation"`
@@ -120,6 +121,10 @@ func (w *InitializationWorker) Tick(ctx context.Context) error {
 			v.AvailablePaths = append(v.AvailablePaths, file.Path)
 		}
 		v.Omissions = r.Snapshot.Omissions
+	}
+	if e == nil && v.Kind == "existing" {
+		r.CheckInputs, e = readCheckInputs(callCtx, s, p, v.SourceSHA)
+		v.CheckInputPaths = r.CheckInputs
 	}
 	var dir string
 	if e == nil {
@@ -235,6 +240,7 @@ func (w *InitializationWorker) apply(ctx context.Context, r initializationReceip
 				v.AvailablePaths = append(v.AvailablePaths, file.Path)
 			}
 			v.Omissions = r.Snapshot.Omissions
+			v.CheckInputPaths = r.CheckInputs
 			result, err := decodeInitialization(r.Outcome.Output, v)
 			cancelled := op.State == "cancel_requested"
 			valid := initializationIssuer(tx, op) == nil && err == nil && r.Outcome.Error == "" && r.InputUnchanged && v.OperationID == op.ID && v.Version == r.Version && p.Paused && initializationPolicy(p) == v.PolicyDigest && s.Now().Before(op.Deadline) && op.State != "cancel_requested"

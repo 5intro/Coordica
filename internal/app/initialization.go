@@ -65,7 +65,8 @@ func initializationDigest(v domain.Initialization) string {
 		Result                        *domain.InitializationResult
 		Feedback                      []domain.InitializationFeedback
 		Leader                        *domain.LeaderSelection `json:"leader,omitempty"`
-	}{v.Version, v.Kind, v.SourceSHA, v.PolicyDigest, v.AvailablePaths, v.CoveredPaths, v.Omissions, v.Result, v.Feedback, v.Leader})
+		CheckInputs                   []string                `json:"check_inputs,omitempty"`
+	}{v.Version, v.Kind, v.SourceSHA, v.PolicyDigest, v.AvailablePaths, v.CoveredPaths, v.Omissions, v.Result, v.Feedback, v.Leader, v.CheckInputPaths})
 	return Hash(string(b))
 }
 func baselineGate(tx *store.Tx, t *domain.Task, bind bool) error {
@@ -270,6 +271,7 @@ func (s *Service) RequestInitialization(ctx context.Context, a Actor, key string
 		}
 		v.Version++
 		v.AvailablePaths = []string{}
+		v.CheckInputPaths = nil
 		v.Kind = req.Kind
 		v.SourceSHA = sha
 		v.PolicyDigest = initializationPolicy(p)
@@ -497,6 +499,9 @@ func decodeInitialization(text string, v domain.Initialization) (domain.Initiali
 		return r, e
 	}
 	for _, check := range b.Checks {
+		if e := domain.ValidateCheckPaths(check); e != nil {
+			return r, e
+		}
 		if strings.TrimSpace(check.Name) == "" || strings.TrimSpace(check.Command) == "" || check.TimeoutSeconds < 1 || check.TimeoutSeconds > 3600 {
 			return r, errors.New("invalid proposed check")
 		}
@@ -572,7 +577,8 @@ func baselinePolicyAgreement(b domain.Baseline, p domain.Project) error {
 	same := true
 	for i, c := range p.Checks {
 		q := b.Checks[i]
-		if c.Name != q.Name || c.Command != q.Command || c.TimeoutSeconds != q.TimeoutSeconds || len(c.Args) != len(q.Args) {
+		if c.Name != q.Name || c.Command != q.Command || c.TimeoutSeconds != q.TimeoutSeconds || len(c.Args) != len(q.Args) ||
+			!sameStrings(c.RequiredPaths, q.RequiredPaths) || !sameStrings(c.OutputPaths, q.OutputPaths) {
 			same = false
 			break
 		}

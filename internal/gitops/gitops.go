@@ -37,7 +37,7 @@ var (
 	ErrUnsupportedObject       = errors.New("gitops: unsupported object or path")
 	ErrDirty                   = errors.New("gitops: worktree differs from fixed commit")
 	ErrConflict                = errors.New("gitops: merge conflict")
-	ErrNoChanges               = errors.New("gitops: head already contained in main")
+	ErrNoChanges               = errors.New("gitops: no changes relative to the fixed base")
 	ErrCAS                     = errors.New("gitops: remote reference changed")
 	ErrUnknown                 = errors.New("gitops: publication result requires reconciliation")
 	ErrOutputLimit             = errors.New("gitops: command output limit exceeded")
@@ -923,13 +923,24 @@ func (g *Client) VerifyCheckOutputs(ctx context.Context, workspace string, c OID
 	if err != nil {
 		return err
 	}
+	unexpected := &UndeclaredCheckOutputs{}
 	for _, record := range bytes.Split(out, []byte{0}) {
 		if len(record) == 0 {
 			continue
 		}
-		if len(record) < 4 || (string(record[:2]) != "??" && string(record[:2]) != "!!") || record[2] != ' ' || !allowed.Check([]string{strings.TrimSuffix(string(record[3:]), "/")}).Allowed {
-			return fault("verify", ErrDirty, "tracked changes or undeclared check outputs present")
+		if len(record) < 4 || (string(record[:2]) != "??" && string(record[:2]) != "!!") || record[2] != ' ' {
+			return fault("verify", ErrDirty, "tracked source or index changed during checks")
 		}
+		name := strings.TrimSuffix(string(record[3:]), "/")
+		if !allowed.Check([]string{name}).Allowed {
+			unexpected.Count++
+			if len(unexpected.Paths) < 16 {
+				unexpected.Paths = append(unexpected.Paths, name)
+			}
+		}
+	}
+	if unexpected.Count > 0 {
+		return unexpected
 	}
 	// Unsupported tree entries cannot become invisible behind a clean status.
 	out, err = g.run(ctx, workspace, nil, "ls-tree", "-r", "--full-tree", "-z", string(c))

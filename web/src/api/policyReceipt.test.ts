@@ -16,3 +16,17 @@ it('accepts only a complete policy receipt bound to the original project and ver
     { ...receipt, protected_paths: [] },
   ]) expect(validPolicyReceipt(bad, project.id, request, project.policy_version)).toBe(false);
 });
+
+it('rejects a receipt that omits or changes trusted check inputs or outputs', () => {
+  const project = preparationSnapshot.project!;
+  const checks = [{ ...project.checks![0], required_paths: ['entry.ts'], output_paths: ['build/**'] }];
+  const request = { expected_version: project.version, checks, protected_paths: project.protected_paths };
+  const receipt = { ...project, checks, version: project.version + 1, policy_version: project.policy_version + 1 };
+  expect(validPolicyReceipt(receipt, project.id, request, project.policy_version)).toBe(true);
+  for (const field of ['required_paths', 'output_paths'] as const) {
+    for (const paths of [undefined, ['**'], [123]]) {
+      const bad = { ...receipt, checks: [{ ...checks[0], [field]: paths }] };
+      expect(validPolicyReceipt(bad, project.id, request, project.policy_version)).toBe(false);
+    }
+  }
+});
