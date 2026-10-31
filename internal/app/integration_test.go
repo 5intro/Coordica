@@ -136,7 +136,7 @@ func (f *itFixture) claim(t *testing.T, kind string) domain.Assignment {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := f.s.Claim(context.Background(), f.node, ID("claim_"), domain.ClaimRequest{AssignmentContextVersion: domain.AssignmentContextVersion, Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}, {Tool: "claude", Available: true, Structured: true, Cancel: true, Review: true}}}, base)
+	data, err := f.s.Claim(context.Background(), f.node, ID("claim_"), domain.ClaimRequest{ReviewContractVersion: domain.ReviewContractVersion, AssignmentContextVersion: domain.AssignmentContextVersion, Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Cancel: true, Review: true}, {Tool: "claude", Available: true, Structured: true, Cancel: true, Review: true}}}, base)
 	assignment := itDecode[*domain.Assignment](t, data, err)
 	if assignment == nil || assignment.Run.Kind != kind {
 		t.Fatalf("expected %s assignment: %+v", kind, assignment)
@@ -220,7 +220,7 @@ func (f *itFixture) reviewAndValidate(t *testing.T) domain.Assignment {
 	if err != nil || !strings.Contains(string(patch), "src/feature.txt") {
 		t.Fatalf("review cannot see complete M..C patch: %s %v", patch, err)
 	}
-	_, err = f.s.Complete(ctx, f.node, ID("review_"), assignment.Run.ID, domain.CompleteRequest{Generation: assignment.Run.Generation, Status: "succeeded", SessionID: ID("review-session_"), Quiescent: true, Review: &domain.Review{Candidate: candidate.Commit, Verdict: "approve", Summary: "Fixed candidate accepted", Findings: []string{}}})
+	_, err = f.s.Complete(ctx, f.node, ID("review_"), assignment.Run.ID, domain.CompleteRequest{Generation: assignment.Run.Generation, Status: "succeeded", SessionID: ID("review-session_"), Quiescent: true, Review: testReview(assignment, domain.Review{Candidate: candidate.Commit, Verdict: "approve", Summary: "Fixed candidate accepted", Findings: []string{}})})
 	if err != nil {
 		t.Fatal(err)
 	}

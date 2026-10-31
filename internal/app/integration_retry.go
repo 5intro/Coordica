@@ -55,6 +55,7 @@ func (s *Service) retryCandidatePreparation(tx *store.Tx, a Actor, t *domain.Tas
 	c.Review = nil
 	c.Checks = nil
 	c.CheckPlan = nil
+	c.ReviewRules = nil
 	c.CheckRunID = ""
 	c.ApprovedCommit = ""
 	c.Detail = "Owner requested bounded preparation retry"

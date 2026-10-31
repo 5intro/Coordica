@@ -101,7 +101,7 @@ func publicationRevocationsPending(tx *store.Tx) (bool, error) {
 	return false, nil
 }
 
-func (w *Integrator) reserveReviewStatus(ctx context.Context, c domain.Candidate) (string, bool, error) {
+func (w *Integrator) reserveReviewStatus(ctx context.Context, c domain.Candidate, facts domain.PullRequestStatus) (string, bool, error) {
 	state, allowed := "pending", false
 	e := w.Service.DB.Update(ctx, func(tx *store.Tx) error {
 		p, e := getProject(tx)
@@ -123,6 +123,13 @@ func (w *Integrator) reserveReviewStatus(ctx context.Context, c domain.Candidate
 		if current.Commit != c.Commit || !candidateAuthority(tx, t, p, current) || taskTimeSpent(tx, t) || b.CandidateID != c.ID || b.Desired != c.Commit || current.State != "reviewing" && current.State != "ready_to_land" {
 			return queuePullReviewRevocation(tx, c)
 		}
+		if facts.Head != current.Commit || facts.Number <= 0 || facts.Branch != b.Branch || b.Number != 0 && b.Number != facts.Number {
+			return domain.Fail("invalid_result", "review status requires the exact bound PR head")
+		}
+		if err := (ReviewIssues{Service: w.Service}).fenceExternal(tx, t, current, &facts); err != nil {
+			return err
+		}
+		current.PullRequest = &facts
 		state, allowed = reviewCheck(p, t, current), true
 		b.DesiredReview = state
 		return tx.Put("pull_request", c.TaskID, b)

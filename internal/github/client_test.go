@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -17,11 +18,16 @@ import (
 )
 
 type protocolFixture struct {
+	comments              []map[string]any
+	onComments            func()
+	commentListings       int
+	commentReads          []int
 	client                *Client
 	spec                  domain.PullRequestSpec
 	create, merge, status int
 	created               bool
 	closed                bool
+	merged                bool
 	wrongHead             bool
 	strict                bool
 	admins                bool
@@ -35,7 +41,9 @@ type protocolFixture struct {
 	mergeableState        string
 	unmergeable           bool
 	reviewAppID           *int64
+	externalUnpinned      bool
 	statusState           string
+	extraStatuses         []map[string]any
 	ciUnpinned            bool
 	testMerge             string
 	mergeParents          []string
@@ -71,7 +79,7 @@ func protocol(t *testing.T) *protocolFixture {
 				head = strings.Repeat("e", 40)
 			}
 			state := "open"
-			if f.closed {
+			if f.closed || f.merged {
 				state = "closed"
 			}
 			headRepository, baseRepository, mergeableState := f.headRepository, f.baseRepository, f.mergeableState
@@ -84,9 +92,39 @@ func protocol(t *testing.T) *protocolFixture {
 			if mergeableState == "" {
 				mergeableState = "clean"
 			}
-			return map[string]any{"number": 7, "state": state, "merged": false, "draft": false, "mergeable": !f.unmergeable, "mergeable_state": mergeableState, "merge_commit_sha": f.testMerge, "head": map[string]any{"sha": head, "ref": f.spec.Branch, "repo": map[string]string{"full_name": headRepository}}, "base": map[string]any{"sha": f.spec.Base, "ref": "main", "repo": map[string]string{"full_name": baseRepository}}}
+			return map[string]any{"number": 7, "state": state, "merged": f.merged, "draft": false, "mergeable": !f.unmergeable, "mergeable_state": mergeableState, "merge_commit_sha": f.testMerge, "head": map[string]any{"sha": head, "ref": f.spec.Branch, "repo": map[string]string{"full_name": headRepository}}, "base": map[string]any{"sha": f.spec.Base, "ref": "main", "repo": map[string]string{"full_name": baseRepository}}}
 		}
 		switch {
+		case p == "/issues/7/comments" && r.Method == "GET":
+			f.commentListings++
+			if f.onComments != nil {
+				f.onComments()
+			}
+			page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+			start := max(0, (page-1)*100)
+			if start >= len(f.comments) {
+				write([]any{})
+			} else {
+				write(f.comments[start:min(start+100, len(f.comments))])
+			}
+		case strings.HasPrefix(p, "/issues/comments/") && r.Method == "GET":
+			id, _ := strconv.Atoi(strings.TrimPrefix(p, "/issues/comments/"))
+			f.commentReads = append(f.commentReads, id)
+			for _, comment := range f.comments {
+				if comment["id"] != id {
+					continue
+				}
+				if f.onComments != nil {
+					f.onComments()
+				}
+				copy := map[string]any{"issue_url": "https://api.github.com/repos/owner/repo/issues/7"}
+				for key, value := range comment {
+					copy[key] = value
+				}
+				write(copy)
+				return
+			}
+			w.WriteHeader(404)
 		case p == "/pulls" && r.Method == "GET":
 			if f.created {
 				write([]any{pull()})
@@ -144,7 +182,8 @@ func protocol(t *testing.T) *protocolFixture {
 				if state == "" {
 					state = "success"
 				}
-				write([]any{map[string]any{"id": 9, "context": domain.ReviewCheckContext, "state": state}})
+				values := []map[string]any{{"id": 9, "context": domain.ReviewCheckContext, "state": state}}
+				write(append(values, f.extraStatuses...))
 			}
 		case p == "/pulls/7/reviews":
 			if f.reviews != nil {
@@ -157,7 +196,17 @@ func protocol(t *testing.T) *protocolFixture {
 			if f.ciUnpinned {
 				ciApp = nil
 			}
-			write(map[string]any{"enforce_admins": map[string]bool{"enabled": f.admins}, "required_status_checks": map[string]any{"strict": f.strict, "checks": []any{map[string]any{"context": "ci", "app_id": ciApp}, map[string]any{"context": domain.ReviewCheckContext, "app_id": f.reviewAppID}}}})
+			required := []any{map[string]any{"context": "ci", "app_id": ciApp}, map[string]any{"context": domain.ReviewCheckContext, "app_id": f.reviewAppID}}
+			for _, source := range f.spec.ReviewProviders {
+				for _, name := range source.CheckNames {
+					var app any = source.AppID
+					if f.externalUnpinned {
+						app = nil
+					}
+					required = append(required, map[string]any{"context": name, "app_id": app})
+				}
+			}
+			write(map[string]any{"enforce_admins": map[string]bool{"enabled": f.admins}, "required_status_checks": map[string]any{"strict": f.strict, "checks": required}})
 		case p == "/pulls/7/merge" && r.Method == "PUT":
 			var in map[string]string
 			if e := json.NewDecoder(r.Body).Decode(&in); e != nil {

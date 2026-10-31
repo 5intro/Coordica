@@ -72,8 +72,8 @@ func newReviewRetryFixture(t *testing.T) (*intentFixture, *app.Integrator) {
 func reviewRetryClaim(t *testing.T, f *intentFixture) *domain.Assignment {
 	t.Helper()
 	b, err := f.s.Claim(context.Background(), f.node, app.ID("claim_"), domain.ClaimRequest{
-		AssignmentContextVersion: domain.AssignmentContextVersion,
-		Capabilities:             []domain.Capability{{Tool: "codex", Available: true, Structured: true, Review: true, Cancel: true}},
+		ReviewContractVersion: domain.ReviewContractVersion, AssignmentContextVersion: domain.AssignmentContextVersion,
+		Capabilities: []domain.Capability{{Tool: "codex", Available: true, Structured: true, Review: true, Cancel: true}},
 	}, f.base.String())
 	if err != nil {
 		t.Fatal(err)
@@ -275,7 +275,8 @@ func TestReviewerVerdictsStillRejectOrRepair(t *testing.T) {
 			f.r.execute = func(context.Context, agent.Request, func(agent.Event)) (agent.Result, error) {
 				raw, err := json.Marshal(domain.Review{
 					Candidate: a.Run.Base, Verdict: verdict, Summary: "Independent review fixture",
-					Findings: []string{"Requires Owner or code changes"},
+					Findings: []string{}, RulesDigest: a.Run.ReviewRulesDigest, Resolutions: []domain.ReviewResolution{},
+					Issues: []domain.ReviewFinding{{Key: "review_fixture", Severity: "P2", Title: "Requires a code change", Path: "test/greeting.test.mjs", Trigger: "run greeting", Evidence: "regression output differs", Impact: "incorrect greeting"}},
 				})
 				return agent.Result{TreeStopped: true, OutputText: string(raw)}, err
 			}

@@ -153,7 +153,7 @@ func (c *Client) validate(spec domain.PullRequestSpec) error {
 	if !strings.EqualFold(spec.Repository, c.repository) || !workBranch.MatchString(spec.Branch) || spec.TargetBranch == "" || strings.ContainsAny(spec.TargetBranch, "\x00\r\n") || !fullSHA.MatchString(spec.Head) || !fullSHA.MatchString(spec.Base) {
 		return errors.New("GitHub request outside fixed repository or candidate")
 	}
-	return nil
+	return domain.ValidateExternalReviewGates(spec.RequiredChecks, spec.ReviewProviders)
 }
 func (c *Client) getPull(ctx context.Context, s domain.PullRequestSpec) (pull, error) {
 	var p pull
@@ -214,6 +214,9 @@ func (c *Client) Merge(ctx context.Context, s domain.PullRequestSpec) (string, e
 		return "", e
 	}
 	if facts.State == "merged" && facts.Head == s.Head {
+		if !domain.ExternalReviewsReady(s.ReviewProviders, facts.ExternalReviews, s.Head) {
+			return "", domain.ErrPublicationNotReady
+		}
 		return facts.MergeCommit, nil
 	}
 	if !facts.MergeReady || facts.Head != s.Head || facts.Base != s.Base {

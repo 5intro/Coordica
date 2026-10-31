@@ -21,6 +21,10 @@ export function PullRequestStatus({ candidate, client, refresh }: { candidate: C
     {pr.detail && <p className="hold preserve-lines">{pr.detail}</p>}
     {pr.number > 0 && !['landed', 'invalidated', 'cancelled', 'rejected'].includes(candidate.state) && <button className="secondary" disabled={action.busy} onClick={() => void action.execute(() => client.write<Candidate>(`/candidates/${encodeURIComponent(candidate.id)}/sync`, { expected_version: candidate.version }), '已请求同步 PR。')}>同步 PR 状态</button>}
     <Feedback {...action} />
+    {!!pr.external_reviews?.length && <details><summary>外部审查</summary>{pr.external_reviews.map((review) => <div className="settings-row" key={`${review.provider}/${review.kind}`}>
+      <span>{review.kind === 'security_review' ? '安全审查' : '代码审查'}</span><span>{ciLabel(review.state)}{review.commit !== candidate.commit && ' · 历史版本'}</span>
+      {safeGitHubURL(review.url) && <a href={safeGitHubURL(review.url)} target="_blank" rel="noreferrer">查看报告</a>}
+    </div>)}</details>}
     {!!pr.checks?.length && <details><summary>CI 检查 · {pr.checks.length}</summary>{pr.checks.map((check, index) => <div className="settings-row" key={`${check.app_id}/${check.name}/${index}`}><span>{check.name}</span><span>{ciLabel(check.state)}</span></div>)}</details>}
     {!!pr.reviews?.length && <details><summary>GitHub 评审记录</summary>{pr.reviews.map((review) => <div className="settings-row" key={review.id}><span>{review.author}</span><span>{reviewLabel(review.state.toLowerCase())}{review.commit !== candidate.commit && ' · 历史版本'}</span></div>)}</details>}
   </section>;

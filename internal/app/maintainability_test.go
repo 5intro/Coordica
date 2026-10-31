@@ -100,7 +100,7 @@ func TestMaintainabilityAdvisoryDoesNotWaiveValidationEvidence(t *testing.T) {
 	review := f.claim(t, "review")
 	_, err := f.s.Complete(ctx, f.node, ID("review_"), review.Run.ID, domain.CompleteRequest{
 		Generation: review.Run.Generation, Status: "succeeded", SessionID: "advisory-review", Quiescent: true,
-		Review: &domain.Review{Candidate: c.Commit, Verdict: "approve", Summary: "Cohesive change despite long literal", Findings: []string{}},
+		Review: testReview(review, domain.Review{Candidate: c.Commit, Verdict: "approve", Summary: "Cohesive change despite long literal", Findings: []string{}}),
 	})
 	if err != nil {
 		t.Fatal(err)

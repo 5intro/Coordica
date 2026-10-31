@@ -14,6 +14,10 @@ func assignedReviewContext(tx *store.Tx, task domain.Task, run domain.Run) (*dom
 	if run.Kind != "review" {
 		return nil, nil
 	}
+	issues, err := applicableReviewIssues(tx, task, run.PolicyVersion)
+	if err != nil {
+		return nil, err
+	}
 	candidates, err := store.List[domain.Candidate](tx, "candidate")
 	if err != nil {
 		return nil, err
@@ -48,8 +52,11 @@ func assignedReviewContext(tx *store.Tx, task domain.Task, run domain.Run) (*dom
 		}
 	}
 	if latest == nil {
+		if len(issues) > 0 {
+			return &domain.ReviewContext{Round: round, Issues: issues, Findings: []string{}}, nil
+		}
 		return nil, nil
 	}
-	return &domain.ReviewContext{Round: round, PreviousCandidate: latest.Commit, PreviousMain: latest.Main,
+	return &domain.ReviewContext{Issues: issues, Round: round, PreviousCandidate: latest.Commit, PreviousMain: latest.Main,
 		Summary: latest.Review.Summary, Findings: latest.Review.Findings}, nil
 }

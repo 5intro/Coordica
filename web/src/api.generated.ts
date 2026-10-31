@@ -336,6 +336,92 @@ export interface ChatDetail {
   version: number;
   item: ChatItem;
 }
+export interface ReviewFinding {
+  key: string;
+  severity: string;
+  title: string;
+  path: string;
+  line: number;
+  trigger: string;
+  evidence: string;
+  impact: string;
+}
+export interface ReviewResolution {
+  issue_id: string;
+  expected_version: number;
+  disposition: string;
+  reason: string;
+}
+export interface ReviewIssue {
+  id: string;
+  version: number;
+  task_id: string;
+  source: string;
+  finding: ReviewFinding;
+  state: string;
+  first_candidate: string;
+  last_candidate: string;
+  source_run_id: string;
+  rules_digest: string;
+  resolution_commit: string;
+  resolution_reason: string;
+  resolved_by: string;
+  created_at: string;
+  updated_at: string;
+}
+export interface ReviewIssueQuery {
+  task_id: string;
+  after: string;
+  limit: number;
+}
+export interface ReviewIssuePage {
+  items: (ReviewIssue)[] | null;
+  next: string;
+}
+export interface ReviewIssueDecision {
+  expected_version: number;
+  candidate_id: string;
+  commit: string;
+  disposition: string;
+  reason: string;
+  request_recheck?: boolean;
+  candidate_version?: number;
+}
+export interface ReviewRuleFile {
+  path: string;
+  text: string;
+}
+export interface ReviewRules {
+  version: number;
+  base: string;
+  digest: string;
+  files: (ReviewRuleFile)[] | null;
+  changed: (string)[] | null;
+}
+export interface ExternalReviewPolicy {
+  check_names?: Record<string, string>;
+  provider: string;
+  actor_id: number;
+  app_id: number;
+  kinds: (string)[] | null;
+}
+export interface ExternalReview {
+  check_state?: string;
+  report_state?: string;
+  report_updated_at?: string;
+  check_id?: number;
+  check_name?: string;
+  provider: string;
+  kind: string;
+  actor_id: number;
+  app_id: number;
+  report_id: number;
+  commit: string;
+  state: string;
+  url: string;
+  summary: string;
+  evidence?: string;
+}
 export interface FailureContext {
   category?: string;
   followup_commit?: string;
@@ -385,6 +471,7 @@ export interface FailureAssessment {
   updated_at: string;
 }
 export interface ReviewContext {
+  issues?: (ReviewIssue)[] | null;
   round: number;
   previous_candidate: string;
   previous_main: string;
@@ -770,6 +857,8 @@ export interface RunProgress {
   state: string;
 }
 export interface Run {
+  review_contract_version?: number;
+  review_rules_digest?: string;
   progress_version?: number;
   progress_check_seconds?: number;
   progress?: RunProgress | null;
@@ -806,6 +895,9 @@ export interface Run {
   finished_at?: string | null;
 }
 export interface Review {
+  rules_digest?: string;
+  issues?: (ReviewFinding)[] | null;
+  resolutions?: (ReviewResolution)[] | null;
   recovery?: RecoveryHint | null;
   candidate: string;
   verdict: string;
@@ -821,6 +913,7 @@ export interface CheckResult {
   duration_seconds: number;
 }
 export interface Candidate {
+  review_rules?: ReviewRules | null;
   maintainability_advisory?: string;
   pull_request?: PullRequestStatus | null;
   preparation_stopped?: boolean;
@@ -925,6 +1018,7 @@ export interface RegisterResponse {
   token: string;
 }
 export interface ClaimRequest {
+  review_contract_version?: number;
   progress_version?: number;
   capabilities: (Capability)[] | null;
   assignment_context_version?: number;
@@ -995,6 +1089,7 @@ export interface Artifact {
   created_at: string;
 }
 export interface PublicationPolicy {
+  review_providers?: (ExternalReviewPolicy)[] | null;
   mode: string;
   required_checks: (string)[] | null;
 }
@@ -1003,6 +1098,7 @@ export interface PublicationRequest {
   policy: PublicationPolicy;
 }
 export interface RemoteCheck {
+  id?: number;
   summary?: string;
   name: string;
   state: string;
@@ -1018,6 +1114,7 @@ export interface RemoteReview {
   url: string;
 }
 export interface PullRequestStatus {
+  external_reviews?: (ExternalReview)[] | null;
   number: number;
   url: string;
   branch: string;

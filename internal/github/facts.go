@@ -41,6 +41,13 @@ func (c *Client) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.
 	if p.Merged || p.MergedAt != nil {
 		out.State = "merged"
 		out.MergeCommit = p.MergeCommit
+		out.ExternalReviews, e = c.externalReviews(ctx, s)
+		if e != nil {
+			return out, e
+		}
+		if !domain.ExternalReviewsReady(s.ReviewProviders, out.ExternalReviews, s.Head) {
+			out.Detail = "PR 已合并；仍需当前固定提交的外部审查证据，不能推断已集成"
+		}
 		return out, nil
 	}
 	if p.State != "open" {
@@ -61,16 +68,11 @@ func (c *Client) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.
 	if e != nil {
 		return out, e
 	}
-	out.Review = "none"
-	for _, r := range out.Reviews {
-		if r.State == "CHANGES_REQUESTED" {
-			out.Review = "changes_requested"
-			break
-		}
-		if r.State == "APPROVED" && r.Commit == s.Head {
-			out.Review = "approved"
-		}
+	out.ExternalReviews, e = c.externalReviews(ctx, s)
+	if e != nil {
+		return out, e
 	}
+	out.Review = domain.PullRequestReviewState(out.Reviews, out.ExternalReviews, s.Head)
 	var rules protection
 	e = c.request(ctx, "GET", "/branches/"+url.PathEscape(s.TargetBranch)+"/protection", nil, &rules)
 	if e != nil {
@@ -100,7 +102,23 @@ func (c *Client) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.
 			return out, nil
 		}
 	}
+	for _, provider := range s.ReviewProviders {
+		for _, kind := range provider.Kinds {
+			name := provider.CheckNames[kind]
+			app, ok := required[name]
+			if !ok || app == nil || *app != provider.AppID {
+				out.Detail = "外部审查检查必须在分支保护中绑定可信 GitHub App：" + name
+				return out, nil
+			}
+		}
+	}
 	out.CI = "success"
+	externalNames := map[string]bool{}
+	for _, provider := range s.ReviewProviders {
+		for _, name := range provider.CheckNames {
+			externalNames[name] = true
+		}
+	}
 requiredChecks:
 	for name, appID := range required {
 		matched := []domain.RemoteCheck{}
@@ -128,6 +146,10 @@ requiredChecks:
 		// matching provider must pass; one green result cannot mask another.
 		for _, check := range matched {
 			if check.State == "failure" {
+				if externalNames[name] {
+					out.CI, out.Detail = "pending", "等待可信外部审查证据："+name
+					continue
+				}
 				out.CI = "failure"
 				out.Detail = "必需检查失败：" + name
 				break requiredChecks
@@ -141,7 +163,7 @@ requiredChecks:
 	if out.Review == "changes_requested" {
 		out.Detail = "GitHub 评审要求修改"
 	}
-	if p.MergeCommit != "" {
+	if p.MergeCommit != "" || len(s.ReviewProviders) > 0 {
 		current, err := c.getPull(ctx, s)
 		if err != nil {
 			return out, err
@@ -153,6 +175,13 @@ requiredChecks:
 		p = current
 	}
 	out.MergeReady = out.CI == "success" && out.Review != "changes_requested" && !p.Draft && p.Mergeable != nil && *p.Mergeable && (p.MergeableState == "clean" || p.MergeableState == "has_hooks" || p.MergeableState == "unstable")
+	for _, review := range out.ExternalReviews {
+		if review.State == "success" {
+			continue
+		}
+		out.MergeReady = false
+		out.Detail = review.Kind + ": " + review.Summary
+	}
 	if !out.MergeReady && out.Detail == "" {
 		out.Detail = "等待 GitHub 合并条件；不追加 Coordica 人工审批"
 	}
@@ -203,6 +232,10 @@ func (c *Client) evaluatedChecks(ctx context.Context, s domain.PullRequestSpec, 
 }
 
 func (c *Client) checks(ctx context.Context, head string, feedbackBytes *int) ([]domain.RemoteCheck, error) {
+	return c.checksWithDetails(ctx, head, feedbackBytes, nil)
+}
+
+func (c *Client) checksWithDetails(ctx context.Context, head string, feedbackBytes *int, details map[int64]string) ([]domain.RemoteCheck, error) {
 	checks := []domain.RemoteCheck{}
 	// Keep the latest run for each source/name. A different source with the same
 	// name remains distinct, so one provider cannot mask another's failure.
@@ -216,6 +249,7 @@ func (c *Client) checks(ctx context.Context, head string, feedbackBytes *int) ([
 				Name       string `json:"name"`
 				Status     string `json:"status"`
 				Conclusion string `json:"conclusion"`
+				DetailsURL string `json:"details_url"`
 				Output     struct {
 					Summary string `json:"summary"`
 				} `json:"output"`
@@ -240,6 +274,9 @@ func (c *Client) checks(ctx context.Context, head string, feedbackBytes *int) ([
 				continue
 			}
 			latestIDs[key] = r.ID
+			if details != nil {
+				details[r.ID] = r.DetailsURL
+			}
 			state := "pending"
 			if r.Status == "completed" {
 				if r.Conclusion == "success" {
@@ -248,7 +285,7 @@ func (c *Client) checks(ctx context.Context, head string, feedbackBytes *int) ([
 					state = "failure"
 				}
 			}
-			check := domain.RemoteCheck{Name: r.Name, AppID: r.App.ID, State: state, URL: "https://github.com/" + c.repository + "/commit/" + head + "/checks"}
+			check := domain.RemoteCheck{ID: r.ID, Name: r.Name, AppID: r.App.ID, State: state, URL: "https://github.com/" + c.repository + "/commit/" + head + "/checks"}
 			if state == "failure" {
 				check.Summary = boundedFeedback(r.Output.Summary, feedbackBytes)
 			}

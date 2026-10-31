@@ -1,0 +1,3 @@
+.review-controls > label { display: block; margin-block: 12px; }
+.review-controls > label > :is(input[type=number], select, textarea) { display: block; margin-top: 6px; }
+.review-controls > label > input[type=checkbox] { margin-right: 8px; vertical-align: middle; }

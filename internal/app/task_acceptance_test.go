@@ -21,7 +21,7 @@ func blockedAcceptanceFixture(t *testing.T) (*itFixture, domain.Task, domain.Can
 	review := f.claim(t, "review")
 	_, err := f.s.Complete(context.Background(), f.node, "blocked-review", review.Run.ID, domain.CompleteRequest{
 		Generation: review.Run.Generation, Status: "succeeded", Quiescent: true,
-		Review: &domain.Review{Candidate: c.Commit, Verdict: "blocked", Summary: "Module and final acceptance conflict", Findings: []string{"Fix the module defect before handoff"}},
+		Review: testReview(review, domain.Review{Candidate: c.Commit, Verdict: "blocked", Summary: "Module and final acceptance conflict", Findings: []string{"Fix the module defect before handoff"}}),
 	})
 	if err != nil {
 		t.Fatal(err)

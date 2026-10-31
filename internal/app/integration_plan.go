@@ -32,6 +32,11 @@ func candidateCheckPlan(ctx context.Context, w *Integrator, p domain.Project, c 
 	for _, change := range changes {
 		paths = append(paths, change.Paths()...)
 	}
+	c.ReviewRules, err = pinnedReviewRules(ctx, w.Git, w.repo(), *c, changes)
+	if err != nil {
+		return domain.CheckPlan{}, err
+	}
+	c.Protected = c.Protected || len(c.ReviewRules.Changed) > 0
 	plan, err := mergeCheckPlan(p, suites, paths, c.Protected)
 	if err != nil {
 		return plan, &checkPlanDefect{err}
@@ -46,6 +51,10 @@ func (e *qualityScanFailure) Unwrap() error { return e.error }
 func (e *checkPlanDefect) Unwrap() error    { return e.error }
 
 func candidateCheckFailure(ctx context.Context, w *Integrator, c domain.Candidate, err error) error {
+	var rules *reviewRuleFailure
+	if errors.As(err, &rules) {
+		return w.reject(ctx, c, rules.error, false)
+	}
 	var scan *qualityScanFailure
 	if errors.As(err, &scan) {
 		return candidateQualityFailure(ctx, w, c, scan.error)

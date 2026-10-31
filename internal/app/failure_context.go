@@ -52,6 +52,9 @@ func assignmentFailureContext(tx *store.Tx, task domain.Task) (*domain.FailureCo
 		}
 		if candidate.Review != nil {
 			result.Findings = candidate.Review.Findings
+			for _, issue := range candidate.Review.Issues {
+				result.Findings = append(result.Findings, issue.Severity+" "+issue.Title+": "+issue.Evidence)
+			}
 		}
 	}
 	return result, nil

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -102,6 +101,9 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 					return nil, e
 				}
 				if c.State != "reviewing" || c.Review != nil || !candidateAuthority(tx, t, p, c) {
+					continue
+				}
+				if c.ReviewRules != nil && req.ReviewContractVersion != domain.ReviewContractVersion {
 					continue
 				}
 				if domain.GitHubPublication(p) && (c.PullRequest == nil || c.PullRequest.State != "open" || c.PullRequest.Head != c.Commit || c.PullRequest.Base != c.Main || c.PullRequest.SyncError != "") {
@@ -211,6 +213,10 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 				RequirementRevisions: copyRequirementBindings(t), GoalVersion: t.GoalVersion, GoalAuthorizationVersion: t.GoalAuthorizationVersion}
 			if candidate != nil {
 				contextRun.CandidateID = candidate.ID
+				if candidate.ReviewRules != nil {
+					contextRun.ReviewContractVersion = domain.ReviewContractVersion
+					contextRun.ReviewRulesDigest = candidate.ReviewRules.Digest
+				}
 			}
 			assignment, e := assignedTaskContext(tx, t, contextRun, p, candidate)
 			if e != nil {
@@ -241,6 +247,10 @@ func (s *Service) Claim(ctx context.Context, a Actor, key string, req domain.Cla
 			limitLease(&r)
 			if candidate != nil {
 				r.CandidateID = candidate.ID
+				if candidate.ReviewRules != nil {
+					r.ReviewContractVersion = domain.ReviewContractVersion
+					r.ReviewRulesDigest = candidate.ReviewRules.Digest
+				}
 			}
 			r.GoalVersion = t.GoalVersion
 			r.GoalAuthorizationVersion = t.GoalAuthorizationVersion
@@ -508,37 +518,8 @@ func (s *Service) Complete(ctx context.Context, a Actor, key, id string, req dom
 				if c.ID != t.CurrentCandidateID || c.Commit != r.Base || req.Review == nil || req.Review.Candidate != c.Commit {
 					return nil, domain.Fail("invalid_input", "评审对象不匹配")
 				}
-				review := *req.Review
-				review.RunID = r.ID
-				if strings.TrimSpace(review.Summary) == "" || review.Findings == nil {
-					return nil, domain.Fail("invalid_input", "评审需要结论理由和明确的问题列表")
-				}
-				if review.Verdict != "approve" && review.Verdict != "changes_requested" && review.Verdict != "blocked" {
-					return nil, domain.Fail("invalid_input", "未知评审结论")
-				}
-				if err := domain.ValidateRecoveryHint(review.Recovery, review.Verdict); err != nil {
-					return nil, err
-				}
-				c.Review = &review
-				c.Version++
-				if review.Verdict == "approve" {
-					c.State = "validating"
-					if c.CheckPlan != nil && c.CheckPlan.PolicyVersion == p.TestPolicyVersion && domain.ChecksPassed(candidateChecks(p, c), c.Checks) && c.CheckRunID != "" {
-						c.State = "ready_to_land"
-					}
-				} else {
-					c.State = "rejected"
-					c.Detail = review.Summary
-					settings, err := automation(tx)
-					if err != nil {
-						return nil, err
-					}
-					if review.Recovery != nil && t.GoalVersion != 0 && settings.Enabled {
-						t.HoldReason = "failure_assessment"
-						t.CurrentRunID = ""
-					} else {
-						queueRepair(&t, &c, review.Verdict == "changes_requested")
-					}
+				if e = applyCandidateReview(tx, s, &t, r, &c, *req.Review); e != nil {
+					return nil, e
 				}
 				if e = tx.Put("candidate", c.ID, c); e != nil {
 					return nil, e

@@ -708,6 +708,16 @@
             }
           ]
         },
+        "review_rules": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewRules"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "source_run_id": {
           "type": "string"
         },
@@ -1714,6 +1724,9 @@
         },
         "progress_version": {
           "type": "integer"
+        },
+        "review_contract_version": {
+          "type": "integer"
         }
       },
       "required": [
@@ -2169,6 +2182,105 @@
         "requested_paths",
         "reason",
         "summary"
+      ],
+      "type": "object"
+    },
+    "ExternalReview": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "type": "integer"
+        },
+        "app_id": {
+          "type": "integer"
+        },
+        "check_id": {
+          "type": "integer"
+        },
+        "check_name": {
+          "type": "string"
+        },
+        "check_state": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "report_id": {
+          "type": "integer"
+        },
+        "report_state": {
+          "type": "string"
+        },
+        "report_updated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "kind",
+        "actor_id",
+        "app_id",
+        "report_id",
+        "commit",
+        "state",
+        "url",
+        "summary"
+      ],
+      "type": "object"
+    },
+    "ExternalReviewPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "type": "integer"
+        },
+        "app_id": {
+          "type": "integer"
+        },
+        "check_names": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "kinds": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "actor_id",
+        "app_id",
+        "kinds"
       ],
       "type": "object"
     },
@@ -4181,6 +4293,15 @@
             "array",
             "null"
           ]
+        },
+        "review_providers": {
+          "items": {
+            "$ref": "#/$defs/ExternalReviewPolicy"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
       "required": [
@@ -4228,6 +4349,15 @@
         },
         "detail": {
           "type": "string"
+        },
+        "external_reviews": {
+          "items": {
+            "$ref": "#/$defs/ExternalReview"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "head": {
           "type": "string"
@@ -4355,6 +4485,9 @@
       "additionalProperties": false,
       "properties": {
         "app_id": {
+          "type": "integer"
+        },
+        "id": {
           "type": "integer"
         },
         "name": {
@@ -4845,6 +4978,15 @@
             "null"
           ]
         },
+        "issues": {
+          "items": {
+            "$ref": "#/$defs/ReviewFinding"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "recovery": {
           "anyOf": [
             {
@@ -4854,6 +4996,18 @@
               "type": "null"
             }
           ]
+        },
+        "resolutions": {
+          "items": {
+            "$ref": "#/$defs/ReviewResolution"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "rules_digest": {
+          "type": "string"
         },
         "run_id": {
           "type": "string"
@@ -4886,6 +5040,15 @@
             "null"
           ]
         },
+        "issues": {
+          "items": {
+            "$ref": "#/$defs/ReviewIssue"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "previous_candidate": {
           "type": "string"
         },
@@ -4905,6 +5068,46 @@
         "previous_main",
         "summary",
         "findings"
+      ],
+      "type": "object"
+    },
+    "ReviewFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "type": "string"
+        },
+        "impact": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "trigger": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "severity",
+        "title",
+        "path",
+        "line",
+        "trigger",
+        "evidence",
+        "impact"
       ],
       "type": "object"
     },
@@ -4950,6 +5153,232 @@
         "expected_commit",
         "review_run_id",
         "reason"
+      ],
+      "type": "object"
+    },
+    "ReviewIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "finding": {
+          "$ref": "#/$defs/ReviewFinding"
+        },
+        "first_candidate": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "last_candidate": {
+          "type": "string"
+        },
+        "resolution_commit": {
+          "type": "string"
+        },
+        "resolution_reason": {
+          "type": "string"
+        },
+        "resolved_by": {
+          "type": "string"
+        },
+        "rules_digest": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "source_run_id": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "task_id",
+        "source",
+        "finding",
+        "state",
+        "first_candidate",
+        "last_candidate",
+        "source_run_id",
+        "rules_digest",
+        "resolution_commit",
+        "resolution_reason",
+        "resolved_by",
+        "created_at",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "ReviewIssueDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "type": "string"
+        },
+        "candidate_version": {
+          "type": "integer"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "disposition": {
+          "type": "string"
+        },
+        "expected_version": {
+          "type": "integer"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "request_recheck": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "expected_version",
+        "candidate_id",
+        "commit",
+        "disposition",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "ReviewIssuePage": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ReviewIssue"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "next": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "items",
+        "next"
+      ],
+      "type": "object"
+    },
+    "ReviewIssueQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "after",
+        "limit"
+      ],
+      "type": "object"
+    },
+    "ReviewResolution": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "type": "string"
+        },
+        "expected_version": {
+          "type": "integer"
+        },
+        "issue_id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "issue_id",
+        "expected_version",
+        "disposition",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "ReviewRuleFile": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "text"
+      ],
+      "type": "object"
+    },
+    "ReviewRules": {
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "type": "string"
+        },
+        "changed": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "digest": {
+          "type": "string"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/ReviewRuleFile"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "base",
+        "digest",
+        "files",
+        "changed"
       ],
       "type": "object"
     },
@@ -5056,6 +5485,12 @@
             "type": "integer"
           },
           "type": "object"
+        },
+        "review_contract_version": {
+          "type": "integer"
+        },
+        "review_rules_digest": {
+          "type": "string"
         },
         "session_id": {
           "type": "string"

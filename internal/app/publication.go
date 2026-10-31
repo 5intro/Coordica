@@ -69,11 +69,14 @@ func (s *Service) ConfigurePublication(ctx context.Context, a Actor, key string,
 
 func pullSpec(p domain.Project, t domain.Task, c domain.Candidate, b pullRequestBinding) domain.PullRequestSpec {
 	repository, _ := domain.GitHubRepository(p.RepositoryURL)
-	return domain.PullRequestSpec{Repository: repository, Branch: b.Branch, TargetBranch: p.TargetBranch, Head: c.Commit, Base: c.Main, Title: t.Title, Number: b.Number, RequiredChecks: p.Publication.RequiredChecks}
+	return domain.PullRequestSpec{ReviewProviders: p.Publication.ReviewProviders, Repository: repository, Branch: b.Branch, TargetBranch: p.TargetBranch, Head: c.Commit, Base: c.Main, Title: t.Title, Number: b.Number, RequiredChecks: p.Publication.RequiredChecks}
 }
 
 func reviewCheck(p domain.Project, t domain.Task, c domain.Candidate) string {
 	if t.HoldReason != "" || p.Paused {
+		return "pending"
+	}
+	if domain.GitHubPublication(p) && domain.ValidateExternalReviewGates(p.Publication.RequiredChecks, p.Publication.ReviewProviders) != nil {
 		return "pending"
 	}
 	if c.Review == nil || c.Review.Candidate != c.Commit {
@@ -83,6 +86,10 @@ func reviewCheck(p domain.Project, t domain.Task, c domain.Candidate) string {
 		return "failure"
 	}
 	if c.Protected && c.ApprovedCommit != c.Commit {
+		return "pending"
+	}
+	if domain.GitHubPublication(p) && len(p.Publication.ReviewProviders) > 0 &&
+		(c.PullRequest == nil || c.PullRequest.Head != c.Commit || !domain.ExternalReviewsReady(p.Publication.ReviewProviders, c.PullRequest.ExternalReviews, c.Commit)) {
 		return "pending"
 	}
 	return "success"
@@ -191,7 +198,7 @@ func (w *Integrator) syncPullRequest(ctx context.Context, c domain.Candidate, fo
 		return c, w.recordPullError(ctx, c, "PR 同步失败；保留原分支与 PR 绑定等待核对")
 	}
 	if facts.Head == c.Commit && facts.State == "open" {
-		state, allowed, err := w.reserveReviewStatus(ctx, c)
+		state, allowed, err := w.reserveReviewStatus(ctx, c, facts)
 		if err != nil || !allowed {
 			return c, err
 		}
@@ -207,6 +214,9 @@ func (w *Integrator) syncPullRequest(ctx context.Context, c domain.Candidate, fo
 				return c, w.recordPullError(ctx, c, "PR 状态核对失败")
 			}
 		}
+	}
+	if !domain.ExternalReviewsReady(spec.ReviewProviders, facts.ExternalReviews, c.Commit) {
+		facts.MergeReady = false
 	}
 	facts.SyncedAt = s.Now()
 	accepted := false
@@ -243,7 +253,18 @@ func (w *Integrator) syncPullRequest(ctx context.Context, c domain.Candidate, fo
 		if e = tx.Put("pull_request", t.ID, binding); e != nil {
 			return e
 		}
+		if err := (ReviewIssues{Service: s}).fenceExternal(tx, task, current, &facts); err != nil {
+			return err
+		}
 		current.PullRequest = &facts
+		if err := (ReviewIssues{Service: s}).observeExternal(tx, task, current, facts); err != nil {
+			return err
+		}
+		if binding.ReviewState == "success" && reviewCheck(project, task, current) != "success" {
+			if err := queuePullReviewRevocation(tx, current); err != nil {
+				return err
+			}
+		}
 		current.Version++
 		c = current
 		if e = tx.Put("candidate", current.ID, current); e != nil {
@@ -281,6 +302,11 @@ func hostedFeedback(facts domain.PullRequestStatus) string {
 	for _, review := range facts.Reviews {
 		if review.State == "CHANGES_REQUESTED" {
 			add(review.Author + "\n" + review.Summary + "\n" + review.URL)
+		}
+	}
+	for _, review := range facts.ExternalReviews {
+		if review.State == "failure" {
+			add(review.Kind + "\n" + review.Summary + "\n" + review.URL + "\n" + review.Evidence)
 		}
 	}
 	return strings.Join(parts, "\n")
