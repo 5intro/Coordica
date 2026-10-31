@@ -58,6 +58,10 @@ func (c ReviewIssues) fenceExternal(tx *store.Tx, task domain.Task, candidate do
 		return domain.Fail("invalid_result", "unexpected external review source")
 	}
 	facts.ExternalReviews = normalized
+	if len(policies) > 0 {
+		facts.Review = domain.PullRequestReviewState(facts.Reviews, normalized, candidate.Commit)
+		facts.MergeReady = facts.MergeReady && facts.Review != "changes_requested"
+	}
 	if !domain.ExternalReviewsReady(policies, normalized, candidate.Commit) {
 		facts.MergeReady = false
 		return queueTaskPullReviewRevocations(tx, task.ID)

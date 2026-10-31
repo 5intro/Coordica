@@ -33,6 +33,7 @@ type testPullHost struct {
 	failInspect                               bool
 	number                                    int
 	external                                  func(domain.PullRequestSpec) []domain.ExternalReview
+	remoteReviews                             []domain.RemoteReview
 }
 
 func (h *testPullHost) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.PullRequestStatus, error) {
@@ -61,7 +62,7 @@ func (h *testPullHost) Inspect(ctx context.Context, s domain.PullRequestSpec) (d
 	if h.external != nil {
 		reports = h.external(s)
 	}
-	return domain.PullRequestStatus{ExternalReviews: reports, Number: number, URL: "https://github.com/owner/repo/pull/7", Branch: s.Branch, Head: s.Head, Base: s.Base, State: state, CI: h.ci, Review: h.review, MergeReady: state == "open" && h.ci == "success" && h.review != "changes_requested" && h.reviewCheck == "success", MergeCommit: map[bool]string{true: s.Head}[h.merged], Detail: "remote CI/review evidence", Checks: []domain.RemoteCheck{}, Reviews: []domain.RemoteReview{}}, nil
+	return domain.PullRequestStatus{ExternalReviews: reports, Number: number, URL: "https://github.com/owner/repo/pull/7", Branch: s.Branch, Head: s.Head, Base: s.Base, State: state, CI: h.ci, Review: h.review, MergeReady: state == "open" && h.ci == "success" && h.review != "changes_requested" && h.reviewCheck == "success", MergeCommit: map[bool]string{true: s.Head}[h.merged], Detail: "remote CI/review evidence", Checks: []domain.RemoteCheck{}, Reviews: h.remoteReviews}, nil
 }
 func (h *testPullHost) Ensure(ctx context.Context, s domain.PullRequestSpec) (domain.PullRequestStatus, error) {
 	h.ensures++

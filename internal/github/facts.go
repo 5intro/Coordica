@@ -72,16 +72,7 @@ func (c *Client) Inspect(ctx context.Context, s domain.PullRequestSpec) (domain.
 	if e != nil {
 		return out, e
 	}
-	out.Review = "none"
-	for _, r := range out.Reviews {
-		if r.State == "CHANGES_REQUESTED" {
-			out.Review = "changes_requested"
-			break
-		}
-		if r.State == "APPROVED" && r.Commit == s.Head {
-			out.Review = "approved"
-		}
-	}
+	out.Review = domain.PullRequestReviewState(out.Reviews, out.ExternalReviews, s.Head)
 	var rules protection
 	e = c.request(ctx, "GET", "/branches/"+url.PathEscape(s.TargetBranch)+"/protection", nil, &rules)
 	if e != nil {
@@ -190,9 +181,6 @@ requiredChecks:
 		}
 		out.MergeReady = false
 		out.Detail = review.Kind + ": " + review.Summary
-		if review.State == "failure" {
-			out.Review = "changes_requested"
-		}
 	}
 	if !out.MergeReady && out.Detail == "" {
 		out.Detail = "等待 GitHub 合并条件；不追加 Coordica 人工审批"
