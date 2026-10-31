@@ -92,11 +92,25 @@
         "name": {
           "type": "string"
         },
+        "output_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "required_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "timeout_seconds": {
           "type": "integer"
         }
       },
       "required": [
+        "required_paths",
+        "output_paths",
         "name",
         "command",
         "args",

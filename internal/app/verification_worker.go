@@ -179,7 +179,8 @@ func (w *VerificationWorker) Tick(ctx context.Context) error {
 		results, quiet, e = checkexec.Run(runCtx, work, t.Verification.Suite.Checks, validationEnv())
 	}
 	if e == nil {
-		e = i.Git.VerifyCheckOutputs(runCtx, work, gitops.OID(r.Base), t.Verification.Suite.OutputPaths)
+		outputs := append(append([]string{}, t.Verification.Suite.OutputPaths...), domain.CheckOutputs(t.Verification.Suite.Checks)...)
+		e = i.Git.VerifyCheckOutputs(runCtx, work, gitops.OID(r.Base), outputs)
 		quiet = quiet && !errors.Is(e, process.ErrTreeNotStopped)
 	}
 	finalCtx, finalCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
@@ -226,6 +227,7 @@ func (w *VerificationWorker) finish(ctx context.Context, r domain.Run, results [
 		current.FinishedAt = &now
 		if runErr != nil {
 			current.Detail = errDetail(runErr)
+			current.FailureKind = validationFailureKind(runErr)
 		}
 		if !quiet {
 			current.State = "lost"

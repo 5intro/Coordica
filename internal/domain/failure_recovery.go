@@ -34,7 +34,7 @@ func FailureCategory(v string) bool {
 type FailureRecoveryPlan struct {
 	Category string         `json:"category"`
 	Reason   string         `json:"reason"`
-	Action   string         `json:"action"` // repair_current, retry_review_input, follow_up, needs_owner
+	Action   string         `json:"action"` // repair_current, retry_review_input, retry_validation, follow_up, needs_owner
 	Tasks    []TaskProposal `json:"tasks"`
 }
 

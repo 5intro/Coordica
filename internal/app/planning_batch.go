@@ -162,6 +162,13 @@ func (s *Service) derivePlan(tx *store.Tx, r *domain.PlanningRun, d *domain.Plan
 			return e
 		}
 	}
+	suites, e := store.List[domain.TestSuite](tx, "test_suite")
+	if e != nil {
+		return e
+	}
+	if e = validatePlanningCheckInputs(p.Checks, baseline, proposals, existingTasks, suites...); e != nil {
+		return e
+	}
 	for key, q := range proposals {
 		if reused[key] {
 			var old domain.Task

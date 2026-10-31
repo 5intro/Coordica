@@ -104,43 +104,11 @@ func (w *PlanningWorker) record(ctx context.Context, original domain.PlanningRun
 			}
 		} else if out.Error != "" {
 			r.State = "failed"
-			settings, e := automation(tx)
+			retryQueued, e = queuePlanningRetry(tx, s, r, d)
 			if e != nil {
 				return e
 			}
-			if r.Attempt < r.MaxRetries && planningGrant(settings, d) > 0 {
-				retry := r
-				retry.ID = ID("plan_")
-				retry.Version = 1
-				retry.Generation++
-				retry.Attempt++
-				retry.State = "queued"
-				retry.Settled = false
-				retry.TreeStopped = false
-				retry.GrantSeconds = 0
-				retry.ElapsedSeconds = 0
-				retry.PendingResult = nil
-				retry.RequirementResult = nil
-				retry.FailureResult = nil
-				retry.TaskIDs = nil
-				retry.TaskMapping = nil
-				retry.ProcessID = 0
-				retry.WorkingDirectory = ""
-				retryQueued = true
-				if e = tx.Put("planning_run", retry.ID, retry); e != nil {
-					return e
-				}
-				if r.FailureAssessmentID != "" {
-					var f domain.FailureAssessment
-					if e = tx.Get("failure_assessment", r.FailureAssessmentID, &f); e != nil {
-						return e
-					}
-					f.RunID = retry.ID
-					if e = (FailureRecoveries{Service: s}).save(tx, &f); e != nil {
-						return e
-					}
-				}
-			} else {
+			if !retryQueued {
 				if e = s.decision(tx, "planning_run", r.ID, r.Version, d, "planning_failure", out.Error, []string{"dismiss", "evaluate"}); e != nil {
 					return e
 				}

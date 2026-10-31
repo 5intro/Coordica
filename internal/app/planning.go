@@ -605,7 +605,7 @@ func (s *Service) taskDecision(tx *store.Tx, t domain.Task, evidence string) err
 	if err := captureTaskFailure(tx, s, t, evidence); err != nil {
 		return err
 	}
-	if t.HoldReason != "human_decision" && t.HoldReason != "budget" {
+	if t.HoldReason != "human_decision" && t.HoldReason != "budget" && t.HoldReason != "check_configuration" {
 		return nil
 	}
 	var d domain.PlanningDocument
@@ -636,7 +636,11 @@ func (s *Service) taskDecision(tx *store.Tx, t domain.Task, evidence string) err
 	if evidence == "" {
 		evidence = t.HoldReason
 	}
-	return s.decision(tx, "task", t.ID, t.Version, d, t.HoldReason, evidence, []string{"dismiss", "edit_task", "edit_budget"})
+	actions := []string{"dismiss", "edit_task", "edit_budget"}
+	if t.HoldReason == "check_configuration" {
+		actions = []string{"dismiss", "edit_checks"}
+	}
+	return s.decision(tx, "task", t.ID, t.Version, d, t.HoldReason, evidence, actions)
 }
 
 func (s *Service) advancePlanningDecisions(tx *store.Tx, d domain.PlanningDocument) error {

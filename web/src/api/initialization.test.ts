@@ -30,4 +30,19 @@ describe('initialization runtime contract', () => {
     expect(validInitialization({ ...readyInitialization, result: { ...readyInitialization.result, baseline: { ...readyInitialization.result!.baseline, checks: [{ ...readyInitialization.result!.baseline.checks![0], args: [123] }] } } })).toBe(false);
     expect(validInitialization({ ...readyInitialization, result: { ...readyInitialization.result, baseline: { ...readyInitialization.result!.baseline, checks: [{ ...readyInitialization.result!.baseline.checks![0], timeout_seconds: 600 }] } } })).toBe(true);
   });
+  it('binds required inputs and generated outputs to the confirmed agreement', () => {
+    const baseline = structuredClone(readyInitialization.result!.baseline);
+    baseline.checks![0].required_paths = ['entry.ts'];
+    baseline.checks![0].output_paths = ['build/**'];
+    const confirmed = { ...readyInitialization, status: 'initialized', approved_version: readyInitialization.version,
+      approved_digest: readyInitialization.digest, approved_baseline: structuredClone(baseline),
+      result: { ...readyInitialization.result!, baseline } };
+    expect(validInitialization(confirmed)).toBe(true);
+    for (const key of ['required_paths', 'output_paths'] as const) {
+      const changed = structuredClone(confirmed);
+      changed.result.baseline.checks![0][key] = ['unrelated'];
+      expect(validInitialization(changed)).toBe(false);
+    }
+    expect(validInitialization({ ...confirmed, check_input_paths: [123] })).toBe(false);
+  });
 });

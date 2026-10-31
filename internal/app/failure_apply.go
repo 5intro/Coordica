@@ -17,9 +17,21 @@ func (c FailureRecoveries) apply(tx *store.Tx, run *domain.PlanningRun, goal *do
 	}
 	f.Result = run.FailureResult
 	f.Detail = f.Result.Reason
+	var source domain.Run
+	if err := tx.Get("run", f.SourceRunID, &source); err != nil {
+		return err
+	}
+	if checkConfigurationFailure(source.FailureKind) && f.Result.Action != "needs_owner" {
+		return domain.Fail("conflict", "trusted check configuration requires Owner correction, not code repair")
+	}
 	switch f.Result.Action {
 	case "repair_current":
 		if err := c.repairCurrent(tx, f); err != nil {
+			return err
+		}
+		f.State = "applied"
+	case "retry_validation":
+		if err := c.retryValidation(tx, f); err != nil {
 			return err
 		}
 		f.State = "applied"
