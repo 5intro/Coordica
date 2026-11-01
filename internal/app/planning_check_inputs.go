@@ -28,15 +28,7 @@ func readCheckInputs(ctx context.Context, service *Service, project domain.Proje
 			checks = append(checks, suite.Checks...)
 		}
 	}
-	var inputs []string
-	seen := map[string]bool{}
-	for _, check := range checks {
-		for _, input := range check.RequiredPaths {
-			if !seen[input] {
-				inputs, seen[input] = append(inputs, input), true
-			}
-		}
-	}
+	inputs := requiredCheckInputs(checks)
 	if len(inputs) == 0 {
 		return nil, nil
 	}
@@ -47,6 +39,19 @@ func readCheckInputs(ctx context.Context, service *Service, project domain.Proje
 	return reader.CheckInputPaths(ctx, analysisRepository(project), sha, inputs)
 }
 
+func requiredCheckInputs(checks []domain.Check) []string {
+	var inputs []string
+	seen := map[string]bool{}
+	for _, check := range checks {
+		for _, input := range check.RequiredPaths {
+			if !seen[input] {
+				inputs, seen[input] = append(inputs, input), true
+			}
+		}
+	}
+	return inputs
+}
+
 // This checks explicit contracts rather than parsing natural-language acceptance
 // or guessing entrypoints from executable names. It runs before any batch writes.
 func validatePlanningCheckInputs(checks []domain.Check, baseline domain.Initialization,
@@ -55,7 +60,7 @@ func validatePlanningCheckInputs(checks []domain.Check, baseline domain.Initiali
 	available := append(append([]string{}, baseline.CheckInputPaths...), baseline.AvailablePaths...)
 	for key := range proposals {
 		plan, err := mergeCheckPlan(domain.Project{Checks: checks}, append([]domain.TestSuite{}, suites...),
-			proposals[key].Paths, unprovenPlanningPatterns(proposals[key].Paths, suites))
+			proposals[key].Paths, unprovenPlanningPatterns(proposals[key].Paths))
 		if err != nil {
 			return err
 		}
@@ -82,21 +87,9 @@ func validatePlanningCheckInputs(checks []domain.Check, baseline domain.Initiali
 
 // Runtime selects all merge suites for unknown changed paths. Reuse that rule;
 // a task glob is not a concrete changed file or proof of pattern containment.
-func unprovenPlanningPatterns(paths []string, suites []domain.TestSuite) bool {
+func unprovenPlanningPatterns(paths []string) bool {
 	for _, path := range paths {
-		if !strings.ContainsAny(path, "*?[") && !strings.HasSuffix(path, "/") {
-			continue
-		}
-		covered := false
-		for _, suite := range suites {
-			if !suite.Enabled || suite.Stage != "merge" {
-				continue
-			}
-			for _, pattern := range suite.MatchPaths {
-				covered = covered || pattern == path || pattern == "**"
-			}
-		}
-		if !covered {
+		if strings.ContainsAny(path, "*?[") || strings.HasSuffix(path, "/") {
 			return true
 		}
 	}

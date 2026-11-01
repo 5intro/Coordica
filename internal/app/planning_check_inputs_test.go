@@ -150,10 +150,31 @@ func TestPlanningCheckInputsRespectMergeSuiteApplicability(t *testing.T) {
 		t.Fatal("known scope selected an unrelated suite", err)
 	}
 	proposals["core"] = domain.TaskProposal{Key: "core", Paths: []string{"core/**"}}
-	if err := validatePlanningCheckInputs(nil, domain.Initialization{}, proposals, nil, suite, known); err != nil {
-		t.Fatal("exact known task glob selected unrelated suites", err)
+	if err := validatePlanningCheckInputs(nil, domain.Initialization{}, proposals, nil, suite, known); err == nil {
+		t.Fatal("task glob was incorrectly treated as a concrete changed file")
 	}
 	if !planningScopeCovers([]string{"core/module.ts"}, "core") {
 		t.Fatal("permitted descendant cannot satisfy a required directory")
+	}
+}
+
+func TestPlanningCheckInputsIncludeNarrowerSuitesOverlappingTaskPatterns(t *testing.T) {
+	suites := []domain.TestSuite{
+		{ID: "core", Enabled: true, Stage: "merge", MatchPaths: []string{"core/**"}},
+		{ID: "nested", Enabled: true, Stage: "merge", MatchPaths: []string{"core/sub/**"},
+			Checks: []domain.Check{{Name: "nested-test", RequiredPaths: []string{"fixtures/nested.json"}}}},
+	}
+	for _, scope := range []string{"core/**", "core/*/**", "core/s?b/**", "core/[st]ub/**", "core/"} {
+		t.Run(scope, func(t *testing.T) {
+			proposals := map[string]domain.TaskProposal{"work": {Key: "work", Paths: []string{scope}}}
+			err := validatePlanningCheckInputs(nil, domain.Initialization{}, proposals, nil, suites...)
+			if err == nil || !strings.Contains(err.Error(), "fixtures/nested.json") {
+				t.Fatal("narrower applicable suite was omitted", err)
+			}
+			baseline := domain.Initialization{CheckInputPaths: []string{"fixtures/nested.json"}}
+			if err = validatePlanningCheckInputs(nil, baseline, proposals, nil, suites...); err != nil {
+				t.Fatal("satisfied contract rejected", err)
+			}
+		})
 	}
 }
