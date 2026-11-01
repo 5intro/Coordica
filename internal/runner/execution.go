@@ -248,6 +248,9 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 		err = errors.Join(err, persistErr)
 	}
 	if err != nil {
+		if assignment.Run.Kind == "review" && persistErr == nil && errors.Is(err, agent.ErrProtocol) {
+			err = r.reviewProtocolFailure(ctx, record.WorkDir, base, result, &completion, err)
+		}
 		finish(err)
 		return
 	}
@@ -337,7 +340,7 @@ func (r *Runner) perform(parent context.Context, record spool, clock responseClo
 			err = errors.New("center has not enabled review recovery hints")
 		}
 		if err != nil {
-			finish(err)
+			finish(r.reviewProtocolFailure(ctx, record.WorkDir, base, result, &completion, err))
 			return
 		}
 		completion.Review = &review

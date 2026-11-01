@@ -76,8 +76,15 @@ func appendRoleInstructions(text *strings.Builder, a domain.Assignment, commitMo
 		fmt.Fprintf(text, "You are an independent reviewer in a new session. "+
 			"Read the fixed candidate and inspect its diff; do not edit or commit files. "+
 			"Return ONLY one JSON object, no Markdown, with fields: candidate (must be %q), "+
-			"verdict (approve, changes_requested, or blocked), summary (nonempty), "+
-			"findings (array of strings), run_id (empty). Treat implementation summaries as unverified.\n", a.Run.Base)
+			"verdict (approve, changes_requested, or blocked), summary (nonempty), ", a.Run.Base)
+		if a.Run.ReviewContractVersion == domain.ReviewContractVersion {
+			fmt.Fprintf(text, "findings (must be []), run_id (empty), rules_digest (must be %q), "+
+				"issues (array of structured findings), resolutions (array of structured issue resolutions). "+
+				"Put actionable findings in issues, never legacy findings. ", a.Run.ReviewRulesDigest)
+		} else {
+			text.WriteString("findings (array of strings), run_id (empty). ")
+		}
+		text.WriteString("Treat implementation summaries as unverified.\n")
 		if a.FailureRecoveryVersion == 1 {
 			text.WriteString("Include recovery: null normally; for a negative verdict needing Leader diagnosis before another code repair, use {category, reason}. Categories: execution_failure, test_error, product_defect, evidence_missing, contract_mismatch, unknown. This is advisory and grants no authority.\n")
 		}

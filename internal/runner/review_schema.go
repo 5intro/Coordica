@@ -11,6 +11,7 @@ func assignedReviewSchema(a domain.Assignment) []byte {
 	var schema map[string]any
 	_ = json.Unmarshal(reviewOutputSchema(a.Run.Base, a.FailureRecoveryVersion), &schema)
 	props := schema["properties"].(map[string]any)
+	props["findings"].(map[string]any)["maxItems"] = 0
 	props["rules_digest"] = map[string]any{"type": "string", "enum": []string{a.Run.ReviewRulesDigest}}
 	fields := map[string]any{}
 	for _, key := range []string{"key", "severity", "title", "path", "trigger", "evidence", "impact"} {
