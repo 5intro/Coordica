@@ -131,6 +131,35 @@ macOS 请使用固定安装路径，按需要授权文件访问；开发版没�
 
 活动与业务审计分开：全局保留最近 4096 条、单条最多 2048 字节；不会回填升级前的活动。Owner 在 loopback 使用 `GET leader/activity` 和 `GET leader/activity/stream`；中心聊天通过 `read_leader_activity` 读取有界页面（`limit` 1–100，可带 `after` 或准确 `kind`/`id`/`generation`）。节点聊天和远程 Runner 监听没有 Leader 活动入口。工具回合结束不能作为完成、授权或停止证明。
 
+## 连续协调与工作记录
+
+需求与任务详情中的“工作记录”保存明确提交的讨论；它不会新建需求、发送施工消息、批准决定或恢复派发。
+同一有限交互凭据换会话后，可用统一 MCP 的 `list_work_contexts` 找到已保存工作，
+再用 `get_work_context` 读取当前事实、自己的记录与关联回复。多个匹配应由用户选择，不能猜测后执行。
+`record_work_note` 只保存原话或既有对象引用，回执 `recorded_only` 不表示 Agent 已收到或采纳。
+任意 harness 的私人历史不会自动同步；运行中施工通信仍需后续适配。
+
+自由文本默认仅创建凭据及 Owner 可读。同名新凭据、同一节点的新凭据不会自动继承旧讨论。
+节点只可读取共享安全事实、当前本机任务和自己的历史；任务改派后隐藏新执行详情，历史归属不授予新主机权限。
+Owner Web 私有内容不自动转授中心 MCP。撤权先于幂等回放，恢复备份后旧凭据与旧游标失效。
+
+| 操作 | 本机 Owner HTTP / `ctl --path` | 有限交互 MCP |
+| --- | --- | --- |
+| 列出已保存工作 | POST `work/contexts` | `list_work_contexts` |
+| 当前事实与历史分页 | POST `work/context` | `get_work_context` |
+| 明确保存讨论/固定引用 | POST `work/notes` | `record_work_note` |
+
+有限交互 HTTP 路径为 `chat/work/...`；中心凭据仅在中心 loopback 使用，节点凭据可走受限远端监听。
+上述入口调用同一应用用例，字段见公开 API Schema。读取需显式锚点、`limit` 1–100；
+写入需当前 `expected_stamp`、`source.session_id/message_id` 与稳定的幂等键，引用需复制查询返回的完整版本与 stamp。
+历史和引用独立分页；每次查询重新核对现有咨询、问题与当前版本，不能只按新注记序列判断是否出现新回复。
+`stale`、`historical`、`truncated` 和不可用投影分别表示来源已变、历史版本、摘要省略和当前无权读取；摘要不能替代完整合同。
+暂停期间可查询和保存记录；调用 Leader 的既有暂停规则保持有效。Web 未确认保存时保留当前凭据会话内的原请求，换页重试不换版本；浏览器重新载入不承诺保留未提交草稿。
+
+例如 `coordica ctl --method POST --path work/context --body-file query.json --token-file <本机令牌文件>`；
+`query.json` 为 `{"anchor":{"kind":"task","id":"<实际任务ID>"},"limit":20}`。
+需要改变需求、范围或验收时，仍走已有修订、分析与 Owner 决策流程。
+
 ## 测试条目、需求验收与补测
 
 测试中心的“测试条目”记录验证目的、步骤、断言和黑盒、白盒、冒烟、回归、黄金旅程、端到端、长生命周期分类。条目定义与套件命令分开：条目不能增加可执行权限，只有 Owner 保存的套件提供检查命令。

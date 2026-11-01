@@ -20,6 +20,8 @@ func chatRoute(r *http.Request) bool {
 		return false
 	}
 	switch r.URL.Path {
+	case "/api/v1/chat/work/contexts", "/api/v1/chat/work/context", "/api/v1/chat/work/notes":
+		return true
 	case "/api/v1/chat/initialization/analyze", "/api/v1/chat/initialization/answer", "/api/v1/chat/items", "/api/v1/chat/item", "/api/v1/chat/requirements", "/api/v1/chat/consultations", "/api/v1/chat/proposals", "/api/v1/chat/consultation", "/api/v1/chat/cancel":
 		return true
 	}
@@ -27,7 +29,12 @@ func chatRoute(r *http.Request) bool {
 }
 func decodeChat(r *http.Request, out any) error {
 	defer r.Body.Close()
-	raw, e := io.ReadAll(io.LimitReader(r.Body, (32<<10)+1))
+	limit := 32 << 10
+	switch out.(type) {
+	case *domain.WorkNoteInput, *domain.WorkContextQuery, *domain.WorkListQuery:
+		limit = domain.MaxWorkInputBytes
+	}
+	raw, e := io.ReadAll(io.LimitReader(r.Body, int64(limit)+1))
 	if e != nil {
 		return domain.Fail("invalid_input", "invalid chat input")
 	}
@@ -37,6 +44,12 @@ func decodeChat(r *http.Request, out any) error {
 		}
 	}
 	switch out.(type) {
+	case *domain.WorkListQuery:
+		e = jsoninput.Required(raw, "limit")
+	case *domain.WorkContextQuery:
+		e = jsoninput.Required(raw, "anchor", "limit")
+	case *domain.WorkNoteInput:
+		e = jsoninput.Required(raw, "anchor", "expected_stamp", "kind", "original_text", "references", "source")
 	case *domain.InitializationRequest:
 		e = jsoninput.Required(raw, "expected_version", "kind")
 	case *domain.InitializationAnswer:
@@ -45,12 +58,16 @@ func decodeChat(r *http.Request, out any) error {
 	if e != nil {
 		return domain.Fail("invalid_input", e.Error())
 	}
-	if e = jsoninput.Decode(raw, out, 32<<10); e != nil {
+	if e = jsoninput.Decode(raw, out, limit); e != nil {
 		return domain.Fail("invalid_input", "invalid chat JSON object")
 	}
 	return nil
 }
 func (s *Server) chatAPI(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/api/v1/chat/work/") {
+		s.workAPI(w, r)
+		return
+	}
 	a := r.Context().Value(actorKey{}).(app.Actor)
 	ctx := r.Context()
 	key := r.Header.Get("Idempotency-Key")

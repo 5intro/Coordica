@@ -44,6 +44,9 @@ func (s Chat) Call(ctx context.Context, name string, args json.RawMessage) (stri
 const chatRejected = "Chat request rejected; refresh versions, check input and credential, or contact the Owner."
 
 func (s Chat) call(ctx context.Context, name string, raw json.RawMessage) (json.RawMessage, error) {
+	if workTool(name) {
+		return callWork(ctx, s.API, name, raw)
+	}
 	if name == "read_leader_activity" || name == "get_project_initialization" || name == "open_project" || name == "answer_project_initialization" {
 		return callPreparation(ctx, s.API, name, raw)
 	}
@@ -163,6 +166,7 @@ func chatTools() []any {
 		tools = append(tools, tool(name, "Queue an asynchronous advisory request. Relay is never Owner approval. Use expected_goal_version 0 when absent; adopt through Owner flows.", map[string]any{"expected_goal_version": map[string]any{"type": "integer", "minimum": 0}, "original_text": str(16384), "assistant_summary": str(4096), "source": source, "reply_to": str(128), "idempotency_key": str(200)}, []string{"expected_goal_version", "original_text", "source", "idempotency_key"}))
 	}
 	tools = append(tools, leaderActivityTool())
+	tools = append(tools, workTools()...)
 	return append(tools, tool("cancel_consultation", "Request cancellation of your own consultation or proposal; wait for central stop evidence.", map[string]any{"id": str(128), "expected_version": map[string]any{"type": "integer", "minimum": 1}, "idempotency_key": str(200)}, []string{"id", "expected_version", "idempotency_key"}))
 }
 

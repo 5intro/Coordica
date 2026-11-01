@@ -58,6 +58,7 @@ func (s *Server) handler(runners, admin bool) http.Handler {
 		mux.HandleFunc("POST /api/v1/runner/register", s.register)
 	}
 	if admin {
+		registerCoordination(mux, s)
 		registerAdminWorkspaces(mux, s)
 		registerReviewIssues(mux, s)
 	}

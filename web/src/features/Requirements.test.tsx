@@ -44,3 +44,14 @@ it('keeps withdrawn requirements in history and out of the active pool', () => {
   fireEvent.click(screen.getByRole('button', { name: '历史' }));
   expect(within(screen.getByRole('table')).getByRole('button', { name: 'Withdrawn' })).toBeTruthy();
 });
+
+it('retains exactly one work history section as polled snapshots replace requirement objects', () => {
+  const client = new ApiClient('owner');
+  const requirement: Requirement = { id: 'req_poll', version: 1, title: 'Polled requirement', body: 'Unchanged', created_at: '' };
+  const refresh = vi.fn();
+  const view = render(<Requirements requirements={[requirement]} client={client} refresh={refresh} />);
+  for (let version = 2; version < 6; version++) {
+    view.rerender(<Requirements requirements={[{ ...requirement, version }]} client={client} refresh={refresh} />);
+    expect(screen.getAllByText('工作记录')).toHaveLength(1);
+  }
+});

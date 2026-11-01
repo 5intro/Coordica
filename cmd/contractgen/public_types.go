@@ -4,6 +4,8 @@ import "coordica/internal/domain"
 
 func publicTypes() []any {
 	types := publicPreparationTypes()
+	types = append(types, domain.WorkAnchor{}, domain.WorkReference{}, domain.WorkNoteInput{}, domain.WorkNote{}, domain.WorkNoteReceipt{},
+		domain.WorkContextQuery{}, domain.WorkListQuery{}, domain.WorkQuestion{}, domain.WorkFact{}, domain.WorkContext{}, domain.WorkContextSummary{}, domain.WorkContextPage{})
 	types = append(types, domain.ReviewFinding{}, domain.ReviewResolution{}, domain.ReviewIssue{},
 		domain.ReviewIssueQuery{}, domain.ReviewIssuePage{}, domain.ReviewIssueDecision{},
 		domain.ReviewRuleFile{}, domain.ReviewRules{}, domain.ExternalReviewPolicy{}, domain.ExternalReview{})
