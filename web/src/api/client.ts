@@ -4,6 +4,7 @@ import { initializationReply } from './initialization';
 import { InitializationAnswers } from './initializationAnswers';
 import { InitializationPolicies } from './initializationPolicies';
 import { AcceptanceSignoffActions } from './acceptanceSignoffs';
+import { WorkNotes } from './workNotes';
 import type { Snapshot, Problem, ConversationInput, Initialization } from '../api.generated';
 
 export type PendingConsultation = { kind: 'consult' | 'propose'; body: ConversationInput; key: string };
@@ -16,6 +17,7 @@ export class ApiError extends Error {
 }
 
 export class ApiClient {
+  readonly workNotes = new WorkNotes();
   readonly acceptanceSignoffs = new AcceptanceSignoffActions();
   readonly planningAnswers = new PlanningAnswers();
   readonly initializationAnswers = new InitializationAnswers();
@@ -83,6 +85,10 @@ export class ApiClient {
   }
 
   read<T>(path: string, signal?: AbortSignal): Promise<T> { return this.request<T>(path, { signal }); }
+
+  query<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+    return this.request<T>(path, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' }, signal });
+  }
 
   async snapshot(signal?: AbortSignal): Promise<Snapshot> {
     const snapshot = await this.request<Snapshot>('/state', { signal });

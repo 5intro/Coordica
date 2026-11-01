@@ -176,6 +176,7 @@ type ChatDetail struct {
 // Safe execution evidence. Historical ownership never grants access to a task's
 // subsequent assignment, its current goal or private execution output.
 type ChatRun struct {
+	TaskID               string       `json:"task_id,omitempty"`
 	ProgressVersion      int          `json:"progress_version,omitempty"`
 	ProgressCheckSeconds int64        `json:"progress_check_seconds,omitempty"`
 	Progress             *RunProgress `json:"progress,omitempty"`

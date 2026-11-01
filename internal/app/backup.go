@@ -509,6 +509,9 @@ func restoreBackup(ctx context.Context, backupDir, destination string, g *gitops
 
 func freezeRestoredState(ctx context.Context, s *Service) error {
 	return s.DB.Update(ctx, func(tx *store.Tx) error {
+		if err := store.RenewCoordinationEpoch(tx); err != nil {
+			return err
+		}
 		credentials, err := store.List[domain.Credential](tx, "credential")
 		if err != nil {
 			return err

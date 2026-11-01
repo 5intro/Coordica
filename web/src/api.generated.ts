@@ -278,6 +278,7 @@ export interface ChatAgentCapability {
   review: boolean;
 }
 export interface ChatRun {
+  task_id?: string;
   progress_version?: number;
   progress_check_seconds?: number;
   progress?: RunProgress | null;
@@ -336,6 +337,101 @@ export interface ChatDetail {
   queried_at: string;
   version: number;
   item: ChatItem;
+}
+export interface WorkAnchor {
+  kind: string;
+  id: string;
+}
+export interface WorkReference {
+  kind: string;
+  id: string;
+  version: number;
+  authorization_version?: number;
+  generation?: number;
+  revision?: number;
+  stamp: string;
+}
+export interface WorkNoteInput {
+  anchor: WorkAnchor;
+  expected_stamp: string;
+  kind: string;
+  original_text: string;
+  assistant_summary?: string;
+  references: (WorkReference)[] | null;
+  corrects?: string;
+  source: ChatSource;
+}
+export interface WorkNote {
+  original_text_sha256: string;
+  redacted: boolean;
+  id: string;
+  sequence: number;
+  project_id: string;
+  author_id: string;
+  chat_scope: string;
+  node_id?: string;
+  anchor: WorkAnchor;
+  anchor_stamp: string;
+  kind: string;
+  original_text: string;
+  assistant_summary?: string;
+  references: (WorkReference)[] | null;
+  corrects?: string;
+  source: ChatSource;
+  created_at: string;
+  historical: boolean;
+}
+export interface WorkNoteReceipt {
+  note: WorkNote;
+  disposition: string;
+}
+export interface WorkContextQuery {
+  anchor: WorkAnchor;
+  cursor?: string;
+  reference_cursor?: string;
+  limit: number;
+  references?: (WorkReference)[] | null;
+}
+export interface WorkListQuery {
+  cursor?: string;
+  limit: number;
+  kind?: string;
+}
+export interface WorkQuestion {
+  id: string;
+  text: string;
+  state: string;
+  next_action: string;
+}
+export interface WorkFact {
+  reference: WorkReference;
+  available: boolean;
+  stale: boolean;
+  title: string;
+  state: string;
+  text: string;
+  truncated: boolean;
+  questions: (WorkQuestion)[] | null;
+  next_action: string;
+}
+export interface WorkContext {
+  queried_at: string;
+  anchor: WorkAnchor;
+  current: WorkFact;
+  notes: (WorkNote)[] | null;
+  references: (WorkFact)[] | null;
+  next_cursor: string;
+  next_reference_cursor: string;
+}
+export interface WorkContextSummary {
+  anchor: WorkAnchor;
+  current: WorkFact;
+  latest: WorkNote;
+}
+export interface WorkContextPage {
+  queried_at: string;
+  items: (WorkContextSummary)[] | null;
+  next_cursor: string;
 }
 export interface ReviewFinding {
   key: string;

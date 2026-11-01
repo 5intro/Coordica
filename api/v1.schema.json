@@ -1563,6 +1563,9 @@
         "state": {
           "type": "string"
         },
+        "task_id": {
+          "type": "string"
+        },
         "task_text": {
           "type": "string"
         },
@@ -6914,6 +6917,418 @@
       },
       "required": [
         "expected_version"
+      ],
+      "type": "object"
+    },
+    "WorkAnchor": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "type": "object"
+    },
+    "WorkContext": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "$ref": "#/$defs/WorkAnchor"
+        },
+        "current": {
+          "$ref": "#/$defs/WorkFact"
+        },
+        "next_cursor": {
+          "type": "string"
+        },
+        "next_reference_cursor": {
+          "type": "string"
+        },
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/WorkNote"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "queried_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "references": {
+          "items": {
+            "$ref": "#/$defs/WorkFact"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "queried_at",
+        "anchor",
+        "current",
+        "notes",
+        "references",
+        "next_cursor",
+        "next_reference_cursor"
+      ],
+      "type": "object"
+    },
+    "WorkContextPage": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/WorkContextSummary"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "next_cursor": {
+          "type": "string"
+        },
+        "queried_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "queried_at",
+        "items",
+        "next_cursor"
+      ],
+      "type": "object"
+    },
+    "WorkContextQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "$ref": "#/$defs/WorkAnchor"
+        },
+        "cursor": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "reference_cursor": {
+          "type": "string"
+        },
+        "references": {
+          "items": {
+            "$ref": "#/$defs/WorkReference"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "anchor",
+        "limit"
+      ],
+      "type": "object"
+    },
+    "WorkContextSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "$ref": "#/$defs/WorkAnchor"
+        },
+        "current": {
+          "$ref": "#/$defs/WorkFact"
+        },
+        "latest": {
+          "$ref": "#/$defs/WorkNote"
+        }
+      },
+      "required": [
+        "anchor",
+        "current",
+        "latest"
+      ],
+      "type": "object"
+    },
+    "WorkFact": {
+      "additionalProperties": false,
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "next_action": {
+          "type": "string"
+        },
+        "questions": {
+          "items": {
+            "$ref": "#/$defs/WorkQuestion"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "reference": {
+          "$ref": "#/$defs/WorkReference"
+        },
+        "stale": {
+          "type": "boolean"
+        },
+        "state": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "reference",
+        "available",
+        "stale",
+        "title",
+        "state",
+        "text",
+        "truncated",
+        "questions",
+        "next_action"
+      ],
+      "type": "object"
+    },
+    "WorkListQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "limit"
+      ],
+      "type": "object"
+    },
+    "WorkNote": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "$ref": "#/$defs/WorkAnchor"
+        },
+        "anchor_stamp": {
+          "type": "string"
+        },
+        "assistant_summary": {
+          "type": "string"
+        },
+        "author_id": {
+          "type": "string"
+        },
+        "chat_scope": {
+          "type": "string"
+        },
+        "corrects": {
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "historical": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "original_text": {
+          "type": "string"
+        },
+        "original_text_sha256": {
+          "type": "string"
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "redacted": {
+          "type": "boolean"
+        },
+        "references": {
+          "items": {
+            "$ref": "#/$defs/WorkReference"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "sequence": {
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/ChatSource"
+        }
+      },
+      "required": [
+        "original_text_sha256",
+        "redacted",
+        "id",
+        "sequence",
+        "project_id",
+        "author_id",
+        "chat_scope",
+        "anchor",
+        "anchor_stamp",
+        "kind",
+        "original_text",
+        "references",
+        "source",
+        "created_at",
+        "historical"
+      ],
+      "type": "object"
+    },
+    "WorkNoteInput": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "$ref": "#/$defs/WorkAnchor"
+        },
+        "assistant_summary": {
+          "type": "string"
+        },
+        "corrects": {
+          "type": "string"
+        },
+        "expected_stamp": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "original_text": {
+          "type": "string"
+        },
+        "references": {
+          "items": {
+            "$ref": "#/$defs/WorkReference"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/ChatSource"
+        }
+      },
+      "required": [
+        "anchor",
+        "expected_stamp",
+        "kind",
+        "original_text",
+        "references",
+        "source"
+      ],
+      "type": "object"
+    },
+    "WorkNoteReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "type": "string"
+        },
+        "note": {
+          "$ref": "#/$defs/WorkNote"
+        }
+      },
+      "required": [
+        "note",
+        "disposition"
+      ],
+      "type": "object"
+    },
+    "WorkQuestion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "next_action": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "state",
+        "next_action"
+      ],
+      "type": "object"
+    },
+    "WorkReference": {
+      "additionalProperties": false,
+      "properties": {
+        "authorization_version": {
+          "type": "integer"
+        },
+        "generation": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "stamp": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "version",
+        "stamp"
       ],
       "type": "object"
     }
