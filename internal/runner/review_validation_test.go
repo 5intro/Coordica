@@ -23,6 +23,10 @@ func TestReviewContractSchemaAndAssignedIssueValidation(t *testing.T) {
 			t.Fatal("structured fields not required", schema)
 		}
 	}
+	findings := schema.Properties["findings"].(map[string]any)
+	if limit, ok := findings["maxItems"]; !ok || limit != float64(0) {
+		t.Fatal("schema still permits legacy findings under structured contract", findings)
+	}
 	v := domain.Review{Verdict: "approve", RulesDigest: "digest", Findings: []string{}, Issues: []domain.ReviewFinding{}, Resolutions: []domain.ReviewResolution{}}
 	if validateAssignedReview(a, v) == nil {
 		t.Fatal("missing resolution entered durable spool")
