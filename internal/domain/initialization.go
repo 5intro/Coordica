@@ -47,6 +47,7 @@ type InitializationFeedback struct {
 	CreatedAt    time.Time  `json:"created_at"`
 }
 type Initialization struct {
+	CheckInputPaths     []string                 `json:"check_input_paths,omitempty"`
 	Leader              *LeaderSelection         `json:"leader,omitempty"`
 	Version             int64                    `json:"version"`
 	Status              string                   `json:"status"`

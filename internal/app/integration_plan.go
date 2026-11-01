@@ -61,7 +61,7 @@ func candidateCheckFailure(ctx context.Context, w *Integrator, c domain.Candidat
 	}
 	var defect *checkPlanDefect
 	if errors.As(err, &defect) {
-		return w.reject(ctx, c, defect.error, true)
+		return w.reject(ctx, c, defect, false)
 	}
 	return err
 }

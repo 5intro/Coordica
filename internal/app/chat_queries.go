@@ -293,6 +293,7 @@ func safeInitialization(v domain.Initialization) domain.Initialization {
 	}
 	v.Detail = redacted(v.Detail)
 	v.AvailablePaths = safeRelativePaths(v.AvailablePaths)
+	v.CheckInputPaths = safeRelativePaths(v.CheckInputPaths)
 	v.CoveredPaths = safeRelativePaths(v.CoveredPaths)
 	v.Omissions = textList(v.Omissions)
 	feedback := []domain.InitializationFeedback{}

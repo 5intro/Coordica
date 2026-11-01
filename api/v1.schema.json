@@ -1629,6 +1629,28 @@
         "name": {
           "type": "string"
         },
+        "output_paths": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 128,
+          "type": [
+            "array",
+            "null"
+          ],
+          "uniqueItems": true
+        },
+        "required_paths": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 128,
+          "type": [
+            "array",
+            "null"
+          ],
+          "uniqueItems": true
+        },
         "timeout_seconds": {
           "type": "integer"
         }
@@ -2766,6 +2788,15 @@
           "type": "integer"
         },
         "available_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "check_input_paths": {
           "items": {
             "type": "string"
           },
@@ -5403,6 +5434,15 @@
         "check_plan_digest": {
           "type": "string"
         },
+        "check_results": {
+          "items": {
+            "$ref": "#/$defs/CheckResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "deadline": {
           "format": "date-time",
           "type": "string"
@@ -5412,6 +5452,9 @@
         },
         "elapsed_seconds": {
           "type": "integer"
+        },
+        "failure_kind": {
+          "type": "string"
         },
         "finished_at": {
           "anyOf": [

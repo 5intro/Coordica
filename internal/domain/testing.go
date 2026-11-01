@@ -80,6 +80,9 @@ func ValidateTestSuite(s TestSuite) error {
 	}
 	names := map[string]bool{}
 	for _, c := range s.Checks {
+		if err := ValidateCheckPaths(c); err != nil {
+			return err
+		}
 		if !ChatText(c.Name, 128, true) || names[c.Name] || !ChatText(c.Command, 4096, true) || len(c.Args) > 128 || c.TimeoutSeconds <= 0 || c.TimeoutSeconds > MaxRunDurationSeconds || (s.Stage == "merge" && c.TimeoutSeconds > 3600) {
 			return Fail("invalid_input", "unique check names, executable and finite timeout required")
 		}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -287,6 +288,7 @@ func (w *Integrator) validate(ctx context.Context, c domain.Candidate) error {
 		t.Generation++
 		r = domain.Run{BaselineVersion: t.BaselineVersion, BaselineDigest: t.BaselineDigest, ID: ID("check_"), Version: 1, TaskID: t.ID, NodeID: "center", Kind: "validation", Tool: "program", State: "running", Generation: t.Generation, AuthorizationVersion: t.AuthorizationVersion, PolicyVersion: p.PolicyVersion, LeaseUntil: now.Add(time.Duration(grant) * time.Second), Deadline: now.Add(time.Duration(grant) * time.Second), GrantSeconds: grant, Base: c.Commit, CandidateID: c.ID, StartedAt: now}
 		r.GoalVersion = t.GoalVersion
+		r.RequirementRevisions = maps.Clone(t.RequirementRevisions)
 		if c.CheckPlan != nil {
 			r.CheckPlanDigest = c.CheckPlan.Digest
 		}
@@ -423,6 +425,8 @@ func (w *Integrator) finishValidation(ctx context.Context, r domain.Run, c domai
 		now := s.Now()
 		current.FinishedAt = &now
 		current.State = "succeeded"
+		current.FailureKind = validationFailureKind(validationErr)
+		current.CheckResults = append([]domain.CheckResult{}, results...)
 		if validationErr != nil {
 			current.State = "failed"
 			current.Detail = errDetail(validationErr)
@@ -452,7 +456,7 @@ func (w *Integrator) finishValidation(ctx context.Context, r domain.Run, c domai
 			} else {
 				cand.State = "rejected"
 				cand.Detail = errDetail(validationErr)
-				queueRepair(&t, &cand, true)
+				routeValidationFailure(&t, &cand, current)
 			}
 			if err = tx.Put("candidate", cand.ID, cand); err != nil {
 				return err

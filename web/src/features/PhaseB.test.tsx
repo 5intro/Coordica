@@ -231,7 +231,7 @@ describe('Phase B owner writes and authority fences', () => {
     expect(write).toHaveBeenCalledTimes(2);
     expect(write).toHaveBeenLastCalledWith('/decisions/d/resolve', { expected_version: 5, expected_source_version: 10, action: 'confirm_run_stopped', evidence: 'Rechecked original Run proof and version' });
   });
-  it.each(['evaluate', 'edit_goal', 'edit_budget', 'dismiss'])('acknowledges %s as a choice requiring appropriate source operations', async (selected) => {
+  it.each(['evaluate', 'edit_goal', 'edit_budget', 'edit_checks', 'dismiss'])('acknowledges %s as a choice requiring appropriate source operations', async (selected) => {
     const { client, refresh, write } = controls();
     render(<DecisionResolve decision={{ ...decision, actions: [selected] }} client={client} refresh={refresh} />);
     fireEvent.change(screen.getByLabelText('决策操作'), { target: { value: selected } });
@@ -242,7 +242,7 @@ describe('Phase B owner writes and authority fences', () => {
     expect(write).toHaveBeenCalledTimes(1);
     expect(write).toHaveBeenCalledWith('/decisions/d/resolve', { expected_version: 4, expected_source_version: 9, action: selected, evidence: 'Owner reviewed the source' });
   });
-  it.each(['evaluate', 'edit_budget', 'dismiss', 'edit_goal'])('requires evidence for %s without issuing an empty request', (selected) => {
+  it.each(['evaluate', 'edit_budget', 'edit_checks', 'dismiss', 'edit_goal'])('requires evidence for %s without issuing an empty request', (selected) => {
     const { client, refresh, write } = controls();
     render(<DecisionResolve decision={{ ...decision, actions: [selected] }} client={client} refresh={refresh} />);
     fireEvent.change(screen.getByLabelText('决策操作'), { target: { value: selected } });

@@ -41,7 +41,12 @@ func (w *Integrator) reject(ctx context.Context, c domain.Candidate, cause error
 			return e
 		}
 		if !project.Paused && t.AuthorizationVersion == current.AuthorizationVersion && project.PolicyVersion == current.PolicyVersion {
-			queueRepair(&t, &current, repairable)
+			var contract *checkPlanDefect
+			if errors.As(cause, &contract) {
+				t.HoldReason = "check_configuration"
+			} else {
+				queueRepair(&t, &current, repairable)
+			}
 		} else if project.Paused && t.HoldReason == "" && t.State != "cancelled" && t.State != "integrated" {
 			t.HoldReason = "paused"
 		}

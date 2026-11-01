@@ -18,5 +18,8 @@ export function validPolicyReceipt(value: unknown, projectID: string, request: P
     && Number(check.timeout_seconds) >= 1 && Number(check.timeout_seconds) <= 3600
     && check.name === request.checks![index].name && check.command === request.checks![index].command
     && check.timeout_seconds === request.checks![index].timeout_seconds
-    && JSON.stringify(check.args ?? []) === JSON.stringify(request.checks![index].args ?? []));
+    && JSON.stringify(check.args ?? []) === JSON.stringify(request.checks![index].args ?? [])
+    && strings(check.required_paths ?? []) && strings(check.output_paths ?? [])
+    && JSON.stringify(check.required_paths ?? []) === JSON.stringify(request.checks![index].required_paths ?? [])
+    && JSON.stringify(check.output_paths ?? []) === JSON.stringify(request.checks![index].output_paths ?? []));
 }

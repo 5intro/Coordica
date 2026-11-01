@@ -61,6 +61,14 @@ func (s *Service) SaveTestSuite(ctx context.Context, a Actor, key string, in dom
 			if e = requireQuiescence(tx, ""); e != nil {
 				return nil, e
 			}
+			if busy, err := initializationBusy(tx); err != nil {
+				return nil, err
+			} else if busy {
+				return nil, domain.Fail("busy", "initialization must stop before changing merge test policy")
+			}
+			if e = invalidateUnattestedSuiteInputs(s, tx, a, p, in.Suite); e != nil {
+				return nil, e
+			}
 			p.TestPolicyVersion++
 			p.Version++
 			if e = tx.Put("project", p.ID, p); e != nil {
@@ -313,6 +321,7 @@ func mergeCheckPlan(p domain.Project, suites []domain.TestSuite, paths []string,
 		}
 		plan.OutputPaths = append(plan.OutputPaths, suite.OutputPaths...)
 	}
+	plan.OutputPaths = append(plan.OutputPaths, domain.CheckOutputs(plan.Checks)...)
 	b, e := json.Marshal(plan)
 	plan.Digest = Hash(string(b))
 	return plan, e

@@ -13,14 +13,16 @@ function baseline(value: unknown): value is CompleteBaseline {
     || !strings(value.allowed_roots) || !strings(value.protected_paths) || !Array.isArray(value.checks)) return false;
   return value.checks.every((check: unknown) => object(check) && typeof check.name === 'string'
     && typeof check.command === 'string' && strings(check.args) && Number.isSafeInteger(check.timeout_seconds)
-    && Number(check.timeout_seconds) >= 1 && Number(check.timeout_seconds) <= 3600);
+    && Number(check.timeout_seconds) >= 1 && Number(check.timeout_seconds) <= 3600
+    && strings(check.required_paths ?? []) && strings(check.output_paths ?? []));
 }
 
 // Compare contract values, independently of JSON object property order.
 function baselineIdentity(value: CompleteBaseline): string {
   return JSON.stringify([baselineFields.map((field) => value[field]),
     value.allowed_roots, value.protected_paths,
-    value.checks.map((check) => [check.name, check.command, check.args, check.timeout_seconds])]);
+    value.checks.map((check) => [check.name, check.command, check.args, check.timeout_seconds,
+      check.required_paths ?? [], check.output_paths ?? []])]);
 }
 
 function feedback(value: unknown): boolean {
@@ -73,6 +75,7 @@ export function validInitialization(value: unknown): value is Initialization {
     || typeof current.approved_digest !== 'string'
     || typeof current.digest !== 'string' || typeof current.source_sha !== 'string'
     || !strings(current.available_paths) || !strings(current.covered_paths) || !strings(current.omissions)
+    || !strings(current.check_input_paths ?? [])
     || !Array.isArray(current.feedback) || !current.feedback.every(feedback) || !confirmed(current)) return false;
   if (current.result === null) return current.status === 'draft' || current.status === 'analyzing';
   const answer = current.result;

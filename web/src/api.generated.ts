@@ -122,6 +122,7 @@ export interface InitializationFeedback {
   created_at: string;
 }
 export interface Initialization {
+  check_input_paths?: (string)[] | null;
   leader?: LeaderSelection | null;
   version: number;
   status: string;
@@ -723,6 +724,8 @@ export interface LocalInfo {
   center_console_url?: string;
 }
 export interface Check {
+  required_paths?: (string)[] | null;
+  output_paths?: (string)[] | null;
   name: string;
   command: string;
   args: (string)[] | null;
@@ -857,6 +860,8 @@ export interface RunProgress {
   state: string;
 }
 export interface Run {
+  failure_kind?: string;
+  check_results?: (CheckResult)[] | null;
   review_contract_version?: number;
   review_rules_digest?: string;
   progress_version?: number;

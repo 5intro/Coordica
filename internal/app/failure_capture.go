@@ -63,9 +63,6 @@ func failureSource(tx *store.Tx, task domain.Task) (domain.Run, domain.Candidate
 			candidate.BaselineVersion != task.BaselineVersion || candidate.BaselineDigest != task.BaselineDigest {
 			return domain.Run{}, candidate, nil
 		}
-		if candidate.Review == nil && !candidate.PreparationStopped && task.HoldReason != "human_decision" {
-			return domain.Run{}, candidate, nil
-		}
 	}
 	project, err := getProject(tx)
 	if err != nil {

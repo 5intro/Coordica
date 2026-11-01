@@ -119,6 +119,12 @@ func main() {
 			properties["checks"].(map[string]any)["minItems"] = 1
 			properties["checks"].(map[string]any)["maxItems"] = 32
 		}
+		if t == reflect.TypeOf(domain.Check{}) {
+			for _, name := range []string{"required_paths", "output_paths"} {
+				properties[name].(map[string]any)["maxItems"] = 128
+				properties[name].(map[string]any)["uniqueItems"] = true
+			}
+		}
 		if t == reflect.TypeOf(domain.VerificationRequest{}) {
 			properties["budget_seconds"].(map[string]any)["minimum"] = 0
 			properties["budget_seconds"].(map[string]any)["maximum"] = domain.MaxTaskBudgetSeconds

@@ -17,7 +17,9 @@ const planningInstruction = "Act as read-only planning Leader. Do not implement,
 	"max_run_seconds must not exceed it. Cumulative use is telemetry when automation.enforce_time_limits " +
 	"is false; development uses renewable leases and noninterrupting progress observations instead of a " +
 	"fixed deadline. Silence or missing status replies never prove failure. " +
-	"Every scope also has reason (string). Scopes may ONLY reference real existing task IDs from existing_tasks " +
+	"Every scope also has reason (string). Task paths must be exact filenames or directory/** patterns; a bare " +
+	"directory path authorizes only that path, not its descendants. Do not confuse task paths with allowed_roots. " +
+	"Scopes may ONLY reference real existing task IDs from existing_tasks " +
 	"and their exact current versions. NEVER use a proposal local key as task_id. Initial planning scopes " +
 	"MUST be []. Reuse proposal_mappings keys for existing work; do not create duplicate work or allocate its " +
 	"budget again. Prefer tasks [] when discussing existing work. Existing tasks include cumulative budgets, " +
@@ -35,6 +37,13 @@ const planningInstruction = "Act as read-only planning Leader. Do not implement,
 	"dependencies. Separate module acceptance from final delivery acceptance: explicitly assign later wiring " +
 	"and production evidence to their owning integration/verification tasks without weakening the goal. " +
 	"Never make an upstream module's acceptance require a downstream task that depends on that module. " +
+	"Project minimum checks and applicable merge suites run on each candidate, including bootstrap tasks. Their required_paths are literal " +
+	"inputs: provide missing inputs within that task's own paths or a transitive dependency's paths, never " +
+	"a future or merely parallel task. check_input_paths lists fixed-baseline inputs already present; " +
+	"completed dependencies may also provide inputs. If this cannot be achieved without changing checks " +
+	"or approved authority, report the conflict as a major decision. output_paths are trusted disposable " +
+	"check outputs, never source-write permission. previous_rejection is the prior bounded planning " +
+	"attempt's validation feedback; correct the plan without changing the goal, checks or permissions. " +
 	"Reserve hot_resources for actual shared contention; a task-level reservation persists through review " +
 	"and a human-decision hold, so do not give every independent module a shared lock by default. Input: "
 
@@ -56,7 +65,10 @@ const initializationInstruction = "COORDICA_INITIALIZATION_V1\nYou are the selec
 	"suggestions. Produce the structured InitializationResult, with requirements/acceptance, architecture, " +
 	"module responsibilities, coding/interfaces/testing conventions, known functionality, incomplete " +
 	"items/risks, checks and allowed/protected scopes. Baseline checks and protected_paths MUST exactly match " +
-	"ActiveChecks and ActiveProtected in input. baseline.allowed_roots contains literal repository-relative " +
+	"ActiveChecks and ActiveProtected in input. Preserve each check's required_paths and output_paths exactly; these are Owner policy. If " +
+	"a writing build/install check lacks declared output directories, identify the configuration risk " +
+	"and propose an Owner policy correction rather than assuming ignored files are automatically allowed. " +
+	"baseline.allowed_roots contains literal repository-relative " +
 	"directories only, such as src and test, never task globs such as src/** or physical source/src paths; " +
 	"use the literal directory . when the proposed work needs repository-root files. Subdirectory roots " +
 	"do not authorize root-level entrypoints or configuration. Propose scopes covering the complete planned " +

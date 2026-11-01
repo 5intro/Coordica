@@ -280,6 +280,12 @@ func Save(path string, c Config) error {
 		if c.Checks[i].Args == nil {
 			c.Checks[i].Args = []string{}
 		}
+		if len(c.Checks[i].RequiredPaths) == 0 {
+			c.Checks[i].RequiredPaths = nil
+		}
+		if len(c.Checks[i].OutputPaths) == 0 {
+			c.Checks[i].OutputPaths = nil
+		}
 	}
 	if e := Validate(c, path); e != nil {
 		return e

@@ -152,7 +152,7 @@ function SuiteEditor({ original, snapshot, client, refresh, onClose }: { origina
     <Field label="关联需求（每行一个 ID）"><textarea name="requirements" rows={2} defaultValue={original.requirement_ids?.join('\n')} /></Field>
     <Field label="匹配路径（每行一个）"><textarea name="paths" rows={2} defaultValue={original.match_paths?.join('\n')} /></Field>
     <Field label="测试输出目录（每行一个）" hint="Owner 声明的检查生成目录，例如 web/node_modules/**、web/*.tsbuildinfo。仅允许检查结束时留下这些未跟踪或忽略输出；受跟踪源码仍须完全一致。"><textarea name="outputs" rows={3} defaultValue={original.output_paths?.join('\n')} /></Field>
-    <details><summary>高级配置：Owner 本机检查命令</summary><p>仅显式保存您的命令配置。不会根据需求自动生成或修改命令。</p><Field label="检查命令 JSON" hint="数组项包含 name、command、args、timeout_seconds；不通过 shell 拼接参数。"><textarea name="checks" rows={8} required defaultValue={JSON.stringify(original.checks ?? [], null, 2)} /></Field></details>
+    <details><summary>高级配置：Owner 本机检查命令</summary><p>仅显式保存您的命令配置。不会根据需求自动生成或修改命令。</p><Field label="检查命令 JSON" hint="包含 name、command、args、timeout_seconds；可用 required_paths 声明输入、output_paths 声明该检查的生成目录。不通过 shell 拼接参数。"><textarea name="checks" rows={8} required defaultValue={JSON.stringify(original.checks ?? [], null, 2)} /></Field></details>
     {merge && <p className="testing-warning">merge 套件变更要求项目暂停且全部执行停止；中心仍会检查实际停止证据及候选状态。</p>}
     {mergeBlocked && <p role="status">请先暂停项目并确认全部执行已停止，再保存 merge 套件。</p>}
     <Feedback error={validation || action.error} notice={action.notice} />
