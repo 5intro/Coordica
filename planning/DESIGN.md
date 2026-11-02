@@ -1,11 +1,17 @@
 # 原生 Harness 基础设施实现方案
 
-状态：建议方案，尚未实现。基线 R2026-11-02.3；任务与授权见 [ROADMAP](../ROADMAP.md)。
+状态：逐片实施，未完成部分仍为方案。当前基线 R2026-11-02.4；旧 R2026-11-02.3 证据保留，任务与授权见 [ROADMAP](../ROADMAP.md)。
 以下名称和路由是待 C01/C02 固定的契约草案，不是当前可用 API；实现时维护对应变更记录。
 首个 C02–C08 切片的模块、接口、来源证据和最小验证见 [C01 复核](C01_REVIEW.md)。
 该切片包含 Antigravity 官方 ACP 的适配评估；尚未改变当前协议注册表或执行行为。
 
 ## D01：职责、实体和调度归属
+
+首版调用方显式指定 harness/实例；先用 Codex app-server 的离线最小纵向链路驱动下列实体的必要子集，
+再用第二适配器验证共性。不是按实体表顺序先建完整平台。无自动选优、竞赛、复杂派生或按额度切换。
+Task 持有需求/约束/决策/进度/产物与可见交接记录，输入与快照有来源和版本；逻辑 Thread 保存入口关联和交互历史。
+每次 Run 记录 provider、实例及原生 Session 绑定；不能只将任务材料保存在某一对话的历史里。
+Thread 跨厂商保持引用不表示原生状态可迁移；显式新 Session 加摘要交接是后续能力，不阻塞首版。
 
 任务驱动优先：Task 是工作生命周期中心，Session 是执行资源；用户会话不是调度前置条件。
 程序、原生主控和上层事件均可按授权提交工作；工作 Turn 必须关联 Task/Run。
@@ -35,7 +41,9 @@
 | AgentDefinition | 上层拥有的角色标签、上下文引用、工具范围、实例/模型/节点约束与版本 |
 | AgentInstance | 本次激活的定义版本和执行策略快照；可执行多项 Task、关联多个会话 |
 | Task | 上层提交的工作单元；parent_id、dependencies、授权、重试/派生边界和 external_ref |
+| TaskContext | Task 拥有的有界、版本化材料/决策/进度/产物引用，保留来源；不是原生隐藏状态的副本 |
 | Run | Task 的一次受控执行尝试；attempt、generation、node、实例、模型、授权版本和租约 |
+| Thread | 中立逻辑线程与统一记录；关联 Task/Run 和各自原生绑定，不作为自动跨厂商迁移机制 |
 | Session | Coordica 逻辑会话；所有权和当前原生绑定；允许多轮，生命周期独立于 Task |
 | SessionBinding | 原生 session/thread ID、节点、实例、认证域、工作区指纹和 binding_generation |
 | Turn | 一轮原生执行；run_id、session_id、原生 turn ID、送达消息与结构化终态 |
@@ -47,7 +55,12 @@
 但每次复用重验授权和上下文。最初只实现真实用例需要的关系；不构建任意实体编排 DSL。
 Session 的活跃写入由单一所有者串行化，默认同一原生会话同一时间只有一个活跃 Turn。
 
-每项工作记录 `scheduling_owner = coordica | harness | external`。
+前台入口负责接收、显式关联 Task 并提交输入；后台 Executor 只执行明确 Assignment、报告原生事实。
+两者共享 Task 权威用例，入口不自建任务状态；首版不要求常驻主控模型。
+输入/结果/审批答复触发已有 WakeIntent，事务中重验授权、版本和唯一调度归属，提交后才执行效果。
+正常依赖/审批/额度等待不空转，不给每个 Agent 增加无限轮询。完整 Source 连接器和语义接单留在后续/上层。
+
+每项工作记录 `scheduling_owner = coordica | harness | external`。完整父子编排留待 C13，首版不为该扩展提前建设调度框架。
 Coordica 委派才创建其调度的子 Task；原生子 Agent 是观察记录，不能同时再派一个 Coordica Task 执行同份工作。
 `external` 表示仅关联观察，不能假装底座有停止权限。未知原生子树记 `observability=partial/unknown`。
 父子身份、创建主体和来源都须记录；角色名不决定权限。
@@ -210,6 +223,9 @@ UsageObservation 记录 source、scope（账号/实例/模型）、单位、原�
 
 ## D08：上层接口和诊断
 
+C02–C08 先交付薄 experimental 程序入口与诊断，C15 的基本公共接口不依赖 C13/C14 完整实现。
+C18 底座出口不以 C16 应用迁移或 C17 完整界面为前提；本批不开发上层应用。
+
 建议先在独立 experimental 命名空间试行，C15 再冻结 `/api/runtime/v1`；不改变现有开发 `/api/v1` 语义。
 契约包含版本、错误结构、幂等键、expected_version、分页、游标和能力要求；提供 JSON Schema 与示例客户端。
 上层持有 app_id、external_ref 和最小 scope，不能访问内部 DB，也不能冒用另一应用的实体引用。
@@ -236,6 +252,8 @@ R92 已确认需求池和业务审查池归上层，详见 [任务与待处理�
 接口版本升级提供迁移期和废弃说明；未知扩展字段不得赋予权限。
 
 ## D09：现有开发应用渐进分离
+
+以下为后续兼容方向，非本批实施或首版验收前置。当前只保留旧流程与必要回归，不构建业务工作台。
 
 先新增中立路径验证非 Git 工作，再用桥接层把开发任务执行请求映射到中立执行单元。
 需求池和业务审查池归开发应用；应用继续拥有原 Requirement/Task/Candidate、范围、Goal、审查、测试和发布状态；
