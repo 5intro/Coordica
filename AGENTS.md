@@ -1,6 +1,23 @@
 # Coordica implementation rules
 
-- Follow the implementation rules below. Maintainers also keep local design notes under ignored `docs/`; those private files are not required to build or use the published project. Phase A and Phase B implementation are authorized as of 2026-10-11; this does not grant runtime goal, task, scope, protected-candidate, or external permissions.
+- Product direction follows [ROADMAP.md](ROADMAP.md) and the Owner's
+  [R2026-11-02.3 requirements](planning/REQUIREMENTS.md). They supersede conflicting old product assumptions:
+  Coordica is task-driven native-harness infrastructure; sessions are execution resources, not the root of work.
+  Runtime views are Tasks and Attention, derived from source facts; requirements and business review pools belong
+  to applications. See [view boundaries](planning/POOL_BOUNDARIES.md). Do not add a duplicate Blocker state machine.
+  Programmatic and authorized event inputs must work without a user chat. Git, candidates, review and publication
+  belong to the development application. See [task-driven design](planning/TASK_DRIVEN.md).
+  This direction and planning work do not authorize new implementation, live harness calls, deployment or runtime tasks.
+  Historical Phase A/B authorization does not automatically cover the new roadmap.
+  The Owner's later cloud implementation authorization is recorded in [CLOUD_EXECUTION](planning/CLOUD_EXECUTION.md)
+  and PROGRESS: implement C01–C08 with offline verification and the test/PR/review/merge loop; C09–C12 are preparation only.
+  It does not authorize live harness subscription calls, deployment or business execution; keep unverified stage exits open.
+- Before related work, read the roadmap, [design](planning/DESIGN.md), [audit](planning/AUDIT.md),
+  [validation/handoff](planning/VALIDATION.md) and [progress log](planning/PROGRESS.md).
+  Keep task status, decisions and fixed-version evidence current at each relevant handoff. Do not mark features complete
+  from declarations, mocks or prose. These tracked files are the cloud handoff source; ignored private `docs/` are optional.
+- Follow the implementation rules below within their applicable layer. Preserve current development behavior during
+  incremental extraction; generic runtime tasks must not acquire mandatory Git or business acceptance requirements.
 - Keep modules cohesive: domain types/rules, transactional application service, persistence, transports, Git operations, and process/tool adapters have distinct owners.
 - HTTP, CLI, MCP, and background workers must call the same application use cases. Never duplicate authorization or state transitions in an entry point.
 - `internal/gitops` and `internal/process` know nothing about HTTP, SQLite, or task state. `internal/agent` knows tool protocols, not scheduling.
@@ -31,5 +48,15 @@
   process groups, permission modes and registered read-only roles do not attest OS isolation or same-user credential
   protection. Do not silently replace this boundary with a sandbox claim or weaken an externally provisioned sandbox.
 
-- Each physical host reuses one limited interaction MCP/profile. Center chat credentials are Owner-issued and may contact Leader only on admin/shared loopback. Paired Runner hosts mint node-bound chat credentials; remote TLS accepts only node-chat, shared safe facts, requirements and own-node safe runtime queries. Persisted scope/node registration is checked transactionally before replay. Legacy unscoped credentials require explicit renewal; never infer authority from profile flags/source IDs.
-- Consultation accounts are cumulative statistics/reservation targets, not lifetime allowances. Each consultation retains a finite timeout and bounded retries. Development progress checks default to 30 minutes (configurable), reuse Runner heartbeats and structured activity, and never infer failure from missing replies or activity alone. Do not add a runtime mailbox module.
+- For new runtime interfaces, use the roadmap's instance and four-state capability model. Allow explicitly configured
+  unverified options with honest status and policy checks; do not silently change model, harness or execution mode.
+  Legacy defaults and development execution-intent contracts apply to their existing records/application only.
+- Existing development chat profiles retain their current limited authority: one shared interaction profile per host,
+  Owner-issued center credentials on admin/shared loopback, and node-bound remote chat credentials. New runtime APIs
+  use explicit application/instance/node scopes as planned; they must not silently widen old credentials. Check persisted
+  authority before replay; unscoped legacy credentials require renewal, never inferred authority from profile/source IDs.
+- Consultation accounts remain cumulative statistics/reservation targets, not lifetime allowances; finite timeouts and
+  bounded retries remain. Development progress checks default to 30 minutes and reuse heartbeats/structured activity.
+  Missing activity alone is not failure. The former blanket runtime-mailbox prohibition is superseded for required
+  durable messages, native questions/approvals and delegation results. Implement bounded delivery primitives through
+  existing use-case/transaction boundaries, not a generic business mailbox or a new agent reasoning loop.
