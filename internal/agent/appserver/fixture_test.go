@@ -32,6 +32,7 @@ func fakeServer() {
 	reader.Buffer(make([]byte, 4096), maxFrameBytes+1)
 	initialized, created, experimental := false, false, false
 	turns, replies := 0, 0
+	typed := controlFixture{scenario: os.Getenv("COORDICA_APP_SERVER_SCENARIO")}
 	var reorder []envelope
 	for reader.Scan() {
 		var frame envelope
@@ -74,6 +75,10 @@ func fakeServer() {
 		}
 		if !initialized {
 			os.Exit(5)
+		}
+		if strings.HasPrefix(typed.scenario, "typed") {
+			typed.handle(frame, respond, notify, fail)
+			continue
 		}
 		switch frame.Method {
 		case "thread/start":

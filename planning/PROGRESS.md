@@ -8,11 +8,14 @@
 - 规划 [#29](https://github.com/5intro/Coordica/pull/29) 与 C01 文档 [#30](https://github.com/5intro/Coordica/pull/30) 已合并，
   远端 main 为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；合并/审查证据见本文末尾记录。
   旧批次中“open / denied / 待授权”均为当时事实，不再代表这两个 PR 的现状。
-- C01 保持待验证；C02–C08 主任务仍规划中。规划合入不代表持续会话、审批、Task 持久化或真实 harness 已完成。
+- C01 保持待验证；C07 恢复实施中的离线子切片，C02–C06/C08 主任务仍规划中。
+  规划合入不代表持续会话、审批、Task 持久化或真实 harness 已完成。
 - C07 本地检查点 `be707b7263bb98fa98c7a58fb660c084bdc206a5` 保存于 `codex/runtime-codex-peer-20261102`，
   tracked 工作区干净，未推送、无产品 PR；全仓验证仍受依赖下载阻断。
 - 本轮从上述 main 建独立文档分支 `codex/provider-contract-plan-20261102`，只做 R102–R104 规划准备与离线文档检查；
   不推送、不提 PR、不合并，不混入 C07 源码。当前公开基线不随本地修订改变。
+- 上述文档轮已完成为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`；Owner 随后要求继续独立离线开发。
+  当前产品工作在 `codex/runtime-control-offline-20261102`，原 C07 和文档分支保持各自检查点。
 - 运行环境仍是 restricted / enforced，observations_current=true、配置/观察 revision=1；
   storage.googleapis.com 未获当前实例允许。父级全公网配置发布仍失败，不将保存配置视为已经生效。
   本轮未重试 SQLite 下载、换域/代理/缓存/执行器绕过，也未调整当前文件或网络权限。
@@ -399,3 +402,23 @@
 | --- | --- | --- |
 | ADR-010 / 2026-11-02 | 公共消费方契约、薄协议适配、同协议复用与逐 provider 能力证据分层 | R102–R103；C01–C08、C09 准备、C15；V01、V03–V06、V14、V18 |
 | ADR-011 / 2026-11-02 | Owner 接受 Claude 可选跳过工具审批；所选/生效模式可见，与原生提问及底座权限分开 | R104；后续 Claude 准备，C08 仍 Antigravity；不更改现有驱动或当前云端权限 |
+
+## 恢复离线实施 — C07 原生目标与控制操作
+
+- Owner 要求明确架构目标并推进可推进的开发。远期个人助理/项目与知识管理方向已明确，
+  当前仍先做好多 harness 聚合；不因此实现助理业务、知识图谱、多 Agent 总管或全多节点体系。
+  官方原生 harness/订阅路径优先，不提取凭据或做反代，也不承诺零封号风险。
+- 独立产品分支从 C07 `be707b7263bb98fa98c7a58fb660c084bdc206a5` 建立，合入本地 R6 文档。
+  合并命令首次误落在原工作区，只造成未提交的文档冲突；核准 HEAD/MERGE_HEAD 后撤销该次合并，原分支恢复干净。
+  随后在独立工作区串行保留双方规划和历史，merge `3940f23`；没有 reset/rebase 或丢弃产品源码。
+- 源码：appserver 增加 thread/turn 窄控制端口；明确 model/approval/sandbox 和原生生效配置，已知不符拒绝执行。
+  Thread/Turn 目标为连接内不可变句柄；resume/read 不重放，steer 固定 expectedTurnId，interrupt 不暗建下一轮，
+  RPC 成功不等于 Turn/后台停止。无 Git 目录与符号链接工作区可用；无效原生响应保留 unknown 并停止连接。
+- 这不是 C02 的 Task/Run 持久化、跨进程绑定代际或完整 C03–C06。未接生产 Runner，旧 exec 未改，
+  原生推理/工具仍归 harness；原生 options 支持范围只是当前 typed 子集，其他能力不伪装为已支持。
+- 夹具：手写 schema-informed 受控子进程核对原生字段/目标和实际操作次数，覆盖两轮、恢复不重发、
+  stale steer/interrupt、模型/工作区不符、错 ID/缺失结果、符号链接及无 Git 路径；不是原生录制或真实调用。
+  关闭 live opt-in、GOPROXY=off/GOSUMDB=off，仓库监督脚本执行 appserver 包
+  `-race -count=1 -timeout=3m`，退出 0，1.564s；owned processes stopped、temporary root removed。
+- 下一独立切片：原生问题/工具审批的 typed 目标与答复校验，以及 resolved/Turn 结束后的回调失效。
+  全仓依赖下载仍 blocked，不重试，不推送/建 PR/触发外部审查，真实 harness 全部待验证。

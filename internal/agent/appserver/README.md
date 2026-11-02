@@ -38,3 +38,35 @@ resume without replay, steer/interrupt targets, native callback identity,
 out-of-order replies, duplicate/conflicting input, disconnects, timeouts and
 backpressure. Fixture success does not establish real harness or cross-platform
 runtime compatibility. No ordinary test invokes a real model or account.
+
+## Typed native control slice
+
+`StartThread` and `ResumeThread` require an explicit model, approval policy and
+sandbox mode. They use the trusted workspace, with symlinks canonicalized, and
+return the native configuration separately. A known model/mode/workspace
+mismatch returns `ErrConfiguration` with the observed native thread ID for
+reconciliation; it starts no Turn and does not silently choose another model.
+This is a deliberately small subset of the pinned native options, not a public
+runtime API or a claim that the selected mode enforces OS isolation.
+
+The immutable connection-owned `Thread` supports `Read` and `StartText`;
+the returned `Turn` targets `SteerText` and `Interrupt` at that exact native pair.
+Resume/read do not submit input, a stale steer is not queued, and interrupt RPC
+success is separate from `turn/completed`, background stop or process-tree stop.
+Effort is forwarded explicitly; native acceptance is not proof of the model's
+actual reasoning effort. Missing/malformed response identity terminates the
+connection and reports an unknown outcome instead of returning a usable handle.
+
+```mermaid
+flowchart LR
+  Caller[Explicit caller] --> Handle[Thread / Turn target]
+  Handle --> Peer[Bounded RPC peer]
+  Peer --> Native[Native app-server]
+  Native --> Events[Native events / requests]
+  Events --> Caller
+  Peer --> Supervisor[Process stop evidence]
+```
+
+The diagram describes adapter control, not completed Task persistence or
+authorization. The supervised test child validates wire fields and counts
+operations; its hand-written, schema-informed frames are not native recordings.

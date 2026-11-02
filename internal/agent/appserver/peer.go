@@ -66,20 +66,21 @@ type response struct {
 // Call/Respond. A slow consumer fails the connection explicitly; it never turns
 // a dropped request, lost response, or process exit into execution success.
 type Peer struct {
-	process *process.Session
-	writes  chan []byte
-	events  chan Frame
-	failed  chan struct{}
-	done    chan struct{}
-	mu      sync.Mutex
-	nextID  uint64
-	ready   bool
-	err     error
-	waiters map[string]chan response
-	native  map[string]nativeRequest
-	result  process.Result
-	waitErr error
-	info    ServerInfo
+	process   *process.Session
+	writes    chan []byte
+	events    chan Frame
+	failed    chan struct{}
+	done      chan struct{}
+	mu        sync.Mutex
+	nextID    uint64
+	ready     bool
+	err       error
+	waiters   map[string]chan response
+	native    map[string]nativeRequest
+	result    process.Result
+	waitErr   error
+	info      ServerInfo
+	directory string
 }
 
 // Open performs only initialize/initialized. It does not create a native thread,
@@ -88,13 +89,17 @@ func Open(ctx context.Context, config Config) (*Peer, error) {
 	if !filepath.IsAbs(config.Executable) || !filepath.IsAbs(config.Directory) || config.Env == nil {
 		return nil, errors.New("absolute executable/directory and explicit execution environment are required")
 	}
+	directory, err := filepath.EvalSymlinks(config.Directory)
+	if err != nil {
+		return nil, err
+	}
 	s, err := process.Start(ctx, process.Spec{Executable: config.Executable, Args: []string{"app-server"},
 		Dir: config.Directory, Env: config.Env, MaxLineBytes: maxFrameBytes})
 	if err != nil {
 		return nil, err
 	}
 	p := &Peer{process: s, writes: make(chan []byte, 8), events: make(chan Frame, 64), failed: make(chan struct{}),
-		done: make(chan struct{}), waiters: map[string]chan response{}, native: map[string]nativeRequest{}}
+		done: make(chan struct{}), waiters: map[string]chan response{}, native: map[string]nativeRequest{}, directory: filepath.Clean(directory)}
 	go p.writeLoop()
 	go p.readLoop()
 	params := map[string]any{"clientInfo": map[string]string{"name": "coordica", "version": "0.2.5-dev"},
