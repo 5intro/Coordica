@@ -1,7 +1,23 @@
 # 实施记录与决策日志
 
-当前需求基线：R2026-11-02.5；此前批次保持其原始版本。主表：[ROADMAP](../ROADMAP.md)。
+当前工作修订：R2026-11-02.6（仅本地）；公开已合入基线仍为 R2026-11-02.5。主表：[ROADMAP](../ROADMAP.md)。
 仅记录已发生的工作和明确决策；不要将实施建议写成已授权事实。
+
+## 当前状态快照（2026-11-02 UTC）
+
+- 规划 [#29](https://github.com/5intro/Coordica/pull/29) 与 C01 文档 [#30](https://github.com/5intro/Coordica/pull/30) 已合并，
+  远端 main 为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；合并/审查证据见本文末尾记录。
+  旧批次中“open / denied / 待授权”均为当时事实，不再代表这两个 PR 的现状。
+- C01 保持待验证；C02–C08 主任务仍规划中。规划合入不代表持续会话、审批、Task 持久化或真实 harness 已完成。
+- C07 本地检查点 `be707b7263bb98fa98c7a58fb660c084bdc206a5` 保存于 `codex/runtime-codex-peer-20261102`，
+  tracked 工作区干净，未推送、无产品 PR；全仓验证仍受依赖下载阻断。
+- 本轮从上述 main 建独立文档分支 `codex/provider-contract-plan-20261102`，只做 R102–R104 规划准备与离线文档检查；
+  不推送、不提 PR、不合并，不混入 C07 源码。当前公开基线不随本地修订改变。
+- 运行环境仍是 restricted / enforced，observations_current=true、配置/观察 revision=1；
+  storage.googleapis.com 未获当前实例允许。父级全公网配置发布仍失败，不将保存配置视为已经生效。
+  本轮未重试 SQLite 下载、换域/代理/缓存/执行器绕过，也未调整当前文件或网络权限。
+
+以下批次按发生时的输入和结论保留；涉及当前状态，以此快照及最新追加证据为准。
 
 ## 授权记录
 
@@ -14,6 +30,8 @@
 | 2026-11-02 | Owner 澄清只做底座、上层以后再做；同意先指定一家执行与统一记录，授权修正同一计划后继续施工 | R2026-11-02.4；C01–C08 离线纵向实施及逐片自测/PR/双审/门禁合并，C09–C12 仅准备 | 跨厂商接力、自动选优/额度切换、复杂父子编排、竞赛与上层应用均后置；不扩大 live/部署授权 |
 | 2026-11-02 | Owner 强调上下文跟任务走，并明确希望吸收 DeepSeek Super-agent 架构；多 Agent 自驱动提问只用于澄清 | 复核官方固定源码；将任务/派工分离、前后台分离、事件推进、持久上下文映射到现有 C02–C07 | 不授权每 Agent 无限循环、自动最佳厂商路由、DSH 专属业务工具或真实订阅调用 |
 | 2026-11-02 | Owner 最新：把多 Agent 协作/DeepSeek 自驱动能力后置，先做好多 harness 聚合 | R2026-11-02.5 / R101；显式原生执行、统一任务记录与必要原生控制；调研保留 | 首期不做自主 Wake 派工、总管、协作策略、自动拆解或跨 harness 接力；不停止已授权聚合开发 |
+| 2026-11-02 | Owner 在明确门禁说明后回复“过了就合并” | 重新核验准确 head、全部 CI、代码与安全明确结论后，依赖顺序合并 #29/#30；已执行并核实 | 不授权未验证的产品代码发布、部署或降低门禁 |
+| 2026-11-02 | Owner 要求学习 T3/Multica，并接受 Claude 绕过权限询问；父级限定本轮本地文档准备 | R102–R104：公共契约、薄协议适配、逐 provider 证据与可选可见的 Claude 原生模式设计 | 不推送/提 PR/合并，不调用 Claude，不把工具审批跳过扩成取消提问、全局权限或未来高风险操作授权；C08 不换成 Claude |
 
 历史 Phase A/B 只覆盖原有范围。新任务实施授权到达后，在此新增日期、任务 ID 和准确范围。
 无需重复确认已明确授权的同一范围；不能把范围外动作并入旧授权。
@@ -52,11 +70,12 @@
 
 | 项目 | 当前事实 | 影响 / 继续方式 |
 | --- | --- | --- |
-| 新方向实施授权 | 本批已追加 C01–C08 云端实现/离线回归及自测至合并闭环 | 按 CLOUD_EXECUTION 推进；依赖未满足不启动，C09–C12 只准备，真实调用/部署不在范围 |
-| 云端 HEAD 和环境 | 只读查得 GitHub main 43f2083；本地仍为 9de987f | 最新远端仅相关增量补读，未同步工作区或核验云端运行环境 |
-| 首批 harness 官方接口/订阅适用性 | 已补 Codex/ACP/Antigravity 官方资料，安装包与协议版本对应待核验 | 官方声明不算安装版本验证；dsh 的适用范围仍需厂商证据 |
+| 新方向实施授权 | 原批 C01–C08 离线范围保留；本轮专项仅本地规划核查 | 本轮不发布；C09–C12 只准备，真实调用/部署不在范围 |
+| 云端 HEAD 和环境 | 文档分支基于 main efa1ec1；C07 原检查点 be707b7 保留；专用环境仍 restricted / enforced | 不将工作区同步、配置声明或规划合并当作产品验证；当前受阻下载不重试 |
+| 首批 harness 官方接口/订阅适用性 | Codex CLI 0.163.0 与 Antigravity ACP 1.4.5 离线基线固定，认证/真实能力未测 | 版本/schema/源码与真实调用分级；C08 仍优先 Antigravity，Claude 仅准备 |
 | DeepSeek 原型版本 | 已确认 6337fc823ce20251c8de8085948165c81aaa701e | 静态审计完成；运行兼容和故障行为仍未测试 |
 | 两种 harness 的真实验证 | 全部待测 | 不能据 mock/注册表宣布支持；按 VALIDATION 记录 |
+| 全仓 Go 验证 | modernc.org/sqlite@v1.60.1 的官方下载重定向 storage.googleapis.com 后 Forbidden | 网络策略未生效变更；产品全仓 build/check/test 未通过，受影响夹具通过不能替代 |
 
 以后每完成一个切片使用 VALIDATION 的模板追加记录，并更新主表、设计差异和验证证据。
 长期维护表示相关工作交接时更新同一账本；未安排后台轮询、自动开发或定时通知。
@@ -333,3 +352,50 @@
   本会话只有 environment_status/diagnostics/read_environment_diagnostic 读取工具，没有配置变更工具；
   须经受支持环境配置流程及用户确认，能否热应用未验证。未修改网络、试其他域/代理/缓存或重新发送被拒下载。
 - 父级 12:03 UTC 实读共享周额度剩余 44%，未触发低于 10% 暂停线；没有重置或充值。
+
+## #29/#30 合并与 main 回执（已完成动作）
+
+- Owner 新的“过了就合并”授权到达后，重新核准精确 head、六项三平台 CI、明确代码/安全回执和未解决线程。
+  [#29](https://github.com/5intro/Coordica/pull/29) 于 12:56:32 UTC 合并，merge
+  `2f3e23b7d2ff88147ec23a10ec81c3e5484e530d`，候选 `6325566dde16e80e079c5cb03e673f39aeff5992`。
+- #30 retarget main，head 始终为 `bf098f88db5b8128b9d29b4bdb3d5ce7b566a64b`，仍为 9 个文档，无产品代码。
+  原 base 与新 main 的完整 tree 均为 `4d276456b291c44f26054cee395d454681074aeb`；
+  两份 compare 的 9 文件/blob/增删/完整 patch 逐项相同。
+  已独立核对[明确安全回执 6576698059](https://github.com/5intro/Coordica/pull/30#issuecomment-6576698059)
+  覆盖该同一 head、同一内容；后轮 Completed/null 不用作通过。原生报告链接未能打开，不声称读到完整报告。
+  最新[代码回执 6578016883](https://github.com/5intro/Coordica/pull/30#issuecomment-6578016883)明确无发现，
+  作者与安全回执均为 chatgpt-codex-connector[bot]；六项 CI success，未解决线程 0。
+  适用性证明已保存在[覆盖记录 6578267081](https://github.com/5intro/Coordica/pull/30#issuecomment-6578267081)，非自行批准 review。
+- [#30](https://github.com/5intro/Coordica/pull/30) 于 13:24:23 UTC 合并，merge/main
+  `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；完整树与已审候选一致，原分支保留。
+  本轮再次只读核验两个 PR 均 merged，并确认该 main 的
+  [run 41452700790](https://github.com/5intro/Coordica/actions/runs/41452700790) 三个平台 job 均 completed/success。
+  以上只证明文档候选与 main CI，不是 C01–C08 产品或真实 harness 验收。
+
+## 公共契约与 provider 规划准备 — R2026-11-02.6（仅本地）
+
+- 输入：公开 main `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`、R01–R101；新增 R102–R104，保留全部旧编号。
+  分支 `codex/provider-contract-plan-20261102`，独立 worktree，保护 C07 原分支 `be707b7263bb98fa98c7a58fb660c084bdc206a5`。
+- 规划：沿用同一 C 表/现有 V 场景；C02/C07 的窄公共控制契约、C08 通用 ACP 与 provider 配置分层，
+  每家能力/版本/声明/fixture/真实证据独立。完整能力发现仍在 C09，不引入通用推理循环或自动调度。
+  Claude 原生 bypassPermissions 记录为显式、可选、可见配置，提问回传独立；不禁用 AskUserQuestion。
+- 来源：复核 T3 `47f2c8d29e981c7723467efe137ee19e91df924e` 的接入指南/公共契约及相关 ACP 实现，
+  Multica `e8b6a97643ccc35efbcf2a4675c8d088a288ed6e` 的 Backend/Session 与 Codex/Claude/Kimi 相关实现；
+  固定 LICENSE 与 Claude 官方文档证据见 AUDIT。没有复制第三方代码、安装依赖或运行参考产品。
+- C07 历史离线证据仅作交接：此前 appserver/agent/process race 回归、scoped vet 和前端 typecheck 通过；
+  最小传输尚未接生产 Runner，也没有 Task/权限/持久请求完整链。本轮未重跑产品测试，不将其列为新通过。
+  全仓构建此前被 SQLite 模块下载阻断，本轮没有重试；当前实例策略仍不允许目标域。
+- 父级 15:59 UTC 实读共享周额度剩余 44%，未触发低于 10% 暂停线；同一原生 Sol/Ultra 会话继续，未换模型。
+  不创建定时/额外监控、不重置充值，不迁移凭据、不部署发包或启真实 harness；中心暂停、自动派发关闭。
+- 文档验证：104 条连续需求、19 个唯一 C 任务、19 组 V 场景、全部需求责任映射、78 个本地链接与新增锚点通过；
+  同时核对 C01 仍待验证、C02–C08 仍规划中、C08 保持 Antigravity 优先。`git diff --check` 通过。
+  以 main `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58` 为固定 QUALITY_BASE，
+  设置已有官方 Go 1.27.2 的 PATH、GOTOOLCHAIN=local、GOPROXY=off、GOSUMDB=off 后执行 `make quality`，退出 0，
+  输出 `maintainability-v2-advisory: no new risk signals`；只执行本地文档/源码清单检查，没有下载依赖或测试产品能力。
+  CLOUD_EXECUTION 的审查说明同步为实际门槛：明确结论必须覆盖当前 head/内容，null 不通过，不能声称读过不可读报告。
+  未降低代码/安全双审或三平台 CI 要求；本轮没有 PR/合并动作。
+
+| ID / 日期 | 决策与理由 | 影响 |
+| --- | --- | --- |
+| ADR-010 / 2026-11-02 | 公共消费方契约、薄协议适配、同协议复用与逐 provider 能力证据分层 | R102–R103；C01–C08、C09 准备、C15；V01、V03–V06、V14、V18 |
+| ADR-011 / 2026-11-02 | Owner 接受 Claude 可选跳过工具审批；所选/生效模式可见，与原生提问及底座权限分开 | R104；后续 Claude 准备，C08 仍 Antigravity；不更改现有驱动或当前云端权限 |
