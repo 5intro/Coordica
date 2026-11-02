@@ -1,6 +1,6 @@
 # 实施记录与决策日志
 
-当前需求基线：R2026-11-02.4；此前批次保持其原始版本。主表：[ROADMAP](../ROADMAP.md)。
+当前需求基线：R2026-11-02.5；此前批次保持其原始版本。主表：[ROADMAP](../ROADMAP.md)。
 仅记录已发生的工作和明确决策；不要将实施建议写成已授权事实。
 
 ## 授权记录
@@ -13,6 +13,7 @@
 | 2026-11-02 | Owner 最新：不要定时任务，由 Dot 监控；新增 PR 意见发用户并由云端 Agent 修复；额度低于 10% 暂停 | 覆盖旧定时要求；同一云端上下文继续原 PR 修复补测，保留固定 head 门禁 | 不创建额外定时或常驻监控；额度未知不估算，真实运行范围不扩大 |
 | 2026-11-02 | Owner 澄清只做底座、上层以后再做；同意先指定一家执行与统一记录，授权修正同一计划后继续施工 | R2026-11-02.4；C01–C08 离线纵向实施及逐片自测/PR/双审/门禁合并，C09–C12 仅准备 | 跨厂商接力、自动选优/额度切换、复杂父子编排、竞赛与上层应用均后置；不扩大 live/部署授权 |
 | 2026-11-02 | Owner 强调上下文跟任务走，并明确希望吸收 DeepSeek Super-agent 架构；多 Agent 自驱动提问只用于澄清 | 复核官方固定源码；将任务/派工分离、前后台分离、事件推进、持久上下文映射到现有 C02–C07 | 不授权每 Agent 无限循环、自动最佳厂商路由、DSH 专属业务工具或真实订阅调用 |
+| 2026-11-02 | Owner 最新：把多 Agent 协作/DeepSeek 自驱动能力后置，先做好多 harness 聚合 | R2026-11-02.5 / R101；显式原生执行、统一任务记录与必要原生控制；调研保留 | 首期不做自主 Wake 派工、总管、协作策略、自动拆解或跨 harness 接力；不停止已授权聚合开发 |
 
 历史 Phase A/B 只覆盖原有范围。新任务实施授权到达后，在此新增日期、任务 ID 和准确范围。
 无需重复确认已明确授权的同一范围；不能把范围外动作并入旧授权。
@@ -292,3 +293,43 @@
   尚无全门禁通过结论；#29 merge 没有重试，仍单独保持 denied。
 - 测试收口只读核查发现 4 个 process.test 条目为 Z 状态、PPID=1，均已退出且不再执行，待环境 PID1 回收；
   没有仍在运行的本会话构建/测试进程。未杀其他进程或修改系统回收行为。
+
+## 最新首期优先级 — R2026-11-02.5
+
+- Owner 再次收紧：把刚讨论的多 Agent 协作/DeepSeek 自驱动能力放到后面，先做好多 harness 聚合。
+  保留 R01–R100 历史，追加 R101；同一 ROADMAP、需求/设计/验证/执行文档同步，不另建规划。
+- 首期只做明确选择原生 harness/实例执行、统一 Task/Thread/native Session/机器/工作区、进度与产物记录，
+  以及必要输入/中断/原生审批/恢复/安全幂等。任务上下文归 Task，仍不要求 Git 或业务审查。
+  协作接口、自主 Wake 派工、总管、自动拆解、复杂父子任务及跨 harness 接力均后置。
+  V19 首期仅取任务上下文/版本/来源、单次 Run 归属、重复/迟到输入与回调围栏，其他研究场景不阻塞首期。
+- 精准创建许可已成功落实为 [C01 draft PR #30](https://github.com/5intro/Coordica/pull/30)，
+  head `0f8da8055605550145fcbe6bc005e7ce383c5c46`，base 仍为 `codex/task-runtime-cloud-batch-20261102`。
+  该旧 head 的[代码审查](https://github.com/5intro/Coordica/pull/30#issuecomment-6576519278)与
+  [安全审查](https://github.com/5intro/Coordica/pull/30#issuecomment-6576545331)均由 `chatgpt-codex-connector[bot]` 明确无发现。
+  本轮更新原文档 PR 后必须重新核新 head CI/双审，不能继承上述旧结果；没有新增待修复意见。
+- 产品代码在另一本地分支 `codex/runtime-codex-peer-20261102`，检查点
+  `5d330a2372a3a226cef5e72e5d4911be7f114ba8`（代码提交 `c106015b8d30b0805a2d5d3868a07d35f5ef00e2`）。
+  新包、既有 agent/process 的 race 回归通过；无自主 Wake 或协作代码，不混入 C01 文档 PR。
+- #29 仍 open；合并的自动审批拒绝未被本次 PR 创建许可覆盖，没有重试，也不默默更换 #30 的 base。
+  全仓 Go 构建仍因官方模块下载跳转的 storage.googleapis.com 不在 enforced 允许列表而 blocked；没有绕过。
+  不创建定时，真实订阅 harness 未调用，低于 10% 的可验证额度信号仍立即安全暂停。
+
+### 首期范围更新与下载拒绝事实
+
+- C01 原 PR #30 已更新为 `bf098f88db5b8128b9d29b4bdb3d5ce7b566a64b`，仍是原规划 base、9 个文档。
+  明确重新触发[代码审查 6576657989](https://github.com/5intro/Coordica/pull/30#issuecomment-6576657989)与
+  [安全审查 6576659241](https://github.com/5intro/Coordica/pull/30#issuecomment-6576659241)；没有在其 running 时重复触发。
+  旧 `0f8da80` 的双审和 CI 不继承。父级 12:04:55–12:05:23 UTC 观察该新 head 双审及六个 CI 均运行中，无可行动意见。
+- 本地代码分支合入上述文档优先级；PROGRESS 的两个追加记录保留后串行解决冲突，无代码或历史丢弃。
+  下一代码工作仍只做 Codex/ACP 薄适配的共同传输与控制验证，不接自主调度、Wake 或协作策略。
+- 下载原始错误（仅将签名 URL 的查询参数省略）：
+  `modernc.org/sqlite@v1.60.1: Get "https://storage.googleapis.com/proxy-golang-org-prod/4637baafbecfb238-modernc.org:sqlite-v1.60.1.zip?[query redacted]": Forbidden`。
+  随后 `make: *** [Makefile:9: build] Error 1`，整次 make 命令退出 2。
+- 当前 `/etc/codex/network-policy.json` version=1、restricted，egress_rules 的键只有 host，缺 storage.googleapis.com；
+  运行时状态确认策略 enforced。该域在当前配置下未获允许，是硬网络边界；仅凭 Go 的 Forbidden 不能区分具体 403 产生层。
+  这不是命令审批器的 approval rejection，也没有已获准的临时网络例外。
+- 可供用户确认的最小配置请求：仅增加 HTTPS `storage.googleapis.com`，用于官方 Go 模块 ZIP 分发，
+  保持现有代理/CA、其余 allowlist 与权限不变。现有观察到的策略粒度是 host，不能声称只授权上述单个 ZIP 路径。
+  本会话只有 environment_status/diagnostics/read_environment_diagnostic 读取工具，没有配置变更工具；
+  须经受支持环境配置流程及用户确认，能否热应用未验证。未修改网络、试其他域/代理/缓存或重新发送被拒下载。
+- 父级 12:03 UTC 实读共享周额度剩余 44%，未触发低于 10% 暂停线；没有重置或充值。
