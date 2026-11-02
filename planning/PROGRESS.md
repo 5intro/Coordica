@@ -275,3 +275,20 @@
   最近只读 #29 仍 open，故待确认 C01 base 仍为 `codex/task-runtime-cloud-batch-20261102`，没有默默改成 main。
 - 下一步：先由父级处理明确 PR/merge 授权及官方 Go 依赖下载的网络配置；全仓门禁未过不能声称可合并。
   在同一纵向切片上继续 C02 的任务上下文/输入及显式 Run 绑定，而非铺完整通用状态平台。
+
+### 同日更新：精准授权后 C01 PR 已创建
+
+- Owner 对指定仓库/head/base、仅含文档的 C01 draft PR 请求直接回复“允许”；此次新证据只用于该动作，未扩大到 #29 merge。
+- 创建前重新只读核对：C01 远端 head 仍 `0f8da8055605550145fcbe6bc005e7ce383c5c46`，
+  base 分支仍 `6325566dde16e80e079c5cb03e673f39aeff5992`，#29 open/未合入，没有既存同分支 PR。
+- 11:54:28 UTC 成功创建 [PR #30](https://github.com/5intro/Coordica/pull/30)，draft，base 为
+  `codex/task-runtime-cloud-batch-20261102`，head 为上述 C01 SHA，9 个文档文件；没有混入本地产品代码。
+  C01 分支未移动，本地 C07 源码保存为 `c106015b8d30b0805a2d5d3868a07d35f5ef00e2`，未推送。
+- 明确触发[代码审查 6576496662](https://github.com/5intro/Coordica/pull/30#issuecomment-6576496662)
+  和[安全审查 6576498142](https://github.com/5intro/Coordica/pull/30#issuecomment-6576498142)，作者均为 5intro。
+- 11:55:58 UTC `chatgpt-codex-connector[bot]` 在[代码回执 6576519278](https://github.com/5intro/Coordica/pull/30#issuecomment-6576519278)
+  对 `0f8da80556` 明确表示未发现重大问题。没有新增待修复代码意见；安全审查仍 running，null 不当作通过。
+  该完整 head 当前有六个 CI check run：早一次 Ubuntu/macOS success、Windows running，另一次三平台均 running。
+  尚无全门禁通过结论；#29 merge 没有重试，仍单独保持 denied。
+- 测试收口只读核查发现 4 个 process.test 条目为 Z 状态、PPID=1，均已退出且不再执行，待环境 PID1 回收；
+  没有仍在运行的本会话构建/测试进程。未杀其他进程或修改系统回收行为。
