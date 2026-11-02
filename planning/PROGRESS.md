@@ -243,3 +243,35 @@
 - Owner 后续关注多 Agent 协作：已明确每次 Run/Assignment 指定目标而非整个 Task 绑定单 Agent；
   同 Task 可计划多个显式执行者，独立 Session/输出、结果按 Run/代际回写和上下文 CAS，依赖由调用方明确推进。
   这些新接口仍是待实现计划，不据旧开发调度或原型源码宣称已支持；高级自动编排没有加入本批。
+
+## C07 — 最小 Codex app-server 离线传输切片（本地检查点）
+
+- 输入：C01 文档 head `0f8da8055605550145fcbe6bc005e7ce383c5c46`，R2026-11-02.4。
+  产品代码位于独立分支 `codex/runtime-codex-peer-20261102`；不修改待审批的 C01 分支或 PR 目的地。
+- 实现：`internal/agent/appserver` 为第一原生端口，显式绝对可执行文件/工作区/环境；
+  仅 initialize/initialized 握手，保留原生启动信息，不自动登录、选模型、创建 thread 或启动 turn。
+  显式 RPC 请求与乱序响应关联；结构化通知和原生提问/审批回调分开，连接身份/原文指纹拒绝旧回调和重复答复。
+  答复只报告本地 queued，不伪造原生消费 ACK；请求超时或断连后结果 unknown，不自动重放。
+  有界帧/调用/事件/原生 ID，慢消费者及协议故障明确失败并停止监督进程；保留实际 TreeStopped。
+- 这只是适配层传输，不是完整 C07 或 C02–C06：尚无新 TaskContext 持久化、身份授权、绑定/Turn 代际、
+  持久事件/请求对账或公共 runtime 入口；没有接到生产 Runner，旧 exec 驱动及开发门禁未改。
+  封装协议差异但保留身份/进度/产物/审批/失败可观察性；完整 UI 不在本批。
+- 离线证据：监督夹具子进程完成同连接两轮、resume 不重发、steer/interrupt 原生目标、
+  数字/字符串请求 ID、跨连接/重复/改内容回调拒绝、乱序响应、无效握手/JSON/UTF-8、
+  超时/丢响应/超大帧/慢消费者；没有调用安装的真实 Codex、任何模型/账号或上层业务。
+- 回归：关闭 live opt-in，使用仓库 `scripts/test-go.py` 执行
+  `-race -count=1 -timeout=3m ./internal/agent/appserver ./internal/agent ./internal/process`，退出 0；
+  输出分别为 1.285s / 16.735s / 14.174s，监督器确认 owned processes stopped、temporary root removed。
+  相同三包的 `go vet` 无错误，前端 `npm run typecheck` 通过。
+  `make quality` 退出 0，有一项新 advisory：测试夹具 fakeServer 131 行；它是单个受控协议模拟器，未扩张生产职责。
+- 构建：`make build check quality` 尝试先构建；前端 npm ci/build 成功（既有 bundle size 提示），
+  Go 主程序构建因 `modernc.org/sqlite@v1.60.1` 下载被阻断，退出 2。
+  官方 proxy.golang.org 重定向到 storage.googleapis.com 后返回 Forbidden；当前 enforced 允许列表不含该目标。
+  未换非官方镜像、绕过代理或扩网络。全仓 build/check/test 依赖此项，保持未通过；不重复已知被拒的下载。
+- 首次直跑 Go 测试和 npm 安装分别遇到默认 home 缓存只读，已将 GOCACHE/GOMODCACHE/GOPATH/npm cache 定向到工作区；
+  这是运行环境修正，不修改产品或声称原失败通过。临时日志只在受控工作区/临时目录，不提交原始依赖 URL 查询参数。
+- 发布/审查：本切片仅本地保存，未 push、未建产品 PR、未触发审查或合并。
+  C01 创建 draft PR 的第二次拒绝和 #29 merge 拒绝仍保持 denied，由 Dot 请求准确动作授权；本会话没有重试。
+  最近只读 #29 仍 open，故待确认 C01 base 仍为 `codex/task-runtime-cloud-batch-20261102`，没有默默改成 main。
+- 下一步：先由父级处理明确 PR/merge 授权及官方 Go 依赖下载的网络配置；全仓门禁未过不能声称可合并。
+  在同一纵向切片上继续 C02 的任务上下文/输入及显式 Run 绑定，而非铺完整通用状态平台。
