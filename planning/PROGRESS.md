@@ -135,5 +135,18 @@
   已请求 Owner 在原生界面发布绑定 `5intro/Coordica` 的专用环境，待其可用后继续派发。
 - 本地工作区保留原状；先准备只含公开规划/规则的分支，基于最新远端 main，不上传私人 docs、日志或数据。
 - 云端 environment/thread/host：尚未取得；不把准备任务或创建请求算作已运行。
-- 规划分支/PR、审查触发与监控 ID：待实际创建后补记。本批监控不因第一个规划 PR 合并就结束。
+- 规划分支：`codex/task-runtime-cloud-batch-20261102`；已基于远端 main 原子提交并创建
+  [PR #29](https://github.com/5intro/Coordica/pull/29)，初始 head `27ca7f49ea58436bac6bc86d1a95afd76b9b1d33`。
+  仅 14 个 Markdown 文件，README 保留远端 #27 增量；未修改本地 Git 元数据或上传私人资料。
+- 初始 head 审查：已发布代码评论 6573752140、安全评论 6573752607；机器人在本轮触发之后分别明确报告无重大问题/无安全问题。
+  安全汇总的 null 不作为通过依据，采用绑定该 head 的明确无发现回执。
+- 初始 head 的三平台 CI 在打包 README 链接回归失败：新相对 ROADMAP 链接不在发行包内。
+  已将该链接改为仓库页面；本地 `python3 -m unittest discover -s scripts -p test_package_release.py` 的 11 项回归通过，
+  `git diff --check` 通过。更新后 head 的 CI 和两项审查须重新确认，旧通过不继承。
+- 文档检查：92 需求、19 个任务/依赖、17 组验收、91 本地文件链接/空白检查通过；
+  `make quality` 退出 0，197 条既有提示，本地比较基线与最新远端不同，不代替后者验证。
+- 定时监控：创建被工具拒绝，返回“requires approval, but approval policy is never”；没有创建成功、没有监控 ID。
+  不绕过审批直接写 scheduler 文件或另起 cron。本批监控若后续获准创建，不因第一个规划 PR 合并就结束。
+- Owner 补充创建环境也连接失败，要求重试浏览器扩展；扩展可以连接并打开 Codex 页面，但进入 Cloud 仍超时。
+  已请求错误原文和发生阶段；尚无环境发布/云端派发成功证据。
 - 正式中心运行配置未改；没有配对、部署、模型测试或重新启动赛车实验。
