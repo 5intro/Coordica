@@ -4,8 +4,10 @@
 本次审计聚焦新方向涉及的入口、适配、执行、能力和持久化；不代表全仓库安全审计。
 已有测试文件是可复用验证线索，不是本次测试通过或实际 harness 可用性的证据。
 云端 HEAD 改变后，C01 必须重查对应路径，不将本文当永久事实。
-2026-11-02 C01 只读补充已记录到 [复核与首个切片](C01_REVIEW.md)：本地仍为上述 HEAD，
+早期 C01 只读补充已记录到 [复核与首个切片](C01_REVIEW.md)：当时本地仍为上述 HEAD，
 远端 main 已为 `43f208327372fda8db94babda41e4a7d38a0e8dc`，只对相关增量补读，未完整审计远端全部文件。
+本轮文档工作区已从合并后 main `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58` 建立；
+以下旧审计保留其固定版本，新增加的公共适配参考见文末，不扩为全仓重审或产品验证。
 
 ## 证据分级
 
@@ -100,3 +102,26 @@ Task/Ticket 与执行绑定分离、输入送达/消费、持久效果和资源�
   优先复用 ACP，不解析桌面 UI 或调用私有 language_server；CLI 模式不能假设支持审批控制消息。
 - C01_REVIEW 保存官方来源、检查日期、精确源码身份、首批实例建议和适配边界。
   本轮证据仍只有 S/D/G，没有新增 F/L；旧版本实验实测不自动继承。
+
+## 公共控制契约与协议复用参考（2026-11-02）
+
+本节为 R102–R104 的固定源码/文档证据，区别于上面的旧 T3 本机 bundle 记录。
+仅复核列出的接口和相关实现片段，没有运行参考产品、第三方测试或真实 harness，也没有复制实现。
+
+| 来源与固定版本 | 本轮核实的事实 | Coordica 采用边界 |
+| --- | --- | --- |
+| T3 `47f2c8d29e981c7723467efe137ee19e91df924e`：[provider 接入指南](https://github.com/pingdotgg/t3code/blob/47f2c8d29e981c7723467efe137ee19e91df924e/docs/internals/adding-a-provider.md)、[ProviderAdapter](https://github.com/pingdotgg/t3code/blob/47f2c8d29e981c7723467efe137ee19e91df924e/packages/provider-core/src/server/ProviderAdapter.ts) | ProviderAdapterV2 按 session/thread/turn/request/event 提供控制契约；不支持能力应诚实声明；实例与凭据分别处理 | 借鉴契约和能力边界，不复制 Effect/前端/完整编排框架，不照搬静默模式回退 |
+| 同版 T3：[共享 ACP adapter](https://github.com/pingdotgg/t3code/blob/47f2c8d29e981c7723467efe137ee19e91df924e/packages/provider-acp/src/server/adapter.ts) 与接入指南 | ACP 优先共享协议机制，协议外差异才加窄 provider 适配；不是每个品牌复制整套协议 | C08 保留通用 ACP 与 Antigravity 配置分层，逐版本协商，不继承另一 provider 的能力/实测结论 |
+| Multica `e8b6a97643ccc35efbcf2a4675c8d088a288ed6e`：[agent.go](https://github.com/multica-ai/multica/blob/e8b6a97643ccc35efbcf2a4675c8d088a288ed6e/server/pkg/agent/agent.go)、[codex.go](https://github.com/multica-ai/multica/blob/e8b6a97643ccc35efbcf2a4675c8d088a288ed6e/server/pkg/agent/codex.go)、[kimi.go](https://github.com/multica-ai/multica/blob/e8b6a97643ccc35efbcf2a4675c8d088a288ed6e/server/pkg/agent/kimi.go) | Backend.Execute 返回 Session.Messages/Result；可选 Supplement；Codex 走 app-server stdio，Kimi 走 ACP initialize/session 方法 | 复用公共入口/流式事实思路；Coordica 的持续 Session/Turn、审批与停止边界仍按本项目要求设计，不用单次执行强制关闭会话 |
+| 同版 Multica：[claude.go](https://github.com/multica-ai/multica/blob/e8b6a97643ccc35efbcf2a4675c8d088a288ed6e/server/pkg/agent/claude.go) 的 buildClaudeArgs | stream-json 输入/输出；跳过工具审批与禁用 AskUserQuestion 是两个独立启动参数选择 | Owner 接受前者作为可选配置，不照搬后者；不能把缺少问题通道包装成无须提问 |
+
+许可核查仅记录固定文件事实：[T3 LICENSE](https://github.com/pingdotgg/t3code/blob/47f2c8d29e981c7723467efe137ee19e91df924e/LICENSE)
+为 MIT；[Multica LICENSE](https://github.com/multica-ai/multica/blob/e8b6a97643ccc35efbcf2a4675c8d088a288ed6e/LICENSE)
+是包含 Apache 2.0 与额外条件的 Multica License，不能标作普通 Apache 2.0。
+本轮只做机制分析和独立方案；未来若复制代码或引入依赖，须另核目标文件、NOTICE、归属及适用条件。
+
+2026-11-02 同时核读 Claude 官方[权限说明](https://code.claude.com/docs/en/permissions)和
+[CLI 参数](https://code.claude.com/docs/en/cli-reference)：`bypassPermissions` 与 `dontAsk` 不同，
+原生 permission mode 与禁用工具也分属不同配置。此为会更新的 D 级文档证据，不证明历史本机版本已支持；
+后续接入仍固定实际 CLI 版本及原生报告，所选/生效/未知状态分别保存。
+当前 main 的 `registry.go` 仍为 Claude `dontAsk`，本轮未改变它，也未运行 Claude。
