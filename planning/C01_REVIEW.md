@@ -179,3 +179,91 @@ C03/C04 必须落实基本重启与身份围栏，不能等 C12 才补过期审�
 原生提问扩展、有效配置及停止证据。Antigravity 桌面版已安装不能解除这些缺口。
 这些缺口不妨碍交付当前只读方案，但不能据此标记 C01 全部完成或 C02–C08 可执行。
 本轮验证及文档候选状态见 [PROGRESS](PROGRESS.md)；没有新功能或真实 harness 通过结论。
+
+## 6. 云端接收与固定离线协议基线（2026-11-02 UTC）
+
+以下是本次云端实际观测，不沿用上文的本机安装或认证证据。
+接收 main `43f208327372fda8db94babda41e4a7d38a0e8dc` 与规划 #29 head
+`6325566dde16e80e079c5cb03e673f39aeff5992`；两者仅有 14 个 Markdown 文件差异。
+工作分支 `codex/task-runtime-c01-20261102` 从该规划 head 建立，初始 tracked 工作区干净。
+已完整读取本组规划、README、AGENTS/AGENT、QUALITY、REVIEW、SECURITY；仓库没有 `.agents/skills`。
+
+本轮在当前工作区重读 agent Request/Result、JSONL/ACP/pi 生命周期、registry、目录会话、
+Runner 的 CloneSnapshot/Request/恢复路径，以及 store 事务、Replay/Audit/outbox 和 #27 coordination 路径。
+原审计的相关 S/G 结论仍成立：单次 Execute 不等于多轮；生产 Request 未填 ResumeSession；
+WorkNote 仅 recorded_only；旧 outbox 没有逐效果领取和原生 ACK。此为相关路径复核，不是全仓安全审计。
+
+### 实测工具和资源
+
+- Linux x86_64；cgroup CPU 配额 4 核、内存上限 16 GiB；检查时工作区可用磁盘约 29.5 GiB。
+  共享迁移串行；不并发启动全仓 race。
+- Node `v24.19.0`、Python `3.12.14`、Git `2.52.0`。
+- 初始 PATH 的 `/usr/bin/go` 拒绝 `version`，常用位置和仓库 `.tools` 未找到 Go 编译器。
+  从 [Go 官方下载元数据](https://go.dev/dl/?mode=json&include=all)取得 `go1.27.2.linux-amd64.tar.gz`，
+  实际 70,590,635 字节，SHA-256 `ecbadb99091a3f46e31f5f934b068b1864eafa7995211b39eaddf76996045fe5`。
+  校验后安装到忽略目录 `.tools/go`；实测 `go version go1.27.2 linux/amd64`，`gofmt -h` 退出 0。
+  没有修改系统同名程序；后续 Makefile 自动选择 `.tools/go/bin/go`。
+- 云端已安装的 Codex `--version` 返回 `codex-cli 0.163.0`，不是历史 macOS alpha 包。
+  二进制 SHA-256 `399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215`。
+  版本/生成命令提示 PATH alias 目录只读，但命令退出 0；没有改权限或启动模型。
+
+### 两个目标实例与协议版本
+
+下列实例名是离线适配目标，尚未登记为可执行或已认证实例。配置不授予真实执行权限。
+实例模型和模式在调用时显式提供并按原生能力拒绝不支持项；不复用本次施工模型作为产品默认值。
+
+| 目标 | 固定身份和证据 | 当前边界 |
+| --- | --- | --- |
+| `codex-app-server-linux` | 实测 CLI 0.163.0；[上游对应发行源码](https://github.com/openai/codex/tree/83086188ae0614bd882818ff1aa23f3194962012)，tag `rust-v0.163.0` | 只运行版本与本地 schema 生成；未读取登录、启动 server 或请求推理，认证/实际调用未知 |
+| `antigravity-acp-linux` | [ACP 注册表固定版本](https://github.com/agentclientprotocol/registry/blob/6d274b4d433066bc1744c509356419c69667c695/antigravity-acp/agent.json)：Google LLC、1.4.5、proprietary | 未安装/启动；不把桌面 2.28.2 当 ACP 版本，dsh 不作失败回退 |
+
+Antigravity Linux x86_64 的注册表声明包为
+`https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.4.5-linux-x86_64.zip`，
+SHA-256 `923923a0d7dc8073f66cc6f78647a3107e3a7ee2b7e1a24df8b3927b5188013b`，
+入口 `./agy_acp_server.par`、argv `--uid=`。这些是发行声明，未声称本轮下载归档或校验二进制。
+注册表文件实际下载字节 SHA-256 `00955e5d71f60d2c8255847fd35966f7f27e25c3bc3c59b28d08b1df9fcd1fac`。
+
+ACP 夹具基线选 v0.11.0 的稳定 v1 schema，解引用 tag 后固定源码
+[`451c3cbc7df2f9bc164c25e25d36fa526003f085`](https://github.com/agentclientprotocol/agent-client-protocol/blob/451c3cbc7df2f9bc164c25e25d36fa526003f085/schema/schema.json)。
+`schema/schema.json` 实际 141,370 字节，SHA-256
+`11a4cc8ca894f0f8acb55dc85d1bdf30065bd58608e6a965e4fb9192ef14fe6f`，113 个定义。
+该 schema 是客户端离线基线，不是 Antigravity 已完成握手的证据；扩展方法逐项协商，不以 v2 draft 替代。
+
+Codex 运行 `codex app-server generate-json-schema --experimental --out <忽略目录>`，退出 0，生成 452 个 JSON 文件。
+合并 schema `codex_app_server_protocol.schemas.json` 为 890,029 字节，SHA-256
+`43e8c1495557ca91e33a63bbfae36c311c206253afae2974c979dbdf5d940c71`。
+`ServerRequest.json` SHA-256 `3d7bc481f84dc042984a74420e65c5a8d3c423f37a91b7d5df2365c903a12ac6`。
+此为实际二进制的离线生成证据；未把该二进制与上游发行产物做可复现构建比对。
+
+- 生成 schema 中 `turn/steer` 必填 expectedTurnId/input/threadId，`turn/interrupt` 必填 threadId/turnId，
+  `thread/resume` 必填 threadId；恢复不重发工作，steer 不转 queue。
+- 原生服务请求包含 commandExecution/fileChange/permissions 审批、tool/requestUserInput 和 MCP elicitation；
+  C06/C07 仍须落实回调身份、代际、版本及 ACK，不能从 resolved 通知推导批准。
+- [当前官方文档](https://learn.chatgpt.com/docs/app-server)要求 experimentalApi 显式协商；
+  其认证说明区分本地应用和 commercial/hosted service。未来真实验证须按实际部署及官方适用范围另核授权，
+  本批仅离线开发，不以原生 Cloud 施工授权代替产品订阅运行授权。
+- [Google 官方认证说明](https://antigravity.google/docs/ide/extensions/zed/)声明个人计划使用 oauth-personal，
+  企业/API 认证单列；这是官方声明，云端认证状态仍为未探测，未迁移凭据或登录。
+
+以上固定离线切片的协议和来源输入，可继续准备 C02；C01 的真实实例/认证验证保持待验证。
+C07/C08 的真实阶段出口保持未完成，不能据 schema 生成宣布已支持多轮、审批或工具调用。
+
+## 7. 恢复后的范围与第一纵向切片（R2026-11-02.4）
+
+Owner 曾暂停当前方向，保留已推送的 `871c14db98cddcf2fa5a6222a3459e41f810eab5`；没有回滚或删除。
+恢复后追加 R93–R100，保留 R01–R92 历史；上下文归 Task，调用方明确指定实例，跨厂商交接后置。
+完整核读 DeepSeek 官方固定版本的 000/001/007 文档和相关源码，最小机制映射见 TASK_DRIVEN。
+前台接收/显式路由、持久 Task/Input/Wake 和后台 Assignment 分工；无每 Agent 无限循环或第二状态机。
+
+第一代码子范围选择 C07 的最小 Codex app-server 进程协议端口和离线夹具：初始化、请求/响应关联、
+有界事件及原生请求、同连接两轮、补充/中断的准确方法与原生 ID、断开/未知结果和进程停止证据。
+仅使用监督夹具子进程，不调用真实订阅 harness；不改旧 exec 驱动，不先建完整调度平台。
+随后 C02 保存任务上下文/输入与显式执行绑定，C03–C06 随这条链路逐段集成，C08 再验证第二种协议。
+第一端口本身不宣称 Task 持久化、人工授权门禁或完整持续会话已经完成；它提供这些用例所需的原生事实。
+
+## 8. 首期只做聚合（R2026-11-02.5）
+
+Owner 最新将多 Agent 协作、DeepSeek 自驱动编排及跨 harness 接力后置；研究与接口边界保留，
+首期不做自主 Wake 派工、总管、复杂父子任务或协作策略。统一 Task 上下文和必要原生控制仍保留。
+C07 先完成原生协议薄适配的离线切片，C08 用第二 harness 验证共性；TaskInput/命令意图仅按可靠送达实际需要实现。
+当前本地 app-server 传输没有自主调度或 Wake 实现，不需要为这次收紧删除已完成的必要控制代码。

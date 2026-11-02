@@ -1,8 +1,16 @@
 # 任务驱动与 DeepSeek 原型借鉴方案
 
-日期：2026-11-02。需求基线：R2026-11-02.3；任务驱动由 R91 定义，任务与待处理边界由 R92 定义；本次只更新规划，不引入运行依赖。
+日期：2026-11-02。当前需求基线：R2026-11-02.5；任务驱动由 R91 定义，边界由 R92–R101 补充；不引入外部框架运行依赖。
 
 ## 决定：任务是工作生命周期的中心
+
+最新 R101：先做多 harness 聚合，协作、自驱动编排和跨 harness 接力后置。
+本文件保留 DeepSeek 的机制研究，首期只采用保持 Task 上下文、输入送达、原生请求和安全幂等所需的最小部分。
+不实现自主 Wake 派工、总管或每 Agent 自循环，也不为了以后编排提前建设未使用实体和通用框架。
+
+首版先做调用方明确指定 harness/实例的执行与统一记录；逻辑 Thread 可记录不同 provider 的 Run，
+但不把跨厂商接力或摘要交接当作第一条链路的前置。先由 Codex 最小纵向接入校验必要控制层，再用第二家验证。
+复杂依赖/父子编排、主控选择策略和自动切换留待后续；程序明确提交不需要模型研判或 Chief。
 
 任务持有目标/输入引用、授权、依赖、状态、结果引用和后续唤醒条件。
 用户聊天、程序调用、授权的外部事件和已配置的定时触发都可以提交任务或补充既有任务。
@@ -61,6 +69,9 @@ README 定位为研究原型、单 GitHub 仓库的 DSH 应用；发布版也不
 
 ### TaskInput 与唤醒
 
+本节的自主事件唤醒/父子结果策略为后续研究。首期只处理已明确请求的输入排队/投递和原生答复，
+最小可靠命令意图不自动创建下一项工作；不要求先实现完整 WakeIntent 调度器。
+
 TaskInput 记录 input_id、task_id、source_app、source_event_id、actor_ref、kind、内容引用、目标版本和授权上下文。
 kind 至少区分 context、continuation、request_response；context 默认只追加材料，不自动启动工作。
 来源事件去重键限定应用/来源/事件；一次事件是否可触发多个任务由显式策略决定，不能简单全局去重误吞合法扇出。
@@ -99,3 +110,46 @@ Task 记录基础执行状态；模型报告作为报告/结果证据，不是�
 不新增一轮“完整移植 DeepSeek 框架”的任务，也不改变原先持续交互优先的实施顺序。
 T3 主要参考多 harness 会话/交互机制；DeepSeek 原型主要参考任务/执行器/事件推进。
 两者都不能替代 Coordica 自己的多节点权威、授权和恢复边界。
+
+## DeepSeek 最小架构映射（R2026-11-02.4）
+
+以下保留该版评估。R2026-11-02.5 已将其中协作/自驱动实现与验收后置；C02–C07 首期只取任务记录与可靠原生控制的必要子集。
+
+Owner 明确希望实现其架构机制。本轮完整核读固定提交 `6337fc823ce20251c8de8085948165c81aaa701e` 的
+[000 Philosophy](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/6337fc823ce20251c8de8085948165c81aaa701e/docs/000-philosophy.md)、
+[001 Domain](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/6337fc823ce20251c8de8085948165c81aaa701e/docs/001-domain.md)、
+[007 Architecture](https://github.com/deepseek-ai/dsh-superagent-prototype/blob/6337fc823ce20251c8de8085948165c81aaa701e/docs/007-architecture.md)。
+复核实际 `core/ports.ts`、`intake.ts`、`assignments.ts`、`app/runtime.ts`、`effects.ts`，以及
+`core/engine.ts` 的事务入口、`tickets.ts` 的 addInput/wake、`executor/dsh.ts` 的 launch/delivery/事件/恢复，
+`executor/background.ts` 的后台静止与停止路径。没有安装、导入或运行原型；只采用机制，不复制源码。
+
+| 机制与源码证据 | Coordica 当前事实 | 本批最小落点与离线验收 |
+| --- | --- | --- |
+| Ticket 生命周期独立于 Assignment/Executor；ports 分隔核心和外部执行 | 旧开发 Task/Run 已分开，但中立 TaskContext 与无 Git 程序路径缺失 | C02 以 Task 保存材料/决策/进度/产物引用；Run/Assignment 绑定显式实例，换入口/释放 Session 后材料仍可读；V16、V19 |
+| Runtime 组合 Engine、Sources、Executor；前台路由与后台工作角色分开 | 现有 HTTP/CLI/MCP 共用 app 用例，Runner 执行旧开发工作；不是新底座完整链路 | C07 最小 Codex 原生端口先行；C02/C03 将入口和后台绑定到同一任务，不要求额外主控模型；V18–V19 |
+| Intake 存不可变 Trigger，显式扇出；关联只补上下文，不自动路由 | WorkNote 仅 recorded_only；已有来源幂等和重放前鉴权可借 | C02 TaskInput 明确 target Task、来源/事件/摘要和权限；context 不启动，continuation 才产生 WakeIntent；重放/冲突/合法扇出；V16、V19 |
+| Engine.atomic 单一状态写者；Effects 事务入队、提交后执行，generation 防旧结果覆盖 | Store.Update + audit/outbox 已有；旧 outbox 没有逐效果 claim/ACK | C04 针对真实纵向需要补效果身份/领取/未知结果，不做通用框架；回滚不启动、重复唤醒不重复派工；V05、V09、V19 |
+| Assignments 区分 delivered/read/report；后台 jobs/subagents 活动独立于单轮 idle | 旧 process/spool 有停止证据，缺持久多轮输入/请求 | C03–C06/C07 按协议报告输入、Turn、后台工作和请求；原生未确认 consumed 则未知；答复/结束事件只唤醒正确 Run；V04、V06、V19 |
+
+**自驱动的边界：** 一个 Task 同时只有一个调度负责人；多个明确 Assignment 可按容量并行，但不能争写同一 native Session。
+输入、执行结果和审批答复进入同一 Task/Input/Wake/Run 路径；无事、等依赖、等审批或等额度时不空转。
+前台可持续接收输入而后台工作继续，但接收事实不等于原生已消费，更不授予新的权限。
+TaskContext 跟 Task 走，线程和 Session 仅引用材料；不搬迁隐藏推理或将相关线程自动关联为执行目标。
+
+最先交付 C07 离线原生端口，其次 C02 的任务上下文/输入与最小绑定，随后按实际协议需要串接 C03–C06。
+此映射细化既有 C 任务，没有新增另一套状态机或批次；C09–C12 仍只准备。
+后续可另行评估完整 Source 订阅、语义接单与复杂编排，本批不引入 DSH worker 工具、Feishu/GitHub 应用逻辑、
+Cordis 运行依赖、原型的额外人工容量槽、策略变化仅发提示或自动重开任务等部署选择。
+原型的 effect payload 更新会重置 attempts，不能照搬成可绕过 Coordica 累计重试的路径。
+所有原生推理、工具和上下文管理仍由所选 harness 完成；显式指定 harness 与上述事件机制相容。
+
+### 显式协作与后置编排
+
+指定执行目标的粒度是每次 Run/Assignment，不把整个 Task 固定为单 Agent。
+R2026-11-02.4 曾建议的协作程序契约是：按 Task/context 版本提交显式 Run、读取 TaskContext、记录绑定 Run/代际的结果与产物，
+以及将明确输入投递给该执行；首版复用 Run 作为 Assignment，不另建同义生命周期。
+多个执行者可在独立 Session/工作区按容量并行，控制层仍唯一负责 Task 状态和 TaskContext 版本写入。
+调用方可以等待结果再提交下一步，或同时提交无依赖工作；上下文关联本身不会自动选人或派发。
+自动拆任务、复杂依赖图、自动汇总评判、竞赛投票和无限递归仍不纳入本批。
+这些协作接口尚未实现，现按 R101 后置；TaskContext 与单次显式执行的记录仍保留在首期。
+不能把历史注册工具、旧开发调度或本次文档当作已支持声明。

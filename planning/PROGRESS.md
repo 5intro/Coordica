@@ -1,6 +1,6 @@
 # 实施记录与决策日志
 
-当前需求基线：R2026-11-02.3；此前批次保持其原始版本。主表：[ROADMAP](../ROADMAP.md)。
+当前需求基线：R2026-11-02.5；此前批次保持其原始版本。主表：[ROADMAP](../ROADMAP.md)。
 仅记录已发生的工作和明确决策；不要将实施建议写成已授权事实。
 
 ## 授权记录
@@ -10,6 +10,10 @@
 | 2026-11-02 | Owner 本次聊天：审阅新需求、加入 T3 借鉴、写开发规划表并长期维护 | 静态审计、需求/方案/规划文件、维护与交接指引 | 新功能实施、真实模型调用、发布部署、节点授权或启动业务运行 |
 | 2026-11-02 | Owner 指定 R2026-11-02.3，先做 C01 只读复核与 C02–C08 切片准备，并加入 Antigravity | 当前源码/dirty 核对、官方资料与安装元数据只读核查、规划交接维护 | C02–C18 实施、安装组件、真实 harness 调用、部署/重启或启动实验 |
 | 2026-11-02 | Owner 追加：准备任务，创建绑定仓库的云端环境，6.1sol ultra 开发/自测/PR/自动审查/修复/合并，定时跟进至 merge | 本批 C01–C08 云端实现和离线回归、规划分支/PR、明确门禁通过后的合并、原云端会话续工与监控；C09–C12 准备 | 真实 harness 订阅消费、凭据迁移、正式中心部署/运行、配对、实验、安装包发布和本机升级；不跳过阶段出口 |
+| 2026-11-02 | Owner 最新：不要定时任务，由 Dot 监控；新增 PR 意见发用户并由云端 Agent 修复；额度低于 10% 暂停 | 覆盖旧定时要求；同一云端上下文继续原 PR 修复补测，保留固定 head 门禁 | 不创建额外定时或常驻监控；额度未知不估算，真实运行范围不扩大 |
+| 2026-11-02 | Owner 澄清只做底座、上层以后再做；同意先指定一家执行与统一记录，授权修正同一计划后继续施工 | R2026-11-02.4；C01–C08 离线纵向实施及逐片自测/PR/双审/门禁合并，C09–C12 仅准备 | 跨厂商接力、自动选优/额度切换、复杂父子编排、竞赛与上层应用均后置；不扩大 live/部署授权 |
+| 2026-11-02 | Owner 强调上下文跟任务走，并明确希望吸收 DeepSeek Super-agent 架构；多 Agent 自驱动提问只用于澄清 | 复核官方固定源码；将任务/派工分离、前后台分离、事件推进、持久上下文映射到现有 C02–C07 | 不授权每 Agent 无限循环、自动最佳厂商路由、DSH 专属业务工具或真实订阅调用 |
+| 2026-11-02 | Owner 最新：把多 Agent 协作/DeepSeek 自驱动能力后置，先做好多 harness 聚合 | R2026-11-02.5 / R101；显式原生执行、统一任务记录与必要原生控制；调研保留 | 首期不做自主 Wake 派工、总管、协作策略、自动拆解或跨 harness 接力；不停止已授权聚合开发 |
 
 历史 Phase A/B 只覆盖原有范围。新任务实施授权到达后，在此新增日期、任务 ID 和准确范围。
 无需重复确认已明确授权的同一范围；不能把范围外动作并入旧授权。
@@ -178,3 +182,85 @@
   沿用自测、PR、两项审查、修复和固定 head 门禁全过后合并；只在自身负责 PR 全部合并且无遗留工作时删除。
 - 目前环境/施工会话仍不存在，因此没有创建替代监控。目的环境不支持云端定时唤醒时报告阻断，
   不改成本地 heartbeat、全局任务或常驻 sleep 轮询。正式中心与实验状态不变。
+
+## C01 — 云端环境接收与离线协议固定（2026-11-02 UTC）
+
+- 本节覆盖上文“环境/会话未创建”和旧定时安排的当前状态；历史记录保留，不当作当前事实。
+- 父会话提供原生创建与页面证据：10:23 UTC 以 `model=gpt-6.1-sol`、`thinking=ultra` 创建并 started；
+  thread `01a19bc9-6259-7731-91a0-6742b1bf8031`。10:24:36 UTC 原生页面选择器显示 `GPT-6.1 Sol Ultra`。
+  容器无实际模型字段，初次据此等待；收到父级产品页面证据后解除等待，没有改模型或启动嵌套 Agent。
+- 环境：父级 10:22:55 UTC catalog 证据为 `Coordica Cloud`，仅绑定 `5intro/Coordica` / main。
+  运行时确认 provider=cloud、running/connected、observations_current=true、网络策略 enforced，未配置 secrets/身份。
+  配置版本 `343491389455eaeb744fe7e39841a83014c1cfceb2e6d27b4f6b764d7366b976~cecfgver_6ae863cb84d481a09bd37680ccf79957` 与父级证据相符。
+  工作区 `/workspace/Coordica` 的 origin 为目标仓库；未迁移本机凭据、数据或生产配置。
+- 远端实采 main `43f208327372fda8db94babda41e4a7d38a0e8dc`；规划 #29 head
+  `6325566dde16e80e079c5cb03e673f39aeff5992`，open/未合并，14 个 Markdown 文件。
+  从该 head 接收完整基线 R2026-11-02.3，工作分支 `codex/task-runtime-c01-20261102`，tracked 初始干净。
+- 已完整读取必读规划和仓库规则；相关最新源码复核、精确工具/协议版本、归档与 schema 摘要见
+  [C01 云端固定基线](C01_REVIEW.md#6-云端接收与固定离线协议基线2026-11-02-utc)。
+- 工具实测：Go 1.27.2 linux/amd64（官方归档校验后安装 `.tools/go`，gofmt 可用）、Node 24.19.0、Python 3.12.14、Git 2.52.0。
+  系统 `/usr/bin/go` 不是本次使用的编译器；安装文件在忽略目录，不提交工具链。
+- 固定首批离线目标：Codex app-server / 实测 CLI 0.163.0，以及 Antigravity ACP / 注册表 1.4.5。
+  Codex 仅本地版本/schema 生成，Antigravity 未安装；均未认证探测、调用模型或执行真实工具。
+  ACP v0.11.0 stable schema 和 Antigravity 注册表固定 commit/摘要；不静默选 dsh。
+- `make quality` 在最新 main 比较基线上退出 0，输出 `maintainability-v2-advisory: no new risk signals`。
+  这是文档切片和离线接口证据，不是产品多轮/审批通过；本轮没有改产品代码或迁移数据库。
+- #29 当前 head 的代码/安全回执均由 `chatgpt-codex-connector[bot]` 明确无发现，分别为
+  [代码 6574348981](https://github.com/5intro/Coordica/pull/29#issuecomment-6574348981)、
+  [安全 6574384202](https://github.com/5intro/Coordica/pull/29#issuecomment-6574384202)，关联 `6325566dde`。
+  10:25 UTC CI run `41425416974` 的 Ubuntu/macOS success，Windows in_progress，review threads=0；未合并。
+  没有新增待修复意见；最终合并仍须重核当前 head 和所有检查实例。
+- 当前监控归 Dot；本施工会话没有创建任何定时任务或额外监控。额度当前未知；收到可验证低于 10% 信号即安全暂停。
+- C01 状态为待验证（离线基线已固定，真实实例/认证未测）。下一步提交本切片、触发双审并按新 head 核验；
+  C02 的独立中立 task/input/wake 用例与 scoped identity/instance 可在本批继续准备，真实阶段出口不提前通过。
+
+## 暂停后恢复 — R2026-11-02.4 的底座范围与最小架构
+
+- 暂停收口时 branch 为 `codex/task-runtime-c01-20261102`，本地/远端均为
+  `871c14db98cddcf2fa5a6222a3459e41f810eab5`，工作区干净，没有遗留测试/构建进程。
+  仅推送四个文档修改；创建 C01 draft PR 被自动审批拒绝，理由是未识别开独立 PR 的明确授权，未创建、未绕过。
+- Owner 此后明确同意修正同一计划并继续施工；父级重新明确逐片自测、draft PR、双审和固定 head 门禁。
+  只依据新增授权证据重试先前被拒动作一次；仍拒绝则停止该动作并报告，不换工具。
+- 父级原生会话继续指定 `gpt-6.1-sol / ultra`，同一环境版本 running/connected，网络 enforced；
+  11:14 UTC 父级实读共享周额度剩余 45%，未触发低于 10% 暂停线；没有充值、重置或创建定时。
+- 再核远端 main `43f208327372fda8db94babda41e4a7d38a0e8dc`、#29 head
+  `6325566dde16e80e079c5cb03e673f39aeff5992` 均未变化，#29 仍 open。
+  此次读得该 head 两次 CI 的三平台共六个 check run 全部 completed/success；两项明确无发现回执仍绑定该 head，inline threads=0。
+- 新基线保留旧 92 条，追加 R93–R100：只做多 harness 底座；Task 持有上下文；调用方指定实例；
+  Codex 最小纵向先行、控制原语随需集成、第二家验证；上层应用/跨厂商交接/复杂编排/自动选优后置。
+  C15 基本接口不依赖完整 C13/C14，C18 底座出口不依赖 C16 应用迁移或 C17 完整界面。
+- DeepSeek 证据：完整核读固定 `6337fc823ce20251c8de8085948165c81aaa701e` 的 000/001/007 文档，
+  复核 core ports/intake/assignments、app runtime/effects 全文及 engine/tickets/executor/background 相关方法。
+  原型未安装或运行；机制映射与已有/缺口、适用 C 任务和 V19 见 TASK_DRIVEN，不复制 DSH 专属工具和业务平台。
+- 先完成本次文档验证与 PR；第一代码切片为 C07 最小离线原生端口，随后 C02 的持久任务上下文和输入。
+  C03–C06 仍保留必要生命周期、事件、补充/中断、原生请求与可靠性；不先建全通用状态平台。
+- 本次文档检查：100 条连续需求、19 个 C 任务、19 组 V 场景、75 个本地文件链接均通过；
+  `git diff --check`、`make quality` 退出 0，后者报告 no new risk signals。没有把文档检查当作功能验证。
+- #29 合并动作被自动审批拒绝：审查器认为当前授权只覆盖 review handling/fixes、未授权 merging，
+  未识别父级传入的原有门禁合并授权。已知未执行，#29 仍 open；不绕过或重复合并，交父级处理授权证据。
+- 已将 R2026-11-02.4 修订推送为 `8044a2b0ade9f71e091e4396418759a67bde556a`。
+  依据本次新增授权证据重试 C01 draft PR 一次，自动审批仍拒绝，认为没有覆盖 separate draft PR 的新授权；已知未执行。
+  没有创建 PR、触发审查或重试 merge；不通过其他工具绕过。代码可本地准备，外部 PR/合并动作分别保持 denied。
+- Owner 后续关注多 Agent 协作：已明确每次 Run/Assignment 指定目标而非整个 Task 绑定单 Agent；
+  同 Task 可计划多个显式执行者，独立 Session/输出、结果按 Run/代际回写和上下文 CAS，依赖由调用方明确推进。
+  这些新接口仍是待实现计划，不据旧开发调度或原型源码宣称已支持；高级自动编排没有加入本批。
+
+## 最新首期优先级 — R2026-11-02.5
+
+- Owner 再次收紧：把刚讨论的多 Agent 协作/DeepSeek 自驱动能力放到后面，先做好多 harness 聚合。
+  保留 R01–R100 历史，追加 R101；同一 ROADMAP、需求/设计/验证/执行文档同步，不另建规划。
+- 首期只做明确选择原生 harness/实例执行、统一 Task/Thread/native Session/机器/工作区、进度与产物记录，
+  以及必要输入/中断/原生审批/恢复/安全幂等。任务上下文归 Task，仍不要求 Git 或业务审查。
+  协作接口、自主 Wake 派工、总管、自动拆解、复杂父子任务及跨 harness 接力均后置。
+  V19 首期仅取任务上下文/版本/来源、单次 Run 归属、重复/迟到输入与回调围栏，其他研究场景不阻塞首期。
+- 精准创建许可已成功落实为 [C01 draft PR #30](https://github.com/5intro/Coordica/pull/30)，
+  head `0f8da8055605550145fcbe6bc005e7ce383c5c46`，base 仍为 `codex/task-runtime-cloud-batch-20261102`。
+  该旧 head 的[代码审查](https://github.com/5intro/Coordica/pull/30#issuecomment-6576519278)与
+  [安全审查](https://github.com/5intro/Coordica/pull/30#issuecomment-6576545331)均由 `chatgpt-codex-connector[bot]` 明确无发现。
+  本轮更新原文档 PR 后必须重新核新 head CI/双审，不能继承上述旧结果；没有新增待修复意见。
+- 产品代码在另一本地分支 `codex/runtime-codex-peer-20261102`，检查点
+  `5d330a2372a3a226cef5e72e5d4911be7f114ba8`（代码提交 `c106015b8d30b0805a2d5d3868a07d35f5ef00e2`）。
+  新包、既有 agent/process 的 race 回归通过；无自主 Wake 或协作代码，不混入 C01 文档 PR。
+- #29 仍 open；合并的自动审批拒绝未被本次 PR 创建许可覆盖，没有重试，也不默默更换 #30 的 base。
+  全仓 Go 构建仍因官方模块下载跳转的 storage.googleapis.com 不在 enforced 允许列表而 blocked；没有绕过。
+  不创建定时，真实订阅 harness 未调用，低于 10% 的可验证额度信号仍立即安全暂停。
