@@ -1,5 +1,10 @@
 # Execution trust boundary
 
+The [runtime roadmap](ROADMAP.md) changes the target product scope, not the security guarantees of the current build.
+Git/candidate gates below remain development-application checks; generic runtime work must retain explicit authority,
+identity fencing and stop evidence without requiring Git. Cloud development does not grant execution authority or prove
+multi-tenant OS isolation. New runtime APIs must introduce scoped identities without widening existing credentials.
+
 Coordica runs authorized development on the Owner's trusted private computers.
 It is not a service for executing hostile repositories or arbitrary contributors'
 code on a credentialed host. Treat repository content and model output as

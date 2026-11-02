@@ -1,0 +1,252 @@
+# 原生 Harness 基础设施实现方案
+
+状态：建议方案，尚未实现。基线 R2026-11-02.3；任务与授权见 [ROADMAP](../ROADMAP.md)。
+以下名称和路由是待 C01/C02 固定的契约草案，不是当前可用 API；实现时维护对应变更记录。
+首个 C02–C08 切片的模块、接口、来源证据和最小验证见 [C01 复核](C01_REVIEW.md)。
+该切片包含 Antigravity 官方 ACP 的适配评估；尚未改变当前协议注册表或执行行为。
+
+## D01：职责、实体和调度归属
+
+任务驱动优先：Task 是工作生命周期中心，Session 是执行资源；用户会话不是调度前置条件。
+程序、原生主控和上层事件均可按授权提交工作；工作 Turn 必须关联 Task/Run。
+完整补充见 [任务驱动与 DeepSeek 参考](TASK_DRIVEN.md)，包括 TaskInput、WakeIntent 和消息消费事实。
+
+保留 Go、现有 SQLite 事务、Center–Runner 分工和协议适配器。先在单进程中形成清晰模块边界，
+不为了抽象拆成微服务。底座不依赖 Git、需求验收、审查政策、内容库或公司知识库。
+
+| 边界 | 负责 | 不负责 |
+| --- | --- | --- |
+| 原生协议适配器 | 进程/连接、能力协商、原生请求响应、事件转换 | 排队、业务授权、验收、重新推理 |
+| 会话运行管理 | 会话绑定、轮次、消息送达、待处理请求、生命周期 | 通用工具循环或业务阶段 |
+| 调度应用用例 | Task/Run、节点准入、依赖、优先级、租约、取消传播 | 判断“代码审查通过”或选择更便宜的模型 |
+| 持久化/进程适配 | 事务、游标、去重、outbox；进程与停止事实 | 状态授权决定 |
+| 开发应用 | Git 工作区、需求、候选、审查、测试、发布和业务批准 | 直接写底座内部表 |
+| 其他上层应用 | 角色讨论、个人事务、服务集成、长期知识和 UI | 自行解析每个 harness 协议 |
+
+拟先使用 `internal/runtime/` 承载中立实体与用例（目录布局由 C02 决定），复用 `internal/agent` 协议层、
+`internal/process` 和 store 边界；不把新功能继续全部加到现有巨大 `Service` 接收者上。
+公共契约独立于内部 struct；HTTP、CLI、MCP 只转换输入并调用相同用例。
+
+| 实体 | 身份与关系 |
+| --- | --- |
+| HarnessType | 驱动/协议身份与版本要求；可注册的类型，不承载账号 |
+| HarnessInstance | node_id、type_id、配置版本、认证引用、生效配置指纹；同类型可多实例 |
+| AuthBinding | 节点本地官方凭据/profile 的引用、共享身份域；不保存可导出的订阅密钥 |
+| AgentDefinition | 上层拥有的角色标签、上下文引用、工具范围、实例/模型/节点约束与版本 |
+| AgentInstance | 本次激活的定义版本和执行策略快照；可执行多项 Task、关联多个会话 |
+| Task | 上层提交的工作单元；parent_id、dependencies、授权、重试/派生边界和 external_ref |
+| Run | Task 的一次受控执行尝试；attempt、generation、node、实例、模型、授权版本和租约 |
+| Session | Coordica 逻辑会话；所有权和当前原生绑定；允许多轮，生命周期独立于 Task |
+| SessionBinding | 原生 session/thread ID、节点、实例、认证域、工作区指纹和 binding_generation |
+| Turn | 一轮原生执行；run_id、session_id、原生 turn ID、送达消息与结构化终态 |
+| Message | 内容/附件引用、送达模式、幂等键、排队次序、原生确认和作用目标 |
+| PendingRequest | 原生提问或工具权限请求；问题、选项、作用域、版本、截止时间、答复送达状态 |
+| Event | 可持久补取的事实；实体关联、序号、来源、结构化载荷和诊断引用 |
+
+不要把这些身份压成一个 thread_id。Task 可重试产生多个 Run；Run 可含多个 Turn；Session 可跨 Run 复用，
+但每次复用重验授权和上下文。最初只实现真实用例需要的关系；不构建任意实体编排 DSL。
+Session 的活跃写入由单一所有者串行化，默认同一原生会话同一时间只有一个活跃 Turn。
+
+每项工作记录 `scheduling_owner = coordica | harness | external`。
+Coordica 委派才创建其调度的子 Task；原生子 Agent 是观察记录，不能同时再派一个 Coordica Task 执行同份工作。
+`external` 表示仅关联观察，不能假装底座有停止权限。未知原生子树记 `observability=partial/unknown`。
+父子身份、创建主体和来源都须记录；角色名不决定权限。
+
+## D02：实例、能力和原生扩展
+
+C02 只提供首批实例身份和最小静态能力，C09/C10 再补完整配置与发现。
+类型注册描述协议驱动；实例描述本机可执行文件、profile/config 引用和所有者。
+不得因实例 ID 不同就声称登录、磁盘、缓存或并发额度隔离。
+同一 AuthBinding 的登录切换、退出、配置修改需要互斥，不能与依赖此身份的新会话创建竞态。
+活跃会话如何受影响由原生协议决定；不可确认时阻止变更或标注需要停止，不后台换账号。
+
+能力记录建议包括：`name, support, conditions, source, observed_at, expires_at, platform, harness_version,
+instance_config_version, evidence_ref`；support 为 `supported | unsupported | unknown | conditional`。
+安装存在、版本兼容、认证状态、特定能力可用、最近调用结果分别记录，不合成万能 online。
+support 表示协议/环境能力，execution authorization 另验；成功读文件不证明任意工具权限。
+
+模型目录和配置选项带来源：`native_reported | explicit_unverified`，保存原生选项描述和约束。
+发现失败时允许显式填写合法标识，但不得伪造已验证状态。执行必须同时满足本地策略与原生接口可表达性；
+原生拒绝即返回错误。对显式值进行长度、类型和参数注入校验，不强制必须属于动态目录。
+能力 unknown 默认不能满足“必须具备”的自动路由要求；显式验证请求可在授权下探测，不静默降级。
+
+适配器以窄操作接口提供能力：创建/恢复、发起 Turn、追加信息、中断、答复请求、释放、读取快照。
+生命周期、调用关联和事件标准化统一，协议差异留在适配器；不要求所有实现都假装支持全部方法。
+旧 `Execute` 可以作为一次性兼容 facade，但持久会话不能在每次 Turn 结束时无条件关闭进程。
+Codex 是否使用 app-server、其他 harness 使用何种官方接口，由 C01 针对固定版本核实。
+不得靠解析自然语言或 CLI 提示屏幕伪造协议终态及审批成功。
+
+skills/MCP/工具配置记录 global、instance、workspace、session 的生效来源和合并顺序；返回 effective_config。
+不能只复制配置文件就认定原生端已加载；读取原生报告或使用测试夹具确认调用。
+浏览器、Computer Use、图像输入/输出各自拥有能力项和真实验证记录。
+扩展采用 `namespace + version + schema + required_capabilities`，经同一授权与大小限制检查。
+扩展不能作为任意命令/权限逃生口，也不能要求核心 switch 厂商名。
+
+## D03：会话、轮次、消息与切换
+
+Session 状态建议 `creating/ready/busy/suspended/recovering/released/unknown`；
+Turn/Run 记录 `queued/starting/running/waiting_input/waiting_quota/succeeded/failed/interrupted/cancelled/unknown`。
+Task 的执行状态由已记录依赖和 Run 事实推导；上层业务验收另存。
+`succeeded` 仅表示原生执行按契约成功结束，不意味着摘要正确、外部动作达成或业务已验收。
+取消首先产生 cancel_requested，只有适用原生确认和停止证据满足策略才进入 cancelled。
+停止证据必须对应请求的层级：Turn、Session、Task 子树分别记录。持久协议服务器仍存活不等于 Turn 未结束，
+但 Turn 终结也不自动证明它启动的后台工具已停止；适配器需报告残留工作及观测范围。
+不能为复用旧 TreeStopped 字段而在每轮结束杀掉整个持久会话；旧开发快照仍需相应静止证据。
+
+| 操作 | 精确定义 |
+| --- | --- |
+| queue | 保存消息等待当前 Turn 终结；默认不打断，队列可单独撤回 |
+| steer | 向指定活跃 Turn 补充输入；必须有能力与 binding/turn 围栏；不支持则明确拒绝 |
+| interrupt | 请求停止当前 Turn，不隐式创建下一轮，不自动释放逻辑 Session |
+| resume | 绑定/恢复原生上下文；本操作本身不重复执行上一条任务消息 |
+| release | 结束并释放会话资源；忙时先走明确停止策略，未确认停止不得报告释放成功 |
+| cancel_task | 取消排队项及策略覆盖的运行/后代；与会话释放是独立决定 |
+
+Message 有 accepted、queued、dispatching、delivered、rejected、cancelled、delivery_unknown 等送达事实。
+持久接收不等于原生已接收；没有原生确认的协议必须标明证据等级。
+steer 与 Turn 结束竞态返回 stale_target；只有调用者明确选择“转下一轮”才转队列。
+恢复前核对节点、认证域、harness 版本、工作区、权限和 binding_generation；不能跨节点直接复用 session ID。
+原生不支持恢复时返回原因，可另提出“新会话+上下文交接”；不得将它标作原生恢复。
+
+借鉴 T3 的切换分类：reuse / apply_next_turn / restart_resume / create_with_handoff / reject。
+每次变化由适配器给出支持分类，应用用例检查授权和当前执行；不能依据相同厂商名推定可续接。
+模型、实例、节点变化固定到下一 Run/Turn；执行中配置修改不改变正在运行的快照。
+上下文交接材料包括来源引用、已完成工作、未完成工作、工具产物和限制；作为资料而非授权。
+不要求提取隐藏思维链。对附件进行大小、可访问性和跨节点传递检查。
+
+## D04：提问、审批与授权
+
+三种对象独立：原生 `tool_permission`、上层 `business_confirmation`、底座 `execution_authorization`。
+业务确认不自动批准工具权限；Agent 文本、子任务摘要和能力报告均不能代替人类决策。
+第一阶段只需要通用 PendingRequest 的原生提问/权限类型；业务确认通过上层引用关联。
+
+PendingRequest 固定 request_id、原生 request ID、请求种类、问题/可选动作、创建来源、session binding、
+run/turn/generation、授权版本、有效范围、到期时间、状态和允许答复主体。
+状态链：pending → response_recorded → response_delivered；另有 rejected/expired/cancelled/delivery_unknown。
+“已保存回答”与“原生已接受”分开呈现；答复不应凭响应 HTTP 200 直接记原生执行成功。
+
+答复在事务内核对：调用主体、所有权、当前请求版本、当前 binding、活跃执行、到期和现行授权。
+相同幂等键和内容返回原回执；同键不同内容冲突；不同主体不能借重放读取他人的答复。
+请求状态更新、审计和 outbox 同事务；事务外发给原生端。
+原生响应丢失时按其能力查询或幂等重送；无法判定则 delivery_unknown，不能重复批准外部影响操作。
+重连展示持久请求；进程重启后原生回调已失效则明确过期，不能把旧 ID 答给新的进程。
+如果原生支持重新关联，须经快照对账确认请求仍存在，再恢复答复通道。
+
+等待人工不持有数据库事务或全局工作锁。活跃原生进程仍计入节点容量，避免无限挂起进程。
+只有支持安全挂起/释放的协议可释放相应执行槽；其他节点和无依赖任务继续调度。
+人工等待超时与进程停止超时独立；超时不能视作默认同意。
+策略回退必须有显式支持和记录，例如拒绝后由用户重新提交；不能模拟许可成功。
+
+## D05：事件、事务、送达和错误
+
+事件信封：schema_version、event_id、stream_id、sequence、occurred_at、received_at、origin、
+task_id/run_id/session_id/turn_id/agent_instance_id/node_id/instance_id、generation、payload、raw_ref。
+不适用关联字段允许为空，不制造假任务或假 Git 项目填字段。
+事件类别至少覆盖 execution.started、output.delta、tool.activity、request.created/resolved、
+execution.waiting、execution.failed/ended、session.updated、usage.observed。
+命令输出可聚合，关键状态与请求必须无损；只保证已声明流内顺序，不承诺跨节点墙钟全序。
+
+复用当前状态+audit+outbox 事务模式；不要求把整个系统重写成完整 event sourcing。
+Runner 使用持久 spool 和来源序号/事件 ID 重送，Center 唯一约束去重；generation 防旧事件推进新状态。
+游标 API 返回 next_cursor，支持重连补取；超出保留窗口返回明确 cursor_expired 和快照恢复路径。
+配置输出字节、保留期、订阅背压和磁盘上限；原始事件私有、脱敏、有界，不能保存秘密到公共仓库。
+传输订阅断开只影响消费者，不取消执行；执行取消走独立授权命令。
+
+启动使用持久 command_id/attempt/generation/dispatch_id：先记录意图，再节点幂等接收，再启动/记录原生身份。
+对“原生启动成功但身份落盘失败”窗口，优先查询原生运行和进程证据；不能证明未启动则 unknown。
+不得承诺所有外部副作用 exactly-once；只保证底座可证明范围内的去重和保守重试。
+对可安全重放的效果明确标记；进程启动、批准工具、发消息等不可仅因超时自动重放。
+
+错误包含 code、source、retryability、detail、evidence_ref、suggested_action；至少区分 auth_required、
+usage_limit、unsupported、version_incompatible、tool_unavailable、protocol_error、transport_lost、
+stale_request、permission_denied、stop_unconfirmed、external_effect_unknown。
+建议是可展示说明，不是自动扩权命令。错误不能从模型文本猜测，尽量来自协议/进程结构化事实。
+
+## D06：调度、委派与资源
+
+调度先过滤硬条件：当前授权、依赖、节点有效心跳、实例启用、真实能力、模型/选项、认证域、工作区、容量。
+再按显式优先级、队列年龄与节点偏好排序；配置有界 aging 防低优先级饥饿。
+不把未知能力当支持，不自动选低质量模型。返回结构化排队原因，便于解释为何尚未派发。
+必须在 claim 事务内再次验证，预读和探测结果不产生执行授权。
+
+限制分为节点进程、实例会话、认证域原生约束、任务并发与共享资源。
+初期使用显式容量；资源遥测未接入前不声称 CPU/内存感知。未来遥测只能收紧已授权配置，过期时保守处理。
+人工等待、限额等待和依赖等待分别计量；不是所有 waiting 都可以安全释放进程容量。
+租约过期阻止新的授权动作，但不自动证明旧进程已停止；保留 unknown 占位，禁止重复执行。
+
+父子 Task 有同一工作来源、调度所有者、权限交集、深度、总派生数、同时执行数、重试上限及策略版本。
+派生限制累计计算，重试/改名/换实例不能重置。依赖图拒绝环；普通成功依赖默认要求前驱 execution_succeeded。
+等待任意终态用于结果收集，必须显式指定；前驱失败不能悄悄解锁成功依赖。业务通过由上层授权信号明确指定。
+结果汇总先提供结构化结果引用和终态集合；由上层/原生主控决定如何总结，不内置额外模型调用。
+父任务取消事务性标记后代 cancel_requested，异步传播；每个子项保留停止回执，未确认的不可算已取消。
+完成通知使用 outbox、唯一 delivery_id 和消费回执；重复通知不能启动第二轮父任务。
+有界等待到期不等于取消子任务；是否唤醒父会话由显式策略和当前权限决定。
+
+参考 T3 的 delegate/status/cancel 与父会话唤醒，但跨节点统一经过 Center 权威调度，不另建绕过授权的 peer 派发通道。
+原生主控通过最小权限 MCP/API 提交同一个用例；程序客户端同样可提交。
+主控本身也是受管执行者，不能获得 Owner 凭据。默认不授予原生递归派生；启用时记录观测能力和限制。
+文件策略可选共享目录或隔离工作区，由上层和节点配置决定；开发并行默认保留独立固定快照。
+不能照搬 T3 默认 shared checkout 到需要隔离的写任务。
+
+## D07：恢复、认证与额度
+
+启动时对账持久 Run、spool、租约、进程身份、原生快照与 pending requests。
+输出分类：仍在运行、可恢复上下文、已停止、未知；每类带证据来源和时间。
+PID 只是线索，必须检查进程身份/启动代际；不同平台分别验证，不用跨编译代替真实停止测试。
+保留 Coordica 的停止证明与旧 generation 拒绝；不把启动后未观察到输出当成失败。
+恢复上下文、恢复事件消费、重送结果、重试工作是四种操作，使用各自幂等键和前置条件。
+未知外部影响不能自动重试；重试不重置累计次数和计量。新授权不能悄悄替换旧 Run 快照。
+
+每台节点保留自身官方登录；Center 仅持有认证引用与状态，不集中提取订阅 token。
+上层凭据用显式工具/上下文访问范围注入；默认不继承 Center 管理、发布或其他应用身份。
+现有可信私人主机边界继续成立；文件目录、进程组、权限模式都不是 OS 沙箱。
+云端验证使用单独环境与授权；无法提供官方登录或隔离条件时记阻断，不拷贝本地账号目录解决。
+
+UsageObservation 记录 source、scope（账号/实例/模型）、单位、原生值、重置时间、observed_at/有效期。
+拿不到就是 unknown；token、费用、原生百分比不能互相无依据换算，也不能把历史上报当实时余额。
+限额错误进入 waiting_quota/paused；准确 reset_at 且配置了自动恢复时，到期重验当前授权再启动。
+无 reset_at 则等待明确刷新/人工策略；不能高频重试、轮换账号绕限制。
+账号/模型/harness 切换必须命中显式策略，记录原因及上下文交接方式，不假装原生恢复。
+
+## D08：上层接口和诊断
+
+建议先在独立 experimental 命名空间试行，C15 再冻结 `/api/runtime/v1`；不改变现有开发 `/api/v1` 语义。
+契约包含版本、错误结构、幂等键、expected_version、分页、游标和能力要求；提供 JSON Schema 与示例客户端。
+上层持有 app_id、external_ref 和最小 scope，不能访问内部 DB，也不能冒用另一应用的实体引用。
+授权必须在读、写、事件订阅、幂等重放前执行；多应用鉴权不等于已提供敌对多租户 OS 隔离。
+
+| 接口组（草案） | 操作 |
+| --- | --- |
+| harness-types / instances / capabilities | 注册、配置、探测、读取快照和证据；敏感配置只返回引用 |
+| agents / agent-instances | 定义版本和激活记录，不自动运行任务 |
+| tasks / runs | 提交、读取、取消、显式重试、依赖与子任务查询 |
+| sessions | 创建、读取、恢复、消息投递、轮次中断、释放 |
+| requests | 分页查询、单项读取、带版本的答复和状态补取 |
+| attention | 按权限和来源聚合待处理、分页/详情及可用动作；处理调用原用例，不提供万能解除阻断命令 |
+| events | 有界查询和流订阅，游标重连，按所有权过滤 |
+| artifacts / context-refs | 内容类型、摘要、访问范围和过期时间；底座不决定长期记忆 |
+
+最小运行界面使用“任务＋待处理”；另保留实例/能力、节点、会话/Run 和事件的配置诊断。
+业务审批文案、群聊成员、日程、文章库、公司权限映射由上层实现。
+R92 已确认需求池和业务审查池归上层，详见 [任务与待处理边界](POOL_BOUNDARIES.md)。
+待处理由 Task/Run/PendingRequest 及实例事实推导，不建第二套 Blocker 状态机；同一任务可关联多个原因。
+正常排队/依赖/可自动恢复额度等待显示在任务详情，需回答、修复或核对的事项才默认进入待处理。
+投影可重建；操作执行时重验来源版本及当前权限，清除显示不能解除条件或改写执行结果。
+插件采用显式可信注册、版本兼容和能力说明；先做编译期/配置注册，暂不增加任意远程代码加载平台。
+接口版本升级提供迁移期和废弃说明；未知扩展字段不得赋予权限。
+
+## D09：现有开发应用渐进分离
+
+先新增中立路径验证非 Git 工作，再用桥接层把开发任务执行请求映射到中立执行单元。
+需求池和业务审查池归开发应用；应用继续拥有原 Requirement/Task/Candidate、范围、Goal、审查、测试和发布状态；
+底座拥有 Run/Session/Turn 的执行事实，两侧以稳定引用及版本关联，不双写相同状态机。
+映射须明确 old_task_id/old_run_id 与 runtime IDs 的关系和唯一约束，便于回滚和去重。
+
+迁移顺序：只读映射 → 显式选择的新执行路径 → 同一证据投影 → 扩大新路径覆盖 → 逐步移除旧调用耦合。
+影子验证不得启动第二份真实任务。旧数据和旧 API 仍可读；不在第一阶段全表迁移。
+迁移时单一调度所有者切换有明确切点：先停收新任务、确认活跃执行、再切换路由，禁止双调度。
+数据库升级备份、版本检查、回滚读写限制及事件对账必须在 C16/C18 演练。
+回滚遇到新协议活跃会话先停止或保留新进程处理，不让旧版本猜测其状态。
+
+开发验收以原有固定候选、测试、独立审查和主线终检为准，底座成功事件只提供执行证据。
+原来的 M02–M08 整改随受影响模块推进；职责分离不以搬文件和减少行数作为完成证据。
