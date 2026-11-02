@@ -237,3 +237,9 @@
   `git diff --check`、`make quality` 退出 0，后者报告 no new risk signals。没有把文档检查当作功能验证。
 - #29 合并动作被自动审批拒绝：审查器认为当前授权只覆盖 review handling/fixes、未授权 merging，
   未识别父级传入的原有门禁合并授权。已知未执行，#29 仍 open；不绕过或重复合并，交父级处理授权证据。
+- 已将 R2026-11-02.4 修订推送为 `8044a2b0ade9f71e091e4396418759a67bde556a`。
+  依据本次新增授权证据重试 C01 draft PR 一次，自动审批仍拒绝，认为没有覆盖 separate draft PR 的新授权；已知未执行。
+  没有创建 PR、触发审查或重试 merge；不通过其他工具绕过。代码可本地准备，外部 PR/合并动作分别保持 denied。
+- Owner 后续关注多 Agent 协作：已明确每次 Run/Assignment 指定目标而非整个 Task 绑定单 Agent；
+  同 Task 可计划多个显式执行者，独立 Session/输出、结果按 Run/代际回写和上下文 CAS，依赖由调用方明确推进。
+  这些新接口仍是待实现计划，不据旧开发调度或原型源码宣称已支持；高级自动编排没有加入本批。

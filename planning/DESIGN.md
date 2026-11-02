@@ -42,7 +42,7 @@ Thread 跨厂商保持引用不表示原生状态可迁移；显式新 Session �
 | AgentInstance | 本次激活的定义版本和执行策略快照；可执行多项 Task、关联多个会话 |
 | Task | 上层提交的工作单元；parent_id、dependencies、授权、重试/派生边界和 external_ref |
 | TaskContext | Task 拥有的有界、版本化材料/决策/进度/产物引用，保留来源；不是原生隐藏状态的副本 |
-| Run | Task 的一次受控执行尝试；attempt、generation、node、实例、模型、授权版本和租约 |
+| Run / Assignment | Task 的一次显式派工及受控执行尝试；首版复用 Run，不另建同义 Assignment 状态机；固定 attempt、generation、node、实例、模型、授权版本和租约 |
 | Thread | 中立逻辑线程与统一记录；关联 Task/Run 和各自原生绑定，不作为自动跨厂商迁移机制 |
 | Session | Coordica 逻辑会话；所有权和当前原生绑定；允许多轮，生命周期独立于 Task |
 | SessionBinding | 原生 session/thread ID、节点、实例、认证域、工作区指纹和 binding_generation |
@@ -59,6 +59,11 @@ Session 的活跃写入由单一所有者串行化，默认同一原生会话同
 两者共享 Task 权威用例，入口不自建任务状态；首版不要求常驻主控模型。
 输入/结果/审批答复触发已有 WakeIntent，事务中重验授权、版本和唯一调度归属，提交后才执行效果。
 正常依赖/审批/额度等待不空转，不给每个 Agent 增加无限轮询。完整 Source 连接器和语义接单留在后续/上层。
+
+Task 的单一控制负责人不等于只能有一个执行者。调用方可明确提交多个 Run，各有固定目标、授权快照和独立 Session/输出；
+独立工作只有在范围、容量和资源满足时并行。依赖工作先由调用方读取前一步结果再显式提交，首版不要求自动依赖图或选人。
+结果以 Run/代际关联回 Task，TaskContext 更新串行检查版本；同 Task 的结果不能互相冒领，不能争写同一 native Session。
+上述是首版拟交付的接口边界，当前旧开发代码和本次文档不构成这些新协作接口已实现的证据。
 
 每项工作记录 `scheduling_owner = coordica | harness | external`。完整父子编排留待 C13，首版不为该扩展提前建设调度框架。
 Coordica 委派才创建其调度的子 Task；原生子 Agent 是观察记录，不能同时再派一个 Coordica Task 执行同份工作。
