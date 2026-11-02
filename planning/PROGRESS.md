@@ -10,6 +10,7 @@
 | 2026-11-02 | Owner 本次聊天：审阅新需求、加入 T3 借鉴、写开发规划表并长期维护 | 静态审计、需求/方案/规划文件、维护与交接指引 | 新功能实施、真实模型调用、发布部署、节点授权或启动业务运行 |
 | 2026-11-02 | Owner 指定 R2026-11-02.3，先做 C01 只读复核与 C02–C08 切片准备，并加入 Antigravity | 当前源码/dirty 核对、官方资料与安装元数据只读核查、规划交接维护 | C02–C18 实施、安装组件、真实 harness 调用、部署/重启或启动实验 |
 | 2026-11-02 | Owner 追加：准备任务，创建绑定仓库的云端环境，6.1sol ultra 开发/自测/PR/自动审查/修复/合并，定时跟进至 merge | 本批 C01–C08 云端实现和离线回归、规划分支/PR、明确门禁通过后的合并、原云端会话续工与监控；C09–C12 准备 | 真实 harness 订阅消费、凭据迁移、正式中心部署/运行、配对、实验、安装包发布和本机升级；不跳过阶段出口 |
+| 2026-11-02 | Owner 最新：不要定时任务，由 Dot 监控；新增 PR 意见发用户并由云端 Agent 修复；额度低于 10% 暂停 | 覆盖旧定时要求；同一云端上下文继续原 PR 修复补测，保留固定 head 门禁 | 不创建额外定时或常驻监控；额度未知不估算，真实运行范围不扩大 |
 
 历史 Phase A/B 只覆盖原有范围。新任务实施授权到达后，在此新增日期、任务 ID 和准确范围。
 无需重复确认已明确授权的同一范围；不能把范围外动作并入旧授权。
@@ -178,3 +179,34 @@
   沿用自测、PR、两项审查、修复和固定 head 门禁全过后合并；只在自身负责 PR 全部合并且无遗留工作时删除。
 - 目前环境/施工会话仍不存在，因此没有创建替代监控。目的环境不支持云端定时唤醒时报告阻断，
   不改成本地 heartbeat、全局任务或常驻 sleep 轮询。正式中心与实验状态不变。
+
+## C01 — 云端环境接收与离线协议固定（2026-11-02 UTC）
+
+- 本节覆盖上文“环境/会话未创建”和旧定时安排的当前状态；历史记录保留，不当作当前事实。
+- 父会话提供原生创建与页面证据：10:23 UTC 以 `model=gpt-6.1-sol`、`thinking=ultra` 创建并 started；
+  thread `01a19bc9-6259-7731-91a0-6742b1bf8031`。10:24:36 UTC 原生页面选择器显示 `GPT-6.1 Sol Ultra`。
+  容器无实际模型字段，初次据此等待；收到父级产品页面证据后解除等待，没有改模型或启动嵌套 Agent。
+- 环境：父级 10:22:55 UTC catalog 证据为 `Coordica Cloud`，仅绑定 `5intro/Coordica` / main。
+  运行时确认 provider=cloud、running/connected、observations_current=true、网络策略 enforced，未配置 secrets/身份。
+  配置版本 `343491389455eaeb744fe7e39841a83014c1cfceb2e6d27b4f6b764d7366b976~cecfgver_6ae863cb84d481a09bd37680ccf79957` 与父级证据相符。
+  工作区 `/workspace/Coordica` 的 origin 为目标仓库；未迁移本机凭据、数据或生产配置。
+- 远端实采 main `43f208327372fda8db94babda41e4a7d38a0e8dc`；规划 #29 head
+  `6325566dde16e80e079c5cb03e673f39aeff5992`，open/未合并，14 个 Markdown 文件。
+  从该 head 接收完整基线 R2026-11-02.3，工作分支 `codex/task-runtime-c01-20261102`，tracked 初始干净。
+- 已完整读取必读规划和仓库规则；相关最新源码复核、精确工具/协议版本、归档与 schema 摘要见
+  [C01 云端固定基线](C01_REVIEW.md#6-云端接收与固定离线协议基线2026-11-02-utc)。
+- 工具实测：Go 1.27.2 linux/amd64（官方归档校验后安装 `.tools/go`，gofmt 可用）、Node 24.19.0、Python 3.12.14、Git 2.52.0。
+  系统 `/usr/bin/go` 不是本次使用的编译器；安装文件在忽略目录，不提交工具链。
+- 固定首批离线目标：Codex app-server / 实测 CLI 0.163.0，以及 Antigravity ACP / 注册表 1.4.5。
+  Codex 仅本地版本/schema 生成，Antigravity 未安装；均未认证探测、调用模型或执行真实工具。
+  ACP v0.11.0 stable schema 和 Antigravity 注册表固定 commit/摘要；不静默选 dsh。
+- `make quality` 在最新 main 比较基线上退出 0，输出 `maintainability-v2-advisory: no new risk signals`。
+  这是文档切片和离线接口证据，不是产品多轮/审批通过；本轮没有改产品代码或迁移数据库。
+- #29 当前 head 的代码/安全回执均由 `chatgpt-codex-connector[bot]` 明确无发现，分别为
+  [代码 6574348981](https://github.com/5intro/Coordica/pull/29#issuecomment-6574348981)、
+  [安全 6574384202](https://github.com/5intro/Coordica/pull/29#issuecomment-6574384202)，关联 `6325566dde`。
+  10:25 UTC CI run `41425416974` 的 Ubuntu/macOS success，Windows in_progress，review threads=0；未合并。
+  没有新增待修复意见；最终合并仍须重核当前 head 和所有检查实例。
+- 当前监控归 Dot；本施工会话没有创建任何定时任务或额外监控。额度当前未知；收到可验证低于 10% 信号即安全暂停。
+- C01 状态为待验证（离线基线已固定，真实实例/认证未测）。下一步提交本切片、触发双审并按新 head 核验；
+  C02 的独立中立 task/input/wake 用例与 scoped identity/instance 可在本批继续准备，真实阶段出口不提前通过。
