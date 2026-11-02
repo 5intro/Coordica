@@ -1,6 +1,6 @@
 # 云端实施批次与审查闭环
 
-日期：2026-11-02（Asia/Shanghai）。当前需求基线 R2026-11-02.4，保留 R2026-11-02.3 历史记录。
+日期：2026-11-02（Asia/Shanghai）。当前需求基线 R2026-11-02.5，保留此前历史记录。
 任务主表仍为 [ROADMAP](../ROADMAP.md)，实施证据追加到 [PROGRESS](PROGRESS.md)。
 本文件是同一组 C 任务的工作包和操作约束，不建立第二套任务状态表。
 
@@ -36,7 +36,8 @@ C07/C08 可以分别交付离线适配 PR；未取得真实验证时，父任务
 由它驱动 C02–C06 必需的记录与控制契约，再用 C08 第二家验证；不先铺完整通用平台。
 调用方明确指定实例；统一 Task/Thread/Session/机器/工作区/产物/进度，保留各家原生推理与工具循环。
 需求/约束/决策/进度/产物和可见交接记录归 Task，入口线程及 Session 引用任务上下文，不迁移隐藏状态。
-DeepSeek 的任务/派工解耦、前后台分离和事件推进细化到现有 C02–C07，见 TASK_DRIVEN；不增加每 Agent 自循环。
+保留 DeepSeek 研究，但 R101 将协作/自驱动编排后置；C02–C07 仅采用可靠原生控制与统一任务记录的必要部分。
+首期不实现自主 Wake 派工、总管、协作策略、自动拆解或跨 harness 接力，不增加每 Agent 自循环。
 跨 harness 显式切换/摘要交接、复杂父子编排、竞赛、自动选优/额度切换后置。上层应用不列本批任务。
 
 每个 C 任务可包含多个聚焦 PR，PR 描述与 PROGRESS 要标出子范围；父任务完成状态不由 PR 数量决定。
@@ -45,7 +46,7 @@ DeepSeek 的任务/派工解耦、前后台分离和事件推进细化到现有 
 | 任务 | 本批工作包 / 主要模块 | 依赖与回归重点 |
 | --- | --- | --- |
 | C01 | 最新主线增量复核；固定官方协议 schema/发行版本和两种目标实例的接口证据 | 接收规划分支；记录 HEAD/dirty/工具版本；不继承本机安装或认证事实；来源未知保留未确认 |
-| C02 | 中立 task/input/wake 用例、最小 scoped identity/instance、store 持久化及一个 experimental 程序入口 | C01；无聊天/无 Git；同键异内容、事件合法扇出、取消后迟到输入、撤销后缓存回执拒绝、唯一唤醒 |
+| C02 | 最小 task/context/input、显式执行绑定、scoped identity/instance 和统一记录的 experimental 程序入口；必要时才加最小可靠命令意图 | C01；无聊天/无 Git；同键异内容、取消后迟到输入、撤销后回执拒绝、命令去重；不接自主 Wake 派工 |
 | C03 | session/binding/turn、typed native ID、单写者、read/resume/release 与最小 Runner 中立入口 | C02；两轮同绑定、跨应用/profile 拒绝、resume 不重发、释放不终结 Task、启动落盘间崩溃 unknown |
 | C04 | 先事件存储/来源去重/权限游标，再效果领取/ACK、Runner spool、背压和保留 | C02；与 C03 共用固定端口；同事件异内容、乱序/旧代际、慢消费者、cursor_expired、磁盘满、丢 ACK |
 | C05 | QueueInput / SteerTurn / InterruptTurn；HTTP/CLI/MCP 薄入口调用相同用例 | C03+C04；完成竞态、旧 Turn/binding、未知消费、明确不支持；steer 不转 queue，interrupt 不暗建下一轮 |
