@@ -44,6 +44,9 @@ func fakeServer() {
 				os.Exit(4)
 			}
 			replies++
+			if strings.HasPrefix(typed.scenario, "typed") {
+				typed.replies = append(typed.replies, frame)
+			}
 			continue
 		}
 		respond := func(result any) { fixturePrint(map[string]any{"id": frame.ID, "result": result}) }

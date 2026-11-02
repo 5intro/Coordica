@@ -70,3 +70,30 @@ flowchart LR
 The diagram describes adapter control, not completed Task persistence or
 authorization. The supervised test child validates wire fields and counts
 operations; its hand-written, schema-informed frames are not native recordings.
+
+## Native question and approval callbacks
+
+`Turn.Request` binds a received callback to the immutable connection/thread/turn
+target. Known user-input, command-approval and file-approval methods are handled
+separately; experimental user-input handling requires explicit negotiation.
+Question IDs, options, secret/other and blocking flags are preserved. Replies
+must address the actual question set; concurrent answers can queue only once.
+An approval forwards an offered decision unchanged in meaning. When a native
+list is absent, the pinned schema's four basic decisions are explicitly labeled
+`schema_default`, not advertised as discovered native options. Unknown methods,
+unoffered decisions, null/duplicate policy fields and broader amendments fail.
+Parameters and returned question/decision data are defensive copies, but still
+contain private material requiring caller-owned presentation/redaction policy.
+
+The transport invalidates a callback on `serverRequest/resolved` before publishing
+the notification. Resolution is not approval, and numeric/string IDs remain
+distinct. A resolved ID cannot be revived by a delayed callback. The authorized
+application can call `Turn.InvalidateRequests` when ending/revoking execution;
+this closes only its local answer channel, with at most 1024 target tombstones.
+It does not send a decision, stop work or create a new Turn. `turn/completed`
+alone does not invent request resolution or background-work stop evidence.
+
+All response receipts remain local `queued`. Durable PendingRequest/CAS,
+principal/authority checks, cross-restart reconciliation, event/outbox storage
+and native-consumption evidence still belong to the unimplemented C02–C06
+application boundary. This adapter is not exposed through the production Runner.

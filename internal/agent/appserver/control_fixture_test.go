@@ -13,6 +13,8 @@ type controlFixture struct {
 	active                  bool
 	directory, effort, text string
 	fallback                bool
+	callbacks               int
+	replies                 []envelope
 }
 
 func (f *controlFixture) handle(frame envelope, reply func(any), notify func(string, any), fail func(int)) {
@@ -27,6 +29,7 @@ func (f *controlFixture) handle(frame envelope, reply func(any), notify func(str
 		Effort         string                        `json:"effort"`
 		Fallback       *bool                         `json:"allowProviderModelFallback"`
 		Input          []struct{ Type, Text string } `json:"input"`
+		RequestID      json.RawMessage               `json:"requestId"`
 	}
 	if json.Unmarshal(frame.Params, &params) != nil {
 		fail(-32602)
@@ -101,17 +104,58 @@ func (f *controlFixture) handle(frame envelope, reply func(any), notify func(str
 			fail(-32001)
 			return
 		}
+		if f.scenario == "typed-interrupt-pending" && frame.Method == "turn/interrupt" {
+			reply(map[string]any{})
+			return
+		}
 		f.active = false
-		reply(map[string]any{})
 		status := "completed"
 		if frame.Method == "turn/interrupt" {
 			status = "interrupted"
 		}
 		notify("turn/completed", map[string]any{"threadId": "native-thread",
 			"turn": map[string]any{"id": id, "status": status, "items": []any{}}})
+		reply(map[string]any{})
+	case "fixture/requests", "fixture/malformed-question":
+		f.callbacks++
+		requestID := 6 + f.callbacks
+		question := fixtureQuestion()
+		question["turnId"] = id
+		question["questions"] = []map[string]any{{"id": "q1", "header": "Fixture", "question": "Choose a fixture value", "isSecret": true, "isOther": true,
+			"options": []map[string]string{{"label": "fixture option", "description": "fixture only"}}}}
+		if f.scenario == "typed-nonblocking" {
+			question["isBlocking"] = false
+		}
+		if frame.Method == "fixture/malformed-question" {
+			question["questions"] = []map[string]string{{"id": "q1", "header": "Fixture", "question": "one"}, {"id": "q1", "header": "Fixture", "question": "two"}}
+		}
+		fixturePrint(map[string]any{"id": requestID, "method": "item/tool/requestUserInput", "params": question})
+		fixturePrint(map[string]any{"id": fmt.Sprint(requestID), "method": "item/commandExecution/requestApproval", "params": map[string]any{
+			"threadId": "native-thread", "turnId": id, "itemId": "approval-1", "startedAtMs": 0,
+			"command": "fixture only", "availableDecisions": []string{"decline", "cancel"}}})
+		reply(map[string]any{})
+	case "fixture/file-approval", "fixture/unknown-request":
+		method := "item/fileChange/requestApproval"
+		if frame.Method == "fixture/unknown-request" {
+			method = "item/unknown/request"
+		}
+		fixturePrint(map[string]any{"id": 125, "method": method, "params": map[string]any{
+			"threadId": "native-thread", "turnId": id, "itemId": "file-1", "startedAtMs": 0}})
+		reply(map[string]any{})
+	case "fixture/resolve":
+		requestID := params.RequestID
+		if requestID == nil {
+			requestID = json.RawMessage(fmt.Sprint(6 + f.callbacks))
+		}
+		notify("serverRequest/resolved", map[string]any{"threadId": "native-thread", "requestId": requestID})
+		reply(map[string]any{})
 	case "fixture/status":
+		var last json.RawMessage
+		if len(f.replies) > 0 {
+			last = f.replies[len(f.replies)-1].Result
+		}
 		reply(map[string]any{"starts": f.starts, "resumes": f.resumes, "turns": f.turns, "active": f.active,
-			"cwd": f.directory, "effort": f.effort, "text": f.text, "fallback": f.fallback})
+			"cwd": f.directory, "effort": f.effort, "text": f.text, "fallback": f.fallback, "replies": len(f.replies), "lastResult": last})
 	default:
 		fail(-32601)
 	}

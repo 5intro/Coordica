@@ -66,21 +66,23 @@ type response struct {
 // Call/Respond. A slow consumer fails the connection explicitly; it never turns
 // a dropped request, lost response, or process exit into execution success.
 type Peer struct {
-	process   *process.Session
-	writes    chan []byte
-	events    chan Frame
-	failed    chan struct{}
-	done      chan struct{}
-	mu        sync.Mutex
-	nextID    uint64
-	ready     bool
-	err       error
-	waiters   map[string]chan response
-	native    map[string]nativeRequest
-	result    process.Result
-	waitErr   error
-	info      ServerInfo
-	directory string
+	process       *process.Session
+	writes        chan []byte
+	events        chan Frame
+	failed        chan struct{}
+	done          chan struct{}
+	mu            sync.Mutex
+	nextID        uint64
+	ready         bool
+	err           error
+	waiters       map[string]chan response
+	native        map[string]nativeRequest
+	invalidScopes map[requestScope]bool
+	result        process.Result
+	waitErr       error
+	info          ServerInfo
+	directory     string
+	experimental  bool
 }
 
 // Open performs only initialize/initialized. It does not create a native thread,
@@ -99,7 +101,8 @@ func Open(ctx context.Context, config Config) (*Peer, error) {
 		return nil, err
 	}
 	p := &Peer{process: s, writes: make(chan []byte, 8), events: make(chan Frame, 64), failed: make(chan struct{}),
-		done: make(chan struct{}), waiters: map[string]chan response{}, native: map[string]nativeRequest{}, directory: filepath.Clean(directory)}
+		done: make(chan struct{}), waiters: map[string]chan response{}, native: map[string]nativeRequest{},
+		directory: filepath.Clean(directory), experimental: config.Experimental, invalidScopes: map[requestScope]bool{}}
 	go p.writeLoop()
 	go p.readLoop()
 	params := map[string]any{"clientInfo": map[string]string{"name": "coordica", "version": "0.2.5-dev"},

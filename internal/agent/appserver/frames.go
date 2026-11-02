@@ -24,8 +24,11 @@ type RPCError struct {
 func (e *RPCError) Error() string { return fmt.Sprintf("app-server RPC error %d", e.Code) }
 
 type nativeRequest struct {
-	digest  [32]byte
-	replied bool
+	digest   [32]byte
+	replied  bool
+	resolved bool
+	threadID string
+	turnID   string
 }
 
 type envelope struct {
@@ -63,7 +66,7 @@ func (p *Peer) respond(request Frame, response any) (ResponseReceipt, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	stored, exists := p.native[key]
-	if !exists || stored.replied || stored.digest != fingerprint(request) || p.err != nil {
+	if !exists || stored.replied || stored.resolved || stored.digest != fingerprint(request) || p.err != nil {
 		return ResponseReceipt{}, ErrStaleRequest
 	}
 	if err := p.enqueueLocked(response); err != nil {
@@ -89,6 +92,11 @@ func (p *Peer) receive(raw []byte) error {
 			return ErrProtocol
 		}
 		frame := Frame{Method: value.Method, Params: value.Params, ID: value.ID, owner: p}
+		if value.ID == nil {
+			if err := p.expireRequests(frame); err != nil {
+				return err
+			}
+		}
 		if value.ID != nil {
 			key, err := idKey(value.ID)
 			if err != nil {
@@ -107,7 +115,9 @@ func (p *Peer) receive(raw []byte) error {
 				p.mu.Unlock()
 				return ErrBackpressure
 			}
-			p.native[key] = nativeRequest{digest: fingerprint(frame)}
+			target := nativeScope(frame.Params)
+			p.native[key] = nativeRequest{digest: fingerprint(frame), threadID: target.ThreadID, turnID: target.TurnID,
+				resolved: p.invalidScopes[target]}
 			p.mu.Unlock()
 		}
 		select {
