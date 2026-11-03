@@ -17,7 +17,7 @@ type initializeReply struct {
 }
 
 // Peer owns one supervised, initialized connection. There is intentionally no
-// arbitrary Call, authentication, session, prompt or callback-response API yet.
+// arbitrary Call, authentication, prompt or callback-response API yet.
 type Peer struct {
 	process                 *process.Session
 	mu                      sync.Mutex
@@ -28,6 +28,12 @@ type Peer struct {
 	failed, done, writeDone chan struct{}
 	result                  process.Result
 	waitErr                 error
+	directory               string
+	sessionClaimed          bool
+	sessionPending          bool
+	sessionID               string
+	sessionReply            chan sessionReply
+	sessionWriteDone        chan struct{}
 }
 
 func Open(ctx context.Context, config Config) (*Peer, error) {
@@ -56,7 +62,7 @@ func OpenWithLifetime(lifetime, operation context.Context, config Config) (*Peer
 	if err != nil {
 		return nil, err
 	}
-	p := &Peer{process: s, pending: true, reply: make(chan initializeReply, 1), failed: make(chan struct{}), done: make(chan struct{}), writeDone: make(chan struct{})}
+	p := &Peer{process: s, directory: directory, pending: true, reply: make(chan initializeReply, 1), failed: make(chan struct{}), done: make(chan struct{}), writeDone: make(chan struct{})}
 	go p.readLoop()
 	request, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{
 		"protocolVersion": 1, "clientInfo": Implementation{Name: "coordica", Version: "0.2.5-dev"},
@@ -123,6 +129,12 @@ func (p *Peer) Close() (process.Result, error) {
 	p.fail(context.Canceled)
 	<-p.done
 	<-p.writeDone
+	p.mu.Lock()
+	sessionWriter := p.sessionWriteDone
+	p.mu.Unlock()
+	if sessionWriter != nil {
+		<-sessionWriter
+	}
 	return p.result, p.waitErr
 }
 

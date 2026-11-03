@@ -41,12 +41,21 @@ func TestMain(m *testing.M) {
 			ID      int
 			Method  string
 			Params  struct {
+				Cwd                string
+				McpServers         []json.RawMessage
 				ProtocolVersion    int
 				ClientCapabilities struct {
 					FS       struct{ ReadTextFile, WriteTextFile bool }
 					Terminal bool
 				}
 			}
+		}
+		if json.Unmarshal(scanner.Bytes(), &request) == nil && request.Method == "session/new" {
+			if request.JSONRPC != "2.0" {
+				os.Exit(8)
+			}
+			sessionFixtureReply(scenario, request.ID, request.Params.Cwd, request.Params.McpServers)
+			continue
 		}
 		if json.Unmarshal(scanner.Bytes(), &request) != nil || request.JSONRPC != "2.0" || request.ID != 1 || request.Method != "initialize" || request.Params.ProtocolVersion != 1 ||
 			request.Params.ClientCapabilities.Terminal || request.Params.ClientCapabilities.FS.ReadTextFile || request.Params.ClientCapabilities.FS.WriteTextFile {
@@ -123,6 +132,56 @@ func TestMain(m *testing.M) {
 		}
 	}
 	os.Exit(0)
+}
+
+func sessionFixtureReply(scenario string, id int, directory string, mcp []json.RawMessage) {
+	cwd, err := os.Getwd()
+	if err != nil || id != 2 || directory != cwd || mcp == nil || len(mcp) != 0 {
+		os.Exit(8)
+	}
+	if scenario == "session-disconnect" {
+		os.Exit(0)
+	}
+	if scenario == "session-no-response" {
+		return
+	}
+	result := map[string]any{"sessionId": "native-session", "modes": nil, "configOptions": nil}
+	response := map[string]any{"jsonrpc": "2.0", "id": 2, "result": result}
+	switch scenario {
+	case "session-rejected":
+		delete(response, "result")
+		response["error"] = map[string]any{"code": -32000, "message": "private-auth-required", "data": map[string]string{"private": "private-auth-required"}}
+	case "session-wrong-id":
+		response["id"] = 1
+	case "session-null-result":
+		response["result"] = nil
+	case "session-empty-id":
+		result["sessionId"] = ""
+	case "session-long-id":
+		result["sessionId"] = strings.Repeat("x", 513)
+	case "session-bad-options":
+		result["configOptions"] = true
+	case "session-bad-modes":
+		result["modes"] = []any{}
+	case "session-callback":
+		response = map[string]any{"jsonrpc": "2.0", "id": 22, "method": "session/request_permission", "params": map[string]any{"private": "private-session-callback"}}
+	case "session-pause":
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			if _, err := os.Stat(os.Getenv("COORDICA_ACP_CONTINUE")); err == nil {
+				break
+			}
+			if time.Now().After(deadline) {
+				os.Exit(9)
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	raw, _ := json.Marshal(response)
+	fmt.Println(string(raw))
+	if scenario == "session-duplicate-response" {
+		fmt.Println(string(raw))
+	}
 }
 
 func fixtureConfig(t *testing.T, scenario string) (Config, string) {

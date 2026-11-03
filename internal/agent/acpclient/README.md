@@ -1,14 +1,14 @@
-# Experimental ACP initialization transport
+# Experimental ACP connection and Session transport
 
-This is the first partial C08 slice. It initializes a persistent supervised ACP
-connection; it does not implement authentication, Session creation/loading,
+These partial C08 slices initialize a persistent supervised ACP connection and
+explicitly create one Session. They do not implement authentication, loading,
 prompt/cancel, native callbacks, runtime ports or a provider registration.
 The production legacy `agent.executeACP` path is unchanged. That one-shot path
 automatically starts a prompt and shuts down afterward, so it is not reused here.
 
 The offline baseline is ACP v1 from the fixed
 [v0.11.0 schema](https://github.com/agentclientprotocol/agent-client-protocol/blob/451c3cbc7df2f9bc164c25e25d36fa526003f085/schema/schema.json).
-Only `initialize` is sent. There is no Codex `initialized` notification or assumed
+`Open` only sends `initialize`. There is no Codex `initialized` notification or assumed
 immediate Turn ACK/native Turn ID. The client advertises no filesystem/terminal
 callbacks. Future ACP prompt integration must retain its terminal response
 semantics rather than reuse the short app-server start-ACK assumption.
@@ -40,3 +40,28 @@ or authorize a tool. There is no automatic retry or arbitrary Call API.
 Tests use owned Go JSON-RPC children only. Antigravity is still the planned C08
 provider; its release is not installed or executed here. Real authentication,
 Session/work compatibility, callbacks and runtime composition remain unverified.
+
+## Explicit Session creation
+
+`NewSession(ctx)` makes one `session/new` allocation attempt per Peer with its
+fixed canonical host directory and explicit `mcpServers: []`. The returned
+immutable Session binds the validated native ID to that Peer and requested
+directory. The directory is a selected request value, not an independent native
+configuration or isolation attestation. Optional mode/configuration declarations
+are not retained or interpreted; only their container types are checked. No
+model, effort, permission mode or work input is selected by this operation.
+
+The once-per-Peer policy includes known RPC rejection, and is a conservative
+client limit rather than an ACP protocol restriction. Pre-cancelled calls do not
+consume it or stop the Peer. Concurrent/repeated calls cannot create another
+Session. A successful operation's context can end without killing the host Peer.
+Sent cancellation, disconnect or invalid response closes and waits for the owned
+process; `SessionCreationError` retains its actual Process proof and any validated
+native ID already observed. Local TreeStopped does not prove deletion of a
+native or remote Session. No native `session/close` or release RPC is invented.
+
+`LoadSession` returns unsupported without RPC even if advertised, because its
+history replay requires session/update support absent here. There is no prompt,
+authentication fallback, Task execution, database persistence or automatic retry
+across a new Peer. Future runtime composition must persist its own intent and
+unknown binding before native I/O, as the existing Codex composition does.

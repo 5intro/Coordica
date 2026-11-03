@@ -1,5 +1,5 @@
-// Package acpclient provides the bounded ACP v1 initialization transport.
-// Session/work operations and application authorization are not implemented here.
+// Package acpclient provides bounded ACP v1 initialization and explicit Session
+// creation. Work operations and application authorization are not implemented here.
 package acpclient
 
 import (
@@ -15,8 +15,10 @@ const maxFrameBytes = 256 << 10
 var (
 	ErrProtocol           = errors.New("invalid ACP protocol")
 	ErrDisconnected       = errors.New("ACP connection ended")
-	ErrOutcomeUnknown     = errors.New("ACP initialization outcome is unknown")
+	ErrOutcomeUnknown     = errors.New("ACP request outcome is unknown")
 	ErrUnsupportedVersion = errors.New("unsupported ACP protocol version")
+	ErrUnsupported        = errors.New("ACP operation is not implemented by this client")
+	ErrSessionAllocated   = errors.New("ACP peer already consumed its session allocation attempt")
 )
 
 // Config is trusted host wiring. Args/Env are explicit, copied selections, not
@@ -69,3 +71,16 @@ type InitializationError struct {
 
 func (e *InitializationError) Error() string { return "ACP initialization failed: " + e.Cause.Error() }
 func (e *InitializationError) Unwrap() error { return e.Cause }
+
+// SessionCreationError keeps possible allocation and local process-stop facts
+// separate. TreeStopped does not prove the native/remote Session was deleted.
+type SessionCreationError struct {
+	Cause           error
+	NativeSessionID string
+	Process         process.Result
+}
+
+func (e *SessionCreationError) Error() string {
+	return "ACP session creation failed: " + e.Cause.Error()
+}
+func (e *SessionCreationError) Unwrap() error { return e.Cause }

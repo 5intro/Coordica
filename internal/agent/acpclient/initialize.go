@@ -44,12 +44,18 @@ func (p *Peer) receive(raw []byte) error {
 		}
 	}
 	var version string
-	if decode(fields, "jsonrpc", &version, true) != nil || version != "2.0" || string(fields["id"]) != "1" {
+	if decode(fields, "jsonrpc", &version, true) != nil || version != "2.0" {
 		return ErrProtocol
 	}
 	result, hasResult := fields["result"]
 	rpc, hasError := fields["error"]
 	if hasResult == hasError {
+		return ErrProtocol
+	}
+	if string(fields["id"]) == "2" {
+		return p.receiveSession(result, rpc, hasError)
+	}
+	if string(fields["id"]) != "1" {
 		return ErrProtocol
 	}
 	p.mu.Lock()

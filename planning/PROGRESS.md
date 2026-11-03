@@ -8,7 +8,7 @@
 - 规划 [#29](https://github.com/5intro/Coordica/pull/29) 与 C01 文档 [#30](https://github.com/5intro/Coordica/pull/30) 已合并，
   远端 main 为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；合并/审查证据见本文末尾记录。
   旧批次中“open / denied / 待授权”均为当时事实，不再代表这两个 PR 的现状。
-- C01 保持待验证；C02–C05、C07 与 C08 初始化离线底座/薄组合实施中，C06 仍规划中。
+- C01 保持待验证；C02–C05、C07 与 C08 ACP 会话创建离线底座/薄组合实施中，C06 仍规划中。
   本地源码与 SQLite/协议夹具不代表原生持续会话、审批回传或真实 harness 已完成。
 - C07 本地检查点 `be707b7263bb98fa98c7a58fb660c084bdc206a5` 保存于 `codex/runtime-codex-peer-20261102`，
   原检查点未推送、无产品 PR；接续输入 `c8c4586` 与 C07 修复 `e47c435` 均独立保留。
@@ -16,7 +16,7 @@
 - 本轮从上述 main 建独立文档分支 `codex/provider-contract-plan-20261102`，只做 R102–R104 规划准备与离线文档检查；
   不推送、不提 PR、不合并，不混入 C07 源码。当前公开基线不随本地修订改变。
 - 上述文档轮已完成为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`；Owner 随后要求继续独立离线开发。
-  C02 `6249553`、C03 `2e2107f`、薄组合 `6ea2fa6`、C04 `f00eab8`、单 text C05 `b895d49` 与中断 `b7d5a35` 检查点独立保留；当前工作片在 `codex/c08-acp-initialize-20261103`，原交接及修复分支未移动。
+  C02 `6249553`、C03 `2e2107f`、薄组合 `6ea2fa6`、C04 `f00eab8`、单 text C05 `b895d49`、中断 `b7d5a35` 与 ACP 初始化 `133936b` 检查点独立保留；当前工作片在 `codex/c08-acp-session-new-20261103`，原交接及修复分支未移动。
 - 新环境的官方 Go 1.27.2 与 SQLite 依赖已由环境准备实测验证，本片复用这些已下载缓存。
   全仓门禁现受 mcpconfig 所需中立 Git 临时目录条件阻断；这是已定位环境项，没有删除共享 Git 标记、
   重试只读目录、调整网络或削弱测试守卫，也不以此停止独立离线源码切片。
@@ -740,3 +740,29 @@
   仅源码/手写协议夹具，本片没有 ACP Session、工作、native callback 回答或运行时接线，不标 C08 完成或真实多 harness 验收。
   全仓 mcpconfig 中立 Git 临时环境项仍 blocked、不重探或绕守卫；未 push/PR/merge。
   下一自然 C08 小片是显式 Session 建立及配置/能力拒绝，再单独接终结式 prompt，不在本片展开。
+
+## C08 — 显式 ACP Session 创建（2026-11-03 UTC，本地离线切片）
+
+- 输入固定 `133936bde6f514233c29183e099b1278e508e1b7`；独立分支 `codex/c08-acp-session-new-20261103`。
+  本片只 session/new，不接 prompt、认证、runtime adapter 或 load 历史重放，不因同协议冒称 Antigravity 实测。
+- Peer.NewSession 固定宿主 canonical cwd 与 `mcpServers: []`，没有 Task 可填 cwd/MCP 参数；
+  Session 句柄私有绑定原 Peer/native ID/请求目录，没有字符串铸句柄或跨 Peer 接管入口。
+  native ID 必须非空、非 null、有界 UTF-8/无空白控制；可选配置只查容器形状、不留 raw、不解释或声称 model/effort/权限生效。
+- 每 Peer 一次 allocation attempt，已知拒绝也消耗；这是客户端保守策略，不是 ACP 协议限制。
+  同 Peer 并发/重复不第二次 new，发前取消不消耗、不杀 Peer；成功后单操作 ctx 结束不停止宿主生命周期。
+  原 initialize 关联不放宽，只增一个 typed ID2 pending；Close 回收新 writer 并取实际监督进程回执。
+- 发送后取消/超时/断连、错重复 ID/畸形结果/未知 callback 使 Peer unknown 并关闭；
+  SessionCreationError 单列实际 Process.TreeStopped 与已观测有效 native Session ID，不把本地停止当远端 Session 删除。
+  已知 RPC/auth-required 拒绝原样区分，不自动 authenticate、fallback、重发或新建下一轮。
+  固定基线无标准 session/close，不制造该 RPC；LoadSession 即使声明 loadSession=true 仍明确 unsupported、零 RPC。
+- 首个 session smoke 1 pass；普通/竞态四包 acpclient/appserver/process/jsoninput 各 131 Test/subtest pass、退出 0，
+  当前源码匹配预检、owned 停止/临时根清理确认，受影响 vet/quality(base efa) 退出 0。
+  离线 Go JSON-RPC fixture 覆盖精确 cwd/MCPempty、仅 initialize/new journal、句柄身份/host lifetime、
+  known 拒绝与未知结果、坏 ID/配置容器/callback/EOF、并发唯一、发前取消/发后取消/timeout 与真实关闭证明。
+  矩阵后仅 types.go 两行 package 注释准确化为包含 Session 创建；final-green 再 131 pass，
+  旧 race 字节差异仅此注释，comment-only-proof.json 反向替换精确匹配旧 SHA；固定提交后的 race 另行验证。
+- 证据 `.cache/c08-session-new-20261103/` 含原始日志、命令/env/源码 SHA 与回执；原 Go 1.27.2、
+  GOTOOLCHAINlocal/官方缓存、三 live opt-in 删除、GOPROXYoff、单并发及 8GiB/4GiB/600s guard 保持。
+  仅源码/手写离线夹具；实际认证、Session 配置、prompt/工具与运行时接线仍未验证，C08 不标完成。
+  全仓 mcpconfig 中立 Git 临时环境项保持 blocked，不重探/绕守卫、未 push/PR/merge。
+  下一必要小片再考虑显式配置/终结式 prompt；不在本片展开或自动运行。
