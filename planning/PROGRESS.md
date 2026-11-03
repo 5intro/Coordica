@@ -8,7 +8,7 @@
 - 规划 [#29](https://github.com/5intro/Coordica/pull/29) 与 C01 文档 [#30](https://github.com/5intro/Coordica/pull/30) 已合并，
   远端 main 为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；合并/审查证据见本文末尾记录。
   旧批次中“open / denied / 待授权”均为当时事实，不再代表这两个 PR 的现状。
-- C01 保持待验证；C02–C05 与 C07 离线底座/薄组合实施中，C06/C08 仍规划中。
+- C01 保持待验证；C02–C05、C07 与 C08 初始化离线底座/薄组合实施中，C06 仍规划中。
   本地源码与 SQLite/协议夹具不代表原生持续会话、审批回传或真实 harness 已完成。
 - C07 本地检查点 `be707b7263bb98fa98c7a58fb660c084bdc206a5` 保存于 `codex/runtime-codex-peer-20261102`，
   原检查点未推送、无产品 PR；接续输入 `c8c4586` 与 C07 修复 `e47c435` 均独立保留。
@@ -16,7 +16,7 @@
 - 本轮从上述 main 建独立文档分支 `codex/provider-contract-plan-20261102`，只做 R102–R104 规划准备与离线文档检查；
   不推送、不提 PR、不合并，不混入 C07 源码。当前公开基线不随本地修订改变。
 - 上述文档轮已完成为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`；Owner 随后要求继续独立离线开发。
-  C02 `6249553`、C03 `2e2107f`、薄组合 `6ea2fa6`、C04 `f00eab8` 与单 text C05 `b895d49` 检查点独立保留；当前工作片在 `codex/c05-work-interrupt-20261103`，原交接及修复分支未移动。
+  C02 `6249553`、C03 `2e2107f`、薄组合 `6ea2fa6`、C04 `f00eab8`、单 text C05 `b895d49` 与中断 `b7d5a35` 检查点独立保留；当前工作片在 `codex/c08-acp-initialize-20261103`，原交接及修复分支未移动。
 - 新环境的官方 Go 1.27.2 与 SQLite 依赖已由环境准备实测验证，本片复用这些已下载缓存。
   全仓门禁现受 mcpconfig 所需中立 Git 临时目录条件阻断；这是已定位环境项，没有删除共享 Git 标记、
   重试只读目录、调整网络或削弱测试守卫，也不以此停止独立离线源码切片。
@@ -715,3 +715,28 @@
   证据 `.cache/c05-interrupt-20261103/` 保存命令、选定 env、源码 SHA、原始日志与回执。
   仅源码/手写离线夹具验证，真实 harness、生产路由与中断后台任务的实际停止范围仍未验证。
   全仓 mcpconfig 中立 Git 临时环境项保持 blocked，不重探/绕守卫；未 push/PR/merge，不扩后续模块。
+
+## C08 — ACP v1 持久初始化骨架（2026-11-03 UTC，本地离线切片）
+
+- 输入固定 `b7d5a35069e4605706dc7a0556b1c3b84945c9e1`；独立分支 `codex/c08-acp-initialize-20261103`。
+  选择第二协议的初始化底座，避免继续只补 Codex 控制；本片不接完整 Session/Prompt/runtime 端口。
+- 独立 `internal/agent/acpclient` 仅复用 process/jsoninput。旧 executeACP 会自动 prompt 后关闭，不搬其一次执行生命周期；
+  不抽 Codex 共用传输平台，不改变旧执行路径/注册表。Antigravity 仍为计划优先目标，没有安装或运行发行包。
+- 按 C01 已固定 `451c3cbc7df2f9bc164c25e25d36fa526003f085` 的稳定 v1 schema 只读复核 initialize，
+  可选字段省略取默认；出现的 caps/authMethods 不接受 null，agentInfo 可 null；strict typed/null/version 围栏。
+  唯一发出的请求是 JSON-RPC 2.0 initialize v1，客户端 fs/terminal 声明 false，不发送 initialized/authenticate/new/load/prompt。
+- 宿主显式绝对 executable/canonical cwd/argv/env，防御复制且不继承环境；host 与单次初始化 ctx 分开。
+  256KiB 帧、10s 或更短 caller deadline、精确 pending ID/单一 result-error；stdout 噪声、重复/错 ID、
+  callback 或后握手 unsolicited 消息 fail closed。stderr 始终有界排空，不进 Info 或公开错误文本。
+- Info 只保存有界 typed agent 声明与 auth 方法 ID/name，返回深复制；声明不等于认证/已实现 Session 或有效权限。
+  明确 RPC 拒绝/不兼容版本不误报 unknown；发送后断连/取消/畸形响应保留 unknown，无自动重发。
+  初始化失败的 InitializationError 单列实际 Process/TreeStopped，nil Peer 不制造停止证据；Close 也取实际监督回执。
+- 首个真实 Go 子进程初始化 smoke 1 pass，普通与竞态四包 acpclient/appserver/process/jsoninput 各 115 Test/subtest pass，
+  均退出 0、无 fail/skip，当前源码与预检 SHA 匹配、owned 停止/临时根清理确认；受影响 vet/quality(base efa) 退出 0。
+  夹具核仅一条 initialize、成功后取消 op ctx 不杀 host Peer、声明无别名、显式 Env 不继承假父 marker，
+  optional 默认、null/type/版本/错重复 ID/双结果错误、回调/超帧/噪声、明确拒绝/断连/阻塞无响应/host 取消及真实停止。
+- 证据 `.cache/c08-initialize-20261103/` 含命令、env、源码 SHA、原始日志和回执；沿用官方 Go 1.27.2、
+  GOTOOLCHAIN=local、官方缓存/GOPROXY=off、三 live/catalog opt-in 删除、-p=1/GOMAXPROCS=1 与原 8GiB/4GiB/600s guard。
+  仅源码/手写协议夹具，本片没有 ACP Session、工作、native callback 回答或运行时接线，不标 C08 完成或真实多 harness 验收。
+  全仓 mcpconfig 中立 Git 临时环境项仍 blocked、不重探或绕守卫；未 push/PR/merge。
+  下一自然 C08 小片是显式 Session 建立及配置/能力拒绝，再单独接终结式 prompt，不在本片展开。
