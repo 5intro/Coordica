@@ -8,7 +8,7 @@
 - 规划 [#29](https://github.com/5intro/Coordica/pull/29) 与 C01 文档 [#30](https://github.com/5intro/Coordica/pull/30) 已合并，
   远端 main 为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；合并/审查证据见本文末尾记录。
   旧批次中“open / denied / 待授权”均为当时事实，不再代表这两个 PR 的现状。
-- C01 保持待验证；C07 的离线控制/异常响应围栏与 C02 最小持久账本实施中，C03–C06/C08 仍规划中。
+- C01 保持待验证；C07 离线控制/异常响应围栏、C02 最小持久账本与 C03 显式绑定围栏实施中，C04–C06/C08 仍规划中。
   本地源码与 SQLite/协议夹具不代表原生持续会话、审批回传或真实 harness 已完成。
 - C07 本地检查点 `be707b7263bb98fa98c7a58fb660c084bdc206a5` 保存于 `codex/runtime-codex-peer-20261102`，
   原检查点未推送、无产品 PR；接续输入 `c8c4586` 与 C07 修复 `e47c435` 均独立保留。
@@ -16,7 +16,7 @@
 - 本轮从上述 main 建独立文档分支 `codex/provider-contract-plan-20261102`，只做 R102–R104 规划准备与离线文档检查；
   不推送、不提 PR、不合并，不混入 C07 源码。当前公开基线不随本地修订改变。
 - 上述文档轮已完成为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`；Owner 随后要求继续独立离线开发。
-  当前 C02 产品工作在 `codex/c02-task-ledger-20261103`，原三个交接分支及 C07 修复分支未移动。
+  C02 检查点 `6249553` 独立保留；当前 C03 工作在 `codex/c03-session-binding-20261103`，原三个交接分支及 C07 修复分支未移动。
 - 新环境的官方 Go 1.27.2 与 SQLite 依赖已由环境准备实测验证，本片复用这些已下载缓存。
   全仓门禁现受 mcpconfig 所需中立 Git 临时目录条件阻断；这是已定位环境项，没有删除共享 Git 标记、
   重试只读目录、调整网络或削弱测试守卫，也不以此停止独立离线源码切片。
@@ -517,3 +517,32 @@
   C04 事务事件/效果仍留在其原任务，不将旧 outbox 通知当可靠执行效果。
   当前没有 native Session、harness 执行、Wake/dispatch、HTTP/CLI/MCP 路由或生产 Runner 接入。
   本片仅本地保存；完整门禁、正式代码/安全审查和真实 harness 未通过，未 push/创建 PR/合并。
+
+## C03 — 显式会话绑定与 unknown 围栏（2026-11-03 UTC，本地离线切片）
+
+- 输入固定为 C02 `62495534b2921b873c4174c09cef8b0ed0fabd3c`；独立分支
+  `codex/c03-session-binding-20261103`，原 C02/C07 及三个交接 refs 保留，不扩展 C04 事件平台。
+- 新窄接口是 PrepareBinding、显式 Produce、仅账本 ReadBinding、已知闲置自有绑定 Release 和
+  显式 RecoverUnknown。宿主构造 Producer 不改账本或调用 native；Create 输入不含 Task/context 正文，
+  不调用 Turn/start。没有生产 C07 接线、原生 read/resume、忙碌/unknown 资源调解或自动恢复。
+- `session.control` 必须明确授予，旧 run.register 不含原生权限。固定 Run/授权版本、目标/config/context、
+  profile/workspace/protocol/mode 引用；当前授权和 scope 先于 replay，native I/O 在 SQLite 事务外，
+  pending command/owner 先落盘，完成时再验当前权限和 owner/代际。重复/并发调用不会再次 Create。
+  新 Producer 或重开 DB 不接管旧资源；RecoverUnknown 仅推进围栏，迟到结果留在原 command，不推进新 binding。
+- 逻辑 Task/Run/Binding 与 provider native ID 分开保存；观察到 ID 但配置不符、撤权或确认写入失败，
+  保留原 command 的观察和停止回执，控制状态为 unknown，不静默回退或重建。
+  已 pending/bound/unknown 的 Run 不能走旧 C02 本地取消捷径；Release 只有匹配实际 TreeStopped 后
+  才记录 released/session_stopped，保留 Task/context，与 Task 取消分开。
+- 真实 SQLite 和计数 port 验证准备回滚不调用 native、确认事务失败后不重发、并发单写、重启不调用、
+  旧 owner/代际迟到围栏、撤权、配置不符、明确拒绝/发前取消，以及缺停止证明不得释放。
+  自有 fake 协议子进程另验证 Create/Stop 不持 DB 事务和真实进程树停止；这不是原生 transcript 或真实 harness。
+- 只读预审发现明确拒绝后安全清理的 stop proof 仅在内存校验、未持久的问题：新增重开 DB 断言，
+  初次测试调用签名编译错后修正，随后真实 red 复现 CleanupStopped=false/command.Stop 为空。
+  最小修复在确认事务内重验并保存 proof；重开后 unbound/not_started 与持久停止证据一致。
+  修复后的 runtime/store nonrace 与 race 均退出 0，各 37 个测试/子测试 pass、无 fail/skip；监督停止/清理确认。
+- 沿用官方 Go 1.27.2、`GOTOOLCHAIN=local`、已验证缓存和 GOPROXY=off；三个 live/catalog opt-in 删除，
+  GOMAXPROCS=1、-p=1、3m 测试/600s 监督、8GiB 空闲/4GiB 临时门槛不变。
+  分阶段原始命令/源码 hash/日志/回执位于 `.cache/c03-binding-20261103/`，不把局部检查代替完整门禁。
+- 本地源码和离线夹具切片；完整 mcpconfig 中立 Git 临时环境项仍阻断，未削弱 guard 或重试只读目录。
+  正式 GitHub 两审、真实 harness/C01 出口未通过，未 push/创建 PR/合并/部署；中心暂停、派发关闭。
+  下一最小片仍是 C03 的显式原生 read/resume 与 C07 薄接线及固定身份验证，不自动补发工作或扩大 C04。
