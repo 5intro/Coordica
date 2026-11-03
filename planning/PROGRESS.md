@@ -8,7 +8,7 @@
 - 规划 [#29](https://github.com/5intro/Coordica/pull/29) 与 C01 文档 [#30](https://github.com/5intro/Coordica/pull/30) 已合并，
   远端 main 为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；合并/审查证据见本文末尾记录。
   旧批次中“open / denied / 待授权”均为当时事实，不再代表这两个 PR 的现状。
-- C01 保持待验证；C07 离线控制/异常响应围栏、C02 最小持久账本与 C03 显式绑定围栏实施中，C04–C06/C08 仍规划中。
+- C01 保持待验证；C02/C03、C07 离线控制/薄组合与 C04 metadata 事件/游标实施中，C05–C06/C08 仍规划中。
   本地源码与 SQLite/协议夹具不代表原生持续会话、审批回传或真实 harness 已完成。
 - C07 本地检查点 `be707b7263bb98fa98c7a58fb660c084bdc206a5` 保存于 `codex/runtime-codex-peer-20261102`，
   原检查点未推送、无产品 PR；接续输入 `c8c4586` 与 C07 修复 `e47c435` 均独立保留。
@@ -16,7 +16,7 @@
 - 本轮从上述 main 建独立文档分支 `codex/provider-contract-plan-20261102`，只做 R102–R104 规划准备与离线文档检查；
   不推送、不提 PR、不合并，不混入 C07 源码。当前公开基线不随本地修订改变。
 - 上述文档轮已完成为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`；Owner 随后要求继续独立离线开发。
-  C02 `6249553` 与 C03 `2e2107f` 检查点独立保留；当前薄组合在 `codex/c07-binding-read-resume-20261103`，原三个交接分支及 C07 修复分支未移动。
+  C02 `6249553`、C03 `2e2107f` 与薄组合 `6ea2fa6` 检查点独立保留；当前事件片在 `codex/c04-runtime-events-20261103`，原三个交接分支及 C07 修复分支未移动。
 - 新环境的官方 Go 1.27.2 与 SQLite 依赖已由环境准备实测验证，本片复用这些已下载缓存。
   全仓门禁现受 mcpconfig 所需中立 Git 临时目录条件阻断；这是已定位环境项，没有删除共享 Git 标记、
   重试只读目录、调整网络或削弱测试守卫，也不以此停止独立离线源码切片。
@@ -587,3 +587,57 @@
 - 本地保存；全仓 mcpconfig 中立临时目录环境项仍 blocked，不重探/重试/删除共享标记/绕 guard。
   完整门禁与正式 GitHub 两审未完成，不 push/创建 PR/merge/部署；中心暂停、派发关闭。
   下一最小片是 C04 必要结构化事件接收/游标与 C03 活跃资源事实的纵向整合，仍不引入自主派工或完整事件平台。
+
+## C04 — 受控事件事实与持久游标（2026-11-03 UTC，本地离线切片）
+
+- 输入固定 `6ea2fa6a20b1ae9797d551bb7ee32545a0d1cee7`；独立分支
+  `codex/c04-runtime-events-20261103`，保留所有原交接/C02/C03/C07 检查点。
+- 窄接口 OpenEventStream/AcceptEvent/ReportSourceEnd、OpenEventCursor/ReadEvents/AckEvents 与显式 DrainEvents。
+  stream 固定 App/Task/Run/Binding/nativeID/owner/gen；只存 typed 状态、计数与原生目标/请求引用，
+  不存文本、问题正文、raw history 或任意 JSON；事实不授执行权限，不把 execution.ended 当 Task 业务完成。
+- Store 增加兼容 schema-v1 的独立 runtime_events 表；旧 records/调度查询不改。
+  app/stream/local sequence 复合主键及索引做有界 keyset，eventID/sourceSeq 分别 SQL 唯一，digest 覆盖不可变事实。
+  每流 sequence 不暴露其它 App 的计数；event/stream/dataset 计数、audit/outbox 同事务，无高频全 JSON 扫描。
+- DatasetEpoch 随 DB 持久，重开保留；SourceEpoch 取具体 Peer 初始 Create/Resume commandID，
+  后续 Read/Release 不能改它。Codex 无原生 eventID/seq，明确标 local_observed；相同 delta 仍是两条观察，
+  Resume 另建 source epoch，旧代次 cursor 显式 expired；不声称原生持久 spool 或跨重连 exactly-once。
+- 历史 source receipt 与客户端 cursor 主体分开：前者同 App、当前所需 action/target scope、同 host owner/gen、
+  同不可变 ID/seq/digest 可共享三字段原接受回执，不写新事实/audit/count/执行；新 first-write 仍走 liveBinding。
+  cursor 固定 App/principal/query/dataset/source epoch，每次 page/ACK 再验当前权限；ACK 不越过 offered，
+  offered 不证明客户端收到，ACK 仅本地消费位置，不是 native 已收到/工具审批或工作已消费。
+- C07 独立小锁 drainer 不持 lease/DB/UI 锁；32 条规范化 capture，逐事实 SQLite commit 后才释放本地 buffer。
+  断线/不支持帧/overflow 保留 terminal gap 和真实 TreeStopped；unknown 同 owner/gen 的已存事实仍可补读。
+  每流 256、dataset 10,000 条硬限，容量耗尽先事务保存 gap/unknown 再报 backpressure；不删旧事件或去重键，
+  不做 retention/删除/可靠效果平台，也不把未提交内存 capture 当重启无损。
+- 真实 SQLite 验证收取→重复/冲突→page/ACK→关闭重开补取、跨 App/主体/撤权/代次拒绝、乱序 sticky gap、
+  最后 outbox 写失败下 row/sequence/stream/dataset/audit 全回滚及硬容量后原回执仍可重放。
+  同一 generic 契约另用注册 acp 的计数夹具通过；这不是 C08 原生接入验证。
+- JSON-RPC owned 子进程验证 thread/started、两个相同私密 delta、问题回调仅成 4 条受控事实，正文不入页面；
+  Drain 不发 Turn/start，不重开线程。Release 保留 source epoch，显式 Resume 使用新 source，DatasetEpoch 不变。
+  96 帧慢消费洪泛产生 bounded 32 条事实、明确 gap/observed high-water、TreeStopped 与 unknown，非静默丢弃或原生 ACK。
+- 预审 P2 高水位回退真实 red：观察 10 无 Stop 后较旧 8 首携合法 Stop，使高水位倒退，旧 closed 还把 failed 降级，
+  terminal-watermark-red 共 3 fail；相关 late-gap 早退吞诊断另有 1 fail。最小同事务修正为 high-water 取 max、
+  Stop 独立合并、Gap/失败不降级；晚诊断不重写已 released/releasing 的资源事实。red 证据分阶段保留。
+  初期 other-principal 2 fail 是把授权共享 source 原事实误按 cursor 私有性拒绝的测试预期不当，
+  已按父级/安全窄核修正契约与正反例，不记为安全漏洞或安全 red。
+- 首次冻结前四包 runtime/runtimecodex/store/appserver nonrace 与 race 均退出 0，各 131 Test/subtest pass、无 fail/skip，
+  源码 hash 前后一致，owned 进程停止和临时根清理确认；受影响 vet 与 quality(base efa) 退出 0。
+  本地证据 `.cache/c04-events-20261103/` 含命令、选定 env、源码 hash、原始日志和回执；
+  初 smoke runner 扩集合漏同步 postcheck 的编排 assertion 原日志保留，没有当正式通过回执。
+- 生命周期复审另确认 active-terminal P2：另一同 App scope 主体/同主体更新授权版本可经新 SourceEnd
+  写活跃 ready→unknown、Run/stream/audit；已停止诊断还推进资源版本。source-terminal-authority-red 真实 4 fail。
+  最小修复把“历史重复/持久已知停止诊断”与“可能活跃 source 的新终态”分开，后者写任何 stream/resource 前
+  核原 live Run Principal/AuthVersion/current target；已停止诊断共享不改 Binding/Run。
+  同一调用链再实际复现 forbidden Drain 把新写授权失败当 source 故障清理，另一主体/更新版本各触发 Stop=1；
+  source-drain-authority-red 与含 capture 释放计数的 drain-capture-authority-red 均真实 3 fail，capture release=0。
+  最小复用 disclosureFence 于 cleanup 前，失效返回错误并保留原 capture，不发 Stop、不写终态。
+  真正内部 capture overflow 防护与客户端 forbidden Drain 分开；旧 6e4b 候选归档未提交，不据旧审查结论保存。
+  补正后 review-final-green/review-final-race 四包各 138 Test/subtest pass、无 fail/skip，源码 hash 前后一致，
+  owned 停止/临时根清理确认；受影响 vet/quality 再退出 0。red 旧源码/测试的归档提取或明确标注重构
+  均以当时 preflight SHA 校验，不把重构当额外测试运行；最终回归与待审源码逐字节匹配。
+- 沿用官方 Go 1.27.2/GOTOOLCHAIN=local/已验证缓存、GOPROXY=off，三个 live/catalog opt-in 删除，
+  GOMAXPROCS=1/-p=1、3m 测试/600s 监督、8GiB 空闲/4GiB 临时门槛不变。
+  源码/手写离线夹具/真实验证分开；未接生产 Runner/public routes、原生持久 spool、C05/C06 或自主调度。
+- 本地保存；完整 mcpconfig 中立临时目录环境项仍 blocked，未重探/重试/绕 guard。
+  正式 GitHub 两审和真实 harness/C01 出口未通过，未 push/PR/merge/部署，中心暂停、派发关闭。
+  下一最小片是消费这些事实的 C05 显式输入/当前 Turn 围栏及必要 C04 补足，不在本片展开。

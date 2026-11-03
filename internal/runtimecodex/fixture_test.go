@@ -50,6 +50,10 @@ func TestMain(m *testing.M) {
 			raw, _ := json.Marshal(map[string]any{"id": frame.ID, "result": value})
 			fmt.Println(string(raw))
 		}
+		notify := func(method string, params any) {
+			raw, _ := json.Marshal(map[string]any{"method": method, "params": params})
+			fmt.Println(string(raw))
+		}
 		fail := func() {
 			raw, _ := json.Marshal(map[string]any{"id": frame.ID, "error": map[string]any{"code": -32001, "message": "fixture rejection"}})
 			fmt.Println(string(raw))
@@ -97,9 +101,23 @@ func TestMain(m *testing.M) {
 			if frame.Method == "thread/resume" && scenario == "resume-wrong-id" {
 				id = "wrong-native-thread"
 			}
+			if scenario == "events" {
+				notify("thread/started", map[string]any{"thread": map[string]string{"id": "native-thread"}})
+				for i := 0; i < 2; i++ {
+					notify("item/agentMessage/delta", map[string]string{"threadId": "native-thread", "turnId": "native-turn", "delta": "private-event-text-sentinel"})
+				}
+				raw, _ := json.Marshal(map[string]any{"id": 777, "method": "item/tool/requestUserInput", "params": map[string]any{
+					"threadId": "native-thread", "turnId": "native-turn", "questions": []map[string]string{{"id": "private-question", "question": "private-event-text-sentinel"}}}})
+				fmt.Println(string(raw))
+			}
 			reply(map[string]any{"thread": map[string]any{"id": id, "turns": []any{}}, "model": model, "modelProvider": "fixture",
 				"cwd": params.Cwd, "approvalPolicy": "on-request", "sandbox": map[string]string{"type": "readOnly"}})
 		case "thread/read":
+			if scenario == "events-overflow" {
+				for i := 0; i < 96; i++ {
+					notify("item/agentMessage/delta", map[string]string{"threadId": "native-thread", "turnId": "native-turn", "delta": "private-event-text-sentinel"})
+				}
+			}
 			if scenario == "read-disconnect" {
 				os.Exit(0)
 			}

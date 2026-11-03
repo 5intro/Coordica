@@ -32,6 +32,7 @@ type lease struct {
 	thread        appserver.Thread
 	stopped       bool
 	openingFailed bool
+	capture       *eventCapture
 }
 
 var _ runtime.SessionPort = (*Port)(nil)
@@ -81,7 +82,7 @@ func (p *Port) reserve(ctx context.Context, call runtime.NativeCreate, id runtim
 	if p.slots[call.BindingID] != old {
 		return nil, runtime.ErrConflict
 	}
-	l := &lease{call: call, id: id}
+	l := &lease{call: call, id: id, capture: newEventCapture(call, id)}
 	// Hold this lease until opening completes. Stop cannot prove an unstarted
 	// process while the opening goroutine is about to allocate it.
 	l.mu.Lock()
@@ -119,6 +120,7 @@ func (p *Port) open(ctx context.Context, call runtime.NativeCreate, id runtime.N
 		return runtime.NativeCreation{Outcome: "unknown"}, err
 	}
 	l.peer = peer
+	go l.capture.run(peer)
 	options := appserver.ThreadOptions{Model: call.Config.Target.Model, ApprovalPolicy: call.Config.ApprovalPolicy, Sandbox: call.Config.Sandbox}
 	var configuration appserver.Configuration
 	if resume {
@@ -141,6 +143,11 @@ func (p *Port) open(ctx context.Context, call runtime.NativeCreate, id runtime.N
 		// Native allocated an identity but its selected fields differ. Keep the
 		// observation; never label this as a no-side-effect rejection.
 		observed.Outcome = "unknown"
+	}
+	l.capture.bind(observed.ID)
+	if err == nil && peer.Err() != nil {
+		observed.Outcome = "unknown"
+		err = appserver.ErrOutcomeUnknown
 	}
 	return observed, err
 }
@@ -199,6 +206,7 @@ func (p *Port) Stop(ctx context.Context, call runtime.NativeCreate, id runtime.N
 	if l.peer == nil || l.openingFailed {
 		return proof, runtime.ErrStopUnconfirmed
 	}
+	l.capture.stopping(l.peer.Err() == nil)
 	result, err := l.peer.Close()
 	l.stopped = result.TreeStopped
 	proof.TreeStopped = result.TreeStopped

@@ -1,6 +1,6 @@
 # Experimental durable task ledger
 
-This package contains in-process C02 and partial C03 slices. It stores explicit work without a Git
+This package contains in-process C02 and partial C03/C04 slices. It stores explicit work without a Git
 repository, chat, development Goal, Candidate, review policy or running Leader.
 Constructing it starts no process, harness, scheduler, service or background loop.
 There are no new HTTP, CLI or MCP routes.
@@ -124,3 +124,70 @@ Create/resume error exits separately recheck current authority and owner/generat
 after cleanup. Expired callers receive safe fence/unknown errors without native
 or cleanup error objects carrying private data. An authorized explicit rejection
 retains its original RPC error classification; observations stay on its command.
+
+## Bounded event facts and cursors
+
+`OpenEventStream` / `AcceptEvent` bind normalized facts to the current
+application, Task, Run, Binding, native ID and exact owner/generation. They do
+not start work or infer Task success. Event kinds and payload fields are typed
+and bounded: status, byte/token counts and native target/request references.
+There is no free-form text, raw JSON params, native history or credential field.
+Private text is not copied into global audit, outbox or idempotency responses.
+
+An additive `runtime_events` SQL table uses application/stream/local sequence
+keyset queries and separate unique constraints for event ID and source sequence.
+It does not scan JSON records for high-frequency lookup. Stream-local commit
+positions do not reveal another application's traffic. Facts, sequence/count
+metadata, audit and notification commit or roll back in the same transaction.
+Exact duplicate facts retain their original position without another audit;
+ID/sequence reuse with different immutable content conflicts.
+Historical source receipts are application facts, distinct from private client
+cursor state. Another principal with the current required action/target scope
+may obtain the same exact receipt through the same host owner/generation; it
+does not write another fact or gain new execution authority. New first writes
+still require the live Run's original authorization contract. Cross-application,
+revoked/out-of-scope, conflicting-content and stale-generation requests fail.
+New terminal actions on a possibly active source additionally require the live
+Run's original principal and authorization version before changing the stream
+or resource. A body claiming a new stop does not bypass that fence. Diagnostics
+for a persistently known-stopped resource remain shareable under current scope,
+but do not advance Binding/Run state or versions. Drain authorization failure
+does not stop the Peer or release capture: cleanup I/O has its own current
+execution/owner/generation fence. Host-internal overflow safety is separate.
+
+The persisted DatasetEpoch survives reopening SQLite. Each SourceEpoch names a
+specific producer connection. Native sources without event IDs/sequences use
+explicit `local_observed` receipts; identical deltas are distinct observations.
+There is no payload-hash deduplication or cross-reconnect exactly-once claim.
+Late/out-of-order observations retain their source position; an observed gap is
+sticky even when later rows fill it or a client acknowledges the page.
+
+`OpenEventCursor` / `ReadEvents` / `AckEvents` hold server-side cursor metadata
+bound to application, principal, fixed stream query and dataset/source epoch.
+Every call rechecks current credentials and target scope. Pages contain at most
+64 rows; response loss repeats the unacknowledged page. ACK is monotone and may
+not exceed an offered position. Offered does not prove client receipt, and ACK
+does not acknowledge native delivery, a tool approval or Task work consumption.
+Same-owner/generation unknown-resource facts remain readable. A changed binding
+owner/generation or dataset/source epoch expires the old cursor explicitly.
+
+This slice has hard limits of 256 facts per stream and 10,000 per dataset. It
+does not delete rows or deduplication keys, prune retention windows, or silently
+reset the dataset. Capacity exhaustion records a sticky gap/failure and fences
+the current binding unknown before returning backpressure. Recovery requires
+explicit reconciliation; constructing another producer does not reset capacity.
+These event limits are not a whole-host disk quota or a retention platform.
+
+`DrainEvents` explicitly copies one bounded native capture batch, committing each
+fact before releasing its local buffer position. Failed DB commits do not accept
+the fact. Losing the local release acknowledgement may repeat the same fact and
+is deduplicated. Subscribers read persisted pages independently of protocol I/O.
+Terminal observed high-water marks never decrease; new valid stop evidence is
+merged independently. A late closed callback cannot erase a failure/gap, and a
+late diagnostic cannot rewrite an explicitly released resource's stop facts.
+
+There is no native durable Runner spool, retention deletion, reliable external
+effect delivery, automatic restart ingestion, C05/C06 routing or public event
+subscription API here. Uncommitted in-memory capture can be lost on host crash;
+reopening restores committed facts/cursors, not unknown native events. This is
+an offline-tested partial C04 implementation, not completion of its full exit.

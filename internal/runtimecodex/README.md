@@ -41,10 +41,30 @@ after creating and closing a process without returning a Peer/proof; that case
 stays conservative unknown. A released logical binding retains its Task/context.
 New host/producer construction does not take over ready/unknown resources.
 
-There is no native work/Turn execution, UI event stream, request answer routing,
-unknown-resource reconciliation or automatic retry/recovery here. C07's bounded
-event capacity still fails a connection if not consumed; this slice does not
-claim the future C04 event ingestion/control chain. Offline tests use real
+There is no native work/Turn execution, UI event subscription, request answer routing,
+unknown-resource reconciliation or automatic retry/recovery here. Offline tests use real
 SQLite and owned Go JSON-RPC fixture children with explicit minimal environments.
 They are hand-written protocol simulations, not native transcripts or evidence
 of real account, subscription, model or platform compatibility.
+
+## Local event capture
+
+Each Peer has an independent drainer using a separate small lock, never the
+lease RPC lock, SQLite or a subscriber. It keeps at most 32 normalized facts.
+Native text/questions/answers are discarded from the typed metadata mapping;
+callback identity/kind is an observation, not a durable answerable C06 request.
+Unknown methods, unsupported shapes or overflow close this owned Peer and retain
+an explicit terminal gap and actual process-tree stop evidence.
+
+SourceEpoch is the concrete Peer's initial Create/Resume command ID. Later
+Read/Release command IDs cannot change it. C07 provides no native event sequence:
+the drainer labels its monotone sequence and receipt IDs `local_observed`. Two
+identical deltas are both observations. Reconnection uses another source epoch;
+this is not native replay, a durable spool or cross-restart exactly-once delivery.
+
+`Captured` snapshots a bounded batch without dequeueing; `ReleaseCaptured` only
+releases positions after the runtime ledger commits them. It is not a native ACK.
+Explicit `BindingProducer.DrainEvents` bridges the buffer and the indexed ledger.
+Slow consumers do not hold protocol/DB locks; a prolonged backlog instead fails
+at the explicit capacity boundary. Host crash can lose uncommitted capture, so
+the implementation does not claim full C04 lossless critical-event retention.
