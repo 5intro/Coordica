@@ -2,7 +2,7 @@
 
 These partial C08 slices initialize a persistent supervised ACP connection and
 explicitly create one Session. They do not implement authentication, loading,
-prompt/cancel, native callbacks, runtime ports or a provider registration.
+prompt/cancel, native request answers, runtime ports or a provider registration.
 The production legacy `agent.executeACP` path is unchanged. That one-shot path
 automatically starts a prompt and shuts down afterward, so it is not reused here.
 
@@ -33,8 +33,8 @@ initialization after send, cancellation, disconnect or malformed response.
 `InitializationError.Process` and `Close()` carry actual supervised process-tree
 evidence; a nil Peer alone says nothing about stopping. RPC error text excludes
 native Message/Data, although their structured private objects remain available
-to the trusted caller. Duplicate/unsolicited responses and callbacks, including
-after initialization, close this unsupported connection rather than lose facts
+to the trusted caller. Duplicate/unsolicited responses and unsupported callbacks,
+including after initialization, close this connection rather than lose facts
 or authorize a tool. There is no automatic retry or arbitrary Call API.
 
 Tests use owned Go JSON-RPC children only. Antigravity is still the planned C08
@@ -60,8 +60,40 @@ process; `SessionCreationError` retains its actual Process proof and any validat
 native ID already observed. Local TreeStopped does not prove deletion of a
 native or remote Session. No native `session/close` or release RPC is invented.
 
-`LoadSession` returns unsupported without RPC even if advertised, because its
-history replay requires session/update support absent here. There is no prompt,
+`LoadSession` returns unsupported without RPC even if advertised: history replay
+ordering and full private content/completion handling remain absent. There is no prompt,
 authentication fallback, Task execution, database persistence or automatic retry
 across a new Peer. Future runtime composition must persist its own intent and
 unknown binding before native I/O, as the existing Codex composition does.
+
+## Bounded update metadata
+
+Only `session/update` notifications for this confirmed Session are captured.
+Three text chunk kinds and `tool_call`/`tool_call_update` yield bounded metadata:
+kind, UTF-8 byte count, tool reference and any explicitly supplied valid status.
+Text, thought bodies, titles, tool input/output and history are not retained.
+Absent/null tool-update status is not an invented transition. A tool completion
+does not mean a prompt/Turn or Task completed, or a permission was granted.
+
+The connection receives a fresh local epoch and observation sequence. Identical
+deltas remain separate facts; these are not native event IDs, replay cursors or
+cross-reconnect deduplication. `Session.Updates()` returns at most 32 facts with a
+16 KiB metadata budget and a defensive copy. `ReleaseUpdates` advances only an
+offered local prefix, sends no native ACK and cannot clear a gap or restart the
+Peer. The read loop never waits for consumers, a database or an external callback.
+
+Count/byte overflow preserves bounded accepted facts plus an observed high-water,
+explicit backpressure/gap and actual process-stop evidence. Wrong Session,
+unsupported/invalid updates and native request callbacks also fail closed without
+answers. Diagnostics remain readable through the original private Session after
+failure. Process.TreeStopped is set only after supervised Wait. Any close leaves
+the final observation window unconfirmed, including intentional Close; clearing
+the FIFO never claims complete history or removes that sticky gap.
+
+This intentionally supports five of the fixed schema's nine update variants.
+Plan/available-command/current-mode/config-option updates and non-text content
+are valid protocol possibilities but currently unsupported, rather than silently
+dropped or called schema-invalid. Notifications preceding a valid session/new
+response are unsupported; the first observed Session ID is not guessed to be the
+target. This metadata primitive is not lossless output, durable spool, complete
+Load/Prompt support, permission handling or runtime composition.

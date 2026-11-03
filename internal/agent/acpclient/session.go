@@ -18,6 +18,7 @@ import (
 type Session struct {
 	peer          *Peer
 	id, directory string
+	epoch         string
 }
 
 func (s Session) ID() string        { return s.id }
@@ -154,7 +155,11 @@ func (p *Peer) receiveSession(result, rpc []byte, hasError bool) error {
 		}
 		// Optional configuration declarations are not retained/interpreted. No
 		// selected/effective model, effort or permission is claimed by this ID.
-		reply.session = Session{peer: p, id: id, directory: p.directory}
+		p.updates.bind(id)
+		p.mu.Lock()
+		p.sessionReady = true
+		p.mu.Unlock()
+		reply.session = Session{peer: p, id: id, directory: p.directory, epoch: p.updates.epoch}
 	}
 	replies <- reply
 	return nil

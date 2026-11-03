@@ -8,7 +8,7 @@
 - 规划 [#29](https://github.com/5intro/Coordica/pull/29) 与 C01 文档 [#30](https://github.com/5intro/Coordica/pull/30) 已合并，
   远端 main 为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；合并/审查证据见本文末尾记录。
   旧批次中“open / denied / 待授权”均为当时事实，不再代表这两个 PR 的现状。
-- C01 保持待验证；C02–C05、C07 与 C08 ACP 会话创建离线底座/薄组合实施中，C06 仍规划中。
+- C01 保持待验证；C02–C05、C07 与 C08 ACP 会话/metadata 更新离线底座实施中，C06 仍规划中。
   本地源码与 SQLite/协议夹具不代表原生持续会话、审批回传或真实 harness 已完成。
 - C07 本地检查点 `be707b7263bb98fa98c7a58fb660c084bdc206a5` 保存于 `codex/runtime-codex-peer-20261102`，
   原检查点未推送、无产品 PR；接续输入 `c8c4586` 与 C07 修复 `e47c435` 均独立保留。
@@ -16,7 +16,7 @@
 - 本轮从上述 main 建独立文档分支 `codex/provider-contract-plan-20261102`，只做 R102–R104 规划准备与离线文档检查；
   不推送、不提 PR、不合并，不混入 C07 源码。当前公开基线不随本地修订改变。
 - 上述文档轮已完成为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`；Owner 随后要求继续独立离线开发。
-  C02 `6249553`、C03 `2e2107f`、薄组合 `6ea2fa6`、C04 `f00eab8`、单 text C05 `b895d49`、中断 `b7d5a35` 与 ACP 初始化 `133936b` 检查点独立保留；当前工作片在 `codex/c08-acp-session-new-20261103`，原交接及修复分支未移动。
+  C02 `6249553`、C03 `2e2107f`、薄组合 `6ea2fa6`、C04 `f00eab8`、单 text C05 `b895d49`、中断 `b7d5a35`、ACP 初始化 `133936b` 与 session-new `c56099e` 独立保留；当前工作片在 `codex/c08-acp-updates-20261103`，原交接及修复分支未移动。
 - 新环境的官方 Go 1.27.2 与 SQLite 依赖已由环境准备实测验证，本片复用这些已下载缓存。
   全仓门禁现受 mcpconfig 所需中立 Git 临时目录条件阻断；这是已定位环境项，没有删除共享 Git 标记、
   重试只读目录、调整网络或削弱测试守卫，也不以此停止独立离线源码切片。
@@ -766,3 +766,29 @@
   仅源码/手写离线夹具；实际认证、Session 配置、prompt/工具与运行时接线仍未验证，C08 不标完成。
   全仓 mcpconfig 中立 Git 临时环境项保持 blocked，不重探/绕守卫、未 push/PR/merge。
   下一必要小片再考虑显式配置/终结式 prompt；不在本片展开或自动运行。
+
+## C08 — 有界 ACP update metadata（2026-11-03 UTC，本地离线切片）
+
+- 输入固定 `c56099e9fdd66569bdbd10dca480dd0f2cc7428a`；独立分支 `codex/c08-acp-updates-20261103`。
+  选择 Load/terminal Prompt 共同依赖的接收前置，不一次加入长 RPC、配置、历史重放或工作派发。
+- 仅接受已确认 Session 的 JSON-RPC session/update，私有句柄固定原 Peer/SessionID/本连接 epoch；
+  new 回复前通知明确 unsupported，不猜第一个 ID。三个 text chunk 与 tool_call/tool_call_update 五类 metadata 白名单，
+  只存 kind/UTF-8 字节数/有界 tool 引用/显式合法 status，不存正文、thought、标题、tool input/output 或完整历史。
+  tool update status absent/null 保留“未提供变更”，tool completed 不是 Turn/Task 完成或权限批准。
+- 固定 schema 另外四种更新及非 text 内容本片 unsupported，显式 gap/fail closed，不误称 schema-invalid 或偷偷丢弃。
+  native permission/fs/terminal 等请求仍不答复。wrong Session、畸形/未知通知与超容量均停止 owned Peer，
+  不自动 authenticate/load/prompt、重启、派发或回复工具权限。
+- 独立小锁 FIFO 最多 32 条/16KiB metadata，协议 read loop 不等 consumer/DB。
+  每连接 fresh local epoch/local_observed sequence，同内容两条均保留；不是原生 eventID、durable spool 或跨重连去重。
+  Updates 防御复制并提供独立 sticky gap/high-water/终态，ReleaseUpdates 只推进已 offered 本地前缀，零 native ACK。
+  清空 buffer 不修复 gap；结束后原 Session 仍能读诊断，Process.TreeStopped 只取真实监督 Wait。
+  任何关闭的尾部窗口都未证明完整，包括显式 Close；不据 FIFO 空或本地停止声称远端 Session 删除/历史完整。
+- 首个 Go 子进程 smoke 1 pass。WIP 契约 red：显式空 tool status 被误当 absence，两个子例加父共 3 fail；
+  该新 parser 原字节在 red-source/ 归档并匹配当时 preflight，最小 presence 修复后纳入回归；不是旧 c560 产品缺陷。
+  普通/竞态四包 acpclient/appserver/process/jsoninput 各 153 Test/subtest pass、退出 0、源码一致/owned 停止/临时根清理，
+  受影响 vet/quality(base efa) 退出 0。必要夹具覆盖同 delta 两条/隐私无别名、nullable/absent 状态、
+  wrong/早到 Session、unsupported plan/image/callback、count/byte overflow、sticky gap、本地消费越界、epoch 隔离与 Close 并发。
+- 证据 `.cache/c08-updates-20261103/` 保存命令/env/源码 SHA、red/green 原日志与回执。
+  Go 1.27.2/GOTOOLCHAINlocal/官方缓存/GOPROXYoff、三 live opt-in 删除、单并发及原 8GiB/4GiB/600s guard 保持。
+  源码/手写离线 fixture 不代表 Antigravity 实测或完整 Load/Prompt 输出；C08/认证/runtime 接线仍未完成。
+  全仓 mcpconfig 中立 Git 临时环境项保持 blocked，不重探/绕守卫，未 push/PR/merge；本片不展开后续模块。

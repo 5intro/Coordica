@@ -19,6 +19,8 @@ var (
 	ErrUnsupportedVersion = errors.New("unsupported ACP protocol version")
 	ErrUnsupported        = errors.New("ACP operation is not implemented by this client")
 	ErrSessionAllocated   = errors.New("ACP peer already consumed its session allocation attempt")
+	ErrUnsupportedUpdate  = errors.New("ACP update or callback is not implemented by this client")
+	ErrBackpressure       = errors.New("ACP local update capture capacity exhausted")
 )
 
 // Config is trusted host wiring. Args/Env are explicit, copied selections, not

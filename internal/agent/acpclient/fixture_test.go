@@ -147,6 +147,9 @@ func sessionFixtureReply(scenario string, id int, directory string, mcp []json.R
 	}
 	result := map[string]any{"sessionId": "native-session", "modes": nil, "configOptions": nil}
 	response := map[string]any{"jsonrpc": "2.0", "id": 2, "result": result}
+	if scenario == "updates-early" {
+		printUpdateFixture("native-session", map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "private-early"}})
+	}
 	switch scenario {
 	case "session-rejected":
 		delete(response, "result")
@@ -179,9 +182,77 @@ func sessionFixtureReply(scenario string, id int, directory string, mcp []json.R
 	}
 	raw, _ := json.Marshal(response)
 	fmt.Println(string(raw))
+	if strings.HasPrefix(scenario, "updates-") && scenario != "updates-early" {
+		emitUpdateFixture(scenario)
+	}
+	if scenario == "updates" {
+		for _, update := range []map[string]any{
+			{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "private-update-body-秘密"}},
+			{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "private-update-body-秘密"}},
+			{"sessionUpdate": "tool_call", "toolCallId": "native-tool", "title": "private-tool-title", "status": "in_progress"},
+			{"sessionUpdate": "tool_call_update", "toolCallId": "native-tool", "title": nil, "status": nil, "content": nil},
+		} {
+			raw, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": "native-session", "update": update}})
+			fmt.Println(string(raw))
+		}
+	}
 	if scenario == "session-duplicate-response" {
 		fmt.Println(string(raw))
 	}
+}
+
+func printUpdateFixture(session string, update map[string]any) {
+	raw, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": session, "update": update}})
+	fmt.Println(string(raw))
+}
+
+func emitUpdateFixture(scenario string) {
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(os.Getenv("COORDICA_ACP_CONTINUE")); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			os.Exit(10)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	update := map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "private-update-payload"}}
+	switch scenario {
+	case "updates-wrong-session":
+		printUpdateFixture("private-other-session", update)
+		return
+	case "updates-unsupported":
+		update = map[string]any{"sessionUpdate": "plan", "entries": []any{}}
+	case "updates-image":
+		update["content"] = map[string]any{"type": "image", "data": "private-image", "mimeType": "image/png"}
+	case "updates-null-content":
+		update["content"] = nil
+	case "updates-null-text":
+		update["content"] = map[string]any{"type": "text", "text": nil}
+	case "updates-null-tool-status":
+		update = map[string]any{"sessionUpdate": "tool_call", "toolCallId": "tool", "title": "private-title", "status": nil}
+	case "updates-bad-tag":
+		delete(update, "sessionUpdate")
+	case "updates-permission":
+		fmt.Println(`{"jsonrpc":"2.0","id":22,"method":"session/request_permission","params":{"sessionId":"native-session","private":"private-callback"}}`)
+		return
+	case "updates-disconnect":
+		os.Exit(0)
+	case "updates-optional":
+		printUpdateFixture("native-session", map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "tool"})
+		printUpdateFixture("native-session", map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": "tool", "status": nil})
+		return
+	case "updates-flood", "updates-byte-flood":
+		if scenario == "updates-byte-flood" {
+			update = map[string]any{"sessionUpdate": "tool_call_update", "toolCallId": strings.Repeat("x", 512), "status": "pending"}
+		}
+		for i := 0; i < 33; i++ {
+			printUpdateFixture("native-session", update)
+		}
+		return
+	}
+	printUpdateFixture("native-session", update)
 }
 
 func fixtureConfig(t *testing.T, scenario string) (Config, string) {

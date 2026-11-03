@@ -34,6 +34,8 @@ type Peer struct {
 	sessionID               string
 	sessionReply            chan sessionReply
 	sessionWriteDone        chan struct{}
+	sessionReady            bool
+	updates                 *updateCapture
 }
 
 func Open(ctx context.Context, config Config) (*Peer, error) {
@@ -57,12 +59,16 @@ func OpenWithLifetime(lifetime, operation context.Context, config Config) (*Peer
 	if err != nil {
 		return nil, err
 	}
+	capture, err := newUpdateCapture()
+	if err != nil {
+		return nil, err
+	}
 	s, err := process.Start(lifetime, process.Spec{Executable: config.Executable, Args: append([]string{}, config.Args...), Dir: directory,
 		Env: append([]string{}, config.Env...), MaxLineBytes: maxFrameBytes})
 	if err != nil {
 		return nil, err
 	}
-	p := &Peer{process: s, directory: directory, pending: true, reply: make(chan initializeReply, 1), failed: make(chan struct{}), done: make(chan struct{}), writeDone: make(chan struct{})}
+	p := &Peer{process: s, directory: directory, updates: capture, pending: true, reply: make(chan initializeReply, 1), failed: make(chan struct{}), done: make(chan struct{}), writeDone: make(chan struct{})}
 	go p.readLoop()
 	request, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{
 		"protocolVersion": 1, "clientInfo": Implementation{Name: "coordica", Version: "0.2.5-dev"},
@@ -126,6 +132,7 @@ func (p *Peer) Err() error            { p.mu.Lock(); defer p.mu.Unlock(); return
 func (p *Peer) Done() <-chan struct{} { return p.done }
 
 func (p *Peer) Close() (process.Result, error) {
+	p.updates.stopping()
 	p.fail(context.Canceled)
 	<-p.done
 	<-p.writeDone
@@ -155,9 +162,11 @@ func (p *Peer) readLoop() {
 			continue
 		}
 		if err := p.receive(output.Line); err != nil {
+			p.updates.fault("protocol_error")
 			p.fail(errors.Join(ErrOutcomeUnknown, err))
 		}
 	}
 	p.result, p.waitErr = p.process.Wait()
+	p.updates.finish(p.result)
 	p.fail(errors.Join(ErrDisconnected, p.waitErr))
 }

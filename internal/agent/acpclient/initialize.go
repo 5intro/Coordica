@@ -38,6 +38,13 @@ func (p *Peer) receive(raw []byte) error {
 	if err != nil {
 		return err
 	}
+	if _, exists := fields["method"]; exists {
+		var version string
+		if decode(fields, "jsonrpc", &version, true) != nil || version != "2.0" {
+			return ErrProtocol
+		}
+		return p.receiveUpdate(fields)
+	}
 	for name := range fields {
 		if name != "jsonrpc" && name != "id" && name != "result" && name != "error" {
 			return ErrProtocol
