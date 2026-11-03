@@ -16,7 +16,7 @@
 - 本轮从上述 main 建独立文档分支 `codex/provider-contract-plan-20261102`，只做 R102–R104 规划准备与离线文档检查；
   不推送、不提 PR、不合并，不混入 C07 源码。当前公开基线不随本地修订改变。
 - 上述文档轮已完成为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`；Owner 随后要求继续独立离线开发。
-  C02 检查点 `6249553` 独立保留；当前 C03 工作在 `codex/c03-session-binding-20261103`，原三个交接分支及 C07 修复分支未移动。
+  C02 `6249553` 与 C03 `2e2107f` 检查点独立保留；当前薄组合在 `codex/c07-binding-read-resume-20261103`，原三个交接分支及 C07 修复分支未移动。
 - 新环境的官方 Go 1.27.2 与 SQLite 依赖已由环境准备实测验证，本片复用这些已下载缓存。
   全仓门禁现受 mcpconfig 所需中立 Git 临时目录条件阻断；这是已定位环境项，没有删除共享 Git 标记、
   重试只读目录、调整网络或削弱测试守卫，也不以此停止独立离线源码切片。
@@ -546,3 +546,44 @@
 - 本地源码和离线夹具切片；完整 mcpconfig 中立 Git 临时环境项仍阻断，未削弱 guard 或重试只读目录。
   正式 GitHub 两审、真实 harness/C01 出口未通过，未 push/创建 PR/合并/部署；中心暂停、派发关闭。
   下一最小片仍是 C03 的显式原生 read/resume 与 C07 薄接线及固定身份验证，不自动补发工作或扩大 C04。
+
+## C07/C03 — 显式 native read/resume 薄组合（2026-11-03 UTC，本地离线切片）
+
+- 输入固定 C03 `2e2107f73519bd85faddd3407bf3a7db22083753`；独立分支
+  `codex/c07-binding-read-resume-20261103`，保留 C03/C02/C07 及原三个交接 refs。
+- `runtime.SessionPort` 是消费方窄扩展，独立 `internal/runtimecodex` 组合 appserver 协议，
+  agent 层不反向依赖调度实体。宿主显式选择 executable/env/directory 与固定 profile/config/workspace 引用；
+  构造不启动进程或发现/迁移凭据。引用是宿主选择，不是原生认证、实际 effort 或 OS 隔离证明。
+- ResumeBinding 只接受已 released 且有匹配持久 TreeStopped 的原生 ID：事务先记单 command/owner/新代际，
+  DB 外 ResumeThread，再核当前权限/Run/config/owner/代际。相同绑定复用自身 native 索引，foreign 索引不改。
+  错 ID、配置不符或断连观察保留在原 command，不能覆盖已验证的原 resume 目标，不能 fallback create。
+  同键/并发不重复 RPC；unknown 或仍未停止的旧 owner 不允许用 resume 接管。
+- ReadNative 只用当前 owner 的 ready 连接，read 不 Open/resume。当前 session.control 与完整绑定围栏
+  在 I/O 前后都检查，成功和错误路径均覆盖；撤权/迟到时不返回私密 snapshot 或可被 errors.As 取得的 RPCError 数据。
+  raw history 不进入 TaskContext、通用 audit、idempotency 或 command；command 仅留操作结果/观察/停止元数据。
+- OpenWithLifetime 仅分离宿主进程 lifetime 与单次 initialize/RPC ctx；成功后取消操作 ctx 不杀 ready Peer。
+  请求入队后取消仍 fail Peer 并 Unknown，不放松旧围栏。Stop 从 Peer.Close 取真实 TreeStopped；
+  Open 失败返回 nil Peer 时不靠“看不见进程”捏造停止证明，保守 unknown。
+- 真实 SQLite 与 owned Go JSON-RPC 子进程验证 Create→Read→Release→关闭重开 DB/新 host→Resume 同 ID→Read；
+  journal 为 thread/start=1、resume=1、read=2、turn/start=0，Task 正文未发送。
+  另覆盖配置/返回 ID 不符及原生观察、断连、明确 RPC 拒绝、发前/写后取消、并发唯一 resume、
+  prepare 最后 receipt 回滚 0RPC、foreign native 索引拒绝、Read 成功/错误期间撤权和 recovery 迟到不泄私密材料。
+- 首次扩大测试快照后，runner 漏同步扩大结束后的文件集合，原始测试 98 pass 但编排 assertion 失败；
+  原日志保留于 matrix-nonrace，没有将其当正式通过回执。修正 runner 后 matrix-green 与 matrix-race 均退出 0，
+  各 102 个测试/子测试 pass、三包 pass、无 fail/skip；源码前后 hash 相同，owned 停止/临时根删除确认。
+  scoped vet 与 quality(base efa) 退出 0；维护提示按语义审查，不把数字 advisory 当自动功能/合并证明。
+  分阶段命令、选定 env、源码 hash、日志与回执在 `.cache/c07-binding-20261103/`。
+- 最终安全预审确认 P2：共享 Create/Resume 在撤权/旧 owner 后仍 Join 原生 RPCError，
+  cleanup 无证明时还会跳过 finish 的二次鉴权。旧候选 799e 未提交；新增四个私密 sentinel 子例真实 red，
+  覆盖已证停止后撤权/Recover、initialize 失败 nilPeer、私密 cleanup 错误链，5 个 fail 事件与停止清理均记录。
+  最小修复在全部错误出口、cleanup/quarantine 后独立重验当前权限/target/owner/代际；
+  自身 unknown 状态推进不当作外来失效，仍授权的明确拒绝保留原分类，失效仅返安全 fence/Unknown/StopUnconfirmed。
+  原生观察留原 command；不把私密错误对象经 Join/As 给旧调用者。修后 private-error-green/private-error-race
+  各 107 个测试/子测试 pass、三包 pass、无 fail/skip，停止清理确认；scoped vet/quality 再退出 0。
+- 沿用官方 Go 1.27.2/GOTOOLCHAIN=local/已验证缓存，三个 live/catalog opt-in 删除、GOPROXY=off，
+  GOMAXPROCS=1、-p=1、3m 测试/600s 监督、8GiB 空闲/4GiB 临时门槛不变。
+  仅手写离线协议夹具；没有真实账号/订阅 harness、生产 Runner/public routes、Turn/输入执行或 C04 事件消费。
+  unknown 资源调解与忙时策略仍未完成，不把 native read/resume 源码接线记成真实生产接入完成。
+- 本地保存；全仓 mcpconfig 中立临时目录环境项仍 blocked，不重探/重试/删除共享标记/绕 guard。
+  完整门禁与正式 GitHub 两审未完成，不 push/创建 PR/merge/部署；中心暂停、派发关闭。
+  下一最小片是 C04 必要结构化事件接收/游标与 C03 活跃资源事实的纵向整合，仍不引入自主派工或完整事件平台。

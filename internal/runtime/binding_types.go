@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 )
 
@@ -92,9 +93,10 @@ type NativeCreate struct {
 // Outcome is confirmed|rejected|not_sent|unknown. A returned native identity on
 // an error is an observed resource, not proof that creation was rejected.
 type NativeCreation struct {
-	Outcome   string          `json:"outcome"`
-	ID        NativeSessionID `json:"id"`
-	Effective BindingConfig   `json:"effective"`
+	Outcome       string          `json:"outcome"`
+	ID            NativeSessionID `json:"id"`
+	Effective     BindingConfig   `json:"effective"`
+	Configuration json.RawMessage `json:"configuration,omitempty"` // Private native configuration evidence, never history.
 }
 
 type BindingStop struct {
@@ -110,4 +112,17 @@ type BindingStop struct {
 type BindingPort interface {
 	Create(context.Context, NativeCreate) (NativeCreation, error)
 	Stop(context.Context, NativeCreate, NativeSessionID) (BindingStop, error)
+}
+
+// SessionPort is an optional, consumer-owned extension. Read uses an existing
+// owned handle; Resume restores only the persisted native context, never work.
+type SessionPort interface {
+	BindingPort
+	Resume(context.Context, NativeCreate, NativeSessionID) (NativeCreation, error)
+	Read(context.Context, NativeCreate, NativeSessionID, bool) (NativeSnapshot, error)
+}
+
+type NativeSnapshot struct {
+	Outcome string
+	History json.RawMessage // Private transient data: never an audit or receipt body.
 }

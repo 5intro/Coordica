@@ -88,6 +88,14 @@ type Peer struct {
 // Open performs only initialize/initialized. It does not create a native thread,
 // log in, start a turn, or change native permission defaults.
 func Open(ctx context.Context, config Config) (*Peer, error) {
+	return OpenWithLifetime(ctx, ctx, config)
+}
+
+// OpenWithLifetime separates the host-owned process lifetime from the bounded
+// initialization request. Cancelling a successfully completed operation's
+// context does not end the host lifetime. Cancellation after RPC enqueue still
+// fails the peer and reports an unknown outcome through the existing fence.
+func OpenWithLifetime(lifetime, operation context.Context, config Config) (*Peer, error) {
 	if !filepath.IsAbs(config.Executable) || !filepath.IsAbs(config.Directory) || config.Env == nil {
 		return nil, errors.New("absolute executable/directory and explicit execution environment are required")
 	}
@@ -95,7 +103,7 @@ func Open(ctx context.Context, config Config) (*Peer, error) {
 	if err != nil {
 		return nil, err
 	}
-	s, err := process.Start(ctx, process.Spec{Executable: config.Executable, Args: []string{"app-server"},
+	s, err := process.Start(lifetime, process.Spec{Executable: config.Executable, Args: []string{"app-server"},
 		Dir: config.Directory, Env: config.Env, MaxLineBytes: maxFrameBytes})
 	if err != nil {
 		return nil, err
@@ -108,7 +116,7 @@ func Open(ctx context.Context, config Config) (*Peer, error) {
 	params := map[string]any{"clientInfo": map[string]string{"name": "coordica", "version": "0.2.5-dev"},
 		"capabilities": map[string]bool{"experimentalApi": config.Experimental}}
 	var result ServerInfo
-	err = p.call(ctx, "initialize", params, &result)
+	err = p.call(operation, "initialize", params, &result)
 	if err == nil && result.UserAgent == "" {
 		err = ErrProtocol
 	}

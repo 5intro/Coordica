@@ -79,8 +79,16 @@ arbitrary executable, environment, cwd, RPC method or prompt through this API.
   identity, with no Task/context body or Turn. A second transaction revalidates
   current authority and owner/generation before publishing `ready`. Duplicate or
   unknown calls do not create again. Effective configuration must match exactly.
-- `ReadBinding` reads scoped ledger facts only. Native read/history and resume
-  are not implemented here, and reading never starts or resumes work.
+- `ReadBinding` reads scoped ledger facts only. `ReadNative` separately requires
+  `session.control` and this producer's existing ready connection. It records
+  only command outcome metadata; private native history is transient. Both
+  success and error paths revalidate current authority and the full binding
+  after I/O. Expired readers receive neither history nor private native errors.
+- `ResumeBinding` accepts only a released binding with a matching persisted
+  process-stop proof. It claims a new owner/command/generation, then restores
+  the original native ID outside SQLite. It does not inject context or start a
+  Turn. Unknown or unconfirmed old ownership cannot use this path. Duplicate
+  commands do not repeat native resume; the caller reads current binding facts.
 - `Release` closes only this producer's known idle binding. It requires an exact
   binding/owner/native-ID `TreeStopped` proof before `released/session_stopped`.
   It retains Task/context and does not cancel them. A nil Stop error or completed
@@ -98,8 +106,21 @@ saved in the same transaction. Otherwise the binding remains unknown even if
 cleanup stopped the owned process; observed native IDs/configuration and stop
 proof remain on the original command. This does not authorize a new create.
 
-This slice supplies no production C07 adapter, native read/resume, active-turn
-control, unknown-resource reconciliation or background recovery. Offline tests
+The separate `internal/runtimecodex` composition supplies a thin C07 port with
+explicit host configuration. The protocol package does not depend on this
+ledger. This is not production Runner integration, active-turn control,
+unknown-resource reconciliation or background recovery. Offline tests
 use real SQLite and counted ports; one owned fake protocol child verifies the
 DB-outside boundary and actual process-tree stop. Those tests do not establish
 real harness compatibility, native authentication or production integration.
+
+Resume observations cannot replace the previously verified native resume
+target, including when native returns a different ID. That observation and
+private configuration evidence stay on its own command. An existing native
+identity index may be reused only by the same binding; it is never reassigned.
+Read never opens or resumes a Peer. A read connection failure closes the owned
+Peer and records unknown; it does not transparently retry on a new connection.
+Create/resume error exits separately recheck current authority and owner/generation
+after cleanup. Expired callers receive safe fence/unknown errors without native
+or cleanup error objects carrying private data. An authorized explicit rejection
+retains its original RPC error classification; observations stay on its command.

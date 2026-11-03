@@ -40,22 +40,41 @@ func (p *BindingProducer) finish(ctx context.Context, credential Credential, ori
 		if !sameClaim(binding, command, claim) || binding.Config != p.config || binding.Version == math.MaxInt64 || run.Version == math.MaxInt64 {
 			return ErrConflict
 		}
-		if !confirmed && !scopedStop(stop, nativeCall(binding, claim), observation.ID) {
+		stopID := observation.ID
+		if claim.Operation == "resume" {
+			stopID = binding.NativeID
+		}
+		if !confirmed && !scopedStop(stop, nativeCall(binding, claim), stopID) {
 			return ErrStopUnconfirmed
 		}
 		binding.Version++
 		binding.Outcome = observation.Outcome
-		binding.NativeID = observation.ID
+		if claim.Operation == "create" {
+			binding.NativeID = observation.ID
+		}
 		command.State, command.Observed = "completed", observation
 		if confirmed {
 			key := compound(binding.Config.Target.NodeID, observation.ID.Harness, binding.Config.ProfileRef, observation.ID.Value)
-			if err = putNew(tx, kindBindingNative, key, binding.ID); err != nil {
+			if claim.Operation == "resume" {
+				var occupied string
+				err = tx.Get(kindBindingNative, key, &occupied)
+				if err == nil && (occupied != binding.ID || observation.ID != binding.NativeID) {
+					err = ErrConflict
+				}
+			} else {
+				err = putNew(tx, kindBindingNative, key, binding.ID)
+			}
+			if err != nil {
 				return err
 			}
 			binding.State, run.NativeDisposition = "ready", "session_bound"
 		} else {
 			command.Stop, binding.CleanupStopped = stop, true
-			binding.State, run.NativeDisposition = "unbound", "not_started"
+			if claim.Operation == "resume" {
+				binding.State, run.NativeDisposition = "released", "session_stopped"
+			} else {
+				binding.State, run.NativeDisposition = "unbound", "not_started"
+			}
 		}
 		run.Version++
 		if err = tx.Put(kindBindingCommand, command.ID, command); err == nil {
@@ -105,7 +124,8 @@ func (p *BindingProducer) quarantine(ctx context.Context, original Binding, clai
 		if err := tx.Put(kindBindingCommand, command.ID, command); err != nil {
 			return err
 		}
-		if binding.Generation == claim.Generation && binding.OwnerID == claim.OwnerID && binding.CommandID == claim.ID {
+		currentCommand := binding.CommandID == claim.ID || claim.Operation == "read" && binding.CommandID == original.CommandID
+		if binding.Generation == claim.Generation && binding.OwnerID == claim.OwnerID && currentCommand {
 			var run Run
 			if err := tx.Get(kindRun, original.RunID, &run); err != nil {
 				return err
@@ -114,7 +134,10 @@ func (p *BindingProducer) quarantine(ctx context.Context, original Binding, clai
 				return ErrConflict
 			}
 			binding.State, binding.Outcome = "unknown", "unknown"
-			binding.NativeID, binding.CleanupStopped = observation.ID, stopped
+			if claim.Operation == "create" {
+				binding.NativeID = observation.ID
+			}
+			binding.CleanupStopped, binding.CommandID = stopped, claim.ID
 			binding.Version++
 			run.NativeDisposition, run.Version = "session_unknown", run.Version+1
 			if err := tx.Put(kindBinding, binding.ID, binding); err != nil {

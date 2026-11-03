@@ -84,10 +84,12 @@ func openThread(ctx context.Context, peer *Peer, method, id string, options Thre
 		return Thread{}, Configuration{}, peer.invalidResult()
 	}
 	got, err := threadID(result.Thread)
+	if err == nil {
+		result.NativeThreadID = got
+	}
 	if err != nil || id != "" && got != id || result.Model == "" || result.ModelProvider == "" || !filepath.IsAbs(result.Directory) {
 		return Thread{}, result.Configuration, peer.invalidResult()
 	}
-	result.NativeThreadID = got
 	if !options.matches(result.Configuration) || filepath.Clean(result.Directory) != peer.directory {
 		// No Turn has been started. Preserve the reported configuration for
 		// reconciliation; do not retry, silently accept it, or start work.

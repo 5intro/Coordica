@@ -28,7 +28,8 @@ func (p *BindingProducer) RecoverUnknown(ctx context.Context, credential Credent
 				binding.Version == math.MaxInt64 || binding.Generation == math.MaxInt64 || run.Version == math.MaxInt64 {
 				return Binding{}, "", false, ErrConflict
 			}
-			if binding.State != "creating" && binding.State != "ready" && binding.State != "unknown" && binding.State != "releasing" {
+			if binding.State != "creating" && binding.State != "resuming" && binding.State != "ready" &&
+				binding.State != "unknown" && binding.State != "releasing" {
 				return Binding{}, "", false, ErrConflict
 			}
 			var command BindingCommand

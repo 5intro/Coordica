@@ -77,22 +77,34 @@ func (p *BindingProducer) Produce(ctx context.Context, credential Credential, id
 	if err != nil {
 		return Binding{}, err
 	}
+	return p.perform(ctx, credential, binding, command, p.port.Create)
+}
+
+func (p *BindingProducer) perform(ctx context.Context, credential Credential, binding Binding, command BindingCommand,
+	invoke func(context.Context, NativeCreate) (NativeCreation, error)) (Binding, error) {
 	call := nativeCall(binding, command)
 	observation := NativeCreation{Outcome: "not_sent"}
 	callErr := ctx.Err()
 	if callErr == nil {
 		callCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		observation, callErr = p.port.Create(callCtx, call)
+		observation, callErr = invoke(callCtx, call)
 		cancel()
 	}
 	confirmed := callErr == nil && observation.Outcome == "confirmed" &&
 		validNative(observation.ID, binding.Config.Target.Harness) && observation.Effective == binding.Config
+	if command.Operation == "resume" && observation.ID != binding.NativeID {
+		confirmed = false
+	}
 	safeFailure := callErr != nil && observation.ID == (NativeSessionID{}) &&
 		(observation.Outcome == "rejected" || observation.Outcome == "not_sent")
 	stopped, stopErr := false, error(nil)
 	var stopProof BindingStop
+	cleanupID := observation.ID
+	if command.Operation == "resume" {
+		cleanupID = binding.NativeID
+	}
 	if !confirmed {
-		stopped, stopProof, stopErr = p.cleanup(ctx, call, observation.ID)
+		stopped, stopProof, stopErr = p.cleanup(ctx, call, cleanupID)
 	}
 	if confirmed || safeFailure && stopped && stopErr == nil {
 		finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rpcCleanupTimeout)
@@ -106,12 +118,46 @@ func (p *BindingProducer) Produce(ctx context.Context, credential Credential, id
 	// Quarantine only this owned port. A cleanup stop does not resolve the
 	// external create outcome or release the logical binding for another start.
 	if confirmed {
-		stopped, stopProof, stopErr = p.cleanup(ctx, call, observation.ID)
+		stopped, stopProof, stopErr = p.cleanup(ctx, call, cleanupID)
 	}
 	unknownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rpcCleanupTimeout)
 	defer cancel()
 	unknownErr := p.quarantine(unknownCtx, binding, command, observation, stopped, stopProof)
+	if fenceErr := p.disclosureFence(unknownCtx, credential, binding, command); fenceErr != nil {
+		// Observations stay on the original command. An expired caller receives
+		// neither a native RPCError nor a cleanup error carrying private data.
+		var safeStop, safePersistence error
+		if !stopped || stopErr != nil {
+			safeStop = ErrStopUnconfirmed
+		}
+		if unknownErr != nil {
+			safePersistence = ErrConflict
+		}
+		return Binding{}, errors.Join(ErrOutcomeUnknown, fenceErr, safeStop, safePersistence)
+	}
 	return Binding{}, errors.Join(ErrOutcomeUnknown, callErr, stopErr, unknownErr)
+}
+
+// disclosureFence checks current authority/identity, independently of the
+// command's own completed/unknown state transitions and first-write CAS.
+func (p *BindingProducer) disclosureFence(ctx context.Context, credential Credential, original Binding, claim BindingCommand) error {
+	return p.ledger.db.View(ctx, func(tx *store.Tx) error {
+		grant, err := authorize(tx, credential, SessionControl)
+		if err != nil {
+			return err
+		}
+		current, task, run, err := bindingFor(tx, grant, original.ID, true)
+		if err != nil {
+			return err
+		}
+		if err := liveBinding(grant, task, run); err != nil {
+			return err
+		}
+		if current.Config != p.config || current.OwnerID != claim.OwnerID || current.Generation != claim.Generation || current.CommandID != claim.ID {
+			return ErrConflict
+		}
+		return nil
+	})
 }
 
 func (p *BindingProducer) cleanup(ctx context.Context, call NativeCreate, id NativeSessionID) (bool, BindingStop, error) {

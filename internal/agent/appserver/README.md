@@ -23,6 +23,13 @@ dropping a request or reporting success. RPC operations have a ten-second bound.
 Timeout/disconnect after queue acceptance returns `ErrOutcomeUnknown`; there is
 no automatic replay. `Close` retains actual process-tree stop evidence.
 
+`OpenWithLifetime(hostLifetime, operation, config)` allows a host-owned Peer to
+outlive a successfully completed initialization/RPC context. `Open` preserves
+its original single-context behavior. Cancellation after RPC enqueue still
+fails the Peer and returns unknown; separating lifetimes does not relax that
+fence. The independent `internal/runtimecodex` package composes this protocol
+with the experimental ledger; this package has no runtime/scheduling dependency.
+
 The calling C02–C06 control layer still needs durable Task context/inputs,
 explicit Run/instance selection, authorization, binding/turn generation checks,
 event/effect persistence and request reconciliation. It must drain the adapter
@@ -46,6 +53,9 @@ sandbox mode. They use the trusted workspace, with symlinks canonicalized, and
 return the native configuration separately. A known model/mode/workspace
 mismatch returns `ErrConfiguration` with the observed native thread ID for
 reconciliation; it starts no Turn and does not silently choose another model.
+An otherwise valid but unexpected native thread ID is also retained in the
+configuration observation before the connection is invalidated; no usable
+Thread is returned for that mismatch.
 This is a deliberately small subset of the pinned native options, not a public
 runtime API or a claim that the selected mode enforces OS isolation.
 
