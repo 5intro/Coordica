@@ -8,7 +8,7 @@
 - 规划 [#29](https://github.com/5intro/Coordica/pull/29) 与 C01 文档 [#30](https://github.com/5intro/Coordica/pull/30) 已合并，
   远端 main 为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；合并/审查证据见本文末尾记录。
   旧批次中“open / denied / 待授权”均为当时事实，不再代表这两个 PR 的现状。
-- C01 保持待验证；C02/C03、C07 离线控制/薄组合与 C04 metadata 事件/游标实施中，C05–C06/C08 仍规划中。
+- C01 保持待验证；C02–C05 与 C07 离线底座/薄组合实施中，C06/C08 仍规划中。
   本地源码与 SQLite/协议夹具不代表原生持续会话、审批回传或真实 harness 已完成。
 - C07 本地检查点 `be707b7263bb98fa98c7a58fb660c084bdc206a5` 保存于 `codex/runtime-codex-peer-20261102`，
   原检查点未推送、无产品 PR；接续输入 `c8c4586` 与 C07 修复 `e47c435` 均独立保留。
@@ -16,7 +16,7 @@
 - 本轮从上述 main 建独立文档分支 `codex/provider-contract-plan-20261102`，只做 R102–R104 规划准备与离线文档检查；
   不推送、不提 PR、不合并，不混入 C07 源码。当前公开基线不随本地修订改变。
 - 上述文档轮已完成为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`；Owner 随后要求继续独立离线开发。
-  C02 `6249553`、C03 `2e2107f` 与薄组合 `6ea2fa6` 检查点独立保留；当前事件片在 `codex/c04-runtime-events-20261103`，原三个交接分支及 C07 修复分支未移动。
+  C02 `6249553`、C03 `2e2107f`、薄组合 `6ea2fa6` 与 C04 `f00eab8` 检查点独立保留；当前工作片在 `codex/c05-explicit-work-turn-20261103`，原交接及修复分支未移动。
 - 新环境的官方 Go 1.27.2 与 SQLite 依赖已由环境准备实测验证，本片复用这些已下载缓存。
   全仓门禁现受 mcpconfig 所需中立 Git 临时目录条件阻断；这是已定位环境项，没有删除共享 Git 标记、
   重试只读目录、调整网络或削弱测试守卫，也不以此停止独立离线源码切片。
@@ -641,3 +641,49 @@
 - 本地保存；完整 mcpconfig 中立临时目录环境项仍 blocked，未重探/重试/绕 guard。
   正式 GitHub 两审和真实 harness/C01 出口未通过，未 push/PR/merge/部署，中心暂停、派发关闭。
   下一最小片是消费这些事实的 C05 显式输入/当前 Turn 围栏及必要 C04 补足，不在本片展开。
+
+## C05 — 显式单 text 工作 Turn（2026-11-03 UTC，本地离线切片）
+
+- 输入固定 `f00eab8eb82e891e7698ff19acc6813da3aff591`；独立分支
+  `codex/c05-explicit-work-turn-20261103`，保留原交接及 C02/C03/C04/C07 检查点。
+  本片优先补空会话到显式工作的纵向缺口，再接第二种原生协议；不按编号补齐整个平台。
+- 窄接口 PrepareWork/ProduceWork/ReadWork 与消费方 WorkPort；新增独立 `turn.start` action，
+  既有 `session.control` 或更新授权版本不能替原 Run 铸造工作权限。
+  仅接受显式有界 text，私有正文进入独立 work-input，不入 receipt/audit/idempotency；
+  不自动投递 Task Context、Continuation、聊天或旧 recorded Input。
+- 固定 Run/context/target、Binding/owner/generation/lifecycle command、source epoch/boundary 与 logical Work/command，
+  SQLite 同事务准备私有输入和单写 slot；持久单 claim 后才在 DB 事务外调用原生 StartText。
+  返回时重验当前执行 action、原 Principal/AuthVersion、配置、代次及 slot。
+  accepted、terminal 与 delivery_unknown 分开；未知不清槽、不自动重发，关闭重开也不调用 native。
+- 通用 logical Work ID 不等同原生 Turn ID；native ID 可缺，但必须有明确 RPC terminal 证据。
+  终结式无原生 ID 的 generic 夹具验证公共边界，不冒称 C08/ACP 原生实现已接入。
+  C07 薄组合只向已拥有 Thread 转发显式正文和固定 effort，不增加自动工具循环。
+- C04 同事务保存精确 source/owner/gen/native Turn 的小型终态观察；早于 Start 响应的终态先保存，
+  响应再按原生 ID 与调用前 source boundary 关联，不猜 Work 身份。
+  已 unknown、source failed、已停止或 quarantine 的生命周期保持围栏，迟到事实不能复活 ready/session_bound。
+  正常原生 terminal 可允许同健康 Peer 的下一次显式 Work，但不是 Task 业务完成或 TreeStopped。
+  busy/unknown slot 阻止 Release/Cancel 偷清资源；真正 Release 仍需独立实际停止证据。
+- 真实 SQLite 与 owned JSON-RPC 子进程验证同 Peer 两次明确 Turn、重复/并发仅一次 Start、异内容冲突、
+  早终态先入库再返回 ACK、独立执行授权、私有正文隔离、事务末段失败全回滚、ACK 后落盘失败 unknown，
+  以及关闭重开无原生重发。正常序列只发 1 次 thread/start 与 2 次 turn/start，不发送 Task 正文。
+- 预审两项 P2 真 red：Start 期间执行权限/配置/owner 失效后仍 Stop；
+  source end/quarantine 后迟到 ACK/terminal 把 Binding/Run 从 unknown 复活。
+  `work-fence-red` 退出 1、8 个 fail 事件；当时生产源码原样归档于 `red-source/`，SHA 与 red preflight 一致。
+  最小修复分别在 cleanup I/O 前核当前执行权限及 Work/command/slot 围栏，失效不 Stop/不清槽且剥私密错误链；
+  confirmation/终态应用核原生命周期及 source active/busy，迟到结果仅补原 Work 观察。
+  原两次显式 Start/合法早终态正例保持通过，没有顺带 queue/steer/interrupt。
+- 首次固定四包 runtime/runtimecodex/store/appserver nonrace 与 race 均退出 0，各 155 Test/subtest pass、无 fail/skip，
+  当前 Go 源码/测试与 preflight hash 一致，owned 进程停止、临时根清理确认；受影响 vet 与 quality(base efa) 退出 0。
+  复用 Go 1.27.2/GOTOOLCHAIN=local/官方已验证缓存、GOPROXY=off，三个 live/catalog opt-in 删除，
+  GOMAXPROCS=1/-p=1，600s supervisor、3m Go test timeout、8GiB 空闲与 4GiB 临时上限不降。
+  命令、env、源码 SHA、red/green/race 原始日志及回执保存于 `.cache/c05-work-20261103/`。
+- 最终安全复审补出本片 busy Read 旁路：读取期间撤执行权限、更新原授权版本或目标配置，
+  post-read 已拒绝仍 cleanup Stop 活跃 Work。`busy-read-authority-red` 退出 1、4 fail 事件，三个场景均 Stop=1；
+  原生产字节保存于 `busy-read-red-source/` 并与 red preflight SHA 匹配。
+  最小修复使 post-fence 失效立即剥私密链返回，不 Stop/quarantine；合法未知读取 cleanup 前再核当前执行权限、
+  初始物理 Binding 与 busy Work/command/gen/slot/source，不能清理读期间出现的新 Work。
+  补正后 busy-read-fix-green/race 均退出 0，四包各 159 Test/subtest pass、无 fail/skip，
+  源码 hash 一致、owned 停止/临时根清理确认，受影响 vet/quality 再退出 0；固定 head 检查另存同目录。
+- 本片为源码/手写离线夹具阶段，未接真实订阅 harness、生产 Runner/public routes、C06、自动派发或重启调度。
+  完整全仓 mcpconfig 中立 Git 临时目录环境项仍 blocked，未重探/绕过守卫；未 push、创建 PR 或合并。
+  下一最小聚合片可按固定 ACP 差异接 C08 Antigravity 薄端口；C05 queue/steer/interrupt 后续另片验证。

@@ -14,6 +14,7 @@ const (
 	Continue       Action = "run.continue"
 	Cancel         Action = "task.cancel"
 	SessionControl Action = "session.control"
+	StartWork      Action = "turn.start"
 )
 
 // Credential is presented by an in-process caller, not inferred from

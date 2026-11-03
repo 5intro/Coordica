@@ -18,13 +18,13 @@ func (p *BindingProducer) readTarget(tx *store.Tx, credential Credential, id str
 	if err == nil {
 		err = liveBinding(grant, task, run)
 	}
-	if err == nil && (binding.Config != p.config || binding.OwnerID != p.owner || binding.State != "ready") {
+	if err == nil && (binding.Config != p.config || binding.OwnerID != p.owner || binding.State != "ready" && binding.State != "busy") {
 		err = ErrConflict
 	}
 	return binding, err
 }
 
-// ReadNative returns private transient history from an already-owned ready
+// ReadNative returns private transient history from an already-owned readable
 // connection. It does not open/resume resources or put history in receipts.
 func (p *BindingProducer) ReadNative(ctx context.Context, credential Credential, id string, includeTurns bool) (json.RawMessage, error) {
 	if p == nil || !identifier(id, 128) {
@@ -43,11 +43,24 @@ func (p *BindingProducer) ReadNative(ctx context.Context, credential Credential,
 	}
 	var binding Binding
 	var command BindingCommand
+	var work Work
 	err = p.ledger.db.Update(ctx, func(tx *store.Tx) error {
 		var err error
 		binding, err = p.readTarget(tx, credential, id)
 		if err != nil {
 			return err
+		}
+		if binding.State == "busy" {
+			var slot workSlot
+			if err = tx.Get(kindWorkSlot, binding.ID, &slot); err != nil {
+				return err
+			}
+			if err = tx.Get(kindWork, slot.WorkID, &work); err != nil {
+				return err
+			}
+			if slot.Generation != work.Generation || !workMatches(work, binding) {
+				return ErrConflict
+			}
 		}
 		command = BindingCommand{ID: commandID, BindingID: id, Generation: binding.Generation,
 			OwnerID: p.owner, Operation: "read", State: "inflight"}
@@ -68,7 +81,7 @@ func (p *BindingProducer) ReadNative(ctx context.Context, credential Credential,
 		if err != nil {
 			return err
 		}
-		if current != binding {
+		if !sameReadableBinding(current, binding) {
 			return ErrConflict
 		}
 		if known {
@@ -87,15 +100,47 @@ func (p *BindingProducer) ReadNative(ctx context.Context, credential Credential,
 	}
 	if fenceErr != nil {
 		// An expired reader must receive neither private history nor a native
-		// RPCError carrying private Message/Data through errors.As/Unwrap.
-		readErr = fenceErr
+		// error object, and cannot authorize closing or quarantining its Peer.
+		return nil, errors.Join(ErrOutcomeUnknown, fenceErr)
+	}
+	cleanupCtx, cleanupDone := context.WithTimeout(context.WithoutCancel(ctx), rpcCleanupTimeout)
+	cleanupFence := p.ledger.db.View(cleanupCtx, func(tx *store.Tx) error {
+		current, err := p.readTarget(tx, credential, id)
+		if err != nil {
+			return err
+		}
+		if !sameReadableBinding(current, binding) || current.State != binding.State {
+			return ErrConflict
+		}
+		if current.State == "busy" {
+			if err = p.workDisclosure(tx, credential, work); err != nil {
+				return err
+			}
+			var source EventStream
+			if err = tx.Get(kindEventStream, work.StreamID, &source); err != nil {
+				return err
+			}
+			if source.State != "open" {
+				return ErrConflict
+			}
+		}
+		return nil
+	})
+	cleanupDone()
+	if cleanupFence != nil {
+		return nil, errors.Join(ErrOutcomeUnknown, cleanupFence)
 	}
 	stopped, stop, stopErr := p.cleanup(ctx, call, binding.NativeID)
-	if fenceErr != nil && stopErr != nil {
-		stopErr = ErrStopUnconfirmed
-	}
 	unknownCtx, done := context.WithTimeout(context.WithoutCancel(ctx), rpcCleanupTimeout)
 	defer done()
 	err = p.quarantine(unknownCtx, binding, command, NativeCreation{Outcome: "read_unknown", ID: binding.NativeID}, stopped, stop)
 	return nil, errors.Join(ErrOutcomeUnknown, readErr, stopErr, err)
+}
+
+// Work receipt/terminal versions may change while reading the same physical
+// Peer. They do not authorize closing it or invalidate this scoped snapshot.
+func sameReadableBinding(a, b Binding) bool {
+	return a.ID == b.ID && a.ApplicationID == b.ApplicationID && a.TaskID == b.TaskID && a.RunID == b.RunID && a.RunGeneration == b.RunGeneration &&
+		a.ContextID == b.ContextID && a.ContextVersion == b.ContextVersion && a.AuthorizationVersion == b.AuthorizationVersion && a.PrincipalID == b.PrincipalID &&
+		a.Config == b.Config && a.Generation == b.Generation && a.OwnerID == b.OwnerID && a.CommandID == b.CommandID && a.NativeID == b.NativeID
 }

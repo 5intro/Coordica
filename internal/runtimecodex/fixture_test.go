@@ -24,6 +24,7 @@ func TestMain(m *testing.M) {
 		os.Exit(2)
 	}
 	scanner := bufio.NewScanner(os.Stdin)
+	turns := 0
 	scanner.Buffer(make([]byte, 1024), 256<<10)
 	for scanner.Scan() {
 		var frame struct {
@@ -62,6 +63,11 @@ func TestMain(m *testing.M) {
 			ThreadID string `json:"threadId"`
 			Model    string `json:"model"`
 			Cwd      string `json:"cwd"`
+			Effort   string `json:"effort"`
+			Input    []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"input"`
 		}
 		if json.Unmarshal(frame.Params, &params) != nil {
 			os.Exit(6)
@@ -144,6 +150,38 @@ func TestMain(m *testing.M) {
 				continue
 			}
 			reply(map[string]any{"thread": map[string]any{"id": "native-thread", "turns": []any{}, "private": "private-history-sentinel"}})
+		case "turn/start":
+			if params.ThreadID != "native-thread" || params.Effort != "ultra" || len(params.Input) != 1 || params.Input[0].Type != "text" || params.Input[0].Text == "" {
+				fail()
+				continue
+			}
+			turns++
+			turnID := fmt.Sprintf("native-work-%d", turns)
+			if scenario == "work-rejected" {
+				fail()
+				continue
+			}
+			if scenario == "work-disconnect" {
+				os.Exit(0)
+			}
+			notify("turn/started", map[string]any{"threadId": "native-thread", "turn": map[string]string{"id": turnID, "status": "inProgress"}})
+			if scenario == "work-early" {
+				notify("turn/completed", map[string]any{"threadId": "native-thread", "turn": map[string]string{"id": turnID, "status": "completed"}})
+				deadline := time.Now().Add(5 * time.Second)
+				for {
+					if _, err := os.Stat(os.Getenv("COORDICA_COMPOSE_CONTINUE")); err == nil {
+						break
+					}
+					if time.Now().After(deadline) {
+						os.Exit(9)
+					}
+					time.Sleep(5 * time.Millisecond)
+				}
+			}
+			reply(map[string]any{"turn": map[string]any{"id": turnID, "status": "inProgress", "items": []any{}}})
+			if scenario == "work-normal" {
+				notify("turn/completed", map[string]any{"threadId": "native-thread", "turn": map[string]string{"id": turnID, "status": "completed"}})
+			}
 		default:
 			fail()
 		}
@@ -193,6 +231,9 @@ func setup(t *testing.T, scenario string) *fixture {
 	f.grant = runtime.GrantConfig{Grant: runtime.Grant{ID: "principal", ApplicationID: "app", Enabled: true,
 		Actions: []runtime.Action{runtime.Submit, runtime.Read, runtime.Register, runtime.Cancel, runtime.SessionControl},
 		Targets: []runtime.TargetScope{{InstanceID: "instance", NodeID: "node"}}}, Token: strings.Repeat("offline-test-secret-", 3)}
+	if strings.HasPrefix(scenario, "work-") {
+		f.grant.Actions = append(f.grant.Actions, runtime.StartWork)
+	}
 	if _, err = f.manager.ConfigureGrant(t.Context(), f.grant, 0); err != nil {
 		t.Fatal(err)
 	}

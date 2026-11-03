@@ -1,6 +1,6 @@
 # Experimental durable task ledger
 
-This package contains in-process C02 and partial C03/C04 slices. It stores explicit work without a Git
+This package contains in-process C02 and partial C03–C05 slices. It stores explicit work without a Git
 repository, chat, development Goal, Candidate, review policy or running Leader.
 Constructing it starts no process, harness, scheduler, service or background loop.
 There are no new HTTP, CLI or MCP routes.
@@ -38,8 +38,8 @@ The initial API is:
 
 Task ownership is fixed to its application, while every Run independently pins
 its target. Context versions remain immutable and readable through old Runs.
-Active turns, effects/ACKs and durable native request reconciliation still belong
-to the later C03–C06 integration.
+Full input control, effects/ACKs and durable native request reconciliation still
+belong to the later C05/C06 integration.
 
 All mutations use the existing SQLite transaction. Current credentials, action,
 ownership and applicable target scope are checked before request replay. CAS and
@@ -82,7 +82,7 @@ arbitrary executable, environment, cwd, RPC method or prompt through this API.
 - `ReadBinding` reads scoped ledger facts only. `ReadNative` separately requires
   `session.control` and this producer's existing ready connection. It records
   only command outcome metadata; private native history is transient. Both
-  success and error paths revalidate current authority and the full binding
+  success and error paths revalidate current authority and physical binding
   after I/O. Expired readers receive neither history nor private native errors.
 - `ResumeBinding` accepts only a released binding with a matching persisted
   process-stop proof. It claims a new owner/command/generation, then restores
@@ -191,3 +191,53 @@ effect delivery, automatic restart ingestion, C05/C06 routing or public event
 subscription API here. Uncommitted in-memory capture can be lost on host crash;
 reopening restores committed facts/cursors, not unknown native events. This is
 an offline-tested partial C04 implementation, not completion of its full exit.
+
+## Explicit single-work Turn slice
+
+`PrepareWork` requires the independent `turn.start` action, the original Run
+principal/authorization version and current target/configuration. Session control
+alone cannot execute work, and widening a grant cannot upgrade an old Run.
+The host first opens/drains the binding's event stream. Prepare stores one
+bounded nonempty explicit text (at most 64 KiB) in private `runtime.work-input`,
+with a durable command, fixed Run/context/binding/source snapshot and a single
+active Work slot. It does not submit Task context or recorded continuations.
+The receipt, global audit/outbox and idempotency response contain no text.
+
+`ProduceWork` durably claims once, then invokes the consumer-owned `WorkPort`
+outside SQLite. The C07 composition forwards only that text and fixed effort to
+the existing owned Thread. Both confirmation and cleanup require current
+execution authority, exact logical Work/command/slot, physical lifecycle command,
+binding owner/generation and live source. Repeated/concurrent calls do not resend.
+Publication failure, disconnect, malformed results or an expired fence retains
+`delivery_unknown` and the occupied slot; restart does not replay it. Applicable
+cleanup stop proof stays with the original Work; it does not prove nonexecution.
+
+Work IDs are logical and independent of provider-native Turn IDs. A native ID
+is optional: a protocol such as ACP can correlate an entire prompt RPC and return
+terminal evidence without one. The generic offline port test covers this shape;
+it does not establish an ACP adapter or real provider compatibility.
+
+States distinguish `prepared`, `claimed`, `native_accepted`, `native_ended`,
+`rejected` and `delivery_unknown`. Acceptance is not completion. C04 terminal
+facts use a small indexed metadata record, scoped to the exact source epoch,
+binding/owner/generation/native Turn and observed sequence boundary. An early
+terminal is stored before the start response without guessing its Work identity;
+the response then links it. Late facts after quarantine/unknown/stopped lifecycle
+remain observations and cannot restore resource readiness or clear the Work slot.
+`ReadWork` returns scoped metadata, never the private message body.
+
+Prepared/active/unknown work blocks Release/Cancel from silently clearing or
+stopping it. A valid native terminal permits the next explicit work on the same
+healthy Peer, but does not cancel the Task, complete its business goal or prove
+background/TreeStopped. Explicit Release still needs its separate actual stop
+evidence. Reading a busy Peer tolerates logical Work receipt/terminal version
+changes while retaining physical identity, authority and lifecycle fences.
+An expired reader cannot close or quarantine the Peer. Unknown-read cleanup
+rechecks current authority and the original busy Work/command/generation/slot;
+a Work started or replaced during the read does not become its cleanup target.
+
+This is not the complete C05 queue/withdraw/steer/interrupt API, C06 response
+routing, automatic dispatcher or restart reconciliation. A prepared or unknown
+slot is not automatically cancelled or retried. Only offline SQLite and owned
+JSON-RPC fixture children are verified; real subscription execution remains
+unverified and outside this development slice.

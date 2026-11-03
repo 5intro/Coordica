@@ -16,9 +16,9 @@ not native authentication facts or an OS isolation guarantee.
 Create/resume validates the exact configuration selected by the ledger. C07
 checks native model, permission modes, canonical cwd and thread identity; the
 remaining host references are retained selections, not independently attested
-native fields. Effort remains pinned for later explicit Turn execution; this
-slice starts no Turn and does not claim native effort verification. No Task or
-context body is passed to either operation.
+native fields. Effort is pinned and forwarded only for separately authorized
+explicit work; forwarding does not prove actual reasoning effort. Create/resume
+starts no Turn and passes no Task/context body.
 
 Each in-memory lease is fixed to binding/owner/generation/config/native ID. The
 map reserves opening before any RPC. Per-lease locks serialize read/close with
@@ -41,7 +41,7 @@ after creating and closing a process without returning a Peer/proof; that case
 stays conservative unknown. A released logical binding retains its Task/context.
 New host/producer construction does not take over ready/unknown resources.
 
-There is no native work/Turn execution, UI event subscription, request answer routing,
+There is no automatic work execution, UI event subscription, request answer routing,
 unknown-resource reconciliation or automatic retry/recovery here. Offline tests use real
 SQLite and owned Go JSON-RPC fixture children with explicit minimal environments.
 They are hand-written protocol simulations, not native transcripts or evidence
@@ -68,3 +68,15 @@ Explicit `BindingProducer.DrainEvents` bridges the buffer and the indexed ledger
 Slow consumers do not hold protocol/DB locks; a prolonged backlog instead fails
 at the explicit capacity boundary. Host crash can lose uncommitted capture, so
 the implementation does not claim full C04 lossless critical-event retention.
+
+## Explicit text work
+
+`StartWork` is the narrow runtime-owned WorkPort adapter. It uses only the
+already-owned Thread, exact binding/owner/generation/config/native identity and
+fixed effort. It calls C07 `Thread.StartText` once with the separately supplied
+text; it does not choose configuration or fetch Task context/continuations.
+The concrete Peer's source epoch and pre-call observation boundary accompany
+the native Turn ID/status. Accepted and terminal RPC evidence remain distinct.
+The durable runtime command, permission, busy-slot and late-event policies stay
+in `internal/runtime`, not in the protocol package. Queue/steer/interrupt and
+native request answers are not connected by this slice.

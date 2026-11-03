@@ -25,7 +25,7 @@ func (p *BindingProducer) eventTarget(tx *store.Tx, credential Credential, id st
 	if err == nil && active {
 		err = liveBinding(grant, task, run)
 	}
-	if err == nil && (binding.Config != p.config || binding.OwnerID != p.owner || active && binding.State != "ready" && binding.State != "unknown") {
+	if err == nil && (binding.Config != p.config || binding.OwnerID != p.owner || active && binding.State != "ready" && binding.State != "busy" && binding.State != "unknown") {
 		err = ErrConflict
 	}
 	return grant, binding, run, err
@@ -230,6 +230,9 @@ func (p *BindingProducer) AcceptEvent(ctx context.Context, credential Credential
 		sequence, err := tx.AppendRuntimeEvent(stream.ApplicationID, stream.ID, store.RuntimeEventRow{EventID: input.EventID,
 			Sequence: stream.LastSequence + 1, SourceSequence: input.SourceSequence, Digest: d, Data: raw})
 		if err != nil {
+			return err
+		}
+		if err = observeWorkEvent(tx, stream, input, sequence); err != nil {
 			return err
 		}
 		if input.SourceSequence > stream.LastSourceSequence+1 {
