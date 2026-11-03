@@ -3,22 +3,23 @@
 当前工作修订：R2026-11-02.6（仅本地）；公开已合入基线仍为 R2026-11-02.5。主表：[ROADMAP](../ROADMAP.md)。
 仅记录已发生的工作和明确决策；不要将实施建议写成已授权事实。
 
-## 当前状态快照（2026-11-02 UTC）
+## 当前状态快照（2026-11-03 UTC）
 
 - 规划 [#29](https://github.com/5intro/Coordica/pull/29) 与 C01 文档 [#30](https://github.com/5intro/Coordica/pull/30) 已合并，
   远端 main 为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；合并/审查证据见本文末尾记录。
   旧批次中“open / denied / 待授权”均为当时事实，不再代表这两个 PR 的现状。
-- C01 保持待验证；C07 恢复实施中的离线子切片，C02–C06/C08 主任务仍规划中。
-  规划合入不代表持续会话、审批、Task 持久化或真实 harness 已完成。
+- C01 保持待验证；C07 的离线控制/异常响应围栏与 C02 最小持久账本实施中，C03–C06/C08 仍规划中。
+  本地源码与 SQLite/协议夹具不代表原生持续会话、审批回传或真实 harness 已完成。
 - C07 本地检查点 `be707b7263bb98fa98c7a58fb660c084bdc206a5` 保存于 `codex/runtime-codex-peer-20261102`，
-  tracked 工作区干净，未推送、无产品 PR；全仓验证仍受依赖下载阻断。
+  原检查点未推送、无产品 PR；接续输入 `c8c4586` 与 C07 修复 `e47c435` 均独立保留。
+  后者本地相关 nonrace/race、vet/build、质量及八项生成漂移通过；完整门禁与正式 GitHub 两审未完成。
 - 本轮从上述 main 建独立文档分支 `codex/provider-contract-plan-20261102`，只做 R102–R104 规划准备与离线文档检查；
   不推送、不提 PR、不合并，不混入 C07 源码。当前公开基线不随本地修订改变。
 - 上述文档轮已完成为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`；Owner 随后要求继续独立离线开发。
-  当前产品工作在 `codex/runtime-control-offline-20261102`，原 C07 和文档分支保持各自检查点。
-- 运行环境仍是 restricted / enforced，observations_current=true、配置/观察 revision=1；
-  storage.googleapis.com 未获当前实例允许。父级全公网配置发布仍失败，不将保存配置视为已经生效。
-  本轮未重试 SQLite 下载、换域/代理/缓存/执行器绕过，也未调整当前文件或网络权限。
+  当前 C02 产品工作在 `codex/c02-task-ledger-20261103`，原三个交接分支及 C07 修复分支未移动。
+- 新环境的官方 Go 1.27.2 与 SQLite 依赖已由环境准备实测验证，本片复用这些已下载缓存。
+  全仓门禁现受 mcpconfig 所需中立 Git 临时目录条件阻断；这是已定位环境项，没有删除共享 Git 标记、
+  重试只读目录、调整网络或削弱测试守卫，也不以此停止独立离线源码切片。
 
 以下批次按发生时的输入和结论保留；涉及当前状态，以此快照及最新追加证据为准。
 
@@ -488,3 +489,31 @@
   C01 的真实实例/认证、C02 的持久 Task/Run/权限和 C03–C06 完整控制链仍未完成。
   本片仅本地保存，未 push 或创建 PR；当前候选的适用门禁、完整门禁和独立代码/安全审查未完成，不能据此发布或合并。
   正式中心继续暂停，自动派发关闭；未部署、发包、启动赛车实验或创建定时任务。
+
+## C02 — 最小持久任务账本（2026-11-03 UTC，本地离线切片）
+
+- 输入固定为 C07 修复 `e47c435a1fe21be30f5bfed11b1c728fccfbb29b`；独立分支
+  `codex/c02-task-ledger-20261103`，不重写旧 C07，不提前实现 C03/C04 平台。
+- 新 `internal/runtime` 提供 experimental in-process Ledger：Task 提交/读取、完整上下文快照更新、
+  显式 Run 登记/读取、固定 Run/代际的 continuation 记录，以及本地取消和输入读取。
+  Task 只固定 App；每个 Run 单独保存 instance/config、node、harness、model、effort、授权版本和不可变 ContextID。
+  `registered/not_started`、`recorded` 都不是原生启动、送达或消费；取消不伪造原生停止证明。
+- Manager 仅是可信宿主已持 Store 的配置能力，不暴露给旧 Owner/node/chat 或应用路由。
+  管理主体显式登记 App/actions/instance-node scopes；Ledger 校验当前持久 token hash/权限及 ownership，
+  不把调用方填写的 Principal 或 Scope 当认证。App/instance/node/harness 归属不能覆盖换绑。
+- 复用现有 SQLite records 主键与事务，不改 schema 或旧开发 Task/Run。
+  独立 `runtime.*` kinds 不进入旧调度器；当前权限和目标 scope 先于 Replay，首次写入才做 CAS/状态检查。
+  source 以 app/source/event/task 确定性复合 ID 去重，异内容/目标冲突，显式多 Task 扇出保留。
+  精确历史回执不重复写状态或审计，不授予将来执行权限；状态、输入、audit/outbox 通知与回执同事务。
+- 真实 SQLite 主链路 Submit→RegisterRun→关闭/重开→ReadTask/ReadRun 首次通过（包 0.018s）。
+  初轮 nonrace 的 runtime/store 共 23 个测试/子测试 pass；补充跨重启取消/回执及 Run 回滚检查后，
+  同两包 race 再通过：runtime 2.013s、store 4.760s，23 pass、无 fail/skip。
+  覆盖撤权后缓存拒绝、跨 App/目标、配置版本、来源幂等及扇出、不可变旧快照、旧 Run/代际拒绝、
+  CAS 唯一胜者与最后 Remember 失败下六种 mutation 的完整回滚。所有监督回执确认停止/清理，无残留。
+- 验证沿用官方 Go 1.27.2/`GOTOOLCHAIN=local` 和已验证缓存，三个 live/catalog opt-in 从子环境删除；
+  `GOPROXY=off`、`GOMAXPROCS=1`、`-p=1 -count=1 -timeout=3m`，监督 600s、8GiB 空闲/4GiB 临时上限。
+  本片不依赖 Git 发现；本地证据在 `.cache/c02-ledger-v9pki8jx/`，测试命令、源码快照、日志和回执分阶段保存。
+- 下一最小依赖是消费此账本的显式会话/Run 控制端口：再按实际需要落实 C03 绑定/单写/重启 unknown 围栏，
+  C04 事务事件/效果仍留在其原任务，不将旧 outbox 通知当可靠执行效果。
+  当前没有 native Session、harness 执行、Wake/dispatch、HTTP/CLI/MCP 路由或生产 Runner 接入。
+  本片仅本地保存；完整门禁、正式代码/安全审查和真实 harness 未通过，未 push/创建 PR/合并。
