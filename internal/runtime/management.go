@@ -54,13 +54,13 @@ func (m *Manager) ConfigureGrant(ctx context.Context, config GrantConfig, expect
 
 func validGrant(config GrantConfig) bool {
 	if !identifier(config.ID, 128) || !identifier(config.ApplicationID, 128) || len(config.Token) < 32 ||
-		len(config.Token) > 512 || len(config.Actions) > 8 || len(config.Targets) > 64 {
+		len(config.Token) > 512 || len(config.Actions) > 9 || len(config.Targets) > 64 {
 		return false
 	}
 	actions := map[Action]bool{}
 	for _, action := range config.Actions {
 		if actions[action] || action != Submit && action != Read && action != WriteContext && action != Register &&
-			action != Continue && action != Cancel && action != SessionControl && action != StartWork {
+			action != Continue && action != Cancel && action != SessionControl && action != StartWork && action != InterruptTurn {
 			return false
 		}
 		actions[action] = true

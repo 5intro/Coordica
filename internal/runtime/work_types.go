@@ -54,6 +54,7 @@ type WorkCall struct {
 	Target                          NativeCreate
 	NativeID                        NativeSessionID
 	WorkID, CommandID, Text, Effort string
+	WorkGeneration                  int64
 }
 type NativeWork struct {
 	Outcome             string `json:"outcome"`                  // accepted, ended, rejected, not_sent, unknown.

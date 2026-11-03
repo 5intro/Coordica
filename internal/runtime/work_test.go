@@ -20,10 +20,11 @@ func (p *workFixturePort) StartWork(ctx context.Context, call WorkCall) (NativeW
 	}
 	return NativeWork{Outcome: "accepted", NativeTurnID: "native-work", State: "running", Evidence: "rpc_accepted", SourceEpoch: "work-source"}, nil
 }
-func workFixture(t *testing.T, port BindingPort) (ledgerFixture, *BindingProducer, Binding, EventStream) {
+func workFixture(t *testing.T, port BindingPort, extra ...Action) (ledgerFixture, *BindingProducer, Binding, EventStream) {
 	t.Helper()
 	f := fixtureLedger(t)
 	f.config.Actions = append(f.config.Actions, SessionControl, StartWork)
+	f.config.Actions = append(f.config.Actions, extra...)
 	if _, err := f.manager.ConfigureGrant(t.Context(), f.config, 1); err != nil {
 		t.Fatal(err)
 	}

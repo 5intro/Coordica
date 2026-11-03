@@ -54,7 +54,7 @@ func (p *BindingProducer) ProduceWork(ctx context.Context, credential Credential
 		return Work{}, err
 	}
 	call := WorkCall{Target: NativeCreate{BindingID: w.Binding.ID, OwnerID: w.Binding.OwnerID, Generation: w.Binding.Generation, Config: w.Binding.Config},
-		NativeID: w.Binding.NativeID, WorkID: w.ID, CommandID: w.CommandID, Text: text, Effort: w.Binding.Config.Target.Effort}
+		NativeID: w.Binding.NativeID, WorkID: w.ID, CommandID: w.CommandID, WorkGeneration: w.Generation, Text: text, Effort: w.Binding.Config.Target.Effort}
 	invokeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	observed, nativeErr := port.StartWork(invokeCtx, call)
 	cancel()

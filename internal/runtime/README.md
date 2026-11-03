@@ -241,3 +241,26 @@ routing, automatic dispatcher or restart reconciliation. A prepared or unknown
 slot is not automatically cancelled or retried. Only offline SQLite and owned
 JSON-RPC fixture children are verified; real subscription execution remains
 unverified and outside this development slice.
+
+### Explicit single-Turn interrupt
+
+`InterruptWork` requires the independent `turn.interrupt` action already present
+in the fixed Run authorization. It targets one native-accepted Work with a real
+native Turn ID, the current busy slot and exact physical/source identity. Missing
+native IDs or typed port support return unsupported; there is no Stop fallback.
+The transaction commits one claimed control command per Work before native I/O.
+Same-key retries return its current receipt; another key cannot send it again.
+
+The control receipt records `claimed`, `acknowledged`, `rejected`, `not_sent` or
+`delivery_unknown` independently of Work state. An ACK never clears busy, ends a
+Turn, stops its background work or releases the Session. Existing precise C04
+terminal facts remain responsible for the Work result. A late ACK can only add
+the old command's observation, including after the next Work is prepared.
+
+Unknown delivery fences an unchanged active resource without Stop or slot
+release; expired authority or changed ownership cannot mutate its replacement.
+There is no automatic retry, including after a claimed command survives restart
+without a result. This conservative once-per-Work policy also does not resend
+explicitly rejected/not-sent commands. Scoped `ReadWorkInterrupt` returns only
+metadata. Queue, steer and interruption of targets without native IDs remain
+unimplemented, as does real-harness compatibility verification.

@@ -33,6 +33,7 @@ type lease struct {
 	stopped       bool
 	openingFailed bool
 	capture       *eventCapture
+	work          *nativeWorkTarget
 }
 
 var _ runtime.SessionPort = (*Port)(nil)

@@ -16,7 +16,7 @@
 - 本轮从上述 main 建独立文档分支 `codex/provider-contract-plan-20261102`，只做 R102–R104 规划准备与离线文档检查；
   不推送、不提 PR、不合并，不混入 C07 源码。当前公开基线不随本地修订改变。
 - 上述文档轮已完成为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`；Owner 随后要求继续独立离线开发。
-  C02 `6249553`、C03 `2e2107f`、薄组合 `6ea2fa6` 与 C04 `f00eab8` 检查点独立保留；当前工作片在 `codex/c05-explicit-work-turn-20261103`，原交接及修复分支未移动。
+  C02 `6249553`、C03 `2e2107f`、薄组合 `6ea2fa6`、C04 `f00eab8` 与单 text C05 `b895d49` 检查点独立保留；当前工作片在 `codex/c05-work-interrupt-20261103`，原交接及修复分支未移动。
 - 新环境的官方 Go 1.27.2 与 SQLite 依赖已由环境准备实测验证，本片复用这些已下载缓存。
   全仓门禁现受 mcpconfig 所需中立 Git 临时目录条件阻断；这是已定位环境项，没有删除共享 Git 标记、
   重试只读目录、调整网络或削弱测试守卫，也不以此停止独立离线源码切片。
@@ -687,3 +687,31 @@
 - 本片为源码/手写离线夹具阶段，未接真实订阅 harness、生产 Runner/public routes、C06、自动派发或重启调度。
   完整全仓 mcpconfig 中立 Git 临时目录环境项仍 blocked，未重探/绕过守卫；未 push、创建 PR 或合并。
   下一最小聚合片可按固定 ACP 差异接 C08 Antigravity 薄端口；C05 queue/steer/interrupt 后续另片验证。
+
+## C05 — 显式单轮中断（2026-11-03 UTC，本地离线切片）
+
+- 输入固定 `b895d499db8fa12a0af36a80618fefa5e9ed8ce7`；独立分支
+  `codex/c05-work-interrupt-20261103`。本片选择既有活跃单轮的安全中断，不展开恢复、queue、steer 或 C08。
+- 新增独立 `turn.interrupt` action、InterruptWork 与 scoped ReadWorkInterrupt；不把 `session.control`/`turn.start`
+  升级为中断权限，新授权版本也不能升级旧 Run。当前主体/原 AuthVersion、scope/config、owner/gen、
+  原 Work/start command/native Turn、busy slot 与 source epoch 在持久 claim 前核验。
+- 每 Work 只允许一个独立中断命令，claim/audit/outbox/receipt 同事务后才在 DB 外 I/O。
+  重试只读原命令当前回执，换 key 也不能重发；缺原生 Turn ID/typed 端口明确 unsupported。
+  原生 ACK、rejected、not_sent、delivery_unknown 与 Work 状态分开；任何 ACK 都不清槽、不结束 Task、不 Stop。
+  真实终态仍通过 C04 精确关联；旧 ACK 晚于 terminal 或下一 Work 准备，仅补旧命令事实。
+- runtimecodex 在同一 lease 内有界缓存 StartText 返回的原 typed Turn，固定 logical Work ID/start command/gen；
+  中断只调用其 Interrupt，不从用户字符串铸句柄、不创建会话或下一轮，不把 ACK 当 TreeStopped。
+  unknown 围住仍匹配的活跃资源，已终态/换代资源不被重写，撤权错误不泄私密原生链。
+  claimed/unknown 在重开后保留但不自动重发；即使 rejected/not_sent 也采用每 Work 一次的保守策略。
+- 真实 SQLite 首个闭环 1 pass；JSON-RPC 首批 6 pass 后补必要矩阵。
+  四包 matrix-green/matrix-race 均 178 Test/subtest pass、退出 0，无 fail/skip，
+  当前源码与两轮 preflight SHA 一致、owned 停止与临时根清理确认；受影响 vet/quality(base efa) 退出 0。
+  覆盖同 key/并发/异内容/换 key、独立权限/旧授权版本、无 native ID/缺端口、claim 末段失败全回滚、
+  ACK 落盘失败 unknown 与关闭重开、RPC 内撤权/配置/owner 变化不 Stop/清槽/泄错，
+  以及 JSON-RPC 明确拒绝、发后取消/断连/畸形成功、terminal 先于 ACK/新 Work 准备后的迟到 ACK。
+  同健康 Peer 只有第二次显式 Start 才发下一轮；ACK/拒绝后仍能显式读取。
+- 复用 Go 1.27.2/GOTOOLCHAIN=local/官方缓存，三个 live/catalog opt-in 删除，GOPROXY=off、
+  GOMAXPROCS=1/-p=1，600s supervisor、3m Go timeout、8GiB 空闲与 4GiB 临时上限不降。
+  证据 `.cache/c05-interrupt-20261103/` 保存命令、选定 env、源码 SHA、原始日志与回执。
+  仅源码/手写离线夹具验证，真实 harness、生产路由与中断后台任务的实际停止范围仍未验证。
+  全仓 mcpconfig 中立 Git 临时环境项保持 blocked，不重探/绕守卫；未 push/PR/merge，不扩后续模块。

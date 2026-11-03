@@ -78,5 +78,12 @@ text; it does not choose configuration or fetch Task context/continuations.
 The concrete Peer's source epoch and pre-call observation boundary accompany
 the native Turn ID/status. Accepted and terminal RPC evidence remain distinct.
 The durable runtime command, permission, busy-slot and late-event policies stay
-in `internal/runtime`, not in the protocol package. Queue/steer/interrupt and
+in `internal/runtime`, not in the protocol package. Queue/steer and
 native request answers are not connected by this slice.
+
+`InterruptWork` uses the original typed C07 Turn returned by StartText, cached
+as one bounded target on its physical lease with logical Work ID, start command
+and generation. It checks that target and the original source epoch, then calls
+only `Turn.Interrupt`; it cannot forge a handle from a caller-supplied native ID.
+Stop/new generation/resume does not transfer this target. ACK is only RPC
+acceptance; terminal events and actual TreeStopped remain separate evidence.

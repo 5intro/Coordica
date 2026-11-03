@@ -61,6 +61,7 @@ func TestMain(m *testing.M) {
 		}
 		var params struct {
 			ThreadID string `json:"threadId"`
+			TurnID   string `json:"turnId"`
 			Model    string `json:"model"`
 			Cwd      string `json:"cwd"`
 			Effort   string `json:"effort"`
@@ -182,6 +183,38 @@ func TestMain(m *testing.M) {
 			if scenario == "work-normal" {
 				notify("turn/completed", map[string]any{"threadId": "native-thread", "turn": map[string]string{"id": turnID, "status": "completed"}})
 			}
+		case "turn/interrupt":
+			if params.ThreadID != "native-thread" || params.TurnID != fmt.Sprintf("native-work-%d", turns) {
+				fail()
+				continue
+			}
+			if scenario == "work-interrupt-disconnect" {
+				os.Exit(0)
+			}
+			if scenario == "work-interrupt-rejected" {
+				fail()
+				continue
+			}
+			if scenario == "work-interrupt-invalid" {
+				reply([]string{"invalid-result"})
+				continue
+			}
+			if scenario == "work-interrupt-pause" || scenario == "work-interrupt-block" {
+				if scenario == "work-interrupt-pause" {
+					notify("turn/completed", map[string]any{"threadId": "native-thread", "turn": map[string]string{"id": params.TurnID, "status": "interrupted"}})
+				}
+				deadline := time.Now().Add(5 * time.Second)
+				for {
+					if _, err := os.Stat(os.Getenv("COORDICA_COMPOSE_CONTINUE")); err == nil {
+						break
+					}
+					if time.Now().After(deadline) {
+						os.Exit(10)
+					}
+					time.Sleep(5 * time.Millisecond)
+				}
+			}
+			reply(map[string]any{})
 		default:
 			fail()
 		}
@@ -233,6 +266,9 @@ func setup(t *testing.T, scenario string) *fixture {
 		Targets: []runtime.TargetScope{{InstanceID: "instance", NodeID: "node"}}}, Token: strings.Repeat("offline-test-secret-", 3)}
 	if strings.HasPrefix(scenario, "work-") {
 		f.grant.Actions = append(f.grant.Actions, runtime.StartWork)
+	}
+	if strings.HasPrefix(scenario, "work-interrupt-") {
+		f.grant.Actions = append(f.grant.Actions, runtime.InterruptTurn)
 	}
 	if _, err = f.manager.ConfigureGrant(t.Context(), f.grant, 0); err != nil {
 		t.Fatal(err)
