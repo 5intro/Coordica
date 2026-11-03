@@ -17,7 +17,7 @@ type initializeReply struct {
 }
 
 // Peer owns one supervised, initialized connection. There is intentionally no
-// arbitrary Call, authentication, prompt or callback-response API yet.
+// arbitrary Call, authentication or callback-response API.
 type Peer struct {
 	process                 *process.Session
 	mu                      sync.Mutex
@@ -36,6 +36,8 @@ type Peer struct {
 	sessionWriteDone        chan struct{}
 	sessionReady            bool
 	updates                 *updateCapture
+	prompt                  *pendingPrompt
+	lastPromptID            uint64
 }
 
 func Open(ctx context.Context, config Config) (*Peer, error) {
@@ -141,6 +143,12 @@ func (p *Peer) Close() (process.Result, error) {
 	p.mu.Unlock()
 	if sessionWriter != nil {
 		<-sessionWriter
+	}
+	p.mu.Lock()
+	prompt := p.prompt
+	p.mu.Unlock()
+	if prompt != nil {
+		<-prompt.writeDone
 	}
 	return p.result, p.waitErr
 }

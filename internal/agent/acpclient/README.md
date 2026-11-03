@@ -2,7 +2,8 @@
 
 These partial C08 slices initialize a persistent supervised ACP connection and
 explicitly create one Session. They do not implement authentication, loading,
-prompt/cancel, native request answers, runtime ports or a provider registration.
+native cancel, native request answers, runtime ports or a provider registration.
+Explicit text Prompt is available as a terminal-response operation below.
 The production legacy `agent.executeACP` path is unchanged. That one-shot path
 automatically starts a prompt and shuts down afterward, so it is not reused here.
 
@@ -10,8 +11,8 @@ The offline baseline is ACP v1 from the fixed
 [v0.11.0 schema](https://github.com/agentclientprotocol/agent-client-protocol/blob/451c3cbc7df2f9bc164c25e25d36fa526003f085/schema/schema.json).
 `Open` only sends `initialize`. There is no Codex `initialized` notification or assumed
 immediate Turn ACK/native Turn ID. The client advertises no filesystem/terminal
-callbacks. Future ACP prompt integration must retain its terminal response
-semantics rather than reuse the short app-server start-ACK assumption.
+callbacks. Prompt uses its full terminal response, retaining the ACP distinction
+from app-server's short start ACK.
 
 `OpenWithLifetime(host, operation, Config)` accepts trusted absolute executable
 and canonicalized directory plus explicit argv/environment slices, which it
@@ -61,7 +62,7 @@ native ID already observed. Local TreeStopped does not prove deletion of a
 native or remote Session. No native `session/close` or release RPC is invented.
 
 `LoadSession` returns unsupported without RPC even if advertised: history replay
-ordering and full private content/completion handling remain absent. There is no prompt,
+ordering and full private content/completion handling remain absent. There is no
 authentication fallback, Task execution, database persistence or automatic retry
 across a new Peer. Future runtime composition must persist its own intent and
 unknown binding before native I/O, as the existing Codex composition does.
@@ -96,4 +97,39 @@ are valid protocol possibilities but currently unsupported, rather than silently
 dropped or called schema-invalid. Notifications preceding a valid session/new
 response are unsupported; the first observed Session ID is not guessed to be the
 target. This metadata primitive is not lossless output, durable spool, complete
-Load/Prompt support, permission handling or runtime composition.
+Load/full-output support, permission handling or runtime composition.
+
+## Explicit terminal text Prompt
+
+`Session.PromptText(ctx, text)` sends exactly one bounded text content block to
+the original Session and waits for the full `session/prompt` response. UTF-8 text
+is nonempty and at most 64 KiB; the final JSON frame must also fit 256 KiB before
+claim or send. One in-flight call is allowed per Session, including response
+validation and writer reaping. Busy/invalid/pre-cancel calls do not send or stop
+the Peer. A later call is always explicit; there is no queue, context injection
+or automatic retry. Local request IDs increase and are never native Turn IDs.
+
+The operation uses a five-minute client cap, shortened by the caller's deadline.
+This is not an ACP or Task limit, nor the ten-second initialize/new deadline.
+The receipt keeps the native `end_turn`, `max_tokens`, `max_turn_requests`,
+`refusal` or `cancelled` stopReason with `rpc_terminal` evidence. It is neither
+an immediate ACK, output text, business success nor a process-stop claim.
+Updates remain Session-level metadata without a native Prompt ID: late updates
+are not assigned to a nearby call, and old unconsumed facts are not cleared.
+Consumers must keep draining/releasing the bounded capture or accept backpressure.
+
+Known RPC rejection preserves its private structured error and normally leaves
+the Peer available; it does not prove absence of earlier output/tools/effects.
+Sent cancellation, disconnect, malformed response, unsupported callback or
+overflow fails closed with `PromptError.Process` carrying actual cleanup proof.
+No native session/cancel, authentication or tool reply is synthesized. A valid
+terminal already observed during a ctx/EOF/writer race remains in the result;
+transport failure is returned separately as disconnected with actual stop proof,
+so the receipt does not imply the Peer can be reused. Caller ctx ending after
+a successful completed operation does not end the independent host lifetime.
+
+This protocol primitive does not select or attest model/effort/permissions,
+preserve output bodies, answer tools, implement Load or authorize a Task.
+Runtime composition is not connected: its existing `ProduceWork` ten-second
+start-ACK path needs a separate whole-turn adaptation before ACP use. Real
+provider execution, authentication and effective configuration remain unverified.

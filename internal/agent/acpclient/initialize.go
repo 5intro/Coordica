@@ -62,6 +62,10 @@ func (p *Peer) receive(raw []byte) error {
 	if string(fields["id"]) == "2" {
 		return p.receiveSession(result, rpc, hasError)
 	}
+	var id uint64
+	if decode(fields, "id", &id, true) == nil && id >= 3 {
+		return p.receivePrompt(id, result, rpc, hasError)
+	}
 	if string(fields["id"]) != "1" {
 		return ErrProtocol
 	}

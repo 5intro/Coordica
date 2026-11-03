@@ -1,5 +1,6 @@
-// Package acpclient provides bounded ACP v1 initialization and explicit Session
-// creation. Work operations and application authorization are not implemented here.
+// Package acpclient provides bounded ACP v1 connections, Session creation and
+// explicit text prompts. Task scheduling and application authorization belong
+// to the calling runtime layer.
 package acpclient
 
 import (

@@ -43,12 +43,21 @@ func TestMain(m *testing.M) {
 			Params  struct {
 				Cwd                string
 				McpServers         []json.RawMessage
+				SessionID          string
+				Prompt             []struct{ Type, Text string }
 				ProtocolVersion    int
 				ClientCapabilities struct {
 					FS       struct{ ReadTextFile, WriteTextFile bool }
 					Terminal bool
 				}
 			}
+		}
+		if json.Unmarshal(scanner.Bytes(), &request) == nil && request.Method == "session/prompt" {
+			if request.JSONRPC != "2.0" || request.ID < 3 || request.Params.SessionID != "native-session" || len(request.Params.Prompt) != 1 || request.Params.Prompt[0].Type != "text" || request.Params.Prompt[0].Text == "" {
+				os.Exit(11)
+			}
+			promptFixtureReply(scenario, request.ID, request.Params.Prompt[0].Text)
+			continue
 		}
 		if json.Unmarshal(scanner.Bytes(), &request) == nil && request.Method == "session/new" {
 			if request.JSONRPC != "2.0" {
@@ -182,6 +191,12 @@ func sessionFixtureReply(scenario string, id int, directory string, mcp []json.R
 	}
 	raw, _ := json.Marshal(response)
 	fmt.Println(string(raw))
+	if scenario == "prompt-blocked-writer" {
+		waitFixtureContinue()
+		fmt.Println(`{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}`)
+		time.Sleep(30 * time.Second)
+		os.Exit(12)
+	}
 	if strings.HasPrefix(scenario, "updates-") && scenario != "updates-early" {
 		emitUpdateFixture(scenario)
 	}
@@ -198,6 +213,73 @@ func sessionFixtureReply(scenario string, id int, directory string, mcp []json.R
 	}
 	if scenario == "session-duplicate-response" {
 		fmt.Println(string(raw))
+	}
+}
+
+func promptFixtureReply(scenario string, id int, text string) {
+	printUpdateFixture("native-session", map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "private-prompt-output"}})
+	printUpdateFixture("native-session", map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "private-prompt-output"}})
+	reason := "end_turn"
+	if strings.HasPrefix(text, "reason:") {
+		reason = strings.TrimPrefix(text, "reason:")
+	}
+	response := map[string]any{"jsonrpc": "2.0", "id": id, "result": map[string]any{"stopReason": reason}}
+	switch scenario {
+	case "prompt-long":
+		time.Sleep(10500 * time.Millisecond)
+	case "prompt-pause":
+		waitFixtureContinue()
+	case "prompt-no-response":
+		return
+	case "prompt-disconnect":
+		os.Exit(0)
+	case "prompt-null-result":
+		response["result"] = nil
+	case "prompt-null-stop":
+		response["result"] = map[string]any{"stopReason": nil}
+	case "prompt-missing-stop":
+		response["result"] = map[string]any{}
+	case "prompt-unknown-stop":
+		response["result"] = map[string]any{"stopReason": "private-unknown-status"}
+	case "prompt-wrong-id":
+		response["id"] = id + 100
+	case "prompt-old-id":
+		if id > 3 {
+			response["id"] = id - 1
+		}
+	case "prompt-rejected":
+		if text == "reject" {
+			delete(response, "result")
+			response["error"] = map[string]any{"code": -32000, "message": "private-prompt-error", "data": map[string]string{"private": "private-prompt-error"}}
+		}
+	case "prompt-permission":
+		fmt.Println(`{"jsonrpc":"2.0","id":22,"method":"session/request_permission","params":{"sessionId":"native-session","private":"private-prompt-callback"}}`)
+		return
+	case "prompt-overflow":
+		for i := 0; i < 33; i++ {
+			printUpdateFixture("native-session", map[string]any{"sessionUpdate": "agent_thought_chunk", "content": map[string]string{"type": "text", "text": "private-thought"}})
+		}
+	}
+	raw, _ := json.Marshal(response)
+	fmt.Println(string(raw))
+	if scenario == "prompt-duplicate" {
+		fmt.Println(string(raw))
+	}
+	if scenario == "prompt-pause" {
+		printUpdateFixture("native-session", map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "private-late-session-output"}})
+	}
+}
+
+func waitFixtureContinue() {
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		if _, err := os.Stat(os.Getenv("COORDICA_ACP_CONTINUE")); err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			os.Exit(13)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 

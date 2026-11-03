@@ -8,7 +8,7 @@
 - 规划 [#29](https://github.com/5intro/Coordica/pull/29) 与 C01 文档 [#30](https://github.com/5intro/Coordica/pull/30) 已合并，
   远端 main 为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；合并/审查证据见本文末尾记录。
   旧批次中“open / denied / 待授权”均为当时事实，不再代表这两个 PR 的现状。
-- C01 保持待验证；C02–C05、C07 与 C08 ACP 会话/metadata 更新离线底座实施中，C06 仍规划中。
+- C01 保持待验证；C02–C05、C07 与 C08 ACP 会话/metadata/显式文本工作离线底座实施中，C06 仍规划中。
   本地源码与 SQLite/协议夹具不代表原生持续会话、审批回传或真实 harness 已完成。
 - C07 本地检查点 `be707b7263bb98fa98c7a58fb660c084bdc206a5` 保存于 `codex/runtime-codex-peer-20261102`，
   原检查点未推送、无产品 PR；接续输入 `c8c4586` 与 C07 修复 `e47c435` 均独立保留。
@@ -16,7 +16,7 @@
 - 本轮从上述 main 建独立文档分支 `codex/provider-contract-plan-20261102`，只做 R102–R104 规划准备与离线文档检查；
   不推送、不提 PR、不合并，不混入 C07 源码。当前公开基线不随本地修订改变。
 - 上述文档轮已完成为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`；Owner 随后要求继续独立离线开发。
-  C02 `6249553`、C03 `2e2107f`、薄组合 `6ea2fa6`、C04 `f00eab8`、单 text C05 `b895d49`、中断 `b7d5a35`、ACP 初始化 `133936b` 与 session-new `c56099e` 独立保留；当前工作片在 `codex/c08-acp-updates-20261103`，原交接及修复分支未移动。
+  C02 `6249553`、C03 `2e2107f`、薄组合 `6ea2fa6`、C04 `f00eab8`、单 text C05 `b895d49`、中断 `b7d5a35`、ACP 初始化 `133936b`、session-new `c56099e` 与 metadata `eb67ce2` 独立保留；当前工作片在 `codex/c08-acp-prompt-text-20261103`，原交接及修复分支未移动。
 - 新环境的官方 Go 1.27.2 与 SQLite 依赖已由环境准备实测验证，本片复用这些已下载缓存。
   全仓门禁现受 mcpconfig 所需中立 Git 临时目录条件阻断；这是已定位环境项，没有删除共享 Git 标记、
   重试只读目录、调整网络或削弱测试守卫，也不以此停止独立离线源码切片。
@@ -792,3 +792,31 @@
   Go 1.27.2/GOTOOLCHAINlocal/官方缓存/GOPROXYoff、三 live opt-in 删除、单并发及原 8GiB/4GiB/600s guard 保持。
   源码/手写离线 fixture 不代表 Antigravity 实测或完整 Load/Prompt 输出；C08/认证/runtime 接线仍未完成。
   全仓 mcpconfig 中立 Git 临时环境项保持 blocked，不重探/绕守卫，未 push/PR/merge；本片不展开后续模块。
+
+## C08 — 显式 terminal text Prompt（2026-11-03 UTC，本地离线切片）
+
+- 输入固定 `eb67ce2d3fb95b89a73e03eefe1f46f2e63b132d`；独立分支 `codex/c08-acp-prompt-text-20261103`。
+  本片实际离线发送显式文本，不再只加调用前置；仅协议层，不接配置、Load、认证或 runtime adapter。
+- Session.PromptText 固定原私有 Peer/Session/epoch，只一条非空 UTF-8 text（≤64KiB且实际编码帧≤256KiB）。
+  单 Session 单 in-flight 覆盖 response 解码及 writer 回收，local request ID 单调递增，不是 native Turn ID。
+  Busy/非法/发前取消零 RPC、不伤 Peer，不排队/自动注入 Context/自动重试或新建 Session。
+- 等完整 ACP terminal response，只保留五种原生 stopReason 与 rpc_terminal 证据；
+  end_turn/max_tokens/max_turn_requests/refusal/cancelled 不替换成 Task 业务成功、即时 ACK、输出全文或 TreeStopped。
+  采用当前客户端五分钟有限操作 cap/更短 caller deadline，不是 ACP/Task 上限；不复用 initialize/new 的10秒。
+  Session metadata 无 Prompt ID，terminal 附近/下一轮 late update 不猜归属，不清旧 FIFO。
+- 已知 RPC 拒绝保留私密结构化对象/安全 Error 文本，正常保 Peer；它不证明此前没有输出/工具效果，下一次发送仍需显式调用。
+  发送后 ctx/EOF/无效回包/unsupported callback/overflow unknown 并 Close，PromptError 携实际 Process 回执；
+  不自发 session/cancel、认证、工具答复或恢复。已经验证的终态即使 ctx/EOF/writer 竞态也保留，
+  连接失败与实际停止另报，不让终态回执谎称 Peer 可复用或把已知 stopReason 丢成 unknown。
+- 首个 Go JSON-RPC 同 Session 两次显式 Prompt smoke 1 pass。首次扩大矩阵因测试未使用变量编译失败，
+  该日志单列，不作为产品行为 red 或通过；移除测试变量后四包普通/竞态各172 Test/subtest pass、退出0，
+  源码前后一致、owned 停止/临时根清理，受影响 vet/quality(base efa) 退出0。
+  必要夹具覆盖五StopReason、Busy/预取消/编码膨胀、明确拒绝后显式发送、错/旧/重复ID/坏shape/EOF/callback/overflow、
+  sent cancel/timeout、真实>10.5秒整轮响应，以及未读stdin writer阻塞时保留已收terminal并回实际连接停止证据。
+  矩阵后仅 types.go package 注释准确化；comment-only-proof 反向替换精确匹配两轮旧 SHA，
+  不冒称当前 Go 注释字节已跑该轮 race；提交后准确 HEAD 相关检查另行覆盖，不为注释重跑 precommit 矩阵。
+- 证据 `.cache/c08-prompt-text-20261103/` 含原始命令/env/源码 SHA、日志与回执；Go1.27.2、官方缓存/GOTOOLCHAINlocal、
+  GOPROXYoff/三live opt-in删除/单并发/原8GiB/4GiB/600s guard 保持。
+  metadata 仍不是输出正文或完整历史，model/effort/权限未选择或生效验证；真实 provider/工具/认证未测，C08不标完成。
+  generic ProduceWork 的10秒 start-ACK 路径仍是后续ACP runtime接线依赖，本片未修改。
+  全仓mcpconfig环境项保持blocked、不重探/绕守卫，未push/PR/merge；只保存本小片，不展开后续模块。
