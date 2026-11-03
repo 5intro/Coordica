@@ -461,3 +461,30 @@
 - 下一依赖边界：C02 的持久 Task/Run/授权与最小事务入口仍需要 SQLite 模块，C03–C06 的跨重启/事件效果/输入队列/请求账本依赖它。
   C08 的适配代码按既定顺序需 C07 稳定契约与完整离线门禁；本轮不越过未满足依赖或堆未接用的通用平台。
   已推进连接层可独立回归的控制与回调两片；后续先解除官方环境策略生效及依赖验证阻断，再继续持久集成。
+
+## 接续后 C07 — 成功响应解码失败围栏（2026-11-03 UTC，本地离线切片）
+
+- 接收并独立验证私有源码交接：输入固定 `c8c45862e7571a77d55ac5e148b8b35bdce874f1`，
+  base `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；原 C07、R6 规划和产品三个分支保持原 SHA。
+  R6 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23` 已为产品祖先，没有再创建 merge 或重写旧实现。
+  本片工作分支为 `codex/c07-response-result-fencing-20261103`，原始检查点独立保留。
+- 先在未改生产代码的输入上增加手写 fake 子进程回归：`turn/start`、`turn/steer`、`turn/interrupt`、
+  `thread/read` 分别返回合法 envelope 下的数组或标量成功结果。八个子例均真实复现缺口：
+  只返回 `ErrProtocol`、Peer 仍可用、显式 Close 前后续请求确实写入 fixture journal、其他 pending 未被释放。
+  red 监督退出 1，包耗时 8.346s；明确 RPC 拒绝与发前取消两个对照通过；进程停止和临时根删除均确认。
+- 最小生产修复仅在 `Peer.applyResponse`：明确 `RPCError` 优先原样返回；调用方要求解码的成功结果
+  无法解码时复用 `invalidResult`，关闭连接并返回 `ErrOutcomeUnknown` 与 `ErrProtocol`。
+  三个响应等待分支统一调用该方法；未改 pending map/通道生命周期、原生调用目标或 `nil result` 的忽略语义。
+- green 对完整 `./internal/agent/appserver` 跑现有及新增夹具，监督退出 0，包耗时 1.472s，
+  52 个测试/子测试 pass 事件、无 fail/skip；所有权监督确认进程停止、临时根删除，无残留测试根。
+  关键断言均先于测试显式 Close：unknown/protocol、连接失效、后续 Call 被拒且 journal 不再增加、
+  其他 pending 有限退出；随后另以 Close 的 `TreeStopped` 确认实际进程树停止。
+- 两轮均用官方 Go 1.27.2、`GOTOOLCHAIN=local` 和已验证模块缓存；三个 live/catalog opt-in 从子环境删除，
+  `GOPROXY=off`，`GOMAXPROCS=1`，监督上限 600s、空闲门槛 8GiB、临时根上限 4GiB。
+  Go 参数为 `-json -p=1 -count=1 -timeout=3m`；red 仅选上述回归/对照，green 跑完整本包，均非 race。
+  本协议夹具包已只读确认不要求 Git 祖先中立；仅本包获准使用 ignored 临时根，未削弱 mcpconfig 守卫。
+  本地原始证据在 `.cache/c07-response-fencing-lau0d937/{red,green}/`，各含命令环境、JSON 测试日志和结果回执。
+- 当前只证明此连接层源码与手写离线夹具；不是 native transcript、真实模型/账号调用或生产 Runner 接入。
+  C01 的真实实例/认证、C02 的持久 Task/Run/权限和 C03–C06 完整控制链仍未完成。
+  本片仅本地保存，未 push 或创建 PR；当前候选的适用门禁、完整门禁和独立代码/安全审查未完成，不能据此发布或合并。
+  正式中心继续暂停，自动派发关闭；未部署、发包、启动赛车实验或创建定时任务。

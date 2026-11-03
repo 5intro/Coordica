@@ -149,6 +149,8 @@ func (f *controlFixture) handle(frame envelope, reply func(any), notify func(str
 		}
 		notify("serverRequest/resolved", map[string]any{"threadId": "native-thread", "requestId": requestID})
 		reply(map[string]any{})
+	case "fixture/pending":
+		notify("fixture/pending-registered", map[string]any{})
 	case "fixture/status":
 		var last json.RawMessage
 		if len(f.replies) > 0 {

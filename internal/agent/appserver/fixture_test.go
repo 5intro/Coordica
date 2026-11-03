@@ -39,6 +39,7 @@ func fakeServer() {
 		if json.Unmarshal(reader.Bytes(), &frame) != nil {
 			os.Exit(3)
 		}
+		fixtureRecordMethod(frame.Method)
 		if frame.Method == "" {
 			if frame.ID == nil || frame.Result == nil && frame.Error == nil {
 				os.Exit(4)
@@ -49,7 +50,9 @@ func fakeServer() {
 			}
 			continue
 		}
-		respond := func(result any) { fixturePrint(map[string]any{"id": frame.ID, "result": result}) }
+		respond := func(result any) {
+			fixturePrint(map[string]any{"id": frame.ID, "result": fixtureResponseResult(typed.scenario, frame.Method, result)})
+		}
 		notify := func(method string, params any) { fixturePrint(map[string]any{"method": method, "params": params}) }
 		fail := func(code int) {
 			fixturePrint(map[string]any{"id": frame.ID, "error": RPCError{Code: code, Message: "fixture-private-detail"}})

@@ -182,11 +182,11 @@ func (p *Peer) call(ctx context.Context, method string, params, result any) erro
 	}
 	select {
 	case value := <-reply:
-		return applyResponse(value, result)
+		return p.applyResponse(value, result)
 	case <-ctx.Done():
 		select {
 		case value := <-reply:
-			return applyResponse(value, result)
+			return p.applyResponse(value, result)
 		default:
 		}
 		p.fail(ctx.Err())
@@ -194,19 +194,21 @@ func (p *Peer) call(ctx context.Context, method string, params, result any) erro
 	case <-p.failed:
 		select {
 		case value := <-reply:
-			return applyResponse(value, result)
+			return p.applyResponse(value, result)
 		default:
 		}
 		return errors.Join(ErrOutcomeUnknown, p.Err())
 	}
 }
 
-func applyResponse(value response, result any) error {
+func (p *Peer) applyResponse(value response, result any) error {
 	if value.err != nil {
 		return value.err
 	}
 	if result != nil && json.Unmarshal(value.result, result) != nil {
-		return ErrProtocol
+		// Native work may already have occurred; an undecodable successful
+		// response cannot establish its outcome or leave reusable handles.
+		return p.invalidResult()
 	}
 	return nil
 }
