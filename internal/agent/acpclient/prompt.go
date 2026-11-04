@@ -38,13 +38,16 @@ type promptReply struct {
 	err    error
 }
 type pendingPrompt struct {
-	id              uint64
-	replies         chan promptReply
-	writeDone       chan struct{}
-	received, ready bool
-	reply           promptReply // protected by Peer.mu, retained through close/select races.
-	cancelWriteDone chan struct{}
-	cancelAttempted bool // A write may have emitted bytes even when it returns an error.
+	id                   uint64
+	replies              chan promptReply
+	writeDone            chan struct{}
+	received, ready      bool
+	reply                promptReply // protected by Peer.mu, retained through close/select races.
+	cancelWriteDone      chan struct{}
+	cancelAttempted      bool          // A write may have emitted bytes even when it returns an error.
+	cancelSent           chan struct{} // Closed only after the notification write finishes or is suppressed.
+	cancellation         <-chan struct{}
+	permissionUnresolved bool
 }
 
 // PromptText sends one explicit text input and waits for its full terminal
@@ -95,12 +98,13 @@ func (s Session) PromptTextWithCancel(ctx context.Context, text string, cancella
 		p.mu.Unlock()
 		return PromptResult{}, ErrInvalidPrompt
 	}
-	pending := &pendingPrompt{id: id, replies: make(chan promptReply, 1), writeDone: make(chan struct{})}
+	pending := &pendingPrompt{id: id, replies: make(chan promptReply, 1), writeDone: make(chan struct{}), cancellation: cancellation}
 	p.prompt, p.lastRequestID = pending, id
 	p.mu.Unlock()
 	defer func() {
 		p.mu.Lock()
 		if p.prompt == pending {
+			p.retirePermissionScopeLocked(pending)
 			p.prompt = nil
 		}
 		p.mu.Unlock()
@@ -117,6 +121,9 @@ func (s Session) PromptTextWithCancel(ctx context.Context, text string, cancella
 	reply := s.waitPromptReply(op, pending, cancellation)
 	if reply.result.Evidence == "rpc_terminal" || isRPCRejection(reply.err) {
 		if p.waitPromptWriters(op, pending) && p.Err() == nil {
+			if p.promptPermissionsUnresolved(pending) {
+				return p.unresolvedPromptPermissions(reply)
+			}
 			if p.cancelWasAttempted(pending) && reply.result.StopReason != "cancelled" {
 				return p.unconfirmedPromptCancel(reply)
 			}
@@ -130,6 +137,9 @@ func (s Session) PromptTextWithCancel(ctx context.Context, text string, cancella
 	latest := p.promptFailure(pending, reply.err)
 	if latest.result.Evidence == "rpc_terminal" || isRPCRejection(latest.err) {
 		cause := error(ErrDisconnected)
+		if p.promptPermissionsUnresolved(pending) {
+			cause = errors.Join(cause, ErrPermissionUnresolved)
+		}
 		if p.cancelWasAttempted(pending) && latest.result.StopReason != "cancelled" {
 			cause = errors.Join(cause, ErrCancelUnconfirmed)
 		}
@@ -161,6 +171,7 @@ func (p *Peer) receivePrompt(id uint64, result, rpc []byte, hasError bool) error
 		return ErrProtocol
 	}
 	pending.received = true
+	p.invalidatePermissionsLocked(pending)
 	p.mu.Unlock()
 	var reply promptReply
 	if hasError {

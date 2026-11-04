@@ -2,7 +2,8 @@
 
 These partial C08 slices initialize a persistent supervised ACP connection and
 explicitly create one Session. They do not implement authentication, loading,
-native request answers, runtime ports or a provider registration. Explicit text
+runtime ports or a provider registration. Native permission replies are explicit
+and bounded as described below; other callbacks remain unsupported. Explicit text
 Prompt supports an invocation-owned cancellation signal and terminal response.
 The production legacy `agent.executeACP` path is unchanged. That one-shot path
 automatically starts a prompt and shuts down afterward, so it is not reused here.
@@ -198,8 +199,85 @@ cancellation still closes the Peer and does not itself request native cancel.
 
 Tests use hand-written Go protocol children and controlled real pipe barriers,
 not provider transcripts. Native provider cancellation and actual tool stopping
-remain unverified; no runtime event, permission, authentication or release path
-is added by this protocol primitive.
+remain unverified; no runtime event, authentication or release path is added by
+this cancellation primitive. Explicit permission replies are described below.
+
+## Explicit native permission replies
+
+`Session.PermissionRequests()` returns defensive private copies of currently
+selectable `session/request_permission` callbacks. `SelectPermission(ctx, request,
+optionID)` accepts only an exact option ID from that original callback, including
+an empty ID if actually offered. The response preserves the option's original
+native JSON value rather than reconstructing it from display text. No kind/name
+mapping, default approval, fallback,
+remembered client policy or arbitrary response API exists. A native
+`allow_always`/`reject_always` choice is forwarded only when explicitly selected;
+the client does not convert it into application or filesystem authority.
+
+The opaque handle binds the Peer, local connection epoch, original Session,
+local Prompt receive window and request serial. Native ACP callbacks contain a
+Session ID, not a Prompt/Turn ID: this local fence cannot attest native per-turn
+causality. Only an active explicit Prompt accepts callbacks. Wrong Session,
+duplicate/reused native request IDs and unsupported callbacks close the Peer.
+The no-reuse policy is a conservative connection-local subset, not an ACP rule.
+Invalid options, stale/cross-binding handles and already-cancelled caller contexts
+do not claim a response or send a native frame.
+
+Permission request IDs retain their native string/integer/null type. Strings
+and numbers with the same spelling remain distinct; signed int64 literal IDs
+and null are supported. Decimal/exponent numeric spellings are explicitly
+unsupported locally, including those that represent integers. Options require
+native ID, name and one of the fixed four kinds; absent/null fields and unknown
+kinds fail closed. Empty options remain empty, with no fabricated choice.
+Duplicate option IDs are an unsupported ambiguous subset. Opaque IDs are not
+parsed as commands, paths, modes or principals.
+
+`ID()`, `ToolCall()` and `Options()` return defensive private-data copies. Tool
+context may include sensitive titles, paths and raw input/output. Known shallow
+ToolCallUpdate fields receive type/container checks; nested content/location
+items, tool arguments and extension payloads remain opaque. Accepting them is
+not complete ToolCallContent schema validation or verified authorization scope.
+The caller owns its current principal/policy checks and presentation/redaction;
+this package does not execute or independently approve the described tool.
+None of these private payloads is copied into `UpdateFact` or generic errors.
+
+The callback params cap is 64 KiB, with at most 32 options, 512-byte ID strings
+and 1024-byte option names. The original 256 KiB frame bound remains in force.
+A Peer keeps at most 64 request-ID tombstones and a 64 KiB aggregate private
+payload budget for unretired callbacks. These are local client limits. Overflow
+fails closed with an explicit gap and actual cleanup evidence; it never drops a
+permission and continues as though permission had been granted. Responded or
+invalidated payloads are released; caller-owned copies remain the caller's
+responsibility. This inbox is not durable approval storage, complete history,
+Load/replay, a runtime PendingRequest service or an event stream.
+
+Selections claim once under the Peer mutex. Concurrent opposite answers have
+one winner; invalid local selections do not consume the handle. After a claim,
+write failure, context expiry or disconnect cannot authorize a resend. The
+operation has a ten-second local cap, shortened by the caller. `PermissionReceipt`
+uses `local_write` evidence only: writing bytes is not a native ACK, proof that
+the option was acted upon, tool execution or a background-process stop.
+Uncertain replies close and join the owned Peer with actual
+`PermissionReplyError.Process` facts. Already observed local write completion
+remains a historical receipt with disconnection separately reported.
+
+Explicit native Prompt cancellation also handles the fixed schema's mandatory
+`cancelled` permission outcomes. It latches cancellation under the same mutex,
+prevents new selections, joins previously claimed selected writers, then sends
+`session/cancel`. Unanswered callbacks, including late arrivals in that local
+window, receive only `cancelled` after that notification write. This is a
+consequence of the caller's explicit cancellation, never an approval or option
+selection. A choice claimed before cancellation may already have been sent;
+cancellation does not undo that earlier native decision or attest tool stopping.
+
+Original Prompt terminal/rejection invalidates unanswered handles before it is
+published. An original terminal with an unresolved callback is retained with
+`ErrPermissionUnresolved` and connection retirement, rather than being rewritten
+as an unknown Prompt outcome. Prompt/config singleflight remains held until all
+response writers finish. Close and context abort join both permission and cancel
+writers without holding the mutex over I/O. Transport abort sends no fabricated
+native permission outcome or ACK. Real provider compatibility, persistent
+approval handling and the full C08 exit remain unverified.
 
 ## Explicit reported configuration selection
 
