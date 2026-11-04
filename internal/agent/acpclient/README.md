@@ -65,7 +65,8 @@ native or remote Session. No native `session/close` or release RPC is invented.
 ordering and full private content/completion handling remain absent. There is no
 authentication fallback, Task execution, database persistence or automatic retry
 across a new Peer. Future runtime composition must persist its own intent and
-unknown binding before native I/O, as the existing Codex composition does.
+unknown binding before native I/O. The runtime/runtimecodex composition in the
+frozen checkpoint is a separate dependency, not part of this standalone package.
 
 ## Bounded update metadata
 
@@ -130,6 +131,7 @@ a successful completed operation does not end the independent host lifetime.
 
 This protocol primitive does not select or attest model/effort/permissions,
 preserve output bodies, answer tools, implement Load or authorize a Task.
-Runtime composition is not connected: its existing `ProduceWork` ten-second
-start-ACK path needs a separate whole-turn adaptation before ACP use. Real
-provider execution, authentication and effective configuration remain unverified.
+Runtime composition is not connected. The frozen checkpoint's `ProduceWork`
+ten-second start-ACK path needs a separate whole-turn adaptation before ACP use;
+that runtime code is not included here. Real provider execution, authentication
+and effective configuration remain unverified.
