@@ -45,6 +45,20 @@ func (p *Peer) receiveUpdate(fields map[string]json.RawMessage) error {
 	if err != nil {
 		return err
 	}
+	var kind string
+	if decode(update, "sessionUpdate", &kind, true) != nil {
+		return ErrProtocol
+	}
+	if kind == "config_option_update" {
+		options, err := requiredConfigOptions(update)
+		if err != nil {
+			return err
+		}
+		p.mu.Lock()
+		version := p.replaceConfigLocked(options, true).Version
+		p.mu.Unlock()
+		return p.updates.append(UpdateFact{Kind: kind, ConfigVersion: version})
+	}
 	fact, err := updateFact(update)
 	if err != nil {
 		if err == ErrUnsupportedUpdate {

@@ -23,7 +23,7 @@
 - 当前允许受影响检查与质量通过后创建小范围 draft；最新 head 三平台 CI 和代码/安全正式明确结论仍是合并前提。
   本地明确 review 不等于 GitHub 正式两审，checkpoint 不等于 PR，真实 harness/部署/派发/定时仍未授权。
 
-- 最新发布状态按父会话本次快照：PR34/36/35/37已合并，maincf36整树精确owner41；PR37旧98 Windows失败保留，准确41六CI及正式双clear后合入。PR38新组合efa6已标准推送并核准，本地相关门禁及完整pub本地两审通过，截至10:47 UTC freshCI仍running、Code已clear/Security待回执、draft未merge，旧0a结论不复用；细节见末尾记录，历史pending快照不代表当前状态。
+- 最新发布状态按父会话本次快照：PR34/36/35/37/38均已合并，mainc30整树精确efa6；PR38准确efa6六CI在attempt1全部success、正式双clear后于11:29:01 UTC合入，源分支保留。C08仍只partial offline与已声明选项子集，旧0a或历史pending结论不替代新head门禁；细节见末尾记录。
 - 当前及后续开发仍使用 `gpt-6.1-sol` / `ultra`；ACP与store事件存储由其他会话独占，本片只维护两份全局进度文档，不替其声明新源码或测试通过。
 
 以下批次按发生时的输入和结论保留；涉及当前状态，以此快照及最新追加证据为准。
@@ -789,3 +789,30 @@
 - 本文档分支正常Git整合actualmaincf36，无冲突，仅手改ROADMAP与本记录，其余对象精确该main；定稿以实际maincf36、CI=true做quality/diffcheck与本地链接核查，不额外单测。
   两处停止边界保持，不访问或诊断相关WIP/源码/日志；本地fullmcp仍blocked，真实provider/认证/stage exit未通过，当前及后续Sol/ultra。
   无live/凭据迁移/部署/发包/赛车/dispatch/timer，中心暂停；本writer无push/PR/approve/main合并动作，不提前改变其他候选目标。
+
+## 合并前文档准备 — PR38正式双clear与文件归属（2026-11-04 UTC历史快照）
+
+- main仍为cf36。准确efa6的 [Code6628736705](https://github.com/5intro/Coordica/pull/38#issuecomment-6628736705) 与
+  新 [Security6628801838](https://github.com/5intro/Coordica/pull/38#issuecomment-6628801838) 均已由父会话核准明确clear；六CI仍在运行、尚未通过，PR38仍draft未合并，不复用旧0a门禁。
+  先前10:47 Security pending记录为当时快照，不代表此轮最新正式审查状态；本地pub review仍与正式审查/CI/live验收分开。
+- 父会话声明新独立C04 runtime事件接收/游标相关文件由另一施工会话独占；本线程仅维护ROADMAP/PROGRESS，不修改这些runtime源。
+  该施工声明不构成实现、测试或模型平台实测证明。维持既有Sol/ultra工作要求，本线程未作模型配置变更，不把本地设定/启动参数说成已核准的平台实测结果。
+- 当时仅准备并暂存两MD增量；实际合并后同一片整合新main定稿，不因轮询另造提交。两处停止边界保持，最终事实见下一记录。
+
+## 文档定稿 — PR38实际合并与C08子范围（2026-11-04，11:29:01 UTC）
+
+- 父会话已官方核准 [PR38](https://github.com/5intro/Coordica/pull/38) closed/merged；main为 `c30d4e03e11aa4dbe8f680c7cbc014eda0fa0978`，
+  parents为 `cf36bc4b7dd8137bdf4b895458df166d1e0328d9` 与 `efa6f38618ebc4a90957d7ae52c302601909d4c6`，
+  tree `ee4b45355fdb09677dbe6ffab6c4dcae8b62f24b` 精确等于efa6；官方PR状态/main/commit parents与tree均已核准，源分支efa6保留。
+  父会话首个普通expected-head API合并成功，无重试或自行approve；先前maincf36与pending记录为当时事实。
+- 准确efa6的 [push41816157555](https://github.com/5intro/Coordica/actions/runs/41816157555) 与
+  [PR41816180831](https://github.com/5intro/Coordica/actions/runs/41816180831) 六个job在attempt1全部success；
+  [Code6628736705](https://github.com/5intro/Coordica/pull/38#issuecomment-6628736705) 与
+  [Security6628801838](https://github.com/5intro/Coordica/pull/38#issuecomment-6628801838) 明确clear，threads/review submissions为0。
+  ready后同输入复核的最终覆盖见 [coverage6629422813](https://github.com/5intro/Coordica/pull/38#issuecomment-6629422813)；明确评论结论与空review状态分开，不借旧0a结果批准efa6。
+- C08目录已声明选项子集已合入，仍为partial offline；explicit-unverified路径、完整C08及真实provider/认证/stage exit均未通过。
+  C04仅存储子集已合入；runtime事件接收/游标文件由另一施工会话独占，本线程未改，也不据施工声明认定源码/测试已通过。
+- 合并前两MD暂存增量先保留原始补丁与全文，再通过标准Git流程整合actualmainc30并逐文件核原增量完整恢复，无冲突或源码手改。
+  本文档候选相对mainc30仅ROADMAP/PROGRESS，所有其它tracked对象与605Go精确该main；quality固定实际mainc30、CI=true/官方Go PATH，另做diffcheck和本地链接核查，无额外单测。
+  两处停止边界保持，不访问相关WIP/源码/日志；本地fullmcp仍blocked、真实harness未验，Sol/ultra工作要求与模型配置未改变，不以声明代替平台实测。
+  无live/凭据迁移/部署/发包/赛车/dispatch/timer，中心暂停；本writer无push/PR/approve/main合并动作，checkpoint或正式文档发布由父会话协调。

@@ -17,11 +17,12 @@ var ErrUpdatePosition = errors.New("invalid ACP local update release position")
 // UpdateFact is metadata only. Local sequence is not a native event ID, text
 // byte count is not output content, and tool status is not Turn completion.
 type UpdateFact struct {
-	Sequence   int64
-	Kind       string
-	TextBytes  int64
-	ToolCallID string
-	State      string
+	Sequence      int64
+	Kind          string
+	TextBytes     int64
+	ToolCallID    string
+	State         string
+	ConfigVersion uint64 // Local observation order, never server CAS/effective settings.
 }
 
 type UpdateSnapshot struct {
