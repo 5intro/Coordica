@@ -71,6 +71,10 @@ func (f *cancelFixtureState) cancel(scenario string, raw []byte) {
 	f.notifications++
 	id := f.pending
 	switch scenario {
+	case "cancel-status":
+		emitStatusFixture()
+		waitFixtureContinue()
+		cancelFixtureTerminal(id, "cancelled")
 	case "cancel-no-terminal":
 		return // Successful stdin delivery has no corresponding terminal/ACK.
 	case "cancel-disconnect":

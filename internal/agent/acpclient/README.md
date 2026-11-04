@@ -92,14 +92,32 @@ failure. Process.TreeStopped is set only after supervised Wait. Any close leaves
 the final observation window unconfirmed, including intentional Close; clearing
 the FIFO never claims complete history or removes that sticky gap.
 
-This intentionally supports six of the fixed schema's nine update variants,
-including config-option snapshot changes described below.
-Plan/available-command/current-mode updates and non-text content
-are valid protocol possibilities but currently unsupported, rather than silently
-dropped or called schema-invalid. Notifications preceding a valid session/new
+All nine fixed-schema update tags now have bounded metadata handling, including
+config-option snapshots described below. `plan`, `available_commands_update` and
+`current_mode_update` validate their declared shapes and append only their kind.
+Plan content/status/priority, command names/descriptions/input hints, mode IDs and
+extension values are discarded; these facts do not dispatch work, execute a
+command, select a mode, approve permissions or confirm effective configuration.
+A completed plan entry does not complete a Prompt or prove cancellation. Only
+the original correlated Prompt response supplies its terminal result.
+
+Plan entries require content, priority and status without defaults; the fixed
+priority/status enums remain strict. Command names/descriptions are required;
+input may be absent/null, otherwise its object requires a string hint. Empty
+lists, repeated declarations, empty strings and opaque native mode IDs are
+accepted where the schema permits them. Unknown extension fields are ignored,
+while malformed known fields, invalid metadata containers and duplicate JSON
+keys fail closed. No smaller string or item-count limit is imposed: the existing
+256 KiB whole-frame bound limits transient parsing, and each validated status
+uses one slot in the same 32-fact/16 KiB metadata FIFO. A status flood preserves
+the existing sticky gap/backpressure policy rather than blocking the read loop.
+
+Unknown update tags and non-text content remain unsupported, rather than being
+silently dropped or called schema-invalid. Notifications preceding a valid session/new
 response are unsupported; the first observed Session ID is not guessed to be the
 target. This metadata primitive is not lossless output, durable spool, complete
-Load/full-output support, permission handling or runtime composition.
+plan/command/mode history, Load/full-output support, permission handling or runtime
+composition. Accepting these observations does not implement history loading.
 
 ## Explicit terminal text Prompt
 
@@ -221,6 +239,6 @@ notification; its receipt remains an older observation. Notification metadata
 contains only local ConfigVersion, not private option names/values or raw content,
 and uses the existing bounded FIFO/gap policy. It remains Session-level rather
 than Prompt-correlated. Snapshot access after failure is diagnostic history,
-not an assertion that the report is still effective. Load, mode changes, runtime
+not an assertion that the report is still effective. Load, explicit mode selection, runtime
 composition, automatic tools and real provider compatibility remain unimplemented
 or unverified; configuration declarations do not grant fs/terminal/Task authority.
