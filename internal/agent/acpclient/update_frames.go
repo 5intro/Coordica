@@ -115,6 +115,19 @@ func updateFact(update map[string]json.RawMessage) (UpdateFact, error) {
 		if statusProvided && fact.State != "pending" && fact.State != "in_progress" && fact.State != "completed" && fact.State != "failed" {
 			return UpdateFact{}, ErrProtocol
 		}
+	case "plan":
+		if err := planUpdate(update); err != nil {
+			return UpdateFact{}, err
+		}
+	case "available_commands_update":
+		if err := commandsUpdate(update); err != nil {
+			return UpdateFact{}, err
+		}
+	case "current_mode_update":
+		var id string // Open native ID, not a local allowlist or permission grant.
+		if decode(update, "currentModeId", &id, true) != nil {
+			return UpdateFact{}, ErrProtocol
+		}
 	default:
 		return UpdateFact{}, ErrUnsupportedUpdate
 	}

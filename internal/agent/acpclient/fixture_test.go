@@ -73,6 +73,10 @@ func TestMain(m *testing.M) {
 				cancellation.prompt(scenario, request.ID, request.Params.Prompt[0].Text)
 				continue
 			}
+			if strings.HasPrefix(scenario, "status-") {
+				statusPromptFixture(scenario, request.ID)
+				continue
+			}
 			promptFixtureReply(scenario, request.ID, request.Params.Prompt[0].Text)
 			continue
 		}
@@ -342,7 +346,7 @@ func emitUpdateFixture(scenario string) {
 		printUpdateFixture("private-other-session", update)
 		return
 	case "updates-unsupported":
-		update = map[string]any{"sessionUpdate": "plan", "entries": []any{}}
+		update = map[string]any{"sessionUpdate": "private-future-update", "entries": []any{}}
 	case "updates-image":
 		update["content"] = map[string]any{"type": "image", "data": "private-image", "mimeType": "image/png"}
 	case "updates-null-content":
