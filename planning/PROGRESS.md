@@ -13,8 +13,9 @@
 - 产品检查点固定 [ab0e2068ee42face7516acfaa6fd559fc7ab0c11](https://github.com/5intro/Coordica/commit/ab0e2068ee42face7516acfaa6fd559fc7ab0c11)，
   父会话已用标准非 force push 同步到 [codex/cloud-checkpoint-20261104](https://github.com/5intro/Coordica/tree/codex/cloud-checkpoint-20261104)，并用官方 API 核准原哈希。
   这是备份分支，不是 main 合并、产品 PR 或发布；原十三条规划/实现分支与原始 SHA 保持。
-- 本独立文档分支 `codex/publish-provider-plan-20261104` 基于 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`，
-  只更新恢复授权/范围/证据和正式审查条件，不导入产品源码。历史 local-only/no-PR 与 10% 暂停线已被 Nov4 用户授权覆盖。
+- 独立规划文档分支 `codex/publish-provider-plan-20261104` 基于 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`，
+  只更新恢复授权/范围/证据和正式审查条件，已由父会话发布 draft [PR #31](https://github.com/5intro/Coordica/pull/31)。
+  本 C07 发布分支仅从 e47 整合其文档，不导入后续 runtime/C08 代码；下述全局进展不表示本树具备那些实现。历史 local-only/no-PR 与 10% 暂停线已被 Nov4 用户授权覆盖。
 - 新环境当前 HTTP unrestricted/enforced、observations_current=true，VPN 未配置、TCP grants 为空；官方 Go 1.27.2 和已有依赖缓存可复用。
   ab0 在恢复后四包普通/竞态各172项及 vet/build/quality/八项漂移通过；全仓 mcpconfig 中立临时目录前提仍阻断。
   已知 `/tmp/.git`、`/workspace/.git` 标记仍在；只读复核，不删除、不重试只读目录、不绕守卫或改变网络/凭据。
@@ -36,6 +37,7 @@
 | 2026-11-02 | Owner 最新：把多 Agent 协作/DeepSeek 自驱动能力后置，先做好多 harness 聚合 | R2026-11-02.5 / R101；显式原生执行、统一任务记录与必要原生控制；调研保留 | 首期不做自主 Wake 派工、总管、协作策略、自动拆解或跨 harness 接力；不停止已授权聚合开发 |
 | 2026-11-02 | Owner 在明确门禁说明后回复“过了就合并” | 重新核验准确 head、全部 CI、代码与安全明确结论后，依赖顺序合并 #29/#30；已执行并核实 | 不授权未验证的产品代码发布、部署或降低门禁 |
 | 2026-11-02 | Owner 要求学习 T3/Multica，并接受 Claude 绕过权限询问；父级限定本轮本地文档准备 | R102–R104：公共契约、薄协议适配、逐 provider 证据与可选可见的 Claude 原生模式设计 | 不推送/提 PR/合并，不调用 Claude，不把工具审批跳过扩成取消提问、全局权限或未来高风险操作授权；C08 不换成 Claude |
+| 2026-11-02 | Owner 要求多给架构图、明确目标并推进能推进的开发；父级继续本会话施工 | 恢复 C01–C08 中独立可离线验证的聚合产品切片，逐片源码/夹具/回归/质量和本地保存；远期助理方向留作上层 | 不因全仓 blocked 停止所有独立工作，也不越过全仓门禁发布；不扩大真实 harness、部署或应用层实施范围 |
 | 2026-11-04 | Owner 明确“不用在意剩余额度”，继续同模型施工，并要求经常同步 GitHub、用小 draft/正式审查推进 | 覆盖旧 10% 暂停线及临时 local-only/no-PR；C01–C08 离线小片，受影响+质量通过可 draft，准确 head 全部 CI/两审明确后按依赖合并；父会话处理线上同步 | 不换 model/effort、不充值或迁凭据；C09–C12 仅准备；无真实 harness、正式中心、部署/发包、dispatch 或定时，不降低合并门禁 |
 
 历史 Phase A/B 只覆盖原有范围。新任务实施授权到达后，在此新增日期、任务 ID 和准确范围。
@@ -269,6 +271,55 @@
   同 Task 可计划多个显式执行者，独立 Session/输出、结果按 Run/代际回写和上下文 CAS，依赖由调用方明确推进。
   这些新接口仍是待实现计划，不据旧开发调度或原型源码宣称已支持；高级自动编排没有加入本批。
 
+## C07 — 最小 Codex app-server 离线传输切片（本地检查点）
+
+- 输入：C01 文档 head `0f8da8055605550145fcbe6bc005e7ce383c5c46`，R2026-11-02.4。
+  产品代码位于独立分支 `codex/runtime-codex-peer-20261102`；不修改待审批的 C01 分支或 PR 目的地。
+- 实现：`internal/agent/appserver` 为第一原生端口，显式绝对可执行文件/工作区/环境；
+  仅 initialize/initialized 握手，保留原生启动信息，不自动登录、选模型、创建 thread 或启动 turn。
+  显式 RPC 请求与乱序响应关联；结构化通知和原生提问/审批回调分开，连接身份/原文指纹拒绝旧回调和重复答复。
+  答复只报告本地 queued，不伪造原生消费 ACK；请求超时或断连后结果 unknown，不自动重放。
+  有界帧/调用/事件/原生 ID，慢消费者及协议故障明确失败并停止监督进程；保留实际 TreeStopped。
+- 这只是适配层传输，不是完整 C07 或 C02–C06：尚无新 TaskContext 持久化、身份授权、绑定/Turn 代际、
+  持久事件/请求对账或公共 runtime 入口；没有接到生产 Runner，旧 exec 驱动及开发门禁未改。
+  封装协议差异但保留身份/进度/产物/审批/失败可观察性；完整 UI 不在本批。
+- 离线证据：监督夹具子进程完成同连接两轮、resume 不重发、steer/interrupt 原生目标、
+  数字/字符串请求 ID、跨连接/重复/改内容回调拒绝、乱序响应、无效握手/JSON/UTF-8、
+  超时/丢响应/超大帧/慢消费者；没有调用安装的真实 Codex、任何模型/账号或上层业务。
+- 回归：关闭 live opt-in，使用仓库 `scripts/test-go.py` 执行
+  `-race -count=1 -timeout=3m ./internal/agent/appserver ./internal/agent ./internal/process`，退出 0；
+  输出分别为 1.285s / 16.735s / 14.174s，监督器确认 owned processes stopped、temporary root removed。
+  相同三包的 `go vet` 无错误，前端 `npm run typecheck` 通过。
+  `make quality` 退出 0，有一项新 advisory：测试夹具 fakeServer 131 行；它是单个受控协议模拟器，未扩张生产职责。
+- 构建：`make build check quality` 尝试先构建；前端 npm ci/build 成功（既有 bundle size 提示），
+  Go 主程序构建因 `modernc.org/sqlite@v1.60.1` 下载被阻断，退出 2。
+  官方 proxy.golang.org 重定向到 storage.googleapis.com 后返回 Forbidden；当前 enforced 允许列表不含该目标。
+  未换非官方镜像、绕过代理或扩网络。全仓 build/check/test 依赖此项，保持未通过；不重复已知被拒的下载。
+- 首次直跑 Go 测试和 npm 安装分别遇到默认 home 缓存只读，已将 GOCACHE/GOMODCACHE/GOPATH/npm cache 定向到工作区；
+  这是运行环境修正，不修改产品或声称原失败通过。临时日志只在受控工作区/临时目录，不提交原始依赖 URL 查询参数。
+- 发布/审查：本切片仅本地保存，未 push、未建产品 PR、未触发审查或合并。
+  C01 创建 draft PR 的第二次拒绝和 #29 merge 拒绝仍保持 denied，由 Dot 请求准确动作授权；本会话没有重试。
+  最近只读 #29 仍 open，故待确认 C01 base 仍为 `codex/task-runtime-cloud-batch-20261102`，没有默默改成 main。
+- 下一步：先由父级处理明确 PR/merge 授权及官方 Go 依赖下载的网络配置；全仓门禁未过不能声称可合并。
+  在同一纵向切片上继续 C02 的任务上下文/输入及显式 Run 绑定，而非铺完整通用状态平台。
+
+### 同日更新：精准授权后 C01 PR 已创建
+
+- Owner 对指定仓库/head/base、仅含文档的 C01 draft PR 请求直接回复“允许”；此次新证据只用于该动作，未扩大到 #29 merge。
+- 创建前重新只读核对：C01 远端 head 仍 `0f8da8055605550145fcbe6bc005e7ce383c5c46`，
+  base 分支仍 `6325566dde16e80e079c5cb03e673f39aeff5992`，#29 open/未合入，没有既存同分支 PR。
+- 11:54:28 UTC 成功创建 [PR #30](https://github.com/5intro/Coordica/pull/30)，draft，base 为
+  `codex/task-runtime-cloud-batch-20261102`，head 为上述 C01 SHA，9 个文档文件；没有混入本地产品代码。
+  C01 分支未移动，本地 C07 源码保存为 `c106015b8d30b0805a2d5d3868a07d35f5ef00e2`，未推送。
+- 明确触发[代码审查 6576496662](https://github.com/5intro/Coordica/pull/30#issuecomment-6576496662)
+  和[安全审查 6576498142](https://github.com/5intro/Coordica/pull/30#issuecomment-6576498142)，作者均为 5intro。
+- 11:55:58 UTC `chatgpt-codex-connector[bot]` 在[代码回执 6576519278](https://github.com/5intro/Coordica/pull/30#issuecomment-6576519278)
+  对 `0f8da80556` 明确表示未发现重大问题。没有新增待修复代码意见；安全审查仍 running，null 不当作通过。
+  该完整 head 当前有六个 CI check run：早一次 Ubuntu/macOS success、Windows running，另一次三平台均 running。
+  尚无全门禁通过结论；#29 merge 没有重试，仍单独保持 denied。
+- 测试收口只读核查发现 4 个 process.test 条目为 Z 状态、PPID=1，均已退出且不再执行，待环境 PID1 回收；
+  没有仍在运行的本会话构建/测试进程。未杀其他进程或修改系统回收行为。
+
 ## 最新首期优先级 — R2026-11-02.5
 
 - Owner 再次收紧：把刚讨论的多 Agent 协作/DeepSeek 自驱动能力放到后面，先做好多 harness 聚合。
@@ -288,6 +339,26 @@
 - #29 仍 open；合并的自动审批拒绝未被本次 PR 创建许可覆盖，没有重试，也不默默更换 #30 的 base。
   全仓 Go 构建仍因官方模块下载跳转的 storage.googleapis.com 不在 enforced 允许列表而 blocked；没有绕过。
   不创建定时，真实订阅 harness 未调用，低于 10% 的可验证额度信号仍立即安全暂停。
+
+### 首期范围更新与下载拒绝事实
+
+- C01 原 PR #30 已更新为 `bf098f88db5b8128b9d29b4bdb3d5ce7b566a64b`，仍是原规划 base、9 个文档。
+  明确重新触发[代码审查 6576657989](https://github.com/5intro/Coordica/pull/30#issuecomment-6576657989)与
+  [安全审查 6576659241](https://github.com/5intro/Coordica/pull/30#issuecomment-6576659241)；没有在其 running 时重复触发。
+  旧 `0f8da80` 的双审和 CI 不继承。父级 12:04:55–12:05:23 UTC 观察该新 head 双审及六个 CI 均运行中，无可行动意见。
+- 本地代码分支合入上述文档优先级；PROGRESS 的两个追加记录保留后串行解决冲突，无代码或历史丢弃。
+  下一代码工作仍只做 Codex/ACP 薄适配的共同传输与控制验证，不接自主调度、Wake 或协作策略。
+- 下载原始错误（仅将签名 URL 的查询参数省略）：
+  `modernc.org/sqlite@v1.60.1: Get "https://storage.googleapis.com/proxy-golang-org-prod/4637baafbecfb238-modernc.org:sqlite-v1.60.1.zip?[query redacted]": Forbidden`。
+  随后 `make: *** [Makefile:9: build] Error 1`，整次 make 命令退出 2。
+- 当前 `/etc/codex/network-policy.json` version=1、restricted，egress_rules 的键只有 host，缺 storage.googleapis.com；
+  运行时状态确认策略 enforced。该域在当前配置下未获允许，是硬网络边界；仅凭 Go 的 Forbidden 不能区分具体 403 产生层。
+  这不是命令审批器的 approval rejection，也没有已获准的临时网络例外。
+- 可供用户确认的最小配置请求：仅增加 HTTPS `storage.googleapis.com`，用于官方 Go 模块 ZIP 分发，
+  保持现有代理/CA、其余 allowlist 与权限不变。现有观察到的策略粒度是 host，不能声称只授权上述单个 ZIP 路径。
+  本会话只有 environment_status/diagnostics/read_environment_diagnostic 读取工具，没有配置变更工具；
+  须经受支持环境配置流程及用户确认，能否热应用未验证。未修改网络、试其他域/代理/缓存或重新发送被拒下载。
+- 父级 12:03 UTC 实读共享周额度剩余 44%，未触发低于 10% 暂停线；没有重置或充值。
 
 ## #29/#30 合并与 main 回执（已完成动作）
 
@@ -336,11 +407,96 @@
 | ADR-010 / 2026-11-02 | 公共消费方契约、薄协议适配、同协议复用与逐 provider 能力证据分层 | R102–R103；C01–C08、C09 准备、C15；V01、V03–V06、V14、V18 |
 | ADR-011 / 2026-11-02 | Owner 接受 Claude 可选跳过工具审批；所选/生效模式可见，与原生提问及底座权限分开 | R104；后续 Claude 准备，C08 仍 Antigravity；不更改现有驱动或当前云端权限 |
 
+## 恢复离线实施 — C07 原生目标与控制操作
+
+- Owner 要求明确架构目标并推进可推进的开发。远期个人助理/项目与知识管理方向已明确，
+  当前仍先做好多 harness 聚合；不因此实现助理业务、知识图谱、多 Agent 总管或全多节点体系。
+  官方原生 harness/订阅路径优先，不提取凭据或做反代，也不承诺零封号风险。
+- 独立产品分支从 C07 `be707b7263bb98fa98c7a58fb660c084bdc206a5` 建立，合入本地 R6 文档。
+  合并命令首次误落在原工作区，只造成未提交的文档冲突；核准 HEAD/MERGE_HEAD 后撤销该次合并，原分支恢复干净。
+  随后在独立工作区串行保留双方规划和历史，merge `3940f23`；没有 reset/rebase 或丢弃产品源码。
+- 源码：appserver 增加 thread/turn 窄控制端口；明确 model/approval/sandbox 和原生生效配置，已知不符拒绝执行。
+  Thread/Turn 目标为连接内不可变句柄；resume/read 不重放，steer 固定 expectedTurnId，interrupt 不暗建下一轮，
+  RPC 成功不等于 Turn/后台停止。无 Git 目录与符号链接工作区可用；无效原生响应保留 unknown 并停止连接。
+- 这不是 C02 的 Task/Run 持久化、跨进程绑定代际或完整 C03–C06。未接生产 Runner，旧 exec 未改，
+  原生推理/工具仍归 harness；原生 options 支持范围只是当前 typed 子集，其他能力不伪装为已支持。
+- 夹具：手写 schema-informed 受控子进程核对原生字段/目标和实际操作次数，覆盖两轮、恢复不重发、
+  stale steer/interrupt、模型/工作区不符、错 ID/缺失结果、符号链接及无 Git 路径；不是原生录制或真实调用。
+  关闭 live opt-in、GOPROXY=off/GOSUMDB=off，仓库监督脚本执行 appserver 包
+  `-race -count=1 -timeout=3m`，退出 0，1.564s；owned processes stopped、temporary root removed。
+- 下一独立切片：原生问题/工具审批的 typed 目标与答复校验，以及 resolved/Turn 结束后的回调失效。
+  全仓依赖下载仍 blocked，不重试，不推送/建 PR/触发外部审查，真实 harness 全部待验证。
+
+### C07 相邻切片 — 原生请求答复与连接内失效围栏
+
+- 上一代码切片已保存为 `824db3e`；当前继续同一独立产品分支，原 C07 `be707b7` 和文档 `1189e10` 未改。
+  父级 16:30 UTC 实读共享周额度 43%，未触发 10% 暂停线；架构图由父级完成，不在本片扩大应用层。
+- 源码：Turn.Request 仅接受同一连接/thread/turn 的真实已登记回调，分问题/命令审批/文件审批；
+  保留原生问题 ID、选项、secret/other/blocking 事实和原始参数的防御性副本。
+  实验性问题须显式协商；答案集合精确对应原生问题；审批仅转发原生选项，缺列表时将固定 schema 基本值标为 schema_default。
+  不自动批准、取消问题工具、扩权限或创建下一轮；答复仍只返回本地 queued，不能当作原生已消费。
+- 失效：明确 serverRequest/resolved 在发布事件之前关闭对应回调，数字/字符串 ID 分开；
+  未见原请求的 resolved 也保留有界 tombstone，阻止迟到 callback 复活。
+  上层在结束/撤销执行授权时显式 InvalidateRequests；连接内 pending 和迟到回调都不再可答，目标 tombstone 上限 1024。
+  原生 Turn 完成不证明后台工作已停，因此不单凭 turn/completed 关闭所有请求；修正上一段拟议的笼统失效条件。
+- 声明边界：这是协议连接内保护，不是持久 PendingRequest、当前主体授权、跨重启代际或完整 C06。
+  这些仍依赖 C02 持久任务/Run/实例/授权账本、C04 事务事件及效果；不以额外内存状态机替代 SQLite 事务。
+  尚未接生产 Runner，没有新增公共 runtime API 或生成契约，因此本片不产生 API 生成漂移。
+- 夹具：同一监督子进程核验问题/审批真实线协议字段与计数；覆盖相反/并发重复答复、错连接/目标、内容变化、
+  非原生选项、schema 默认值、experimental 未开、未知方法、resolved 未消费、迟到回调、显式撤销、容量及中断无终态。
+  另验证 Turn 完成不等于原生请求已解答或后台停止；仍为手写模拟帧，不是 native transcript 或真实 harness。
+- 首次回归有两项失败：实际缺陷为 JSON null 被 Go string 解码为空值，已改为只接受原生字符串/对象决策，
+  对象先做重复/null 校验并保留数字精度；测试故障为把 JSON 空白变化当内容篡改，已改为更改实际问题文本。
+  补测 appserver race 退出 0（1.537s）；没有把原失败忽略或降低行为标准。
+- 受影响回归：关闭 live opt-in、GOPROXY=off/GOSUMDB=off，通过仓库监督脚本执行
+  `-race -count=1 -timeout=3m ./internal/agent/appserver ./internal/agent ./internal/process`，退出 0，
+  分别 1.841s / 17.271s / 14.148s，owned processes stopped、temporary root removed。
+  新补未观察到原请求的 resolved 场景后，appserver race 退出 0（1.528s）；
+  增加不同问题答案及相反审批决策的并发唯一答复后再验，退出 0（1.536s）；两次监督清理均确认完成。
+  同三包 scoped `go vet` 退出 0。`make quality` 对 main 固定基线退出 0；
+  先报两处 fixture 分派函数和一处选项列表长行，已将列表自然分行，测试 fixture 保留单一受控协议状态机职责。
+  最终 quality 仍退出 0，仅保留 controlFixture.handle 143 行、fakeServer 139 行两处测试模拟器 advisory；
+  未新增生产模块混杂职责，不为数字拆成转发框架，不把 advisory 当作自动合并批准。
+  文档检查：104 条连续需求、19 个任务/19 组场景、完整责任映射、78 个本地链接通过；
+  gofmt、工作区及 staged diff 空白检查通过，原 C07 与 R6 文档检查点均核实干净且未改变。
+- 全仓 build/check/test 仍保持此前 SQLite 下载阻断，未重试原下载、换域/代理/缓存或执行器。
+  当前只本地保存；无 push、产品 PR、外部审查、合并或真实订阅消费。C01 与真实双 harness 出口不标完成。
+- 下一依赖边界：C02 的持久 Task/Run/授权与最小事务入口仍需要 SQLite 模块，C03–C06 的跨重启/事件效果/输入队列/请求账本依赖它。
+  C08 的适配代码按既定顺序需 C07 稳定契约与完整离线门禁；本轮不越过未满足依赖或堆未接用的通用平台。
+  已推进连接层可独立回归的控制与回调两片；后续先解除官方环境策略生效及依赖验证阻断，再继续持久集成。
+
+## 接续后 C07 — 成功响应解码失败围栏（2026-11-03 UTC，本地离线切片）
+
+- 接收并独立验证私有源码交接：输入固定 `c8c45862e7571a77d55ac5e148b8b35bdce874f1`，
+  base `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；原 C07、R6 规划和产品三个分支保持原 SHA。
+  R6 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23` 已为产品祖先，没有再创建 merge 或重写旧实现。
+  本片工作分支为 `codex/c07-response-result-fencing-20261103`，原始检查点独立保留。
+- 先在未改生产代码的输入上增加手写 fake 子进程回归：`turn/start`、`turn/steer`、`turn/interrupt`、
+  `thread/read` 分别返回合法 envelope 下的数组或标量成功结果。八个子例均真实复现缺口：
+  只返回 `ErrProtocol`、Peer 仍可用、显式 Close 前后续请求确实写入 fixture journal、其他 pending 未被释放。
+  red 监督退出 1，包耗时 8.346s；明确 RPC 拒绝与发前取消两个对照通过；进程停止和临时根删除均确认。
+- 最小生产修复仅在 `Peer.applyResponse`：明确 `RPCError` 优先原样返回；调用方要求解码的成功结果
+  无法解码时复用 `invalidResult`，关闭连接并返回 `ErrOutcomeUnknown` 与 `ErrProtocol`。
+  三个响应等待分支统一调用该方法；未改 pending map/通道生命周期、原生调用目标或 `nil result` 的忽略语义。
+- green 对完整 `./internal/agent/appserver` 跑现有及新增夹具，监督退出 0，包耗时 1.472s，
+  52 个测试/子测试 pass 事件、无 fail/skip；所有权监督确认进程停止、临时根删除，无残留测试根。
+  关键断言均先于测试显式 Close：unknown/protocol、连接失效、后续 Call 被拒且 journal 不再增加、
+  其他 pending 有限退出；随后另以 Close 的 `TreeStopped` 确认实际进程树停止。
+- 两轮均用官方 Go 1.27.2、`GOTOOLCHAIN=local` 和已验证模块缓存；三个 live/catalog opt-in 从子环境删除，
+  `GOPROXY=off`，`GOMAXPROCS=1`，监督上限 600s、空闲门槛 8GiB、临时根上限 4GiB。
+  Go 参数为 `-json -p=1 -count=1 -timeout=3m`；red 仅选上述回归/对照，green 跑完整本包，均非 race。
+  本协议夹具包已只读确认不要求 Git 祖先中立；仅本包获准使用 ignored 临时根，未削弱 mcpconfig 守卫。
+  本地原始证据在 `.cache/c07-response-fencing-lau0d937/{red,green}/`，各含命令环境、JSON 测试日志和结果回执。
+- 当前只证明此连接层源码与手写离线夹具；不是 native transcript、真实模型/账号调用或生产 Runner 接入。
+  C01 的真实实例/认证、C02 的持久 Task/Run/权限和 C03–C06 完整控制链仍未完成。
+  本片仅本地保存，未 push 或创建 PR；当前候选的适用门禁、完整门禁和独立代码/安全审查未完成，不能据此发布或合并。
+  正式中心继续暂停，自动派发关闭；未部署、发包、启动赛车实验或创建定时任务。
+
 ## 2026-11-04 — 恢复验证与独立规划同步
 
 - 固定产品 HEAD `ab0e2068ee42face7516acfaa6fd559fc7ab0c11`，parent `eb67ce2d3fb95b89a73e03eefe1f46f2e63b132d`，
   tree `3e9ae2362bcbfe19b215b9f0d329165d2757e3a6`；恢复核实工作树 clean、原十三个保护 ref 不变。
-  本规划文档输入为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`，产品实现位于上述独立检查点，未混入本片。
+  独立规划 PR 的文档输入为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`，产品实现位于上述独立检查点，未混入该规划 PR。
 - 原检查点已通过相关四包 acpclient/appserver/process/jsoninput 普通与 race 各172 Test/subtest pass，
   全部 vet/build、quality(base efa, CI=true) 与八项隔离生成文件逐字节比对均退出0；旧回执不是新 head CI 的替代。
   旧精确 HEAD 回执：`.cache/c08-prompt-text-20261103/committed-head-checks/summary.json`，
@@ -370,3 +526,20 @@
   拟 PR 相对核查的 main 输入 efa 包含既有 R.6 十文档及这六文件追加，总计仍十文档。验证限定质量与必要链接检查，不重复无关产品单测或继承 ab0 为本片全部 CI。
   受影响检查与质量通过可创建 draft；main 合并仍按准确最新 head 三平台 CI、代码/安全两项明确结论及最终版本核验。
   用户已覆盖旧 quota 停线和临时 local-only/no-PR；同 `gpt-6.1-sol` / `ultra`、C09–C12 仅准备及所有 live/凭据/部署禁令保持。
+
+## C07 core — 既有源码独立发布准备（2026-11-04 UTC）
+
+- 源码固定 `e47c435a1fe21be30f5bfed11b1c728fccfbb29b`；独立工作树/分支 `codex/publish-c07-core-20261104`。
+  只整合已审规划 `84f01e2b46b1422a9eda8a3c7b8b497fd1325611` 的文档，保留全部 C07 历史与原始 refs；Go 逐文件保持 e47。
+  本树仅新增 C07 app-server 传输、typed thread/turn 控制、原生问题/审批答复和异常成功响应围栏；旧驱动不改。
+  不导入 C02–C05/C08 或持久 runtime 接线，不新增产品行为，不把 offline 夹具称真实 harness。
+- 完整发布差异以规划84f为比较输入，正式 base 若变化由父会话再核；本地复审覆盖完整源码与文档差异，不能只审本次合并文档。
+  新增协议包直接依赖 process/jsoninput，并纳入未改的 legacy agent 包回归旧驱动兼容；acpclient 不存在，不运行它。
+  appserver/agent/process/jsoninput 普通与 race 均279 Test/subtest pass、4包退出0；各有3项真实 harness/catalog opt-in 测试按未开启正常 skip，未将它们写成通过。
+  两轮 Go 哈希不变，owned 进程停止/临时根删除确认；全 vet/build、quality（固定84f为发布比较输入、CI=true）退出0。
+  隔离 contractgen 的8个输出与精确 e47 HEAD blobs 逐字节一致；只整合文档，不借旧 ab0/5e39 的测试批准本候选。
+  `.cache/publish-c07-20261104/` 保存完整命令/env、源码 SHA、测试日志、门禁与保护 refs 证据，均为未上传本地文件。
+  全仓 mcpconfig 中立 TMP 环境项仍 blocked，不重探/删 marker/绕守卫；受影响通过不是全仓通过，真实 harness/认证仍未验证。
+  旧低10%/临时localNoPR限制已被Nov4授权覆盖；同Sol/Ultra、不live/凭据迁移/部署/dispatch/timer及准确head正式两审/三平台CI要求保持。
+- 父会话已推送配置片 `5e39f779df85b819857d2b672f6f98daab8214d5` 并创建另一个 stacked [draft PR #32](https://github.com/5intro/Coordica/pull/32)，base为冻结ab0；
+  正式code/security触发已成功且本记录时 running/pending，不借该候选的回执批准本C07 core。配置分支/规划84f与全部原始refs仍受保护，本writer未作线上动作。

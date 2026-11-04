@@ -3,9 +3,9 @@
 更新日期：2026-11-04（UTC）。工作修订 R2026-11-02.6；本次恢复核查的 main 输入版本为 R2026-11-02.5。
 任务主表仍为 [ROADMAP](../ROADMAP.md)，实施证据追加到 [PROGRESS](PROGRESS.md)。
 本文件是同一组 C 任务的工作包和操作约束，不建立第二套任务状态表。
-Nov4 增量相对 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23` 更新三个入口文档，并限定 DESIGN/VALIDATION/REQUIREMENTS 三页的历史基线表述，共六份文档；
-拟 PR 相对 main 输入 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58` 包含原 R.6 十文档及这六文件追加，总计仍十文档。
-这不是产品源码 PR，也不预判本 PR 合入后的 main 版本。
+独立规划 PR #31 的 Nov4 增量相对 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23` 更新三个入口文档，并限定 DESIGN/VALIDATION/REQUIREMENTS 三页的历史基线表述，共六份文档；
+该规划 PR 相对 main 输入 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58` 包含原 R.6 十文档及这六文件追加，总计仍十文档。
+该 PR 不含产品源码。本源码候选另外只发布受保护 e47 的 C07 core，整合该规划但不导入后续 runtime/ACP；不预判合入后的 main 版本。
 
 ## 本轮授权与边界
 
