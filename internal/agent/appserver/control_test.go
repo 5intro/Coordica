@@ -89,7 +89,7 @@ func TestTypedSteerTargetsOneTurnAndInterruptDoesNotStartAnother(t *testing.T) {
 }
 
 func TestTypedConfigurationMismatchPreservesFactsAndStartsNoWork(t *testing.T) {
-	for _, scenario := range []string{"typed-model-mismatch", "typed-directory-mismatch"} {
+	for _, scenario := range []string{"typed-model-mismatch", "typed-directory-mismatch", "typed-approval-mismatch", "typed-sandbox-mismatch"} {
 		t.Run(scenario, func(t *testing.T) {
 			p := openFixture(t, scenario)
 			thread, observed, err := StartThread(t.Context(), p, fixtureOptions())
