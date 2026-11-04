@@ -4,14 +4,12 @@
 源码审计基线：`9de987f303e77a624adeb9b3feaceb2bb12c41ce`。
 此前增量审计覆盖 `43f208327372fda8db94babda41e4a7d38a0e8dc` 的相关路径，范围见 [C01 复核](planning/C01_REVIEW.md)。
 #29/#30 已合并；截至本次 2026-11-04 恢复核查，main 输入为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`。
-本文档片仅更新 ROADMAP/PROGRESS，源码输入为 PR36 固定 `dee1bb46190a37ef6c3e2adcabe56af42c63413e`，Go 零变更。
-父会话已官方核准 [PR34](https://github.com/5intro/Coordica/pull/34) 合并：main26e5c2f的parents为ed6+462，tree `e5075cf15abbf3565efd5bc077d40bf39e279d7b` 精确等于462；六项CI与正式代码/安全审查均通过。
-[PR36](https://github.com/5intro/Coordica/pull/36) 固定 dee1bb 的六项CI与正式代码/安全审查全部通过，于2026-11-04 08:50:33 UTC closed/merged；源分支保持。
-合并后的main为 `f7edb6b2ecd932cdcf901603a9202851dc46f5cf`，parents为main26+dee1bb，tree `2a3abff3ea033c49e6658021010fe13e43f22bcf` 精确等于dee1bb；父会话首次API合并成功、未自行approve。
-截至父会话2026-11-04 09:19 UTC快照，main仍为f7，PR34/36已合并；[PR35](https://github.com/5intro/Coordica/pull/35) 新组合5a17540与 [PR37](https://github.com/5intro/Coordica/pull/37) 新组合98cdeea的本地相关检查及新head正式双审通过，fresh workflows仍running、尚未合并。
-PR37暂stacked在ACP分支5a，仅表示集成顺序35→37，不改变存储API的provider-neutral产品依赖；35合入后须整树等价/retargetmain再核门禁，不能把37合入ACP分支。
-本独立文档checkpoint的Go仍精确mainf7，仅供父会话推送留存，不开docs PR、不改变main或35/37测试目标；后续main稳定再整合并按新head重新验证，旧checkpoint CI不覆盖新组合。
-本树已有 C03 绑定、C02 账本与 C07 core；不导入 native read/resume、C04/C05 或 ACP。完整本地mcp门禁仍blocked，真实harness未验证。
+本文档片仅更新 ROADMAP/PROGRESS，并通过正常Git整合实际main `58d953bf675f4b4903743c38770f978ac2419d1d`；所有Go及其它非文档内容精确来自该main，未手工改动。
+父会话已官方核准 [PR34](https://github.com/5intro/Coordica/pull/34)、[PR36](https://github.com/5intro/Coordica/pull/36) 合并；[PR35](https://github.com/5intro/Coordica/pull/35) 也于2026-11-04 09:49:43 UTC closed/merged，源分支5a保留。
+截至本次父核快照，main58的parents为f7+5a17540，tree `88638e3d2961caf85febfb45650a7cf19de3e70e` 精确等于5a；该head六项freshCI及正式代码/安全结论均通过，未自行approve。
+[PR37](https://github.com/5intro/Coordica/pull/37) 旧98 Windows失败保留；owner独立修复新head41d40a已retarget main58，须取新head正式审查和CI，当前workflows running、未合并。旧98或本线程未提交WIP的结果不能批准41。
+本独立文档片相对main58仅两MD；后续是否推checkpoint或正式文档PR由父会话在整体main稳定后协调，不改变35/37测试目标。
+本树已有C02/C03、C07 core及PR35的ACP partial offline源码；C04/C05和native read/resume未整合。完整本地mcp门禁仍blocked，C08真实provider、认证及完整阶段验收均未通过。
 源码/离线夹具检查点已由父会话保留原哈希同步到 [GitHub 备份分支](https://github.com/5intro/Coordica/tree/codex/cloud-checkpoint-20261104)，
 固定 [ab0e2068](https://github.com/5intro/Coordica/commit/ab0e2068ee42face7516acfaa6fd559fc7ab0c11)；这不是 main 合并、产品发布或真实 harness 完成证明。
 
@@ -22,7 +20,7 @@ PR37暂stacked在ACP分支5a，仅表示集成顺序35→37，不改变存储API
 这不阻止阅读、规划维护和准备评审材料。当前运行项目的暂停和自动派发设置不因文档变化而改变。
 2026-11-04 最新授权覆盖旧额度 10% 暂停线和临时 local-only/no-PR 限制；受影响检查与质量通过可建小范围 draft。
 合并仍要求准确最新 head 三平台完整 CI、代码/安全两项正式明确结论和最终版本核验；详见 [云端闭环](planning/CLOUD_EXECUTION.md#每个-pr-的闭环)。
-下表同时记录全局进展：本树新增 C03 绑定并继承 C02/C07；C04/C05/C08 与 native read/resume 薄组合在另分支检查点，真实实例/认证仍未验证。
+下表同时记录全局进展：本树继承已合入的C02/C03/C07 core与ACP partial offline片；C04/C05及native read/resume未整合，真实实例/认证仍未验证。
 
 ## 文档地图与优先级
 
@@ -69,7 +67,7 @@ Claude 的跳过工具审批可作为显式、可见的可选运行配置，原�
 | C05 | 第一阶段 / P0 | 消息排队、运行中补充、当前轮中断；分别报告接收与原生确认 | C03、C04 | D03；V04；不支持时返回明确错误 | 实施中（另分支显式文本/单轮中断/持久 claim；queue/steer 未接） |
 | C06 | 第一阶段 / P0 | 原生提问/审批的持久请求、回答回传与过期拒绝；作为待处理事实来源 | C03–C05 | D04；V06、V17；T05 | 规划中 |
 | C07 | 第一阶段 / P0 | Codex app-server 薄适配与离线夹具驱动 C02–C06 公共契约；原生推理/工具循环不重造 | C01 | D02–D05；V03–V06、V14、V18；源码声明/夹具/真实验证分列 | 实施中（本树为 e47 协议 core/typed 控制/问题答复/异常围栏；持久 runtime 接线另分支，完整与真实验收未完成） |
-| C08 | 第一阶段 / P0 | 第二家优先 Antigravity ACP；同协议复用通用适配器，逐 provider/版本独立验证；dsh 保留候选 | 离线适配依赖 C07 离线契约；真实验收依赖 C07 真实闭环 | V03–V06、V14、V18；能力差异明确，不因共用 ACP 继承通过 | 实施中（另分支 ACP initialize/session-new/metadata/terminal text Prompt；显式配置在另分支 PR #32；Load/runtime 未接，真实未验） |
+| C08 | 第一阶段 / P0 | 第二家优先 Antigravity ACP；同协议复用通用适配器，逐 provider/版本独立验证；dsh 保留候选 | 离线适配依赖 C07 离线契约；真实验收依赖 C07 真实闭环 | V03–V06、V14、V18；能力差异明确，不因共用 ACP 继承通过 | 实施中（PR35 partial offline源码已合入main58；真实provider/认证/完整阶段验收未过，不继承协议族通过） |
 | C09 | 第二阶段 / P1 | 四态能力、动态目录、显式未验证配置、原生扩展和生效配置证据 | C08 | D02；V01、V10；T02 | 规划中 |
 | C10 | 第二阶段 / P1 | 实例与认证引用分离；共享凭据域的互斥、变更和污染验证 | C09 | D02、D07；V07；T02 | 规划中 |
 | C11 | 第二阶段 / P1 | 节点路由、心跳、容量、优先级与公平等待；区分自动等待和需要介入 | C10 | D06、视图边界；V08、V17；不自动降低模型要求 | 规划中 |

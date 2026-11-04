@@ -23,7 +23,7 @@
 - 当前允许受影响检查与质量通过后创建小范围 draft；最新 head 三平台 CI 和代码/安全正式明确结论仍是合并前提。
   本地明确 review 不等于 GitHub 正式两审，checkpoint 不等于 PR，真实 harness/部署/派发/定时仍未授权。
 
-- 最新发布状态按父会话2026-11-04 09:19 UTC快照：main仍f7，PR34/36已合并；PR35新head5a17540与PR37新head98cdeea的本地相关检查和新正式双审通过，freshCI仍running、未merge。PR37暂stacked只表集成顺序35→37；细节见末尾checkpoint记录，不复用旧head或旧baseCI。
+- 最新发布状态按父会话本次快照：PR34/36/35已合并，main58整树精确ACP5a；PR37旧98 Windows失败保留，owner新head41d40a已retarget main58，新formal/CI仍待核。细节见末尾记录，不将09:19历史快照或旧98结果当新head通过。
 - 当前及后续开发仍使用 `gpt-6.1-sol` / `ultra`；ACP与store事件存储由其他会话独占，本片只维护两份全局进度文档，不替其声明新源码或测试通过。
 
 以下批次按发生时的输入和结论保留；涉及当前状态，以此快照及最新追加证据为准。
@@ -738,3 +738,25 @@
 - 上述ACP/Store源码与测试由别会话及父会话核准，本writer只记录给定事实、不修改这些源码，不把局部回归或正式clear写成尚未完成的六CI通过。
   本地fullmcp仍blocked、真实harness与完整stage exit未验；当前及后续Sol/ultra、无live/凭据迁移/部署/dispatch/timer和停止边界保持。
   本checkpoint仅quality（base mainf7、CI=true）及本地链接核查，无Go测试；后续35/37 main稳定后再整合最新main与最终两文档、fresh新head门禁，旧checkpointCI不冒作后续通过。
+
+## 独立文档同步 — PR35实际合并与PR37 owner新head（2026-11-04 UTC）
+
+- 父会话已官方核准 [PR35](https://github.com/5intro/Coordica/pull/35) 于09:49:43 UTC closed/merged；main为 `58d953bf675f4b4903743c38770f978ac2419d1d`，
+  parents为 `f7edb6b2ecd932cdcf901603a9202851dc46f5cf` 与 `5a17540e0fc24ce314fb247765a26762aa360e8d`，
+  tree `88638e3d2961caf85febfb45650a7cf19de3e70e` 精确等于5a，ACP源分支保留。PR34/36已合并事实保持，root为唯一main合并执行者，未自行approve。
+- 准确5a的 [push41804449539](https://github.com/5intro/Coordica/actions/runs/41804449539) 与
+  [PR41804456488](https://github.com/5intro/Coordica/actions/runs/41804456488) 六个job全部success；
+  [Code6627050142](https://github.com/5intro/Coordica/pull/35#issuecomment-6627050142) 与
+  [Security6627082784](https://github.com/5intro/Coordica/pull/35#issuecomment-6627082784) 明确clear，threads/review submissions为0，
+  同输入覆盖保留于 [coverage6627773985](https://github.com/5intro/Coordica/pull/35#issuecomment-6627773985)。C08仍是partial offline实现，不代表真实provider、认证或完整stage exit通过。
+- [PR37](https://github.com/5intro/Coordica/pull/37) 旧98的 [push41805818668](https://github.com/5intro/Coordica/actions/runs/41805818668/job/126492445128) Windows失败保留。
+  owner现已推独立修复 `41d40a47048cc8465bea1fb32ac9e79212270308`（parent `98cdeeaaf2ff10553b8ec14320cb4ea604251ce5`，tree `a97f1feb3c66967a4e0e43c59b1cf4832df53c83`），
+  当前公开范围为Store三文件加Runner测试夹具一文件，owner源码由其独占，本writer不修改或诊断。
+  父会话核main58整树等于原ACP比较输入5a，old/new two/three-dot四份diff SHA256均为 `20e949095b9d55377115131dd7b68128e7ed33de2ff4ed955f58f1329484caab`，
+  已retarget PR37到main58，并保存 [coverage6627878341](https://github.com/5intro/Coordica/pull/37#issuecomment-6627878341)。存储API的provider-neutral产品依赖不变，不将37合并到ACP分支。
+  新41的 [push41810259308](https://github.com/5intro/Coordica/actions/runs/41810259308) 与
+  [PR41810266610](https://github.com/5intro/Coordica/actions/runs/41810266610) 仍running；必须独立取得该head formal/CI，不用旧98或本线程未提交WIP的结果批准41。
+- 本文档分支通过正常Git将实际main58整合进先前2ec checkpoint，无非文档冲突，Go/ACP/Store未手工修改；相对actual58仅ROADMAP与本记录。
+  quality固定实际main58、CI=true与本地链接核查，无单测/真实harness；暂停工作树、源码和日志均不访问，停止边界不扩写。
+  本地fullmcp仍blocked，当前及后续Sol/ultra，无live/凭据迁移/部署/发包/赛车/dispatch/timer，中心暂停保持。
+  本writer无push/PR/approve/merge；由父会话待整体main稳定后决定checkpoint或正式文档发布，不提前改变35/37目标，也不继承旧checkpointCI为后续新head通过。
