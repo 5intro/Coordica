@@ -23,7 +23,7 @@
 - 当前允许受影响检查与质量通过后创建小范围 draft；最新 head 三平台 CI 和代码/安全正式明确结论仍是合并前提。
   本地明确 review 不等于 GitHub 正式两审，checkpoint 不等于 PR，真实 harness/部署/派发/定时仍未授权。
 
-- 最新发布状态按父会话2026-11-04 08:24 UTC快照：PR34已合并到main26e5c2f（tree精确462），六项CI和正式两审通过；PR36固定dee1bb已retarget该main，正式两审clear、CI仍running，尚未合并。细节见末尾独立进度同步，不将旧pending记录当最新事实。
+- 最新发布状态按父会话2026-11-04 08:50:33 UTC合并事实：PR34已合入main26（tree精确462），PR36固定dee1bb亦在六项CI及正式双clear后合并；当前核查mainf7整树精确dee1bb。细节见末尾最终记录，不将08:24 pending历史快照当最新事实。
 - 当前及后续开发仍使用 `gpt-6.1-sol` / `ultra`；ACP与store事件存储由其他会话独占，本片只维护两份全局进度文档，不替其声明新源码或测试通过。
 
 以下批次按发生时的输入和结论保留；涉及当前状态，以此快照及最新追加证据为准。
@@ -700,4 +700,19 @@
 - 本地fullmcp中立TMP前提仍blocked，不重探/删marker/重试只读目录/跳守卫；真实harness、认证和stage exit仍未验。
   当前及后续Sol/ultra；ACP/store由别会话负责。无live、凭据迁移、部署/发包/赛车、自动dispatch或timer，中心暂停保持。
   本文档片只做quality（base dee1bb，CI=true）和本地链接核查，不为文字状态新增单测；外链仅记录父会话核验事实，不冒称本writer联网复核。
-  等父会话提供PR36实际合并状态后再自然更新最终记录并协调独立文档发布；本writer不push/PR/approve/merge。
+  当时待父会话提供实际合并状态；最终事实见下一记录。本writer不push/PR/approve/merge。
+
+## 独立进度同步 — PR36实际合并（2026-11-04，08:50:33 UTC）
+
+- 父会话已官方核准 [PR36](https://github.com/5intro/Coordica/pull/36) closed/merged：main为 `f7edb6b2ecd932cdcf901603a9202851dc46f5cf`，
+  parents为 `26e5c2f3b82b43070b676d402f6aca25bb0b3f0f` 与 `dee1bb46190a37ef6c3e2adcabe56af42c63413e`，
+  tree `2a3abff3ea033c49e6658021010fe13e43f22bcf` 精确等于dee1bb；源分支保留，父会话首次API合并成功、未自行approve。
+- 准确dee1bb的 [push CI 41796177251](https://github.com/5intro/Coordica/actions/runs/41796177251) 与
+  [PR CI 41796379361](https://github.com/5intro/Coordica/actions/runs/41796379361) 六个job均success；
+  [Code6625816001](https://github.com/5intro/Coordica/pull/36#issuecomment-6625816001)、
+  [Security6625852702](https://github.com/5intro/Coordica/pull/36#issuecomment-6625852702) 明确clear，无threads/review submissions。
+  ready后同输入的 [coverage6626665813](https://github.com/5intro/Coordica/pull/36#issuecomment-6626665813) 保留上述head、base与门禁覆盖；不把本地复审当正式approve。
+- PR35 ACP旧head `0db1275d0aefb31180b784fe67c805f3e6e956af` 的旧三平台结果不覆盖mainf7；父会话正协调纯Git新组合与freshCI，待新组合门禁，不替该会话声明通过。
+- 本片继续仅ROADMAP/PROGRESS，Go零手工变更；quality按实际mainf7、CI=true与本地链接核查，不新增单测，不触PR36源分支或已停工作树。
+  本地fullmcp前提仍blocked，真实harness/stage exit未通过；Sol/ultra、无live/凭据迁移/部署/发包/赛车/dispatch/timer及停止边界保持。
+  等父会话整体main推进稳定后提供最终发布基线，再协调独立文档发布；本writer无push/PR/approve/merge动作。
