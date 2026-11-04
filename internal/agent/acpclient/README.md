@@ -48,8 +48,8 @@ Session/work compatibility, callbacks and runtime composition remain unverified.
 fixed canonical host directory and explicit `mcpServers: []`. The returned
 immutable Session binds the validated native ID to that Peer and requested
 directory. The directory is a selected request value, not an independent native
-configuration or isolation attestation. Optional mode/configuration declarations
-are not retained or interpreted; only their container types are checked. No
+configuration or isolation attestation. Optional mode declarations receive only
+container checks; bounded configuration options are retained as native reports. No
 model, effort, permission mode or work input is selected by this operation.
 
 The once-per-Peer policy includes known RPC rejection, and is a conservative
@@ -92,8 +92,9 @@ failure. Process.TreeStopped is set only after supervised Wait. Any close leaves
 the final observation window unconfirmed, including intentional Close; clearing
 the FIFO never claims complete history or removes that sticky gap.
 
-This intentionally supports five of the fixed schema's nine update variants.
-Plan/available-command/current-mode/config-option updates and non-text content
+This intentionally supports six of the fixed schema's nine update variants,
+including config-option snapshot changes described below.
+Plan/available-command/current-mode updates and non-text content
 are valid protocol possibilities but currently unsupported, rather than silently
 dropped or called schema-invalid. Notifications preceding a valid session/new
 response are unsupported; the first observed Session ID is not guessed to be the
@@ -135,3 +136,45 @@ Runtime composition is not connected. The frozen checkpoint's `ProduceWork`
 ten-second start-ACK path needs a separate whole-turn adaptation before ACP use;
 that runtime code is not included here. Real provider execution, authentication
 and effective configuration remain unverified.
+
+## Explicit reported configuration selection
+
+`Session.ConfigOptions()` returns only this private Session's bounded defensive
+`native_reported` snapshot. NewSession absent/null means unavailable; an advertised
+empty array is available but empty. Local Version records receive order, never
+server CAS, authentication, effective model/effort, permissions or OS isolation.
+Select options support flat choices or grouped choices, nullable UX metadata and
+unknown categories. Categories and names never choose a model or grant authority.
+The client bounds the encoded option array to 64 KiB, 64 options, 256 total
+choices and individual strings to 512/1024/2048 bytes. Duplicate option IDs or
+choice values within an option are rejected as an unsupported ambiguous subset.
+
+`SetConfigOption(ctx, id, value)` sends exactly one `session/set_config_option`
+for an exact currently advertised ID/value. Missing advertisements and unknown
+choices return local `ErrConfigUnavailable` before send; this is a conservative
+client subset, not proof of native non-support or R6's full explicit-unverified
+configuration path. There is no default, category mapping, automatic selection,
+fallback, authentication or retry. Setter and Prompt share singleflight through
+decode/writer reaping and one increasing local request-ID space. The setter has
+a ten-second client operation cap, shortened by the caller deadline.
+
+Successful response requires a complete non-null configOptions array. Its
+`ConfigSelection` keeps the advertisement version used and exact historical
+response snapshot. Only the exact ID/currentValue match sets Confirmed; a valid
+wrong/missing value returns `ErrConfigMismatch` while retaining the actual report,
+without claiming rollback. Known RPC rejection preserves its private object and
+normally keeps the Peer; neither rejection nor mismatch proves absence of native
+side effects. Sent uncertainty closes with actual `ConfigSelectionError.Process`
+proof, without resend. Already observed valid response/rejection survives ctx/EOF
+or writer failure as a historical fact plus disconnected/process evidence.
+
+`config_option_update` requires a non-null full array and replaces the snapshot,
+not a patch. NewSession, setter responses and notifications are applied only by
+the read loop in wire order. A late returning setter cannot overwrite a newer
+notification; its receipt remains an older observation. Notification metadata
+contains only local ConfigVersion, not private option names/values or raw content,
+and uses the existing bounded FIFO/gap policy. It remains Session-level rather
+than Prompt-correlated. Snapshot access after failure is diagnostic history,
+not an assertion that the report is still effective. Load, mode changes, runtime
+composition, automatic tools and real provider compatibility remain unimplemented
+or unverified; configuration declarations do not grant fs/terminal/Task authority.

@@ -64,6 +64,12 @@ func (p *Peer) receive(raw []byte) error {
 	}
 	var id uint64
 	if decode(fields, "id", &id, true) == nil && id >= 3 {
+		p.mu.Lock()
+		configuration := p.configCall != nil && p.configCall.id == id
+		p.mu.Unlock()
+		if configuration {
+			return p.receiveConfig(id, result, rpc, hasError)
+		}
 		return p.receivePrompt(id, result, rpc, hasError)
 	}
 	if string(fields["id"]) != "1" {
