@@ -658,5 +658,24 @@
 - Create只携6ea已知post-quarantine披露围栏；Release另按bindingFor(false)的合法清理权限复验，允许目标配置退役后当前同主清理。
   撤权/移scope/RecoverUnknown旧owner的私密错误链不得从As取回，原command观察/Stop事实保留、unknown/新代次不被迟到回执推进，不重发。
   两个生产原文件先归档，各自新真实red后最小green；实际owned Go夹具Wait/TreeStopped与逻辑状态分开，不能用历史6ea red冒称新候选实跑。
-- 不引perform抽取、native read/resume薄组合、C04/C05/ACP或C09–12实现。当前及后续仍Sol/ultra；PR33已merged ed6，PR34已推462并触发新head审查/CI、结果仍running。
+- 不引perform抽取、native read/resume薄组合、C04/C05/ACP或C09–12实现。当前及后续仍Sol/ultra；PR33已merged ed6，PR34已推462；父会话已核准确head正式代码/安全审查均无finding，三平台CI仍由父会话跟进。
   writer只做本地安全开发，不push/approve/merge；fullmcp中立TMP阻断保持、不重探/绕守卫，无live/凭据迁移/部署/发包/赛车/dispatch/timer。
+
+- 继承基点为 `c6402f5ca835f93801416a5107d21a605aee837c`（parents a255+462de7）；Go相对2e仅继承C02的run.go与optional_target_test.go。
+  原binding_produce.go/binding_release.go字节归档后，各自使用新离线测试真实复现：Create red退出1、5 fail/3 pass；Release最终red退出1、7 fail/4 pass。
+  失败均为过期调用方可As取得私密native/cleanup Data，合法拒绝及退役配置清理对照通过。Release初稿仅去除无用context占位，最终red另存且不冒称两稿字节相同。
+- Create在quarantine后独立复验当前原执行授权/配置/owner-generation-command；Release在quarantine后按当前cleanup权限复验，保留同主退役配置和grant版本变更后的合法清理。
+  失效只返回有限安全分类，原生/Stop/持久化私密错误链不可达；仍有权的明确拒绝/自身unknown保留原分类与诊断，原command观察和真实Stop事实仍持久化。
+  本片相对继承基点仅改这两个生产Go文件，新增三份回归/fixture；其它Go保持，未混入后续Read/Resume实现。
+- 同测试字节的专属green共19项通过；runtime/store/domain/process/jsoninput五包普通与race各174 Test/subtest pass、5包退出0、无fail/skip。
+  两轮源码SHA逐文件一致，owned进程停止/临时根删除确认。typed BindingPort故障为provider-neutral离线夹具，不是原生协议录制或真实harness；
+  夹具先证明owned child非nil，再取实际Stop/drain/Wait的TreeStopped。无proof分支只丢弃对上回执，内部物理停止证据单列，不手填停止证明。
+  撤权/移scope/Recover迟到结果检查原command的Observed/Stop、重开SQLite、不重发、新Binding/Run完整不变及audit/idem无private数据。
+  `.cache/c03-disclosure-20261104/` 保存原生产/测试字节、red/green日志、命令/env/源码SHA及停止回执，均为未上传本地证据。
+- 下一C07薄接线只读预审确认一个待实证窗口：Read首次权限围栏之后cleanup.Stop期间撤权/Recover，旧实现可能仍Join私密read/stop链。
+  新blockedStop red尚未运行，C07接线发布前必须另片验证与修复；read命令不占Binding.CommandID，不能机械套Create helper。该路径未导入本C03，不扩大本片生产修补。
+
+- 全仓vet/build、quality（固定公开比较输入462de7、CI=true）退出0；quality有11条数值advisory，须按语义复审，不当成零提示或自动否决。
+  隔离contractgen的8个输出与继承基点c640对应HEAD blobs逐字节一致；新回归不改契约生成输入。
+  本地完整mcp中立TMP前提仍blocked，未重探/重试只读目录/删marker/绕测试；受影响174项不是全仓通过。
+  本片完整发布范围按462de7至最终候选比较，必须重新本地代码/安全复审，并由父会话按实际新head取得正式两审与三平台CI；不继承旧2e/6ea或PR34结论。

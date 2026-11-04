@@ -105,6 +105,33 @@ proof remain on the original command. This does not authorize a new create.
 
 This slice supplies no production C07 adapter, native read/resume, active-turn
 control, unknown-resource reconciliation or background recovery. Offline tests
-use real SQLite and counted ports; one owned fake protocol child verifies the
+use real SQLite and counted ports; owned Go fixture children verify the
 DB-outside boundary and actual process-tree stop. Those tests do not establish
 real harness compatibility, native authentication or production integration.
+
+### Private diagnostic disclosure after native I/O
+
+Create failure observations are retained on the original command before a
+separate current-authority/target/original-Run-authorization and owner/generation/
+command check decides whether native or cleanup errors may reach the caller.
+Revocation, a changed owner/generation or an unverifiable fence yields bounded
+unknown/fence classifications without the original private error objects.
+This check also runs when missing stop proof bypasses the confirmation path.
+A command's own quarantine transition is not a foreign ownership change.
+
+Release uses its existing cleanup admission semantics instead: current
+session.control, target scope, original principal/configuration and exact owned
+command/generation. A retired/disabled instance or a newer grant version can
+still allow cleanup of the same old resource; no new creation authority follows.
+Current authorized callers retain native diagnostic/classification details.
+Expired callers cannot unwrap private Stop or persistence error chains, while
+the original command keeps its Stop observation. Unknown outcomes, a newer
+generation and the Run slot cannot be cleared or restarted by a late result.
+
+The new error payloads in these tests are provider-neutral typed BindingPort
+faults, not captured native transcripts or real harness responses. Stop evidence
+comes from an actually started owned Go child through Stop/drain/Wait, with a
+non-nil-child guard. Missing-proof cases intentionally lose the returned receipt
+while retaining independent fixture cleanup evidence; the ledger must not infer
+TreeStopped from nil errors or that internal fixture fact. They do not prove
+remote Session deletion, business completion, authentication or provider support.

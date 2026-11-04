@@ -79,7 +79,43 @@ func (p *BindingProducer) Release(ctx context.Context, credential Credential, re
 	unknownCtx, done := context.WithTimeout(context.WithoutCancel(ctx), rpcCleanupTimeout)
 	defer done()
 	err = p.quarantine(unknownCtx, binding, claim, NativeCreation{Outcome: "stop_unconfirmed", ID: binding.NativeID}, scopedStop(stop, call, binding.NativeID), stop)
+	if fenceErr := p.releaseDisclosureFence(unknownCtx, credential, binding, claim); fenceErr != nil {
+		var safePersistence error
+		if err != nil {
+			safePersistence = ErrConflict
+		}
+		return Binding{}, errors.Join(ErrStopUnconfirmed, ErrOutcomeUnknown, fenceErr, safePersistence)
+	}
 	return Binding{}, errors.Join(ErrStopUnconfirmed, ErrOutcomeUnknown, stopErr, err)
+}
+
+// Cleanup authority follows Release admission, not permission to create a new
+// resource. A retired instance or newer grant version can still allow cleanup.
+func (p *BindingProducer) releaseDisclosureFence(ctx context.Context, credential Credential, original Binding, claim BindingCommand) error {
+	return p.ledger.db.View(ctx, func(tx *store.Tx) error {
+		grant, err := authorize(tx, credential, SessionControl)
+		if err != nil {
+			return err
+		}
+		current, _, _, err := bindingFor(tx, grant, original.ID, false)
+		if err != nil {
+			return err
+		}
+		if current.PrincipalID != grant.ID || current.Config != original.Config || current.Config != p.config {
+			return ErrForbidden
+		}
+		if current.OwnerID != claim.OwnerID || current.Generation != claim.Generation || current.CommandID != claim.ID {
+			return ErrConflict
+		}
+		var command BindingCommand
+		if err := tx.Get(kindBindingCommand, claim.ID, &command); err != nil {
+			return err
+		}
+		if command.BindingID != original.ID || command.OwnerID != claim.OwnerID || command.Generation != claim.Generation || command.Operation != "release" {
+			return ErrConflict
+		}
+		return nil
+	})
 }
 
 func (p *BindingProducer) finishRelease(ctx context.Context, credential Credential, original Binding, claim BindingCommand, stop BindingStop) (Binding, error) {
