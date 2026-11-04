@@ -23,6 +23,9 @@
 - 当前允许受影响检查与质量通过后创建小范围 draft；最新 head 三平台 CI 和代码/安全正式明确结论仍是合并前提。
   本地明确 review 不等于 GitHub 正式两审，checkpoint 不等于 PR，真实 harness/部署/派发/定时仍未授权。
 
+- 最新发布状态按父会话2026-11-04 08:24 UTC快照：PR34已合并到main26e5c2f（tree精确462），六项CI和正式两审通过；PR36固定dee1bb已retarget该main，正式两审clear、CI仍running，尚未合并。细节见末尾独立进度同步，不将旧pending记录当最新事实。
+- 当前及后续开发仍使用 `gpt-6.1-sol` / `ultra`；ACP与store事件存储由其他会话独占，本片只维护两份全局进度文档，不替其声明新源码或测试通过。
+
 以下批次按发生时的输入和结论保留；涉及当前状态，以此快照及最新追加证据为准。
 
 ## 授权记录
@@ -672,10 +675,29 @@
   夹具先证明owned child非nil，再取实际Stop/drain/Wait的TreeStopped。无proof分支只丢弃对上回执，内部物理停止证据单列，不手填停止证明。
   撤权/移scope/Recover迟到结果检查原command的Observed/Stop、重开SQLite、不重发、新Binding/Run完整不变及audit/idem无private数据。
   `.cache/c03-disclosure-20261104/` 保存原生产/测试字节、red/green日志、命令/env/源码SHA及停止回执，均为未上传本地证据。
-- 下一C07薄接线只读预审确认一个待实证窗口：Read首次权限围栏之后cleanup.Stop期间撤权/Recover，旧实现可能仍Join私密read/stop链。
-  新blockedStop red尚未运行，C07接线发布前必须另片验证与修复；read命令不占Binding.CommandID，不能机械套Create helper。该路径未导入本C03，不扩大本片生产修补。
+- 父通知安全系统拦截，相关核查已停止、WIP未提交/推送，未重试或绕过；本线程没有收到拒绝详情。
 
 - 全仓vet/build、quality（固定公开比较输入462de7、CI=true）退出0；quality有11条数值advisory，须按语义复审，不当成零提示或自动否决。
   隔离contractgen的8个输出与继承基点c640对应HEAD blobs逐字节一致；新回归不改契约生成输入。
   本地完整mcp中立TMP前提仍blocked，未重探/重试只读目录/删marker/绕测试；受影响174项不是全仓通过。
   本片完整发布范围按462de7至最终候选比较，必须重新本地代码/安全复审，并由父会话按实际新head取得正式两审与三平台CI；不继承旧2e/6ea或PR34结论。
+
+## 独立进度同步 — PR34合并与PR36门禁（2026-11-04，08:24 UTC事实快照）
+
+- 本片从允许的PR36固定 `dee1bb46190a37ef6c3e2adcabe56af42c63413e` 建立独立文档工作树/分支 `codex/progress-status-20261104`；
+  仅改ROADMAP与本记录，Go文件零变更，不读取或改动已停工作树，不运行其测试，不改变PR36 head。
+- 父会话已官方核准 [PR34](https://github.com/5intro/Coordica/pull/34) closed/merged：main为 `26e5c2f3b82b43070b676d402f6aca25bb0b3f0f`，
+  parents为 `ed6e96f80c649468751ad62dce19c62700e27cb2` 与 `462de7eaf59c1893612745ad2d82a0bc3a6cb5ab`，
+  tree `e5075cf15abbf3565efd5bc077d40bf39e279d7b` 精确等于462；六项CI及该head正式代码/安全结论均明确通过，未自行approve。
+- [PR36](https://github.com/5intro/Coordica/pull/36) 固定head为dee1bb，tree `2a3abff3ea033c49e6658021010fe13e43f22bcf`；
+  完整19文件diff SHA256 `6b9270df7f57c0527dff3ce190d07ed41b0078d368379696a1769e5e9ca95779`。
+  准确head五包普通/race各174项通过，全vet/build/quality及8项隔离契约比对通过、两项完整publication本地复审均0；这些不替代正式门禁。
+  已retarget实际main26；父会话核main整树等于原比较输入462，两候选的two/three-dot四份diff一致，不改写候选。
+  [正式Code结论6625816001](https://github.com/5intro/Coordica/pull/36#issuecomment-6625816001) 与
+  [正式Security结论6625852702](https://github.com/5intro/Coordica/pull/36#issuecomment-6625852702) 均明确clear。
+  截至本事实快照，[push CI 41796177251](https://github.com/5intro/Coordica/actions/runs/41796177251) 与
+  [PR CI 41796379361](https://github.com/5intro/Coordica/actions/runs/41796379361) 仍running，尚未merge；不把部分job或旧head通过写成六项全过。
+- 本地fullmcp中立TMP前提仍blocked，不重探/删marker/重试只读目录/跳守卫；真实harness、认证和stage exit仍未验。
+  当前及后续Sol/ultra；ACP/store由别会话负责。无live、凭据迁移、部署/发包/赛车、自动dispatch或timer，中心暂停保持。
+  本文档片只做quality（base dee1bb，CI=true）和本地链接核查，不为文字状态新增单测；外链仅记录父会话核验事实，不冒称本writer联网复核。
+  等父会话提供PR36实际合并状态后再自然更新最终记录并协调独立文档发布；本writer不push/PR/approve/merge。

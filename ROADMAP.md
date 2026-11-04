@@ -4,10 +4,11 @@
 源码审计基线：`9de987f303e77a624adeb9b3feaceb2bb12c41ce`。
 此前增量审计覆盖 `43f208327372fda8db94babda41e4a7d38a0e8dc` 的相关路径，范围见 [C01 复核](planning/C01_REVIEW.md)。
 #29/#30 已合并；截至本次 2026-11-04 恢复核查，main 输入为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`。
-本 C03 发布片从受保护源码 `2e2107f73519bd85faddd3407bf3a7db22083753` 整合 C02 修复候选 `462de7eaf59c1893612745ad2d82a0bc3a6cb5ab`，保留 Model/Effort 可选性修复。
-新增范围为显式 SessionBinding/单写/代际/unknown 围栏，继承 C02 账本与 C07 core；不引入 C07 薄组合的 read/resume、C04/C05 或 ACP。
-原2e的Create/Release错误出口披露缺口已在本片最小修复；各自新red与同测试green/race保留，不继承历史6ea测试通过。
-PR33已合入mained6；本片以C02修复462de7为完整公开比较输入。父会话已核PR34该head正式代码/安全审查均无finding，CI尚待最终确认；依赖合入及实际base另核。
+本文档片仅更新 ROADMAP/PROGRESS，源码输入为 PR36 固定 `dee1bb46190a37ef6c3e2adcabe56af42c63413e`，Go 零变更。
+截至父会话 2026-11-04 08:24 UTC 核查，[PR34](https://github.com/5intro/Coordica/pull/34) 已合并；main 为 `26e5c2f3b82b43070b676d402f6aca25bb0b3f0f`，parents 为 ed6+462，tree `e5075cf15abbf3565efd5bc077d40bf39e279d7b` 精确等于462；六项CI与正式代码/安全审查均通过。
+[PR36](https://github.com/5intro/Coordica/pull/36) 保持 dee1bb/tree `2a3abff3ea033c49e6658021010fe13e43f22bcf`；已 retarget main26，比较树等于原462且四份diff一致。
+其正式代码/安全结论均明确clear；截至同次快照，push/PR两次CI仍running，尚未合并。本文档片等待父会话提供实际合并事实后再自然更新/发布，不改变PR36的head或base输入。
+本树已有 C03 绑定、C02 账本与 C07 core；不导入 native read/resume、C04/C05 或 ACP。完整本地mcp门禁仍blocked，真实harness未验证。
 源码/离线夹具检查点已由父会话保留原哈希同步到 [GitHub 备份分支](https://github.com/5intro/Coordica/tree/codex/cloud-checkpoint-20261104)，
 固定 [ab0e2068](https://github.com/5intro/Coordica/commit/ab0e2068ee42face7516acfaa6fd559fc7ab0c11)；这不是 main 合并、产品发布或真实 harness 完成证明。
 
@@ -59,8 +60,8 @@ Claude 的跳过工具审批可作为显式、可见的可选运行配置，原�
 | --- | --- | --- | --- | --- | --- |
 | C00 | 基线 / P0 | 保存并维护同一需求基线、静态审计、冲突规则和云端计划 | 无 | 本组文档；不声称功能完成 | 完成（规划） |
 | C01 | 基线 / P0 | 云端重审固定 HEAD；补官方协议、版本、参考许可与接口证据，选定两个首批实例 | C00、分范围授权 | D01–D02；V01、V18；[只读复核与切片](planning/C01_REVIEW.md) | 待验证（规划 #29/#30 已合入；实例认证/真实调用未测） |
-| C02 | 第一阶段 / P0 | 最小 Task/上下文/输入、显式执行绑定与统一记录；固定消费方需要的公共控制契约和能力骨架，不接自主 Wake 派工 | C01 | D01–D02；V02、V16–V19 首期子集；无聊天/Git 前置，保留旧路径 | 实施中（本树持久账本含Model/Effort可选原样登记；仅registered/not_started/recorded，未接native或完整验收） |
-| C03 | 第一阶段 / P0 | 会话生命周期及原生 ID 映射；读、恢复、释放分开 | C02 | D03；V03、V09；T01、T03 | 实施中（本树绑定/单写/unknown及Create/Release私密错误围栏，SQLite/owned进程夹具；未含native read/resume或C07薄组合，完整/live验收未过） |
+| C02 | 第一阶段 / P0 | 最小 Task/上下文/输入、显式执行绑定与统一记录；固定消费方需要的公共控制契约和能力骨架，不接自主 Wake 派工 | C01 | D01–D02；V02、V16–V19 首期子集；无聊天/Git 前置，保留旧路径 | 实施中（PR34源码已合入；Model/Effort可选原样登记，registered/not_started/recorded，不代表native或完整验收） |
+| C03 | 第一阶段 / P0 | 会话生命周期及原生 ID 映射；读、恢复、释放分开 | C02 | D03；V03、V09；T01、T03 | 实施中（PR36固定dee1bb，本地/正式两审明确通过、CI待完；本树绑定/单写/unknown及Create/Release围栏，完整/live验收未过） |
 | C04 | 第一阶段 / P0 | 结构化事件日志、游标补取、去重、背压和诊断原始事件引用 | C02 | D05；V05；T01、T04 | 实施中（另分支 metadata/索引日志/游标及有界 capture；无原生持久 spool） |
 | C05 | 第一阶段 / P0 | 消息排队、运行中补充、当前轮中断；分别报告接收与原生确认 | C03、C04 | D03；V04；不支持时返回明确错误 | 实施中（另分支显式文本/单轮中断/持久 claim；queue/steer 未接） |
 | C06 | 第一阶段 / P0 | 原生提问/审批的持久请求、回答回传与过期拒绝；作为待处理事实来源 | C03–C05 | D04；V06、V17；T05 | 规划中 |
