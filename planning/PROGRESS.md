@@ -1,25 +1,26 @@
 # 实施记录与决策日志
 
-当前工作修订：R2026-11-02.6（仅本地）；公开已合入基线仍为 R2026-11-02.5。主表：[ROADMAP](../ROADMAP.md)。
+工作修订：R2026-11-02.6；本次恢复核查的 main 输入版本为 R2026-11-02.5。主表：[ROADMAP](../ROADMAP.md)。
 仅记录已发生的工作和明确决策；不要将实施建议写成已授权事实。
 
-## 当前状态快照（2026-11-03 UTC）
+## 当前状态快照（2026-11-04 UTC）
 
 - 规划 [#29](https://github.com/5intro/Coordica/pull/29) 与 C01 文档 [#30](https://github.com/5intro/Coordica/pull/30) 已合并，
-  远端 main 为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；合并/审查证据见本文末尾记录。
+  截至本次恢复核查，远端 main 输入为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；历史合并/审查证据见后文记录。
   旧批次中“open / denied / 待授权”均为当时事实，不再代表这两个 PR 的现状。
-- C01 保持待验证；C02–C05、C07 与 C08 ACP 会话/metadata/显式文本工作离线底座实施中，C06 仍规划中。
-  本地源码与 SQLite/协议夹具不代表原生持续会话、审批回传或真实 harness 已完成。
-- C07 本地检查点 `be707b7263bb98fa98c7a58fb660c084bdc206a5` 保存于 `codex/runtime-codex-peer-20261102`，
-  原检查点未推送、无产品 PR；接续输入 `c8c4586` 与 C07 修复 `e47c435` 均独立保留。
-  后者本地相关 nonrace/race、vet/build、质量及八项生成漂移通过；完整门禁与正式 GitHub 两审未完成。
-- 本轮从上述 main 建独立文档分支 `codex/provider-contract-plan-20261102`，只做 R102–R104 规划准备与离线文档检查；
-  不推送、不提 PR、不合并，不混入 C07 源码。当前公开基线不随本地修订改变。
-- 上述文档轮已完成为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`；Owner 随后要求继续独立离线开发。
-  C02 `6249553`、C03 `2e2107f`、薄组合 `6ea2fa6`、C04 `f00eab8`、单 text C05 `b895d49`、中断 `b7d5a35`、ACP 初始化 `133936b`、session-new `c56099e` 与 metadata `eb67ce2` 独立保留；当前工作片在 `codex/c08-acp-prompt-text-20261103`，原交接及修复分支未移动。
-- 新环境的官方 Go 1.27.2 与 SQLite 依赖已由环境准备实测验证，本片复用这些已下载缓存。
-  全仓门禁现受 mcpconfig 所需中立 Git 临时目录条件阻断；这是已定位环境项，没有删除共享 Git 标记、
-  重试只读目录、调整网络或削弱测试守卫，也不以此停止独立离线源码切片。
+- C01 的实例认证/真实调用仍待验证；C02–C05、C07、C08 在本源码树有局部离线实现，C06 仍规划中。
+  source、手写 fixture、局部回归、本地 review 与真实验收分开，不据此标主任务完成。
+- 产品检查点固定 [ab0e2068ee42face7516acfaa6fd559fc7ab0c11](https://github.com/5intro/Coordica/commit/ab0e2068ee42face7516acfaa6fd559fc7ab0c11)，
+  父会话已用标准非 force push 同步到 [codex/cloud-checkpoint-20261104](https://github.com/5intro/Coordica/tree/codex/cloud-checkpoint-20261104)，并用官方 API 核准原哈希。
+  这是备份分支，不是 main 合并、产品 PR 或发布；原十三条规划/实现分支与原始 SHA 保持。
+- 独立文档分支 `codex/publish-provider-plan-20261104` 基于 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`，
+  仅同步恢复授权/范围/证据和正式审查条件，已由父会话发布 draft [PR #31](https://github.com/5intro/Coordica/pull/31)。
+  本源码分支从 ab0 保留已有产品实现，并合入该文档更新；PR #31 本身不包含产品源码。历史 local-only/no-PR 与 10% 暂停线已被 Nov4 用户授权覆盖。
+- 新环境当前 HTTP unrestricted/enforced、observations_current=true，VPN 未配置、TCP grants 为空；官方 Go 1.27.2 和已有依赖缓存可复用。
+  ab0 在恢复后四包普通/竞态各172项及 vet/build/quality/八项漂移通过；全仓 mcpconfig 中立临时目录前提仍阻断。
+  已知 `/tmp/.git`、`/workspace/.git` 标记仍在；只读复核，不删除、不重试只读目录、不绕守卫或改变网络/凭据。
+- 当前允许受影响检查与质量通过后创建小范围 draft；最新 head 三平台 CI 和代码/安全正式明确结论仍是合并前提。
+  本地明确 review 不等于 GitHub 正式两审，checkpoint 不等于 PR，真实 harness/部署/派发/定时仍未授权。
 
 以下批次按发生时的输入和结论保留；涉及当前状态，以此快照及最新追加证据为准。
 
@@ -37,6 +38,7 @@
 | 2026-11-02 | Owner 在明确门禁说明后回复“过了就合并” | 重新核验准确 head、全部 CI、代码与安全明确结论后，依赖顺序合并 #29/#30；已执行并核实 | 不授权未验证的产品代码发布、部署或降低门禁 |
 | 2026-11-02 | Owner 要求学习 T3/Multica，并接受 Claude 绕过权限询问；父级限定本轮本地文档准备 | R102–R104：公共契约、薄协议适配、逐 provider 证据与可选可见的 Claude 原生模式设计 | 不推送/提 PR/合并，不调用 Claude，不把工具审批跳过扩成取消提问、全局权限或未来高风险操作授权；C08 不换成 Claude |
 | 2026-11-02 | Owner 要求多给架构图、明确目标并推进能推进的开发；父级继续本会话施工 | 恢复 C01–C08 中独立可离线验证的聚合产品切片，逐片源码/夹具/回归/质量和本地保存；远期助理方向留作上层 | 不因全仓 blocked 停止所有独立工作，也不越过全仓门禁发布；不扩大真实 harness、部署或应用层实施范围 |
+| 2026-11-04 | Owner 明确“不用在意剩余额度”，继续同模型施工，并要求经常同步 GitHub、用小 draft/正式审查推进 | 覆盖旧 10% 暂停线及临时 local-only/no-PR；C01–C08 离线小片，受影响+质量通过可 draft，准确 head 全部 CI/两审明确后按依赖合并；父会话处理线上同步 | 不换 model/effort、不充值或迁凭据；C09–C12 仅准备；无真实 harness、正式中心、部署/发包、dispatch 或定时，不降低合并门禁 |
 
 历史 Phase A/B 只覆盖原有范围。新任务实施授权到达后，在此新增日期、任务 ID 和准确范围。
 无需重复确认已明确授权的同一范围；不能把范围外动作并入旧授权。
@@ -820,3 +822,74 @@
   metadata 仍不是输出正文或完整历史，model/effort/权限未选择或生效验证；真实 provider/工具/认证未测，C08不标完成。
   generic ProduceWork 的10秒 start-ACK 路径仍是后续ACP runtime接线依赖，本片未修改。
   全仓mcpconfig环境项保持blocked、不重探/绕守卫，未push/PR/merge；只保存本小片，不展开后续模块。
+
+## 2026-11-04 — 恢复验证与独立规划同步
+
+- 固定产品 HEAD `ab0e2068ee42face7516acfaa6fd559fc7ab0c11`，parent `eb67ce2d3fb95b89a73e03eefe1f46f2e63b132d`，
+  tree `3e9ae2362bcbfe19b215b9f0d329165d2757e3a6`；恢复核实工作树 clean、原十三个保护 ref 不变。
+  独立规划 PR 的文档输入为 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`，产品实现位于上述独立检查点，未混入该规划 PR。
+- 原检查点已通过相关四包 acpclient/appserver/process/jsoninput 普通与 race 各172 Test/subtest pass，
+  全部 vet/build、quality(base efa, CI=true) 与八项隔离生成文件逐字节比对均退出0；旧回执不是新 head CI 的替代。
+  旧精确 HEAD 回执：`.cache/c08-prompt-text-20261103/committed-head-checks/summary.json`，
+  SHA-256 `4e7a7b5fd24ba8d49a6f5c1eb8aa215decf1392396df03d7e6464eda4747a7ef`。
+- 2026-11-04 04:42 UTC 起按正常有界 supervisor 在同一 ab0 重新执行上述四包普通/race，各172 pass、四包均0，
+  owned 进程停止/临时根清理确认；全 vet/build、quality 与八项 drift 再通过，源码/refs 未变。
+  新回执：`.cache/resume-validation-20261104-kzvd5kzc/summary.json`，
+  SHA-256 `68de023c9e872a316d8dd552fce9bef4c0bb3039e3687dfe7fd0961f7753984b`。
+  这些路径均在 `/workspace/Coordica-continuation-20261103/` 下，是未上传的本地证据，不宣称公开 CI/日志已有相同结果。
+  首次恢复 runner 因 JSON bool 嵌入 Python 的格式错误在测试前退出，单列 startup failure，不计产品 red 或测试通过。
+- 本地完整门禁保持 blocked：mcpconfig 对临时目录逐祖先 Lstat `.git`，当前已知获准临时根存在平台标记。
+  本次仅做一次只读 metadata 复核；未删除/换路径绕过/跳测试，也未重试先前 read-only `/var/tmp` 动作。
+  正常 ignored TMP 仅用于不依赖该中立条件的上述协议/进程夹具；不把其172项结果当全仓通过。
+
+| 证据层 | 本批事实与边界 |
+| --- | --- |
+| source / checkpoint | ab0 保留 C02–C05/C07 与 C08 初始化、Session、metadata、terminal text Prompt 局部代码；未进入 main，C06 仍规划中，C08 配置/Load/runtime 接线未完成 |
+| fixture / local regression | 手写离线 Go JSON-RPC、SQLite 与进程夹具；ab0 新旧精确回执通过，不冒称原生录制或 provider 兼容 |
+| local code / safety review | ab0 的审定 diff SHA `a13a5b0625157a645a32df19c00833cc80aa2130111fc5e550d2299154a1e20f` 有两项明确本地结论；容量失败与已完成 MESSAGE 分开核对，恢复后内容未变 |
+| GitHub / formal review | 父会话标准推送 checkpoint 并核准原 hash；恢复核查时 open PR 为0。当前文档候选准备后由父会话创建 draft/触发正式两审，实际 PR/head/CI/回应另行记录 |
+| live / stage exit | C01 真实认证与 C07/C08 原生持续执行、工具/审批、有效 model/effort 仍未验；无生产中心/部署/发包/自动派发/定时，不据代码或 fixture 关闭阶段出口 |
+
+- 父会话已确认 checkpoint 的精确 ab0 触发 [CI run 41774760591](https://github.com/5intro/Coordica/actions/runs/41774760591)。
+  本恢复记录时仍 in_progress，仅记录 pending 和链接，不把部分 job、旧 main CI 或本地172项写成三平台完整通过。
+
+- Nov4 增量相对1189更新 CLOUD_EXECUTION/ROADMAP/PROGRESS，并限定 DESIGN/VALIDATION/REQUIREMENTS 三页的历史基线表述，共六份文档；
+  拟 PR 相对核查的 main 输入 efa 包含既有 R.6 十文档及这六文件追加，总计仍十文档。验证限定质量与必要链接检查，不重复无关产品单测或继承 ab0 为本片全部 CI。
+  受影响检查与质量通过可创建 draft；main 合并仍按准确最新 head 三平台 CI、代码/安全两项明确结论及最终版本核验。
+  用户已覆盖旧 quota 停线和临时 local-only/no-PR；同 `gpt-6.1-sol` / `ultra`、C09–C12 仅准备及所有 live/凭据/部署禁令保持。
+
+## 2026-11-04 — 产品分支整合恢复文档
+
+- 从受保护 ab0 建立独立分支 `codex/c08-acp-config-options-20261104`，整合已审规划 `84f01e2b46b1422a9eda8a3c7b8b497fd1325611`。
+  保留所有产品实施历史与原始 refs，仅解决文档冲突；Go 源码逐文件哈希保持 ab0，不把文档合并称新功能。
+- 父会话已发布 [draft PR #31](https://github.com/5intro/Coordica/pull/31)，准确 head 为84f01e2b；
+  正式 [代码触发](https://github.com/5intro/Coordica/pull/31#issuecomment-6623054874) 与 [安全触发](https://github.com/5intro/Coordica/pull/31#issuecomment-6623056172) 已成功，结论/CI仍 pending。
+  本地整合不替代该 PR 的正式双审与准确 head 三平台 CI；线上动作由父会话处理。
+
+## C08 — 原生声明配置与显式选择（2026-11-04 UTC，离线切片）
+
+- 产品输入为受保护 `ab0e2068ee42face7516acfaa6fd559fc7ab0c11`；独立分支 `codex/c08-acp-config-options-20261104`。
+  先以文档合并 `7c6e7f10ca58a5e20c3ce90125725aa8f9160799` 整合已审恢复指导，所有 Go 文件哈希仍等于 ab0、原 refs 不变。
+  当前只补第二协议发送前需要的配置事实与显式选择，不展开 C09 目录、自动选优、Load、认证或 runtime adapter。
+- `Session.ConfigOptions` 返回原私有 Peer/Session/epoch 的有界防御快照；new 的 absent/null 与已知空数组分开。
+  固定 ACP schema 的 select flat/grouped、nullable UX 描述/未知 category 可见；数组≤64KiB、64选项/256选择及单字段有界。
+  重复 ID/值歧义拒绝；category/name 不推断模型、effort、权限或 Task 授权，也不宣称 OS/账号隔离。
+- `SetConfigOption(ctx,id,value)` 仅显式选取当前广告的精确 ID/value；缺失/未知为本片客户端子集的零 RPC 拒绝，
+  不代表原生不支持，也不冒称完整 R6 explicit_unverified 路径。无默认、fallback、自动认证或重试；十秒客户端 cap/更短 caller deadline。
+  与 Prompt 共享单 inflight、递增本地 RPC ID、解析与 writer 回收；不伪造 native Turn ID 或即时工作 ACK。
+- set 回应必须提供非 null 完整 configOptions；精确 ID/currentValue 匹配才报告 native_reported Confirmed。
+  错值/缺目标保实际快照并返回 mismatch，不伪回滚；已知 RPC 拒绝也不证明原配置没有改变。
+  new/set-response/config_option_update 只由 read loop 按接收顺序全量替换并递增本地观察版本；它不是服务端 CAS。
+  回执保自身历史版，晚返回不会覆盖新通知；通知只将 ConfigVersion metadata 入原有 FIFO，不公开选项正文/值或猜 Prompt 归属。
+- 发前取消/Busy/未知选择不写也不杀 Peer；发送后未知关闭并带真实 Process 停止回执，不自动重发。
+  已验证配置回执遇 ctx/EOF/writer 失败仍保留历史观察，连接失败/停止另列；不据本地停止声称远端回滚或 Session 删除。
+  现有 gap/overflow、unsupported callback 与 fs/terminal=false 保持，不自动答复工具或扩大宿主能力。
+- 首个真实 Go JSON-RPC 子进程闭环1项通过；配置专属矩阵46项通过。四包 acpclient/appserver/process/jsoninput
+  普通与竞态各218 Test/subtest pass、退出0，无 fail/skip；源码哈希一致、owned 停止/临时根清理确认。
+  夹具覆盖精确广告/flat-group/null/empty/歧义、深拷贝、双向 Busy/共享 ID、回应前后更新顺序、错值/漏目标、
+  已知拒绝后显式 Prompt、发后取消/畸形/断连与真实 TreeStopped、已收回执保留、容量与 sticky gap。
+  证据 `.cache/c08-config-options-20261104/` 保存命令/env、源码 SHA、原始日志/回执及文档整合证明。
+- Go1.27.2/GOTOOLCHAINlocal/官方已验缓存、GOPROXYoff、三 live/catalog opt-in unset、单并发与8GiB/4GiB/600s guard 保持。
+  仅源码/手写离线 fixture；真实 provider、认证、实际 model/effort/权限仍未验，C08 不标完成。
+  全仓 mcpconfig 中立临时目录环境项仍 blocked，不重探/删 marker/绕守卫；本源码片未 push/建 PR。
+  后续按依赖处理 ACP 整轮 runtime 接线或其它真实必要缺口，本片不自动展开。

@@ -44,6 +44,7 @@ func TestMain(m *testing.M) {
 				Cwd                string
 				McpServers         []json.RawMessage
 				SessionID          string
+				ConfigID, Value    string
 				Prompt             []struct{ Type, Text string }
 				ProtocolVersion    int
 				ClientCapabilities struct {
@@ -51,6 +52,13 @@ func TestMain(m *testing.M) {
 					Terminal bool
 				}
 			}
+		}
+		if json.Unmarshal(scanner.Bytes(), &request) == nil && request.Method == "session/set_config_option" {
+			if request.JSONRPC != "2.0" || request.ID < 3 || request.Params.SessionID != "native-session" || request.Params.ConfigID != "native-model" || (request.Params.Value != "small" && request.Params.Value != "large") {
+				os.Exit(14)
+			}
+			configFixtureReply(scenario, request.ID, request.Params.Value)
+			continue
 		}
 		if json.Unmarshal(scanner.Bytes(), &request) == nil && request.Method == "session/prompt" {
 			if request.JSONRPC != "2.0" || request.ID < 3 || request.Params.SessionID != "native-session" || len(request.Params.Prompt) != 1 || request.Params.Prompt[0].Type != "text" || request.Params.Prompt[0].Text == "" {
@@ -155,6 +163,17 @@ func sessionFixtureReply(scenario string, id int, directory string, mcp []json.R
 		return
 	}
 	result := map[string]any{"sessionId": "native-session", "modes": nil, "configOptions": nil}
+	if strings.HasPrefix(scenario, "config-") {
+		result["configOptions"] = fixtureConfigOptions("small")
+		switch scenario {
+		case "config-absent":
+			delete(result, "configOptions")
+		case "config-null":
+			result["configOptions"] = nil
+		case "config-empty":
+			result["configOptions"] = []any{}
+		}
+	}
 	response := map[string]any{"jsonrpc": "2.0", "id": 2, "result": result}
 	if scenario == "updates-early" {
 		printUpdateFixture("native-session", map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "private-early"}})
@@ -191,6 +210,10 @@ func sessionFixtureReply(scenario string, id int, directory string, mcp []json.R
 	}
 	raw, _ := json.Marshal(response)
 	fmt.Println(string(raw))
+	if strings.HasPrefix(scenario, "config-notify-") {
+		waitFixtureContinue()
+		configNotificationFixture(scenario)
+	}
 	if scenario == "prompt-blocked-writer" {
 		waitFixtureContinue()
 		fmt.Println(`{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}`)
@@ -227,7 +250,7 @@ func promptFixtureReply(scenario string, id int, text string) {
 	switch scenario {
 	case "prompt-long":
 		time.Sleep(10500 * time.Millisecond)
-	case "prompt-pause":
+	case "prompt-pause", "config-prompt-pause":
 		waitFixtureContinue()
 	case "prompt-no-response":
 		return
