@@ -24,7 +24,7 @@
   本地明确 review 不等于 GitHub 正式两审，checkpoint 不等于 PR，真实 harness/部署/派发/定时仍未授权。
 
 - 最新发布状态按父会话本次快照：PR34/36/35/37/38均已合并，mainc30整树精确efa6；PR38准确efa6六CI在attempt1全部success、正式双clear后于11:29:01 UTC合入，源分支保留。C08仍只partial offline与已声明选项子集，旧0a或历史pending结论不替代新head门禁；细节见末尾记录。
-- 当前及后续开发仍使用 `gpt-6.1-sol` / `ultra`；ACP与store事件存储由其他会话独占，本片只维护两份全局进度文档，不替其声明新源码或测试通过。
+- 本合并协调会话继续遵守 `gpt-6.1-sol` / `ultra`，未作模型配置变更；C04 runtime事件接收/游标由另一独立会话独占。本片只维护ROADMAP/PROGRESS，不以施工声明作为源码测试或平台模型实测证明。
 
 以下批次按发生时的输入和结论保留；涉及当前状态，以此快照及最新追加证据为准。
 
