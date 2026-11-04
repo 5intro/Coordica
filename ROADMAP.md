@@ -1,13 +1,17 @@
 # Coordica 开发任务规划与云端交接
 
-更新日期：2026-11-04（UTC）。工作修订：R2026-11-02.6；本次恢复核查的 main 输入版本为 R2026-11-02.5。
+更新日期：2026-11-04（UTC）。工作修订：R2026-11-02.6；初次恢复的 R2026-11-02.5 输入为历史，当前已核 main 见下。
 源码审计基线：`9de987f303e77a624adeb9b3feaceb2bb12c41ce`。
 此前增量审计覆盖 `43f208327372fda8db94babda41e4a7d38a0e8dc` 的相关路径，范围见 [C01 复核](planning/C01_REVIEW.md)。
-#29/#30 已合并；截至本次 2026-11-04 恢复核查，main 输入为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`。
-本 C03 发布片从受保护源码 `2e2107f73519bd85faddd3407bf3a7db22083753` 整合 C02 修复候选 `462de7eaf59c1893612745ad2d82a0bc3a6cb5ab`，保留 Model/Effort 可选性修复。
-新增范围为显式 SessionBinding/单写/代际/unknown 围栏，继承 C02 账本与 C07 core；不引入 C07 薄组合的 read/resume、C04/C05 或 ACP。
-原2e的Create/Release错误出口披露缺口已在本片最小修复；各自新red与同测试green/race保留，不继承历史6ea测试通过。
-PR33已合入mained6；本片以C02修复462de7为完整公开比较输入。父会话已核PR34该head正式代码/安全审查均无finding，CI尚待最终确认；依赖合入及实际base另核。
+#29/#30 已合并；`efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58` 是初次恢复核查时的历史输入。
+本文档片仅更新 ROADMAP/PROGRESS，并通过正常Git整合实际main `c30d4e03e11aa4dbe8f680c7cbc014eda0fa0978`；所有Go及其它非文档内容精确来自该main，未手工改动。
+父会话已官方核准PR31及PR33–37合并；[PR38](https://github.com/5intro/Coordica/pull/38) 也于2026-11-04 11:29:01 UTC closed/merged，源分支efa6保留。
+截至本次父核快照，mainc30的parents为maincf36+efa6，tree `ee4b45355fdb09677dbe6ffab6c4dcae8b62f24b` 精确等于efa6；准确efa6六CI在attempt1全部success，正式Code/Security明确clear，同输入ready后覆盖已核，父会话首次普通expected-head API合并成功、未自行approve。
+C08已声明选项子集已随PR38合入，仍是partial offline，不代表explicit-unverified路径、完整C08或真实provider验收。旧0a门禁没有替代新efa6门禁，历史pending快照保留为当时事实。
+本独立文档片相对mainc30仅两MD，以该实际main固定质量输入；只保存进度checkpoint，不提前改变main或其它候选测试目标。
+C04 runtime事件接收/游标相关文件由另一施工会话独占，本线程不改这些源码；施工声明不作为源码完成、测试通过或平台模型实测证明。父会话告知C04事件 [PR39](https://github.com/5intro/Coordica/pull/39) 有未解决P1，相关被拦截核查继续停止，未验收、不据声明完成。
+ACP cancel独立切片由另一会话独占，仅记录任务分工，不宣称已实现或实测。
+本树已有C02/C03、C07 core、ACP partial offline及C04存储子集；完整事件链/游标服务/spool/effects未验收，C05和native read/resume未整合。本地fullmcp仍blocked，真实provider、认证及完整阶段验收均未通过。
 源码/离线夹具检查点已由父会话保留原哈希同步到 [GitHub 备份分支](https://github.com/5intro/Coordica/tree/codex/cloud-checkpoint-20261104)，
 固定 [ab0e2068](https://github.com/5intro/Coordica/commit/ab0e2068ee42face7516acfaa6fd559fc7ab0c11)；这不是 main 合并、产品发布或真实 harness 完成证明。
 
@@ -18,7 +22,7 @@ PR33已合入mained6；本片以C02修复462de7为完整公开比较输入。父
 这不阻止阅读、规划维护和准备评审材料。当前运行项目的暂停和自动派发设置不因文档变化而改变。
 2026-11-04 最新授权覆盖旧额度 10% 暂停线和临时 local-only/no-PR 限制；受影响检查与质量通过可建小范围 draft。
 合并仍要求准确最新 head 三平台完整 CI、代码/安全两项正式明确结论和最终版本核验；详见 [云端闭环](planning/CLOUD_EXECUTION.md#每个-pr-的闭环)。
-下表同时记录全局进展：本树新增 C03 绑定并继承 C02/C07；C04/C05/C08 与 native read/resume 薄组合在另分支检查点，真实实例/认证仍未验证。
+下表同时记录全局进展：本树继承已合入的C02/C03/C07 core、ACP partial offline及C04存储子集；完整事件链/C05/native read-resume仍未整合验收，真实实例/认证仍未验证。
 
 ## 文档地图与优先级
 
@@ -59,13 +63,13 @@ Claude 的跳过工具审批可作为显式、可见的可选运行配置，原�
 | --- | --- | --- | --- | --- | --- |
 | C00 | 基线 / P0 | 保存并维护同一需求基线、静态审计、冲突规则和云端计划 | 无 | 本组文档；不声称功能完成 | 完成（规划） |
 | C01 | 基线 / P0 | 云端重审固定 HEAD；补官方协议、版本、参考许可与接口证据，选定两个首批实例 | C00、分范围授权 | D01–D02；V01、V18；[只读复核与切片](planning/C01_REVIEW.md) | 待验证（规划 #29/#30 已合入；实例认证/真实调用未测） |
-| C02 | 第一阶段 / P0 | 最小 Task/上下文/输入、显式执行绑定与统一记录；固定消费方需要的公共控制契约和能力骨架，不接自主 Wake 派工 | C01 | D01–D02；V02、V16–V19 首期子集；无聊天/Git 前置，保留旧路径 | 实施中（本树持久账本含Model/Effort可选原样登记；仅registered/not_started/recorded，未接native或完整验收） |
-| C03 | 第一阶段 / P0 | 会话生命周期及原生 ID 映射；读、恢复、释放分开 | C02 | D03；V03、V09；T01、T03 | 实施中（本树绑定/单写/unknown及Create/Release私密错误围栏，SQLite/owned进程夹具；未含native read/resume或C07薄组合，完整/live验收未过） |
-| C04 | 第一阶段 / P0 | 结构化事件日志、游标补取、去重、背压和诊断原始事件引用 | C02 | D05；V05；T01、T04 | 实施中（另分支 metadata/索引日志/游标及有界 capture；无原生持久 spool） |
+| C02 | 第一阶段 / P0 | 最小 Task/上下文/输入、显式执行绑定与统一记录；固定消费方需要的公共控制契约和能力骨架，不接自主 Wake 派工 | C01 | D01–D02；V02、V16–V19 首期子集；无聊天/Git 前置，保留旧路径 | 实施中（PR34源码已合入；Model/Effort可选原样登记，registered/not_started/recorded，不代表native或完整验收） |
+| C03 | 第一阶段 / P0 | 会话生命周期及原生 ID 映射；读、恢复、释放分开 | C02 | D03；V03、V09；T01、T03 | 实施中（PR36固定dee1bb已合入mainf7，六CI及正式两审通过；绑定/单写/unknown及Create/Release围栏，完整/live验收未过） |
+| C04 | 第一阶段 / P0 | 结构化事件日志、游标补取、去重、背压和诊断原始事件引用 | C02 | D05；V05；T01、T04 | 实施中（PR37存储子集已合入；父告知PR39有未解决P1、相关被拦截核查继续停止；完整事件链/游标服务/spool/effects未验收，不据声明完成） |
 | C05 | 第一阶段 / P0 | 消息排队、运行中补充、当前轮中断；分别报告接收与原生确认 | C03、C04 | D03；V04；不支持时返回明确错误 | 实施中（另分支显式文本/单轮中断/持久 claim；queue/steer 未接） |
 | C06 | 第一阶段 / P0 | 原生提问/审批的持久请求、回答回传与过期拒绝；作为待处理事实来源 | C03–C05 | D04；V06、V17；T05 | 规划中 |
 | C07 | 第一阶段 / P0 | Codex app-server 薄适配与离线夹具驱动 C02–C06 公共契约；原生推理/工具循环不重造 | C01 | D02–D05；V03–V06、V14、V18；源码声明/夹具/真实验证分列 | 实施中（本树为 e47 协议 core/typed 控制/问题答复/异常围栏；持久 runtime 接线另分支，完整与真实验收未完成） |
-| C08 | 第一阶段 / P0 | 第二家优先 Antigravity ACP；同协议复用通用适配器，逐 provider/版本独立验证；dsh 保留候选 | 离线适配依赖 C07 离线契约；真实验收依赖 C07 真实闭环 | V03–V06、V14、V18；能力差异明确，不因共用 ACP 继承通过 | 实施中（另分支 ACP initialize/session-new/metadata/terminal text Prompt；显式配置在另分支 PR #32；Load/runtime 未接，真实未验） |
+| C08 | 第一阶段 / P0 | 第二家优先 Antigravity ACP；同协议复用通用适配器，逐 provider/版本独立验证；dsh 保留候选 | 离线适配依赖 C07 离线契约；真实验收依赖 C07 真实闭环 | V03–V06、V14、V18；能力差异明确，不因共用 ACP 继承通过 | 实施中（PR35/38 partial offline及已声明选项子集已合入mainc30；explicit-unverified/完整C08/真实provider验收未过） |
 | C09 | 第二阶段 / P1 | 四态能力、动态目录、显式未验证配置、原生扩展和生效配置证据 | C08 | D02；V01、V10；T02 | 规划中 |
 | C10 | 第二阶段 / P1 | 实例与认证引用分离；共享凭据域的互斥、变更和污染验证 | C09 | D02、D07；V07；T02 | 规划中 |
 | C11 | 第二阶段 / P1 | 节点路由、心跳、容量、优先级与公平等待；区分自动等待和需要介入 | C10 | D06、视图边界；V08、V17；不自动降低模型要求 | 规划中 |
