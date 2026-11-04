@@ -8,7 +8,9 @@
 父会话已官方核准 [PR34](https://github.com/5intro/Coordica/pull/34) 合并：main26e5c2f的parents为ed6+462，tree `e5075cf15abbf3565efd5bc077d40bf39e279d7b` 精确等于462；六项CI与正式代码/安全审查均通过。
 [PR36](https://github.com/5intro/Coordica/pull/36) 固定 dee1bb 的六项CI与正式代码/安全审查全部通过，于2026-11-04 08:50:33 UTC closed/merged；源分支保持。
 合并后的main为 `f7edb6b2ecd932cdcf901603a9202851dc46f5cf`，parents为main26+dee1bb，tree `2a3abff3ea033c49e6658021010fe13e43f22bcf` 精确等于dee1bb；父会话首次API合并成功、未自行approve。
-本独立文档片以实际mainf7检查，等待父会话整体main推进稳定后的最终发布基线，不提前改变其它并行候选的测试目标。
+截至父会话2026-11-04 09:19 UTC快照，main仍为f7，PR34/36已合并；[PR35](https://github.com/5intro/Coordica/pull/35) 新组合5a17540与 [PR37](https://github.com/5intro/Coordica/pull/37) 新组合98cdeea的本地相关检查及新head正式双审通过，fresh workflows仍running、尚未合并。
+PR37暂stacked在ACP分支5a，仅表示集成顺序35→37，不改变存储API的provider-neutral产品依赖；35合入后须整树等价/retargetmain再核门禁，不能把37合入ACP分支。
+本独立文档checkpoint的Go仍精确mainf7，仅供父会话推送留存，不开docs PR、不改变main或35/37测试目标；后续main稳定再整合并按新head重新验证，旧checkpoint CI不覆盖新组合。
 本树已有 C03 绑定、C02 账本与 C07 core；不导入 native read/resume、C04/C05 或 ACP。完整本地mcp门禁仍blocked，真实harness未验证。
 源码/离线夹具检查点已由父会话保留原哈希同步到 [GitHub 备份分支](https://github.com/5intro/Coordica/tree/codex/cloud-checkpoint-20261104)，
 固定 [ab0e2068](https://github.com/5intro/Coordica/commit/ab0e2068ee42face7516acfaa6fd559fc7ab0c11)；这不是 main 合并、产品发布或真实 harness 完成证明。
