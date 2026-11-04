@@ -147,16 +147,13 @@ func (p *Peer) receiveSession(result, rpc []byte, hasError bool) error {
 				return err
 			}
 		}
-		if options, exists := values["configOptions"]; exists && !bytes.Equal(bytes.TrimSpace(options), []byte("null")) {
-			var array []json.RawMessage
-			if json.Unmarshal(options, &array) != nil {
-				return ErrProtocol
-			}
+		options, provided, err := optionalConfigOptions(values)
+		if err != nil {
+			return err
 		}
-		// Optional configuration declarations are not retained/interpreted. No
-		// selected/effective model, effort or permission is claimed by this ID.
 		p.updates.bind(id)
 		p.mu.Lock()
+		p.replaceConfigLocked(options, provided)
 		p.sessionReady = true
 		p.mu.Unlock()
 		reply.session = Session{peer: p, id: id, directory: p.directory, epoch: p.updates.epoch}
