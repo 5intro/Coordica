@@ -57,6 +57,9 @@ func Open(path string) (*Store, error) {
 	if err == nil {
 		err = initializeCoordination(db)
 	}
+	if err == nil {
+		err = initializeRuntimeEvents(db)
+	}
 	if err != nil {
 		db.Close()
 		return nil, err
