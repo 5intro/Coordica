@@ -2,8 +2,8 @@
 
 These partial C08 slices initialize a persistent supervised ACP connection and
 explicitly create one Session. They do not implement authentication, loading,
-native cancel, native request answers, runtime ports or a provider registration.
-Explicit text Prompt is available as a terminal-response operation below.
+native request answers, runtime ports or a provider registration. Explicit text
+Prompt supports an invocation-owned cancellation signal and terminal response.
 The production legacy `agent.executeACP` path is unchanged. That one-shot path
 automatically starts a prompt and shuts down afterward, so it is not reused here.
 
@@ -124,7 +124,8 @@ Known RPC rejection preserves its private structured error and normally leaves
 the Peer available; it does not prove absence of earlier output/tools/effects.
 Sent cancellation, disconnect, malformed response, unsupported callback or
 overflow fails closed with `PromptError.Process` carrying actual cleanup proof.
-No native session/cancel, authentication or tool reply is synthesized. A valid
+Context cancellation never synthesizes native session/cancel, authentication or
+tool replies. Explicit native cancellation uses the separate API below. A valid
 terminal already observed during a ctx/EOF/writer race remains in the result;
 transport failure is returned separately as disconnected with actual stop proof,
 so the receipt does not imply the Peer can be reused. Caller ctx ending after
@@ -136,6 +137,51 @@ Runtime composition is not connected. The frozen checkpoint's `ProduceWork`
 ten-second start-ACK path needs a separate whole-turn adaptation before ACP use;
 that runtime code is not included here. Real provider execution, authentication
 and effective configuration remain unverified.
+
+## Explicit native Prompt cancellation
+
+`PromptTextWithCancel(ctx, text, cancellation)` extends the same whole-turn
+operation with a caller-owned `<-chan struct{}` for that invocation. `PromptText`
+uses a nil signal and retains its existing behavior. A pre-signaled call returns
+local `context.Canceled` with no work, native notification or terminal receipt;
+this is not a native `cancelled` result. Closing/signaling after the call returns
+has no effect on a later Prompt. Use a fresh signal per invocation.
+
+The fixed schema's `session/cancel` is a notification with only the original
+Session ID, no request ID and no ACK. The first observed signal allows at most
+one attempt, after the original full prompt write has completed. The worker
+rechecks the exact pending invocation, Session/epoch and connection; an already
+received response suppresses the write. Prompt/config singleflight remains held
+until both writers are reaped, including terminal/cancellation/Close races. No
+signal watcher survives return, no lock is held over blocking I/O, and no local
+request ID is consumed by the notification.
+
+Successful notification writing never completes this call or proves a stop.
+Only the original correlated `session/prompt` response provides its native
+`stopReason`: `cancelled` is the native cancellation claim, not OS process/tree,
+background-tool or Task stop evidence. Late supported `session/update` facts
+remain accepted through the existing bounded capture. A healthy cancelled Prompt
+leaves the persistent Peer available for a later explicit Prompt.
+
+If cancellation may have been emitted but the original response instead reports
+another valid terminal or a structured RPC rejection, that exact report is
+preserved with `ErrCancelUnconfirmed` and actual `PromptError.Process` cleanup
+evidence. The client conservatively retires the Peer: local Write completion
+cannot prove native handling order or prevent a delayed session-scoped cancel
+from reaching a future turn. This containment policy is not an ACP requirement
+and does not reclassify a known response as an unknown Prompt outcome.
+
+No valid original response, write failure, disconnect, malformed/spurious ACK
+or expiry retains the existing unknown-outcome/owned-process cleanup behavior.
+An original terminal already observed during such failure remains a historical
+fact with the transport failure separately reported. The signal never resets
+or extends the shorter caller deadline/five-minute Prompt cap. Caller-context
+cancellation still closes the Peer and does not itself request native cancel.
+
+Tests use hand-written Go protocol children and controlled real pipe barriers,
+not provider transcripts. Native provider cancellation and actual tool stopping
+remain unverified; no runtime event, permission, authentication or release path
+is added by this protocol primitive.
 
 ## Explicit reported configuration selection
 

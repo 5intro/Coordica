@@ -152,6 +152,12 @@ func (p *Peer) Close() (process.Result, error) {
 	p.mu.Unlock()
 	if prompt != nil {
 		<-prompt.writeDone
+		p.mu.Lock()
+		cancelWriter := prompt.cancelWriteDone
+		p.mu.Unlock()
+		if cancelWriter != nil {
+			<-cancelWriter
+		}
 	}
 	if configuration != nil {
 		<-configuration.writeDone

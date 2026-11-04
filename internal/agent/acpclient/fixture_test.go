@@ -26,6 +26,7 @@ func TestMain(m *testing.M) {
 	}
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Buffer(make([]byte, 1024), maxFrameBytes)
+	var cancellation cancelFixtureState
 	for scanner.Scan() {
 		f, err := os.OpenFile(os.Getenv("COORDICA_ACP_JOURNAL"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 		if err != nil {
@@ -53,6 +54,10 @@ func TestMain(m *testing.M) {
 				}
 			}
 		}
+		if json.Unmarshal(scanner.Bytes(), &request) == nil && request.Method == "session/cancel" {
+			cancellation.cancel(scenario, scanner.Bytes())
+			continue
+		}
 		if json.Unmarshal(scanner.Bytes(), &request) == nil && request.Method == "session/set_config_option" {
 			if request.JSONRPC != "2.0" || request.ID < 3 || request.Params.SessionID != "native-session" || request.Params.ConfigID != "native-model" || (request.Params.Value != "small" && request.Params.Value != "large") {
 				os.Exit(14)
@@ -63,6 +68,10 @@ func TestMain(m *testing.M) {
 		if json.Unmarshal(scanner.Bytes(), &request) == nil && request.Method == "session/prompt" {
 			if request.JSONRPC != "2.0" || request.ID < 3 || request.Params.SessionID != "native-session" || len(request.Params.Prompt) != 1 || request.Params.Prompt[0].Type != "text" || request.Params.Prompt[0].Text == "" {
 				os.Exit(11)
+			}
+			if strings.HasPrefix(scenario, "cancel-") {
+				cancellation.prompt(scenario, request.ID, request.Params.Prompt[0].Text)
+				continue
 			}
 			promptFixtureReply(scenario, request.ID, request.Params.Prompt[0].Text)
 			continue
@@ -219,6 +228,11 @@ func sessionFixtureReply(scenario string, id int, directory string, mcp []json.R
 		fmt.Println(`{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}`)
 		time.Sleep(30 * time.Second)
 		os.Exit(12)
+	}
+	if scenario == "cancel-terminal-before-send" {
+		waitFixtureContinue()
+		cancelFixtureTerminal(3, "end_turn")
+		waitCancelFixtureDrain()
 	}
 	if strings.HasPrefix(scenario, "updates-") && scenario != "updates-early" {
 		emitUpdateFixture(scenario)
