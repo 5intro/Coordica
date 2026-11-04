@@ -625,5 +625,38 @@
 - 两项只读复核确认原2e Produce失败最终出口会保留过期调用方可As取得的私密native/cleanup错误链，cleanup无proof时还能跳过finish复验。
   选择仅回移6ea的post-quarantine disclosureFence出口及helper；不提取perform，不导入SessionPort/read/resume/runtimecodex/C04/C05/ACP。
   原生产binding_produce字节/hash先归档；新Create-only回归必须在原2e生产上真实red，再最小green，历史6ea red不作为本候选实跑。
-- 本片是独立本地安全开发。PR33精确protected-default merge被自动审批拒绝，父会话已向用户请求具体授权、结果pending；不得换工具/autoMerge/pushmain绕过或重试。
+- 首次准备基点时，PR33精确protected-default merge被自动审批拒绝，父会话向用户请求具体授权、当时结果pending；不得换工具/autoMerge/pushmain绕过或重试。
   PR34/32依赖hold，writer无线上动作；C03只读准备/本地修复不授外部main合并权，真实harness/凭据迁移/部署/dispatch/timer禁令及C09–12仅准备保持。
+
+## PR34 — 通用 Run 可选 Model/Effort（2026-11-04 UTC）
+
+- 输入为已发布旧候选 `95827cdf54d35f347afcd0f287f88fc3f495765e`；保留本地备份 `codex/c02-publish-checkpoint-95827-20261104`。
+  原生产 run.go 字节/hash先归档；旧82普通/race、CI/两审结论不覆盖本次修复的新head。
+- 父会话与两只读预审确认 generic validTarget 强制 Model/Effort 非空会拒绝合法 native-harness 选择。
+  最小修复仅让二者各自 empty-or-valid-identifier（非空仍≤128字节、UTF-8、无空白/控制）；
+  空表示未指定，指定值原样进入 Run 快照与幂等 digest，不补默认、不选优、不fallback、不改变实例/node/harness/version/workspace必填或当前授权/CAS。
+  registered/not_started 不证明可执行；具体原生适配器仍可拒绝缺少其必需配置，C07 model校验与PR32 native-reported范围均未放宽。
+- 新真实SQLite回归先在原95827生产上red：5 fail事件/15 pass、退出1，三种省略组合先被ErrInvalid拒绝（含父4fail），
+  另一个scope对照同样在授权前被语法校验挡住（1fail，不是权限绕过）；非法非空/必填字段反例及完整显式对照通过。
+  最小两行生产条件修复后，同一测试字节的20项专属回归通过；停止/临时根清理确认，无真实harness。
+  新四包 runtime/store/domain/jsoninput 普通/race各102 Test/subtest pass、4包退出0、无fail/skip，源码哈希一致与停止/清理确认。
+  全vet/build、quality（固定e4a、CI=true）退出0，8个隔离contract与95827对应HEAD blobs逐字节一致；不借旧head通过，也不把局部结果当全仓mcp门禁通过。
+  证据 `.cache/c02-optional-options-20261104/` 含原run.go、red测试原字节、命令/env/源码SHA及raw回执；均为未上传本地文件。
+- C03本地docs-only基点 `a255110488df0c6ff07595645192b393f18c6e84` 已暂停，581Go保持2e，尚无新Create/Release红测或生产修复；
+  已知Create与Release私密错误披露均必须修复后才可发布，恢复时也须携本C02修复，不能重引强制选择。
+  PR33 protected-default精确merge首次被自动审批拒绝；父会话取得补充可信用户原文授权后，只对同工具/同动作/expected e4a 重试一次成功。
+  PR33现已closed/merged，实际main为 `ed6e96f80c649468751ad62dce19c62700e27cb2`（parents28+e4a），tree `bc0df16f33c93ac1fc1733d581e627add55f16be` 与e4a完全相同；没有自approve或绕过。
+  本C02修复改用该实际main比较，父会话已将原PR34 retarget main，操作时head仍为95827/draft true；新修复head须重做CI/正式两审，旧95827含已知finding不能合并。
+  PR32依赖hold不因此解除，writer无线上动作。
+- Owner已撤回过程中短暂的high继任偏好，最终指示为当前及后续开发轮次均继续 `gpt-6.1-sol` / `ultra`；
+  本轮未作模型切换或重启，不将实施选择转成产品Run默认选项；不care剩余额度与其余无live/凭据迁移/部署/dispatch/timer、C09–12仅准备的边界保持。
+
+## C03 — 继承C02可选配置并修两类披露出口（2026-11-04 UTC）
+
+- 从已保存的docs-only基点 `a255110488df0c6ff07595645192b393f18c6e84` 恢复，先整合C02修复 `462de7eaf59c1893612745ad2d82a0bc3a6cb5ab`。
+  继承的Go差异只有run.go可选校验与optional_target_test.go，其余Go仍为原2e；保存继承基点后才加新Create/Release回归，不覆盖可选修复。
+- Create只携6ea已知post-quarantine披露围栏；Release另按bindingFor(false)的合法清理权限复验，允许目标配置退役后当前同主清理。
+  撤权/移scope/RecoverUnknown旧owner的私密错误链不得从As取回，原command观察/Stop事实保留、unknown/新代次不被迟到回执推进，不重发。
+  两个生产原文件先归档，各自新真实red后最小green；实际owned Go夹具Wait/TreeStopped与逻辑状态分开，不能用历史6ea red冒称新候选实跑。
+- 不引perform抽取、native read/resume薄组合、C04/C05/ACP或C09–12实现。当前及后续仍Sol/ultra；PR33已merged ed6，PR34已推462并触发新head审查/CI、结果仍running。
+  writer只做本地安全开发，不push/approve/merge；fullmcp中立TMP阻断保持、不重探/绕守卫，无live/凭据迁移/部署/发包/赛车/dispatch/timer。

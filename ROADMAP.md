@@ -4,10 +4,10 @@
 源码审计基线：`9de987f303e77a624adeb9b3feaceb2bb12c41ce`。
 此前增量审计覆盖 `43f208327372fda8db94babda41e4a7d38a0e8dc` 的相关路径，范围见 [C01 复核](planning/C01_REVIEW.md)。
 #29/#30 已合并；截至本次 2026-11-04 恢复核查，main 输入为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`。
-本 C03 发布片从受保护源码 `2e2107f73519bd85faddd3407bf3a7db22083753` 整合 C02 候选 `95827cdf54d35f347afcd0f287f88fc3f495765e` 的文档。
+本 C03 发布片从受保护源码 `2e2107f73519bd85faddd3407bf3a7db22083753` 整合 C02 修复候选 `462de7eaf59c1893612745ad2d82a0bc3a6cb5ab`，保留 Model/Effort 可选性修复。
 新增范围为显式 SessionBinding/单写/代际/unknown 围栏，继承 C02 账本与 C07 core；不引入 C07 薄组合的 read/resume、C04/C05 或 ACP。
-原2e存在已知错误出口私密数据披露缺口，发布前须携带最小回移及新Create-only red/green证明，不能原样发布或继承历史6ea测试通过。
-规划PR31已合入main28；本片以C02候选95827为完整公开比较输入，依赖PR33/34的合入与实际base由父会话精确核验。
+原2e存在已知错误出口私密数据披露缺口，发布前须携带最小Create/Release出口围栏及各自新red/green证明，不能原样发布或继承历史6ea测试通过。
+PR33已合入mained6；本片以C02修复462de7为完整公开比较输入，PR34新head正式CI/两审仍待核，依赖合入及实际base由父会话确认。
 源码/离线夹具检查点已由父会话保留原哈希同步到 [GitHub 备份分支](https://github.com/5intro/Coordica/tree/codex/cloud-checkpoint-20261104)，
 固定 [ab0e2068](https://github.com/5intro/Coordica/commit/ab0e2068ee42face7516acfaa6fd559fc7ab0c11)；这不是 main 合并、产品发布或真实 harness 完成证明。
 
@@ -59,8 +59,8 @@ Claude 的跳过工具审批可作为显式、可见的可选运行配置，原�
 | --- | --- | --- | --- | --- | --- |
 | C00 | 基线 / P0 | 保存并维护同一需求基线、静态审计、冲突规则和云端计划 | 无 | 本组文档；不声称功能完成 | 完成（规划） |
 | C01 | 基线 / P0 | 云端重审固定 HEAD；补官方协议、版本、参考许可与接口证据，选定两个首批实例 | C00、分范围授权 | D01–D02；V01、V18；[只读复核与切片](planning/C01_REVIEW.md) | 待验证（规划 #29/#30 已合入；实例认证/真实调用未测） |
+| C02 | 第一阶段 / P0 | 最小 Task/上下文/输入、显式执行绑定与统一记录；固定消费方需要的公共控制契约和能力骨架，不接自主 Wake 派工 | C01 | D01–D02；V02、V16–V19 首期子集；无聊天/Git 前置，保留旧路径 | 实施中（本树持久账本含Model/Effort可选原样登记；仅registered/not_started/recorded，未接native或完整验收） |
 | C03 | 第一阶段 / P0 | 会话生命周期及原生 ID 映射；读、恢复、释放分开 | C02 | D03；V03、V09；T01、T03 | 实施中（本地显式绑定/单写/unknown 围栏及离线夹具；原生 read/resume/C07 接线未做，完整门禁未过） |
-| C02 | 第一阶段 / P0 | 最小 Task/上下文/输入、显式执行绑定与统一记录；固定消费方需要的公共控制契约和能力骨架，不接自主 Wake 派工 | C01 | D01–D02；V02、V16–V19 首期子集；无聊天/Git 前置，保留旧路径 | 实施中（本树为6249 Task/Run持久账本及SQLite回归；仅registered/not_started/recorded，未接native或完整验收） |
 | C04 | 第一阶段 / P0 | 结构化事件日志、游标补取、去重、背压和诊断原始事件引用 | C02 | D05；V05；T01、T04 | 实施中（另分支 metadata/索引日志/游标及有界 capture；无原生持久 spool） |
 | C05 | 第一阶段 / P0 | 消息排队、运行中补充、当前轮中断；分别报告接收与原生确认 | C03、C04 | D03；V04；不支持时返回明确错误 | 实施中（另分支显式文本/单轮中断/持久 claim；queue/steer 未接） |
 | C06 | 第一阶段 / P0 | 原生提问/审批的持久请求、回答回传与过期拒绝；作为待处理事实来源 | C03–C05 | D04；V06、V17；T05 | 规划中 |

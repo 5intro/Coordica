@@ -10,7 +10,8 @@ import (
 
 func validTarget(target Target) bool {
 	return identifier(target.InstanceID, 128) && target.InstanceVersion > 0 && identifier(target.NodeID, 128) &&
-		identifier(target.Harness, 128) && identifier(target.Model, 128) && identifier(target.Effort, 128) && identifier(target.WorkspaceRef, 512)
+		identifier(target.Harness, 128) && (target.Model == "" || identifier(target.Model, 128)) &&
+		(target.Effort == "" || identifier(target.Effort, 128)) && identifier(target.WorkspaceRef, 512)
 }
 
 func runFor(tx *store.Tx, grant Grant, taskID, id string, prepare bool) (Run, error) {
