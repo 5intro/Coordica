@@ -4,12 +4,12 @@
 源码审计基线：`9de987f303e77a624adeb9b3feaceb2bb12c41ce`。
 此前增量审计覆盖 `43f208327372fda8db94babda41e4a7d38a0e8dc` 的相关路径，范围见 [C01 复核](planning/C01_REVIEW.md)。
 #29/#30 已合并；截至本次 2026-11-04 恢复核查，main 输入为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`。
-本文档片仅更新 ROADMAP/PROGRESS，并通过正常Git整合实际main `58d953bf675f4b4903743c38770f978ac2419d1d`；所有Go及其它非文档内容精确来自该main，未手工改动。
-父会话已官方核准 [PR34](https://github.com/5intro/Coordica/pull/34)、[PR36](https://github.com/5intro/Coordica/pull/36) 合并；[PR35](https://github.com/5intro/Coordica/pull/35) 也于2026-11-04 09:49:43 UTC closed/merged，源分支5a保留。
-截至本次父核快照，main58的parents为f7+5a17540，tree `88638e3d2961caf85febfb45650a7cf19de3e70e` 精确等于5a；该head六项freshCI及正式代码/安全结论均通过，未自行approve。
-[PR37](https://github.com/5intro/Coordica/pull/37) 旧98 Windows失败保留；owner独立修复新head41d40a已retarget main58，须取新head正式审查和CI，当前workflows running、未合并。旧98或本线程未提交WIP的结果不能批准41。
-本独立文档片相对main58仅两MD；后续是否推checkpoint或正式文档PR由父会话在整体main稳定后协调，不改变35/37测试目标。
-本树已有C02/C03、C07 core及PR35的ACP partial offline源码；C04/C05和native read/resume未整合。完整本地mcp门禁仍blocked，C08真实provider、认证及完整阶段验收均未通过。
+本文档片仅更新 ROADMAP/PROGRESS，并通过正常Git整合实际main `cf36bc4b7dd8137bdf4b895458df166d1e0328d9`；所有Go及其它非文档内容精确来自该main，未手工改动。
+父会话已官方核准PR34/36/35合并；[PR37](https://github.com/5intro/Coordica/pull/37) 也于2026-11-04 10:35:50 UTC closed/merged，源分支41保留。
+截至本次父核快照，maincf36的parents为main58+owner41d40a，tree `a97f1feb3c66967a4e0e43c59b1cf4832df53c83` 精确等于41；该head六项freshCI及正式代码/安全结论均通过。合并API响应ReadTimeout后，父会话只读核准实际成功，仅一次操作、未重试。
+[PR38](https://github.com/5intro/Coordica/pull/38) 新head `efa6f38618ebc4a90957d7ae52c302601909d4c6` 已标准非force推送并核准，base为maincf36、完整范围ACP14文件。新组合本地相关门禁与完整publication两项本地复审通过；截至10:47 UTC freshCI仍running未通过，新headCode已明确clear、Security待回执，仍draft未合并，旧0a六CI/双clear不复用。
+本独立文档片相对maincf36仅两MD，以该实际main固定质量输入；只保存进度checkpoint，不提前改变main或其它候选测试目标。
+本树已有C02/C03、C07 core、ACP partial offline及C04存储子集；完整事件链/游标服务/spool/effects未验收，C05和native read/resume未整合。本地fullmcp仍blocked，真实provider、认证及完整阶段验收均未通过。
 源码/离线夹具检查点已由父会话保留原哈希同步到 [GitHub 备份分支](https://github.com/5intro/Coordica/tree/codex/cloud-checkpoint-20261104)，
 固定 [ab0e2068](https://github.com/5intro/Coordica/commit/ab0e2068ee42face7516acfaa6fd559fc7ab0c11)；这不是 main 合并、产品发布或真实 harness 完成证明。
 
@@ -20,7 +20,7 @@
 这不阻止阅读、规划维护和准备评审材料。当前运行项目的暂停和自动派发设置不因文档变化而改变。
 2026-11-04 最新授权覆盖旧额度 10% 暂停线和临时 local-only/no-PR 限制；受影响检查与质量通过可建小范围 draft。
 合并仍要求准确最新 head 三平台完整 CI、代码/安全两项正式明确结论和最终版本核验；详见 [云端闭环](planning/CLOUD_EXECUTION.md#每个-pr-的闭环)。
-下表同时记录全局进展：本树继承已合入的C02/C03/C07 core与ACP partial offline片；C04/C05及native read/resume未整合，真实实例/认证仍未验证。
+下表同时记录全局进展：本树继承已合入的C02/C03/C07 core、ACP partial offline及C04存储子集；完整事件链/C05/native read-resume仍未整合验收，真实实例/认证仍未验证。
 
 ## 文档地图与优先级
 
@@ -63,11 +63,11 @@ Claude 的跳过工具审批可作为显式、可见的可选运行配置，原�
 | C01 | 基线 / P0 | 云端重审固定 HEAD；补官方协议、版本、参考许可与接口证据，选定两个首批实例 | C00、分范围授权 | D01–D02；V01、V18；[只读复核与切片](planning/C01_REVIEW.md) | 待验证（规划 #29/#30 已合入；实例认证/真实调用未测） |
 | C02 | 第一阶段 / P0 | 最小 Task/上下文/输入、显式执行绑定与统一记录；固定消费方需要的公共控制契约和能力骨架，不接自主 Wake 派工 | C01 | D01–D02；V02、V16–V19 首期子集；无聊天/Git 前置，保留旧路径 | 实施中（PR34源码已合入；Model/Effort可选原样登记，registered/not_started/recorded，不代表native或完整验收） |
 | C03 | 第一阶段 / P0 | 会话生命周期及原生 ID 映射；读、恢复、释放分开 | C02 | D03；V03、V09；T01、T03 | 实施中（PR36固定dee1bb已合入mainf7，六CI及正式两审通过；绑定/单写/unknown及Create/Release围栏，完整/live验收未过） |
-| C04 | 第一阶段 / P0 | 结构化事件日志、游标补取、去重、背压和诊断原始事件引用 | C02 | D05；V05；T01、T04 | 实施中（另分支 metadata/索引日志/游标及有界 capture；无原生持久 spool） |
+| C04 | 第一阶段 / P0 | 结构化事件日志、游标补取、去重、背压和诊断原始事件引用 | C02 | D05；V05；T01、T04 | 实施中（PR37存储子集已合入maincf36；完整事件链/游标服务/spool/effects未验收，不标全C04完成） |
 | C05 | 第一阶段 / P0 | 消息排队、运行中补充、当前轮中断；分别报告接收与原生确认 | C03、C04 | D03；V04；不支持时返回明确错误 | 实施中（另分支显式文本/单轮中断/持久 claim；queue/steer 未接） |
 | C06 | 第一阶段 / P0 | 原生提问/审批的持久请求、回答回传与过期拒绝；作为待处理事实来源 | C03–C05 | D04；V06、V17；T05 | 规划中 |
 | C07 | 第一阶段 / P0 | Codex app-server 薄适配与离线夹具驱动 C02–C06 公共契约；原生推理/工具循环不重造 | C01 | D02–D05；V03–V06、V14、V18；源码声明/夹具/真实验证分列 | 实施中（本树为 e47 协议 core/typed 控制/问题答复/异常围栏；持久 runtime 接线另分支，完整与真实验收未完成） |
-| C08 | 第一阶段 / P0 | 第二家优先 Antigravity ACP；同协议复用通用适配器，逐 provider/版本独立验证；dsh 保留候选 | 离线适配依赖 C07 离线契约；真实验收依赖 C07 真实闭环 | V03–V06、V14、V18；能力差异明确，不因共用 ACP 继承通过 | 实施中（PR35 partial offline源码已合入main58；真实provider/认证/完整阶段验收未过，不继承协议族通过） |
+| C08 | 第一阶段 / P0 | 第二家优先 Antigravity ACP；同协议复用通用适配器，逐 provider/版本独立验证；dsh 保留候选 | 离线适配依赖 C07 离线契约；真实验收依赖 C07 真实闭环 | V03–V06、V14、V18；能力差异明确，不因共用 ACP 继承通过 | 实施中（PR35 partial offline已合入；PR38新组合已推、本地门禁通过，freshCI仍running、Code已clear/Security待回执、未merge，真实provider/认证/完整验收未过） |
 | C09 | 第二阶段 / P1 | 四态能力、动态目录、显式未验证配置、原生扩展和生效配置证据 | C08 | D02；V01、V10；T02 | 规划中 |
 | C10 | 第二阶段 / P1 | 实例与认证引用分离；共享凭据域的互斥、变更和污染验证 | C09 | D02、D07；V07；T02 | 规划中 |
 | C11 | 第二阶段 / P1 | 节点路由、心跳、容量、优先级与公平等待；区分自动等待和需要介入 | C10 | D06、视图边界；V08、V17；不自动降低模型要求 | 规划中 |
