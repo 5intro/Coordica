@@ -43,17 +43,31 @@ type pendingPrompt struct {
 	writeDone       chan struct{}
 	received, ready bool
 	reply           promptReply // protected by Peer.mu, retained through close/select races.
+	cancelWriteDone chan struct{}
+	cancelAttempted bool // A write may have emitted bytes even when it returns an error.
 }
 
 // PromptText sends one explicit text input and waits for its full terminal
 // response, bounded by the shorter caller deadline or this client's five-minute
 // cap. No Task context is fetched and there is no authentication/tool fallback.
 func (s Session) PromptText(ctx context.Context, text string) (PromptResult, error) {
+	return s.PromptTextWithCancel(ctx, text, nil)
+}
+
+// PromptTextWithCancel accepts an invocation-owned native cancellation signal.
+// A signal only requests session/cancel; this call still waits for the original
+// prompt response. Context cancellation retains its close/unknown semantics.
+func (s Session) PromptTextWithCancel(ctx context.Context, text string, cancellation <-chan struct{}) (PromptResult, error) {
 	if ctx == nil || text == "" || len(text) > 64<<10 || !utf8.ValidString(text) {
 		return PromptResult{}, ErrInvalidPrompt
 	}
 	if err := ctx.Err(); err != nil {
 		return PromptResult{}, err
+	}
+	select {
+	case <-cancellation:
+		return PromptResult{}, context.Canceled
+	default:
 	}
 	if _, err := s.capture(); err != nil {
 		return PromptResult{}, err
@@ -100,22 +114,13 @@ func (s Session) PromptText(ctx context.Context, text string) (PromptResult, err
 	}()
 	op, cancel := context.WithTimeout(ctx, promptTimeout)
 	defer cancel()
-	var reply promptReply
-	select {
-	case reply = <-pending.replies:
-	case <-p.failed:
-		reply = p.promptFailure(pending, p.Err())
-	case <-op.Done():
-		reply = p.promptFailure(pending, op.Err())
-	}
+	reply := s.waitPromptReply(op, pending, cancellation)
 	if reply.result.Evidence == "rpc_terminal" || isRPCRejection(reply.err) {
-		select {
-		case <-pending.writeDone:
-			if p.Err() == nil {
-				return reply.result, reply.err
+		if p.waitPromptWriters(op, pending) && p.Err() == nil {
+			if p.cancelWasAttempted(pending) && reply.result.StopReason != "cancelled" {
+				return p.unconfirmedPromptCancel(reply)
 			}
-		case <-p.failed:
-		case <-op.Done():
+			return reply.result, reply.err
 		}
 	}
 	p.updates.fault("prompt_connection_failed")
@@ -124,7 +129,11 @@ func (s Session) PromptText(ctx context.Context, text string) (PromptResult, err
 	// Preserve that known terminal/rejection separately from failed transport.
 	latest := p.promptFailure(pending, reply.err)
 	if latest.result.Evidence == "rpc_terminal" || isRPCRejection(latest.err) {
-		return latest.result, errors.Join(latest.err, &PromptError{Cause: ErrDisconnected, Process: status})
+		cause := error(ErrDisconnected)
+		if p.cancelWasAttempted(pending) && latest.result.StopReason != "cancelled" {
+			cause = errors.Join(cause, ErrCancelUnconfirmed)
+		}
+		return latest.result, errors.Join(latest.err, &PromptError{Cause: cause, Process: status})
 	}
 	cause := errors.Join(ErrOutcomeUnknown, reply.err)
 	if !status.TreeStopped {
