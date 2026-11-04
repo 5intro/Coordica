@@ -865,3 +865,31 @@
 - 父会话已发布 [draft PR #31](https://github.com/5intro/Coordica/pull/31)，准确 head 为84f01e2b；
   正式 [代码触发](https://github.com/5intro/Coordica/pull/31#issuecomment-6623054874) 与 [安全触发](https://github.com/5intro/Coordica/pull/31#issuecomment-6623056172) 已成功，结论/CI仍 pending。
   本地整合不替代该 PR 的正式双审与准确 head 三平台 CI；线上动作由父会话处理。
+
+## C08 — 原生声明配置与显式选择（2026-11-04 UTC，离线切片）
+
+- 产品输入为受保护 `ab0e2068ee42face7516acfaa6fd559fc7ab0c11`；独立分支 `codex/c08-acp-config-options-20261104`。
+  先以文档合并 `7c6e7f10ca58a5e20c3ce90125725aa8f9160799` 整合已审恢复指导，所有 Go 文件哈希仍等于 ab0、原 refs 不变。
+  当前只补第二协议发送前需要的配置事实与显式选择，不展开 C09 目录、自动选优、Load、认证或 runtime adapter。
+- `Session.ConfigOptions` 返回原私有 Peer/Session/epoch 的有界防御快照；new 的 absent/null 与已知空数组分开。
+  固定 ACP schema 的 select flat/grouped、nullable UX 描述/未知 category 可见；数组≤64KiB、64选项/256选择及单字段有界。
+  重复 ID/值歧义拒绝；category/name 不推断模型、effort、权限或 Task 授权，也不宣称 OS/账号隔离。
+- `SetConfigOption(ctx,id,value)` 仅显式选取当前广告的精确 ID/value；缺失/未知为本片客户端子集的零 RPC 拒绝，
+  不代表原生不支持，也不冒称完整 R6 explicit_unverified 路径。无默认、fallback、自动认证或重试；十秒客户端 cap/更短 caller deadline。
+  与 Prompt 共享单 inflight、递增本地 RPC ID、解析与 writer 回收；不伪造 native Turn ID 或即时工作 ACK。
+- set 回应必须提供非 null 完整 configOptions；精确 ID/currentValue 匹配才报告 native_reported Confirmed。
+  错值/缺目标保实际快照并返回 mismatch，不伪回滚；已知 RPC 拒绝也不证明原配置没有改变。
+  new/set-response/config_option_update 只由 read loop 按接收顺序全量替换并递增本地观察版本；它不是服务端 CAS。
+  回执保自身历史版，晚返回不会覆盖新通知；通知只将 ConfigVersion metadata 入原有 FIFO，不公开选项正文/值或猜 Prompt 归属。
+- 发前取消/Busy/未知选择不写也不杀 Peer；发送后未知关闭并带真实 Process 停止回执，不自动重发。
+  已验证配置回执遇 ctx/EOF/writer 失败仍保留历史观察，连接失败/停止另列；不据本地停止声称远端回滚或 Session 删除。
+  现有 gap/overflow、unsupported callback 与 fs/terminal=false 保持，不自动答复工具或扩大宿主能力。
+- 首个真实 Go JSON-RPC 子进程闭环1项通过；配置专属矩阵46项通过。四包 acpclient/appserver/process/jsoninput
+  普通与竞态各218 Test/subtest pass、退出0，无 fail/skip；源码哈希一致、owned 停止/临时根清理确认。
+  夹具覆盖精确广告/flat-group/null/empty/歧义、深拷贝、双向 Busy/共享 ID、回应前后更新顺序、错值/漏目标、
+  已知拒绝后显式 Prompt、发后取消/畸形/断连与真实 TreeStopped、已收回执保留、容量与 sticky gap。
+  证据 `.cache/c08-config-options-20261104/` 保存命令/env、源码 SHA、原始日志/回执及文档整合证明。
+- Go1.27.2/GOTOOLCHAINlocal/官方已验缓存、GOPROXYoff、三 live/catalog opt-in unset、单并发与8GiB/4GiB/600s guard 保持。
+  仅源码/手写离线 fixture；真实 provider、认证、实际 model/effort/权限仍未验，C08 不标完成。
+  全仓 mcpconfig 中立临时目录环境项仍 blocked，不重探/删 marker/绕守卫；本源码片未 push/建 PR。
+  后续按依赖处理 ACP 整轮 runtime 接线或其它真实必要缺口，本片不自动展开。

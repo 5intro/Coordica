@@ -37,7 +37,9 @@ type Peer struct {
 	sessionReady            bool
 	updates                 *updateCapture
 	prompt                  *pendingPrompt
-	lastPromptID            uint64
+	configuration           ConfigSnapshot
+	configCall              *pendingConfig
+	lastRequestID           uint64 // Shared by Prompt and explicit configuration calls.
 }
 
 func Open(ctx context.Context, config Config) (*Peer, error) {
@@ -146,9 +148,13 @@ func (p *Peer) Close() (process.Result, error) {
 	}
 	p.mu.Lock()
 	prompt := p.prompt
+	configuration := p.configCall
 	p.mu.Unlock()
 	if prompt != nil {
 		<-prompt.writeDone
+	}
+	if configuration != nil {
+		<-configuration.writeDone
 	}
 	return p.result, p.waitErr
 }
