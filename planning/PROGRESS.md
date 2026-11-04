@@ -15,7 +15,7 @@
   这是备份分支，不是 main 合并、产品 PR 或发布；原十三条规划/实现分支与原始 SHA 保持。
 - 独立规划文档分支 `codex/publish-provider-plan-20261104` 基于 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`，
   只更新恢复授权/范围/证据和正式审查条件，已由父会话发布 draft [PR #31](https://github.com/5intro/Coordica/pull/31)。
-  C07 发布分支仅整合e47与规划；本 C02 发布分支再从6249整合该依赖，只新增持久账本，不导入后续 C03–C05/C08。
+  C07 发布分支仅整合e47与规划；C02 发布分支从6249整合该依赖；本 C03 发布分支再从2e整合C02文档，只新增绑定及必要披露修复，不导入C04/C05/C08或native read/resume薄组合。
   下述全局进展不表示本树具备所有实现。历史 local-only/no-PR 与 10% 暂停线已被 Nov4 用户授权覆盖。
 - 新环境当前 HTTP unrestricted/enforced、observations_current=true，VPN 未配置、TCP grants 为空；官方 Go 1.27.2 和已有依赖缓存可复用。
   ab0 在恢复后四包普通/竞态各172项及 vet/build/quality/八项漂移通过；全仓 mcpconfig 中立临时目录前提仍阻断。
@@ -521,6 +521,35 @@
   当前没有 native Session、harness 执行、Wake/dispatch、HTTP/CLI/MCP 路由或生产 Runner 接入。
   本片仅本地保存；完整门禁、正式代码/安全审查和真实 harness 未通过，未 push/创建 PR/合并。
 
+## C03 — 显式会话绑定与 unknown 围栏（2026-11-03 UTC，本地离线切片）
+
+- 输入固定为 C02 `62495534b2921b873c4174c09cef8b0ed0fabd3c`；独立分支
+  `codex/c03-session-binding-20261103`，原 C02/C07 及三个交接 refs 保留，不扩展 C04 事件平台。
+- 新窄接口是 PrepareBinding、显式 Produce、仅账本 ReadBinding、已知闲置自有绑定 Release 和
+  显式 RecoverUnknown。宿主构造 Producer 不改账本或调用 native；Create 输入不含 Task/context 正文，
+  不调用 Turn/start。没有生产 C07 接线、原生 read/resume、忙碌/unknown 资源调解或自动恢复。
+- `session.control` 必须明确授予，旧 run.register 不含原生权限。固定 Run/授权版本、目标/config/context、
+  profile/workspace/protocol/mode 引用；当前授权和 scope 先于 replay，native I/O 在 SQLite 事务外，
+  pending command/owner 先落盘，完成时再验当前权限和 owner/代际。重复/并发调用不会再次 Create。
+  新 Producer 或重开 DB 不接管旧资源；RecoverUnknown 仅推进围栏，迟到结果留在原 command，不推进新 binding。
+- 逻辑 Task/Run/Binding 与 provider native ID 分开保存；观察到 ID 但配置不符、撤权或确认写入失败，
+  保留原 command 的观察和停止回执，控制状态为 unknown，不静默回退或重建。
+  已 pending/bound/unknown 的 Run 不能走旧 C02 本地取消捷径；Release 只有匹配实际 TreeStopped 后
+  才记录 released/session_stopped，保留 Task/context，与 Task 取消分开。
+- 真实 SQLite 和计数 port 验证准备回滚不调用 native、确认事务失败后不重发、并发单写、重启不调用、
+  旧 owner/代际迟到围栏、撤权、配置不符、明确拒绝/发前取消，以及缺停止证明不得释放。
+  自有 fake 协议子进程另验证 Create/Stop 不持 DB 事务和真实进程树停止；这不是原生 transcript 或真实 harness。
+- 只读预审发现明确拒绝后安全清理的 stop proof 仅在内存校验、未持久的问题：新增重开 DB 断言，
+  初次测试调用签名编译错后修正，随后真实 red 复现 CleanupStopped=false/command.Stop 为空。
+  最小修复在确认事务内重验并保存 proof；重开后 unbound/not_started 与持久停止证据一致。
+  修复后的 runtime/store nonrace 与 race 均退出 0，各 37 个测试/子测试 pass、无 fail/skip；监督停止/清理确认。
+- 沿用官方 Go 1.27.2、`GOTOOLCHAIN=local`、已验证缓存和 GOPROXY=off；三个 live/catalog opt-in 删除，
+  GOMAXPROCS=1、-p=1、3m 测试/600s 监督、8GiB 空闲/4GiB 临时门槛不变。
+  分阶段原始命令/源码 hash/日志/回执位于 `.cache/c03-binding-20261103/`，不把局部检查代替完整门禁。
+- 本地源码和离线夹具切片；完整 mcpconfig 中立 Git 临时环境项仍阻断，未削弱 guard 或重试只读目录。
+  正式 GitHub 两审、真实 harness/C01 出口未通过，未 push/创建 PR/合并/部署；中心暂停、派发关闭。
+  下一最小片仍是 C03 的显式原生 read/resume 与 C07 薄接线及固定身份验证，不自动补发工作或扩大 C04。
+
 ## 2026-11-04 — 恢复验证与独立规划同步
 
 - 固定产品 HEAD `ab0e2068ee42face7516acfaa6fd559fc7ab0c11`，parent `eb67ce2d3fb95b89a73e03eefe1f46f2e63b132d`，
@@ -589,6 +618,16 @@
   [PR33](https://github.com/5intro/Coordica/pull/33) 的e4a代码审查明确clear、安全/CI pending；[PR32](https://github.com/5intro/Coordica/pull/32) 的cfg5e39双formalclear，CI仍待核且冻结baseab0不可merge。
   不借这些回执批准本C02，writer不作线上动作；正式准确新head双审/三平台CI、依赖合入及最终版本核验保持。
 
+## C03 — 既有绑定与已知披露修复发布准备（2026-11-04 UTC）
+
+- 源码输入 `2e2107f73519bd85faddd3407bf3a7db22083753`；独立分支 `codex/publish-c03-bindings-20261104`，公开比较输入为C02候选 `95827cdf54d35f347afcd0f287f88fc3f495765e`。
+  先只整合该候选文档，保存全Go逐字节等2e的本地基点；保留所有旧源码、refs和日志所在工作树，不盲reset/rewrite。
+- 两项只读复核确认原2e Produce失败最终出口会保留过期调用方可As取得的私密native/cleanup错误链，cleanup无proof时还能跳过finish复验。
+  选择仅回移6ea的post-quarantine disclosureFence出口及helper；不提取perform，不导入SessionPort/read/resume/runtimecodex/C04/C05/ACP。
+  原生产binding_produce字节/hash先归档；新Create-only回归必须在原2e生产上真实red，再最小green，历史6ea red不作为本候选实跑。
+- 首次准备基点时，PR33精确protected-default merge被自动审批拒绝，父会话向用户请求具体授权、当时结果pending；不得换工具/autoMerge/pushmain绕过或重试。
+  PR34/32依赖hold，writer无线上动作；C03只读准备/本地修复不授外部main合并权，真实harness/凭据迁移/部署/dispatch/timer禁令及C09–12仅准备保持。
+
 ## PR34 — 通用 Run 可选 Model/Effort（2026-11-04 UTC）
 
 - 输入为已发布旧候选 `95827cdf54d35f347afcd0f287f88fc3f495765e`；保留本地备份 `codex/c02-publish-checkpoint-95827-20261104`。
@@ -611,3 +650,32 @@
   PR32依赖hold不因此解除，writer无线上动作。
 - Owner已撤回过程中短暂的high继任偏好，最终指示为当前及后续开发轮次均继续 `gpt-6.1-sol` / `ultra`；
   本轮未作模型切换或重启，不将实施选择转成产品Run默认选项；不care剩余额度与其余无live/凭据迁移/部署/dispatch/timer、C09–12仅准备的边界保持。
+
+## C03 — 继承C02可选配置并修两类披露出口（2026-11-04 UTC）
+
+- 从已保存的docs-only基点 `a255110488df0c6ff07595645192b393f18c6e84` 恢复，先整合C02修复 `462de7eaf59c1893612745ad2d82a0bc3a6cb5ab`。
+  继承的Go差异只有run.go可选校验与optional_target_test.go，其余Go仍为原2e；保存继承基点后才加新Create/Release回归，不覆盖可选修复。
+- Create只携6ea已知post-quarantine披露围栏；Release另按bindingFor(false)的合法清理权限复验，允许目标配置退役后当前同主清理。
+  撤权/移scope/RecoverUnknown旧owner的私密错误链不得从As取回，原command观察/Stop事实保留、unknown/新代次不被迟到回执推进，不重发。
+  两个生产原文件先归档，各自新真实red后最小green；实际owned Go夹具Wait/TreeStopped与逻辑状态分开，不能用历史6ea red冒称新候选实跑。
+- 不引perform抽取、native read/resume薄组合、C04/C05/ACP或C09–12实现。当前及后续仍Sol/ultra；PR33已merged ed6，PR34已推462；父会话已核准确head正式代码/安全审查均无finding，三平台CI仍由父会话跟进。
+  writer只做本地安全开发，不push/approve/merge；fullmcp中立TMP阻断保持、不重探/绕守卫，无live/凭据迁移/部署/发包/赛车/dispatch/timer。
+
+- 继承基点为 `c6402f5ca835f93801416a5107d21a605aee837c`（parents a255+462de7）；Go相对2e仅继承C02的run.go与optional_target_test.go。
+  原binding_produce.go/binding_release.go字节归档后，各自使用新离线测试真实复现：Create red退出1、5 fail/3 pass；Release最终red退出1、7 fail/4 pass。
+  失败均为过期调用方可As取得私密native/cleanup Data，合法拒绝及退役配置清理对照通过。Release初稿仅去除无用context占位，最终red另存且不冒称两稿字节相同。
+- Create在quarantine后独立复验当前原执行授权/配置/owner-generation-command；Release在quarantine后按当前cleanup权限复验，保留同主退役配置和grant版本变更后的合法清理。
+  失效只返回有限安全分类，原生/Stop/持久化私密错误链不可达；仍有权的明确拒绝/自身unknown保留原分类与诊断，原command观察和真实Stop事实仍持久化。
+  本片相对继承基点仅改这两个生产Go文件，新增三份回归/fixture；其它Go保持，未混入后续Read/Resume实现。
+- 同测试字节的专属green共19项通过；runtime/store/domain/process/jsoninput五包普通与race各174 Test/subtest pass、5包退出0、无fail/skip。
+  两轮源码SHA逐文件一致，owned进程停止/临时根删除确认。typed BindingPort故障为provider-neutral离线夹具，不是原生协议录制或真实harness；
+  夹具先证明owned child非nil，再取实际Stop/drain/Wait的TreeStopped。无proof分支只丢弃对上回执，内部物理停止证据单列，不手填停止证明。
+  撤权/移scope/Recover迟到结果检查原command的Observed/Stop、重开SQLite、不重发、新Binding/Run完整不变及audit/idem无private数据。
+  `.cache/c03-disclosure-20261104/` 保存原生产/测试字节、red/green日志、命令/env/源码SHA及停止回执，均为未上传本地证据。
+- 下一C07薄接线只读预审确认一个待实证窗口：Read首次权限围栏之后cleanup.Stop期间撤权/Recover，旧实现可能仍Join私密read/stop链。
+  新blockedStop red尚未运行，C07接线发布前必须另片验证与修复；read命令不占Binding.CommandID，不能机械套Create helper。该路径未导入本C03，不扩大本片生产修补。
+
+- 全仓vet/build、quality（固定公开比较输入462de7、CI=true）退出0；quality有11条数值advisory，须按语义复审，不当成零提示或自动否决。
+  隔离contractgen的8个输出与继承基点c640对应HEAD blobs逐字节一致；新回归不改契约生成输入。
+  本地完整mcp中立TMP前提仍blocked，未重探/重试只读目录/删marker/绕测试；受影响174项不是全仓通过。
+  本片完整发布范围按462de7至最终候选比较，必须重新本地代码/安全复审，并由父会话按实际新head取得正式两审与三平台CI；不继承旧2e/6ea或PR34结论。
