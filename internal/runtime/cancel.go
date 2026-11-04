@@ -32,6 +32,9 @@ func (l *Ledger) CancelRun(ctx context.Context, credential Credential, request C
 			if task.CurrentRunID != run.ID || run.State != "registered" || run.Version <= 0 || run.Version == math.MaxInt64 {
 				return Run{}, "", false, ErrConflict
 			}
+			if !locallyStopped(run) {
+				return Run{}, "", false, ErrStopUnconfirmed
+			}
 			run.State, run.Version = "cancelled", run.Version+1
 			task.CurrentRunID, task.Version = "", task.Version+1
 			if err := tx.Put(kindRun, run.ID, run); err != nil {
@@ -64,6 +67,9 @@ func (l *Ledger) CancelTask(ctx context.Context, credential Credential, request 
 				if run.State != "registered" || run.Version <= 0 || run.Version == math.MaxInt64 {
 					return Task{}, "", false, ErrConflict
 				}
+				if !locallyStopped(run) {
+					return Task{}, "", false, ErrStopUnconfirmed
+				}
 				run.State, run.Version = "cancelled", run.Version+1
 				if err := tx.Put(kindRun, run.ID, run); err != nil {
 					return Task{}, "", false, err
@@ -72,4 +78,8 @@ func (l *Ledger) CancelTask(ctx context.Context, credential Credential, request 
 			task.State, task.Version = "cancelled", task.Version+1
 			return task, task.ID, true, tx.Put(kindTask, task.ID, task)
 		})
+}
+
+func locallyStopped(run Run) bool {
+	return run.NativeDisposition == "not_started" || run.NativeDisposition == "session_stopped"
 }

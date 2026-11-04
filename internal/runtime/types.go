@@ -7,12 +7,13 @@ import "time"
 type Action string
 
 const (
-	Submit       Action = "task.submit"
-	Read         Action = "task.read"
-	WriteContext Action = "task.context"
-	Register     Action = "run.register"
-	Continue     Action = "run.continue"
-	Cancel       Action = "task.cancel"
+	Submit         Action = "task.submit"
+	Read           Action = "task.read"
+	WriteContext   Action = "task.context"
+	Register       Action = "run.register"
+	Continue       Action = "run.continue"
+	Cancel         Action = "task.cancel"
+	SessionControl Action = "session.control"
 )
 
 // Credential is presented by an in-process caller, not inferred from
