@@ -1,16 +1,23 @@
 # Coordica 开发任务规划与云端交接
 
-更新日期：2026-11-02（Asia/Shanghai）。当前工作修订：R2026-11-02.6（仅本地保存）；已合入公开基线仍为 R2026-11-02.5。
+更新日期：2026-11-04（UTC）。工作修订：R2026-11-02.6；本次恢复核查的 main 输入版本为 R2026-11-02.5。
 源码审计基线：`9de987f303e77a624adeb9b3feaceb2bb12c41ce`。
 此前增量审计覆盖 `43f208327372fda8db94babda41e4a7d38a0e8dc` 的相关路径，范围见 [C01 复核](planning/C01_REVIEW.md)。
-#29/#30 已合并；本轮文档工作区从 main `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58` 建立，
-仅核对本轮相关入口与规划，不代表完整重审最新源码，也不表示产品功能已完成。
+#29/#30 已合并；截至本次 2026-11-04 恢复核查，main 输入为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`。
+独立规划 PR #31 的文档基于规划提交 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`；本源码分支另保留并整合后续产品实现。
+该规划 PR 的 Nov4 增量更新 CLOUD_EXECUTION/ROADMAP/PROGRESS，并限定 DESIGN/VALIDATION/REQUIREMENTS 三页的历史基线表述，共六份文档；
+该规划 PR 相对 main 输入包含既有 R.6 十文档及这六文件的追加，总范围仍为十份文档；合入状态和后续 main 版本以实际 PR/merge 记录为准。
+源码/离线夹具检查点已由父会话保留原哈希同步到 [GitHub 备份分支](https://github.com/5intro/Coordica/tree/codex/cloud-checkpoint-20261104)，
+固定 [ab0e2068](https://github.com/5intro/Coordica/commit/ab0e2068ee42face7516acfaa6fd559fc7ab0c11)；这不是 main 合并、产品发布或真实 harness 完成证明。
 
 **方向已确认；Owner 已追加本批 C01–C08 云端实现与离线回归授权。**
 范围与自测/PR/审查/合并闭环见 [云端批次](planning/CLOUD_EXECUTION.md)；C09–C12 先准备，未授权跨阶段自动实施。
 真实 harness 消费、部署与业务运行不随云端开发启动；C07/C08 未实测保持待验证。
 旧 Phase A/B 授权不能自动扩展到本规划；任务进入“实施中”前仍核对本批准确范围和依赖。
 这不阻止阅读、规划维护和准备评审材料。当前运行项目的暂停和自动派发设置不因文档变化而改变。
+2026-11-04 最新授权覆盖旧额度 10% 暂停线和临时 local-only/no-PR 限制；受影响检查与质量通过可建小范围 draft。
+合并仍要求准确最新 head 三平台完整 CI、代码/安全两项正式明确结论和最终版本核验；详见 [云端闭环](planning/CLOUD_EXECUTION.md#每个-pr-的闭环)。
+状态行包含另分支已保存的局部实现，不表示其源码已进入本规划工作树、main 或已取得真实实例/认证验证。
 
 ## 文档地图与优先级
 
