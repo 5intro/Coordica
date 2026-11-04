@@ -1,30 +1,32 @@
 # 实施记录与决策日志
 
-工作修订：R2026-11-02.6；本次恢复核查的 main 输入版本为 R2026-11-02.5。主表：[ROADMAP](../ROADMAP.md)。
+工作修订：R2026-11-02.6；当前已核 main 为 `c30d4e03e11aa4dbe8f680c7cbc014eda0fa0978`，初次恢复输入为历史。主表：[ROADMAP](../ROADMAP.md)。
 仅记录已发生的工作和明确决策；不要将实施建议写成已授权事实。
 
 ## 当前状态快照（2026-11-04 UTC）
 
-- 规划 [#29](https://github.com/5intro/Coordica/pull/29) 与 C01 文档 [#30](https://github.com/5intro/Coordica/pull/30) 已合并，
-  截至本次恢复核查，远端 main 输入为 `efa1ec1f8191b5fd4530cde6678d5b2e05fc4b58`；历史合并/审查证据见后文记录。
-  旧批次中“open / denied / 待授权”均为当时事实，不再代表这两个 PR 的现状。
-- C01 的实例认证/真实调用仍待验证；C02–C05、C07、C08 有另分支局部离线实现，C06 仍规划中。
-  source、手写 fixture、局部回归、本地 review 与真实验收分开，不据此标主任务完成。
+- 规划 [#29](https://github.com/5intro/Coordica/pull/29) 与C01文档 [#30](https://github.com/5intro/Coordica/pull/30) 已合并；父会话已核PR31及PR33–38分片合入当前mainc30。
+  初次恢复输入efa及旧批次“open / denied / 待授权”为当时事实，不是当前main或发布状态。
+- C01实例认证/真实调用仍待验证；main已含C02/C03/C07 core、C04存储与C08已声明选项子集，完整阶段验收未过，C05另分支、C06仍规划中。
+  source、手写fixture、局部回归、本地review、正式门禁与真实验收分开，不据此标主任务完成。
 - 产品检查点固定 [ab0e2068ee42face7516acfaa6fd559fc7ab0c11](https://github.com/5intro/Coordica/commit/ab0e2068ee42face7516acfaa6fd559fc7ab0c11)，
   父会话已用标准非 force push 同步到 [codex/cloud-checkpoint-20261104](https://github.com/5intro/Coordica/tree/codex/cloud-checkpoint-20261104)，并用官方 API 核准原哈希。
   这是备份分支，不是 main 合并、产品 PR 或发布；原十三条规划/实现分支与原始 SHA 保持。
-- 独立规划文档分支 `codex/publish-provider-plan-20261104` 基于 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`，
-  只更新恢复授权/范围/证据和正式审查条件，已由父会话发布 draft [PR #31](https://github.com/5intro/Coordica/pull/31)。
-  C07 发布分支仅整合e47与规划；C02 发布分支从6249整合该依赖；本 C03 发布分支再从2e整合C02文档，只新增绑定及必要披露修复，不导入C04/C05/C08或native read/resume薄组合。
-  下述全局进展不表示本树具备所有实现。历史 local-only/no-PR 与 10% 暂停线已被 Nov4 用户授权覆盖。
+- 父会话实时官方metadata已核 [PR31](https://github.com/5intro/Coordica/pull/31) 于05:43:53 UTC合并：head `84f01e2b46b1422a9eda8a3c7b8b497fd1325611`，merge `28e31b2dec29e2e37fffd993f98c0745fc3c496d`；
+  [PR33](https://github.com/5intro/Coordica/pull/33) 于07:07:33 UTC合并：head `e4a64a829aa0cd34acbde72c99e8afe5fd892ac0`，merge `ed6e96f80c649468751ad62dce19c62700e27cb2`。
+  旧draft发布记录属于这条历史发布链，不是当前独立文档分支的状态。
+- 当前 `codex/progress-status-20261104` 只维护ROADMAP/PROGRESS，其它tracked对象精确mainc30；本片正式落main仍需独立docs PR的新head完整CI及正式双审。
+  历史 local-only/no-PR 与10%暂停线已被Nov4用户授权覆盖，真实harness/部署/派发/定时仍未授权。
 - 新环境当前 HTTP unrestricted/enforced、observations_current=true，VPN 未配置、TCP grants 为空；官方 Go 1.27.2 和已有依赖缓存可复用。
   ab0 在恢复后四包普通/竞态各172项及 vet/build/quality/八项漂移通过；全仓 mcpconfig 中立临时目录前提仍阻断。
   已知 `/tmp/.git`、`/workspace/.git` 标记仍在；只读复核，不删除、不重试只读目录、不绕守卫或改变网络/凭据。
 - 当前允许受影响检查与质量通过后创建小范围 draft；最新 head 三平台 CI 和代码/安全正式明确结论仍是合并前提。
   本地明确 review 不等于 GitHub 正式两审，checkpoint 不等于 PR，真实 harness/部署/派发/定时仍未授权。
 
-- 最新发布状态按父会话本次快照：PR34/36/35/37/38均已合并，mainc30整树精确efa6；PR38准确efa6六CI在attempt1全部success、正式双clear后于11:29:01 UTC合入，源分支保留。C08仍只partial offline与已声明选项子集，旧0a或历史pending结论不替代新head门禁；细节见末尾记录。
+- 最新发布状态按父会话本次快照：PR31及PR33–38均已合并，mainc30整树精确efa6；PR38准确efa6六CI在attempt1全部success、正式双clear后于11:29:01 UTC合入，源分支保留。C08仍只partial offline与已声明选项子集，旧0a或历史pending结论不替代新head门禁；细节见末尾记录。
 - 本合并协调会话继续遵守 `gpt-6.1-sol` / `ultra`，未作模型配置变更；C04 runtime事件接收/游标由另一独立会话独占。本片只维护ROADMAP/PROGRESS，不以施工声明作为源码测试或平台模型实测证明。
+- 父会话告知C04事件 [PR39](https://github.com/5intro/Coordica/pull/39) 有未解决P1，相关被拦截核查继续停止；未验收、不据声明完成。本线程不读取、诊断或重试相关源码/测试/日志/审查细节。
+- ACP cancel独立切片由另一会话独占，仅为任务分工声明；本线程不改其文件、不宣称已实现或实测。
 
 以下批次按发生时的输入和结论保留；涉及当前状态，以此快照及最新追加证据为准。
 
