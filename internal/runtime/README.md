@@ -30,6 +30,11 @@ The initial API is:
 - `RegisterRun` / `ReadRun`: explicitly pin instance/config version, node,
   harness, model, effort, opaque workspace reference, current context and grant
   version. State is `registered`, native disposition `not_started`.
+  Model and effort are independently optional: empty means unspecified. Supplied
+  nonempty values remain exact, bounded identifiers; no default is selected or
+  inferred. Required target identity/scope/config checks remain in force. A
+  specific native adapter can still reject a missing selection before execution;
+  registration does not prove the target is executable or configured effectively.
 - `RecordContinuation` / `ReadInput`: record at most 64 KiB for an exact
   Run/generation/context version. `recorded` is not queued, delivered or consumed.
 - `CancelRun` / `CancelTask`: cancel unstarted local records. No native stop,

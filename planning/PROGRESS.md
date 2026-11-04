@@ -588,3 +588,26 @@
 - 父会话本次提供的线上快照：规划PR31已按准确84f合并到main28e31b2，规则/内容树等于原84f；
   [PR33](https://github.com/5intro/Coordica/pull/33) 的e4a代码审查明确clear、安全/CI pending；[PR32](https://github.com/5intro/Coordica/pull/32) 的cfg5e39双formalclear，CI仍待核且冻结baseab0不可merge。
   不借这些回执批准本C02，writer不作线上动作；正式准确新head双审/三平台CI、依赖合入及最终版本核验保持。
+
+## PR34 — 通用 Run 可选 Model/Effort（2026-11-04 UTC）
+
+- 输入为已发布旧候选 `95827cdf54d35f347afcd0f287f88fc3f495765e`；保留本地备份 `codex/c02-publish-checkpoint-95827-20261104`。
+  原生产 run.go 字节/hash先归档；旧82普通/race、CI/两审结论不覆盖本次修复的新head。
+- 父会话与两只读预审确认 generic validTarget 强制 Model/Effort 非空会拒绝合法 native-harness 选择。
+  最小修复仅让二者各自 empty-or-valid-identifier（非空仍≤128字节、UTF-8、无空白/控制）；
+  空表示未指定，指定值原样进入 Run 快照与幂等 digest，不补默认、不选优、不fallback、不改变实例/node/harness/version/workspace必填或当前授权/CAS。
+  registered/not_started 不证明可执行；具体原生适配器仍可拒绝缺少其必需配置，C07 model校验与PR32 native-reported范围均未放宽。
+- 新真实SQLite回归先在原95827生产上red：5 fail事件/15 pass、退出1，三种省略组合先被ErrInvalid拒绝（含父4fail），
+  另一个scope对照同样在授权前被语法校验挡住（1fail，不是权限绕过）；非法非空/必填字段反例及完整显式对照通过。
+  最小两行生产条件修复后，同一测试字节的20项专属回归通过；停止/临时根清理确认，无真实harness。
+  新四包 runtime/store/domain/jsoninput 普通/race各102 Test/subtest pass、4包退出0、无fail/skip，源码哈希一致与停止/清理确认。
+  全vet/build、quality（固定e4a、CI=true）退出0，8个隔离contract与95827对应HEAD blobs逐字节一致；不借旧head通过，也不把局部结果当全仓mcp门禁通过。
+  证据 `.cache/c02-optional-options-20261104/` 含原run.go、red测试原字节、命令/env/源码SHA及raw回执；均为未上传本地文件。
+- C03本地docs-only基点 `a255110488df0c6ff07595645192b393f18c6e84` 已暂停，581Go保持2e，尚无新Create/Release红测或生产修复；
+  已知Create与Release私密错误披露均必须修复后才可发布，恢复时也须携本C02修复，不能重引强制选择。
+  PR33 protected-default精确merge首次被自动审批拒绝；父会话取得补充可信用户原文授权后，只对同工具/同动作/expected e4a 重试一次成功。
+  PR33现已closed/merged，实际main为 `ed6e96f80c649468751ad62dce19c62700e27cb2`（parents28+e4a），tree `bc0df16f33c93ac1fc1733d581e627add55f16be` 与e4a完全相同；没有自approve或绕过。
+  本C02修复改用该实际main比较，父会话已将原PR34 retarget main，操作时head仍为95827/draft true；新修复head须重做CI/正式两审，旧95827含已知finding不能合并。
+  PR32依赖hold不因此解除，writer无线上动作。
+- Owner已撤回过程中短暂的high继任偏好，最终指示为当前及后续开发轮次均继续 `gpt-6.1-sol` / `ultra`；
+  本轮未作模型切换或重启，不将实施选择转成产品Run默认选项；不care剩余额度与其余无live/凭据迁移/部署/dispatch/timer、C09–12仅准备的边界保持。
