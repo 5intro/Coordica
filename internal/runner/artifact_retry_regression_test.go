@@ -28,6 +28,14 @@ func TestArtifactTransientUploadKeepsVerifiedResult(t *testing.T) {
 			var completion domain.CompleteRequest
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				switch {
+				case req.Method == http.MethodPost && req.URL.Path == "/api/v1/runs/run_test/heartbeat":
+					var heartbeat domain.HeartbeatRequest
+					if err := json.NewDecoder(req.Body).Decode(&heartbeat); err != nil || heartbeat.Generation != 7 {
+						t.Errorf("invalid artifact fixture heartbeat: %+v, %v", heartbeat, err)
+						w.WriteHeader(http.StatusConflict)
+						return
+					}
+					respond(w, domain.HeartbeatResponse{LeaseUntil: time.Now().Add(time.Minute)})
 				case strings.HasSuffix(req.URL.Path, "input.bundle"):
 					http.ServeFile(w, req, input)
 				case strings.HasSuffix(req.URL.Path, "artifacts"):
@@ -65,6 +73,19 @@ func TestArtifactTransientUploadKeepsVerifiedResult(t *testing.T) {
 				}
 			}))
 			defer server.Close()
+			// Exercise the real permission heartbeat without depending on slow Git
+			// preparation reaching its ten-second interval on the current host.
+			client := testRunner(t, server)
+			var heartbeat domain.HeartbeatResponse
+			clock, err := client.json(t.Context(), "POST", "/api/v1/runs/run_test/heartbeat", "",
+				domain.HeartbeatRequest{Generation: 7, ElapsedSeconds: 11}, &heartbeat)
+			if err != nil || heartbeat.Cancel || !heartbeat.LeaseUntil.After(clock.Received) {
+				t.Fatalf("artifact recovery fixture rejected a valid heartbeat: %+v, %v", heartbeat, err)
+			}
+			if attempts != 0 || material != nil || completion.Status != "" || completion.Quiescent ||
+				completion.Head != "" || completion.ArtifactID != "" {
+				t.Fatal("heartbeat changed artifact or completion evidence")
+			}
 			executions = performArtifactRecovery(t, server, base)
 			if completion.Status != "succeeded" || attempts != 2 || executions != 1 || completion.ArtifactID == "" || completion.Head == "" {
 				t.Fatalf("verified result not delivered: uploads=%d executions=%d completion=%+v", attempts, executions, completion)
