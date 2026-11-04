@@ -13,7 +13,8 @@ import (
 )
 
 const promptTimeout = 5 * time.Minute // Client operation cap, not an ACP/Task limit.
-var ErrPromptBusy = errors.New("ACP Session already has an in-flight prompt")
+var ErrSessionBusy = errors.New("ACP Session already has an in-flight prompt or configuration call")
+var ErrPromptBusy = ErrSessionBusy // Retained for existing Prompt callers.
 var ErrInvalidPrompt = errors.New("invalid ACP explicit text prompt")
 
 // PromptResult is a correlated native terminal claim, never output text, a
@@ -63,15 +64,15 @@ func (s Session) PromptText(ctx context.Context, text string) (PromptResult, err
 		p.mu.Unlock()
 		return PromptResult{}, ErrDisconnected
 	}
-	if p.prompt != nil {
+	if p.prompt != nil || p.configCall != nil {
 		p.mu.Unlock()
 		return PromptResult{}, ErrPromptBusy
 	}
-	id := p.lastPromptID + 1
+	id := p.lastRequestID + 1
 	if id < 3 {
 		id = 3
 	}
-	if p.lastPromptID >= math.MaxInt64 {
+	if p.lastRequestID >= math.MaxInt64 {
 		p.mu.Unlock()
 		return PromptResult{}, ErrProtocol
 	}
@@ -81,7 +82,7 @@ func (s Session) PromptText(ctx context.Context, text string) (PromptResult, err
 		return PromptResult{}, ErrInvalidPrompt
 	}
 	pending := &pendingPrompt{id: id, replies: make(chan promptReply, 1), writeDone: make(chan struct{})}
-	p.prompt, p.lastPromptID = pending, id
+	p.prompt, p.lastRequestID = pending, id
 	p.mu.Unlock()
 	defer func() {
 		p.mu.Lock()
