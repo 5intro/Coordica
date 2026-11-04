@@ -15,7 +15,8 @@
   这是备份分支，不是 main 合并、产品 PR 或发布；原十三条规划/实现分支与原始 SHA 保持。
 - 独立规划文档分支 `codex/publish-provider-plan-20261104` 基于 `1189e104b02c8fde0adaa94a2c0ce4c4a2bb1e23`，
   只更新恢复授权/范围/证据和正式审查条件，已由父会话发布 draft [PR #31](https://github.com/5intro/Coordica/pull/31)。
-  本 C07 发布分支仅从 e47 整合其文档，不导入后续 runtime/C08 代码；下述全局进展不表示本树具备那些实现。历史 local-only/no-PR 与 10% 暂停线已被 Nov4 用户授权覆盖。
+  C07 发布分支仅整合e47与规划；本 C02 发布分支再从6249整合该依赖，只新增持久账本，不导入后续 C03–C05/C08。
+  下述全局进展不表示本树具备所有实现。历史 local-only/no-PR 与 10% 暂停线已被 Nov4 用户授权覆盖。
 - 新环境当前 HTTP unrestricted/enforced、observations_current=true，VPN 未配置、TCP grants 为空；官方 Go 1.27.2 和已有依赖缓存可复用。
   ab0 在恢复后四包普通/竞态各172项及 vet/build/quality/八项漂移通过；全仓 mcpconfig 中立临时目录前提仍阻断。
   已知 `/tmp/.git`、`/workspace/.git` 标记仍在；只读复核，不删除、不重试只读目录、不绕守卫或改变网络/凭据。
@@ -492,6 +493,34 @@
   本片仅本地保存，未 push 或创建 PR；当前候选的适用门禁、完整门禁和独立代码/安全审查未完成，不能据此发布或合并。
   正式中心继续暂停，自动派发关闭；未部署、发包、启动赛车实验或创建定时任务。
 
+## C02 — 最小持久任务账本（2026-11-03 UTC，本地离线切片）
+
+- 输入固定为 C07 修复 `e47c435a1fe21be30f5bfed11b1c728fccfbb29b`；独立分支
+  `codex/c02-task-ledger-20261103`，不重写旧 C07，不提前实现 C03/C04 平台。
+- 新 `internal/runtime` 提供 experimental in-process Ledger：Task 提交/读取、完整上下文快照更新、
+  显式 Run 登记/读取、固定 Run/代际的 continuation 记录，以及本地取消和输入读取。
+  Task 只固定 App；每个 Run 单独保存 instance/config、node、harness、model、effort、授权版本和不可变 ContextID。
+  `registered/not_started`、`recorded` 都不是原生启动、送达或消费；取消不伪造原生停止证明。
+- Manager 仅是可信宿主已持 Store 的配置能力，不暴露给旧 Owner/node/chat 或应用路由。
+  管理主体显式登记 App/actions/instance-node scopes；Ledger 校验当前持久 token hash/权限及 ownership，
+  不把调用方填写的 Principal 或 Scope 当认证。App/instance/node/harness 归属不能覆盖换绑。
+- 复用现有 SQLite records 主键与事务，不改 schema 或旧开发 Task/Run。
+  独立 `runtime.*` kinds 不进入旧调度器；当前权限和目标 scope 先于 Replay，首次写入才做 CAS/状态检查。
+  source 以 app/source/event/task 确定性复合 ID 去重，异内容/目标冲突，显式多 Task 扇出保留。
+  精确历史回执不重复写状态或审计，不授予将来执行权限；状态、输入、audit/outbox 通知与回执同事务。
+- 真实 SQLite 主链路 Submit→RegisterRun→关闭/重开→ReadTask/ReadRun 首次通过（包 0.018s）。
+  初轮 nonrace 的 runtime/store 共 23 个测试/子测试 pass；补充跨重启取消/回执及 Run 回滚检查后，
+  同两包 race 再通过：runtime 2.013s、store 4.760s，23 pass、无 fail/skip。
+  覆盖撤权后缓存拒绝、跨 App/目标、配置版本、来源幂等及扇出、不可变旧快照、旧 Run/代际拒绝、
+  CAS 唯一胜者与最后 Remember 失败下六种 mutation 的完整回滚。所有监督回执确认停止/清理，无残留。
+- 验证沿用官方 Go 1.27.2/`GOTOOLCHAIN=local` 和已验证缓存，三个 live/catalog opt-in 从子环境删除；
+  `GOPROXY=off`、`GOMAXPROCS=1`、`-p=1 -count=1 -timeout=3m`，监督 600s、8GiB 空闲/4GiB 临时上限。
+  本片不依赖 Git 发现；本地证据在 `.cache/c02-ledger-v9pki8jx/`，测试命令、源码快照、日志和回执分阶段保存。
+- 下一最小依赖是消费此账本的显式会话/Run 控制端口：再按实际需要落实 C03 绑定/单写/重启 unknown 围栏，
+  C04 事务事件/效果仍留在其原任务，不将旧 outbox 通知当可靠执行效果。
+  当前没有 native Session、harness 执行、Wake/dispatch、HTTP/CLI/MCP 路由或生产 Runner 接入。
+  本片仅本地保存；完整门禁、正式代码/安全审查和真实 harness 未通过，未 push/创建 PR/合并。
+
 ## 2026-11-04 — 恢复验证与独立规划同步
 
 - 固定产品 HEAD `ab0e2068ee42face7516acfaa6fd559fc7ab0c11`，parent `eb67ce2d3fb95b89a73e03eefe1f46f2e63b132d`，
@@ -543,3 +572,42 @@
   旧低10%/临时localNoPR限制已被Nov4授权覆盖；同Sol/Ultra、不live/凭据迁移/部署/dispatch/timer及准确head正式两审/三平台CI要求保持。
 - 父会话已推送配置片 `5e39f779df85b819857d2b672f6f98daab8214d5` 并创建另一个 stacked [draft PR #32](https://github.com/5intro/Coordica/pull/32)，base为冻结ab0；
   正式code/security触发已成功且本记录时 running/pending，不借该候选的回执批准本C07 core。配置分支/规划84f与全部原始refs仍受保护，本writer未作线上动作。
+
+## C02 — 既有账本独立发布准备（2026-11-04 UTC）
+
+- 源码固定 `62495534b2921b873c4174c09cef8b0ed0fabd3c`；独立工作树/分支 `codex/publish-c02-ledger-20261104`。
+  整合已发布 C07 候选 `e4a64a829aa0cd34acbde72c99e8afe5fd892ac0` 的文档，全部 Go 文件保持原6249，保留所有旧历史、日志所在工作树与refs。
+  本公开增量仅11个 runtime Go文件及README：Task/context/input、显式Run登记/读取、本地未启动记录取消、host-only Manager及当前持久授权/幂等/CAS/事务回滚。
+  C07 core作为既有依赖保留；不导入C03绑定/C04事件/C05工作/C08 ACP，构造Ledger不启动harness/worker/dispatch或服务，旧transport路由不改。
+- 固定公开比较输入为e4a；PR33依赖尚在正式安全审查/CI时可准备stacked draft，合入与否及实际main由父会话精确复核。
+  本地复审覆盖该输入至候选的完整源码/README/发布docs差异，不只审此次文档合并；本树registered/not_started/recorded不冒称原生执行或TreeStopped。
+  runtime/store/domain/jsoninput 普通与race均82 Test/subtest pass、4包退出0，无fail/skip；真实本地SQLite覆盖重开、撤权、scope、CAS、幂等和末段回滚。
+  两轮Go哈希不变、owned停止/临时根删除确认；全vet/build、quality（固定发布输入e4a、CI=true）退出0，隔离生成8个contract与精确6249 HEAD blobs逐字节一致。
+  `.cache/publish-c02-20261104/` 保留命令/env、源码哈希、原始日志、门禁与refs回执，均是未上传本地文件，不借原检查点测试或其它PR结果。
+  全仓mcp中立TMP环境项仍blocked，不重探/删marker/绕守卫，无真实harness/凭据迁移/部署/派发/timer；这些受影响检查不是全仓通过。
+- 父会话本次提供的线上快照：规划PR31已按准确84f合并到main28e31b2，规则/内容树等于原84f；
+  [PR33](https://github.com/5intro/Coordica/pull/33) 的e4a代码审查明确clear、安全/CI pending；[PR32](https://github.com/5intro/Coordica/pull/32) 的cfg5e39双formalclear，CI仍待核且冻结baseab0不可merge。
+  不借这些回执批准本C02，writer不作线上动作；正式准确新head双审/三平台CI、依赖合入及最终版本核验保持。
+
+## PR34 — 通用 Run 可选 Model/Effort（2026-11-04 UTC）
+
+- 输入为已发布旧候选 `95827cdf54d35f347afcd0f287f88fc3f495765e`；保留本地备份 `codex/c02-publish-checkpoint-95827-20261104`。
+  原生产 run.go 字节/hash先归档；旧82普通/race、CI/两审结论不覆盖本次修复的新head。
+- 父会话与两只读预审确认 generic validTarget 强制 Model/Effort 非空会拒绝合法 native-harness 选择。
+  最小修复仅让二者各自 empty-or-valid-identifier（非空仍≤128字节、UTF-8、无空白/控制）；
+  空表示未指定，指定值原样进入 Run 快照与幂等 digest，不补默认、不选优、不fallback、不改变实例/node/harness/version/workspace必填或当前授权/CAS。
+  registered/not_started 不证明可执行；具体原生适配器仍可拒绝缺少其必需配置，C07 model校验与PR32 native-reported范围均未放宽。
+- 新真实SQLite回归先在原95827生产上red：5 fail事件/15 pass、退出1，三种省略组合先被ErrInvalid拒绝（含父4fail），
+  另一个scope对照同样在授权前被语法校验挡住（1fail，不是权限绕过）；非法非空/必填字段反例及完整显式对照通过。
+  最小两行生产条件修复后，同一测试字节的20项专属回归通过；停止/临时根清理确认，无真实harness。
+  新四包 runtime/store/domain/jsoninput 普通/race各102 Test/subtest pass、4包退出0、无fail/skip，源码哈希一致与停止/清理确认。
+  全vet/build、quality（固定e4a、CI=true）退出0，8个隔离contract与95827对应HEAD blobs逐字节一致；不借旧head通过，也不把局部结果当全仓mcp门禁通过。
+  证据 `.cache/c02-optional-options-20261104/` 含原run.go、red测试原字节、命令/env/源码SHA及raw回执；均为未上传本地文件。
+- C03本地docs-only基点 `a255110488df0c6ff07595645192b393f18c6e84` 已暂停，581Go保持2e，尚无新Create/Release红测或生产修复；
+  已知Create与Release私密错误披露均必须修复后才可发布，恢复时也须携本C02修复，不能重引强制选择。
+  PR33 protected-default精确merge首次被自动审批拒绝；父会话取得补充可信用户原文授权后，只对同工具/同动作/expected e4a 重试一次成功。
+  PR33现已closed/merged，实际main为 `ed6e96f80c649468751ad62dce19c62700e27cb2`（parents28+e4a），tree `bc0df16f33c93ac1fc1733d581e627add55f16be` 与e4a完全相同；没有自approve或绕过。
+  本C02修复改用该实际main比较，父会话已将原PR34 retarget main，操作时head仍为95827/draft true；新修复head须重做CI/正式两审，旧95827含已知finding不能合并。
+  PR32依赖hold不因此解除，writer无线上动作。
+- Owner已撤回过程中短暂的high继任偏好，最终指示为当前及后续开发轮次均继续 `gpt-6.1-sol` / `ultra`；
+  本轮未作模型切换或重启，不将实施选择转成产品Run默认选项；不care剩余额度与其余无live/凭据迁移/部署/dispatch/timer、C09–12仅准备的边界保持。
