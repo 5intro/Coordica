@@ -43,6 +43,13 @@ func (p *Peer) receive(raw []byte) error {
 		if decode(fields, "jsonrpc", &version, true) != nil || version != "2.0" {
 			return ErrProtocol
 		}
+		var method string
+		if decode(fields, "method", &method, true) != nil {
+			return ErrProtocol
+		}
+		if method == "session/request_permission" {
+			return p.receivePermission(fields)
+		}
 		return p.receiveUpdate(fields)
 	}
 	for name := range fields {
