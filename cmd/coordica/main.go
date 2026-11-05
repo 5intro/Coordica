@@ -398,7 +398,9 @@ func ctl(ctx context.Context, args []string) error {
 	if e != nil {
 		return e
 	}
-	var input any = map[string]any{}
+	// Preserve duplicate fields and exact numbers for the same HTTP validation
+	// as a direct request; decoding into any would silently rewrite both.
+	input := json.RawMessage(`{}`)
 	if *body != "" {
 		var b []byte
 		if *body == "-" {
