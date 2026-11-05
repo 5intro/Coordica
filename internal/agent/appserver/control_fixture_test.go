@@ -3,6 +3,7 @@ package appserver
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // This is a hand-written, schema-informed child-process fixture, not a captured
@@ -15,6 +16,8 @@ type controlFixture struct {
 	fallback                bool
 	callbacks               int
 	replies                 []envelope
+	readsWithTurns          int
+	readsWithoutTurns       int
 }
 
 func (f *controlFixture) handle(frame envelope, reply func(any), notify func(string, any), fail func(int)) {
@@ -30,6 +33,7 @@ func (f *controlFixture) handle(frame envelope, reply func(any), notify func(str
 		Fallback       *bool                         `json:"allowProviderModelFallback"`
 		Input          []struct{ Type, Text string } `json:"input"`
 		RequestID      json.RawMessage               `json:"requestId"`
+		IncludeTurns   *bool                         `json:"includeTurns"`
 	}
 	if json.Unmarshal(frame.Params, &params) != nil {
 		fail(-32602)
@@ -38,7 +42,9 @@ func (f *controlFixture) handle(frame envelope, reply func(any), notify func(str
 	id := fmt.Sprintf("turn-%d", f.turns)
 	switch frame.Method {
 	case "thread/start", "thread/resume":
-		if params.Model != "fixture-model" || params.ApprovalPolicy != "on-request" || params.Sandbox != "read-only" || params.Directory == "" {
+		sandboxTypes := map[string]string{"read-only": "readOnly", "workspace-write": "workspaceWrite", "danger-full-access": "dangerFullAccess"}
+		approvalOK := params.ApprovalPolicy == "untrusted" || params.ApprovalPolicy == "on-request" || params.ApprovalPolicy == "never"
+		if params.Model != "fixture-model" || !approvalOK || sandboxTypes[params.Sandbox] == "" || params.Directory == "" || params.Input != nil {
 			fail(-32602)
 			return
 		}
@@ -56,14 +62,18 @@ func (f *controlFixture) handle(frame envelope, reply func(any), notify func(str
 			f.resumes++
 		}
 		f.directory = params.Directory
-		config := map[string]any{"thread": map[string]any{"id": "native-thread", "turns": []any{}},
+		config := map[string]any{"thread": fixtureNativeThread(params.Directory),
 			"model": params.Model, "modelProvider": "fixture", "cwd": params.Directory,
-			"approvalPolicy": params.ApprovalPolicy, "approvalsReviewer": "user", "sandbox": map[string]string{"type": "readOnly"}}
+			"approvalPolicy": params.ApprovalPolicy, "approvalsReviewer": "user", "sandbox": map[string]string{"type": sandboxTypes[params.Sandbox]}}
 		switch f.scenario {
 		case "typed-model-mismatch":
 			config["model"] = "another-model"
 		case "typed-directory-mismatch":
 			config["cwd"] = params.Directory + "/different"
+		case "typed-approval-mismatch":
+			config["approvalPolicy"] = "never"
+		case "typed-sandbox-mismatch":
+			config["sandbox"] = map[string]string{"type": "dangerFullAccess"}
 		case "typed-missing-config":
 			delete(config, "approvalPolicy")
 		case "typed-wrong-resume-id":
@@ -71,11 +81,16 @@ func (f *controlFixture) handle(frame envelope, reply func(any), notify func(str
 		}
 		reply(config)
 	case "thread/read":
-		if params.ThreadID != "native-thread" {
+		if params.ThreadID != "native-thread" || params.IncludeTurns == nil || params.Input != nil {
 			fail(-32001)
 			return
 		}
-		reply(map[string]any{"thread": map[string]any{"id": "native-thread", "turns": []any{}}})
+		if *params.IncludeTurns {
+			f.readsWithTurns++
+		} else {
+			f.readsWithoutTurns++
+		}
+		reply(map[string]any{"thread": fixtureNativeThread(f.directory)})
 	case "turn/start":
 		if params.ThreadID != "native-thread" || f.starts+f.resumes == 0 || f.active || len(params.Input) != 1 || params.Input[0].Type != "text" {
 			fail(-32001)
@@ -84,7 +99,12 @@ func (f *controlFixture) handle(frame envelope, reply func(any), notify func(str
 		f.turns++
 		f.active, f.text, f.effort = true, params.Input[0].Text, params.Effort
 		id = fmt.Sprintf("turn-%d", f.turns)
-		turn := map[string]any{"id": id, "status": "inProgress", "items": []any{}}
+		status := "inProgress"
+		if strings.HasPrefix(f.scenario, "typed-status:") {
+			status = strings.TrimPrefix(f.scenario, "typed-status:")
+			f.active = status == "inProgress"
+		}
+		turn := fixtureNativeTurn(id, status)
 		if f.scenario == "typed-bad-turn" {
 			delete(turn, "items")
 		}
@@ -114,7 +134,7 @@ func (f *controlFixture) handle(frame envelope, reply func(any), notify func(str
 			status = "interrupted"
 		}
 		notify("turn/completed", map[string]any{"threadId": "native-thread",
-			"turn": map[string]any{"id": id, "status": status, "items": []any{}}})
+			"turn": fixtureNativeTurn(id, status)})
 		reply(map[string]any{})
 	case "fixture/requests", "fixture/malformed-question":
 		f.callbacks++
@@ -157,8 +177,25 @@ func (f *controlFixture) handle(frame envelope, reply func(any), notify func(str
 			last = f.replies[len(f.replies)-1].Result
 		}
 		reply(map[string]any{"starts": f.starts, "resumes": f.resumes, "turns": f.turns, "active": f.active,
-			"cwd": f.directory, "effort": f.effort, "text": f.text, "fallback": f.fallback, "replies": len(f.replies), "lastResult": last})
+			"cwd": f.directory, "effort": f.effort, "text": f.text, "fallback": f.fallback, "replies": len(f.replies), "lastResult": last,
+			"readsWithTurns": f.readsWithTurns, "readsWithoutTurns": f.readsWithoutTurns})
 	default:
 		fail(-32601)
 	}
+}
+
+// Required fields and nullable values follow the pinned 0.163.0 schemas linked
+// in README.md. These are synthetic data, not native session recordings.
+func fixtureNativeThread(directory string) map[string]any {
+	return map[string]any{"id": "native-thread", "sessionId": "native-session", "cliVersion": "0.163.0",
+		"createdAt": 1, "updatedAt": 1, "cwd": directory, "ephemeral": false, "modelProvider": "fixture",
+		"preview": "", "projectId": nil, "source": "appServer", "status": map[string]string{"type": "idle"}, "turns": []any{}}
+}
+
+func fixtureNativeTurn(id, status string) map[string]any {
+	turn := map[string]any{"id": id, "status": status, "items": []any{}, "error": nil}
+	if status == "failed" {
+		turn["error"] = map[string]string{"message": "fixture failure"}
+	}
+	return turn
 }
