@@ -32,17 +32,27 @@ func (s Session) waitPromptReply(ctx context.Context, pending *pendingPrompt, ca
 func (s Session) beginPromptCancel(pending *pendingPrompt) {
 	p := s.peer
 	p.mu.Lock()
+	defer p.mu.Unlock()
+	s.beginPromptCancelLocked(pending)
+}
+
+func (s Session) beginPromptCancelLocked(pending *pendingPrompt) {
+	p := s.peer
 	if p.err != nil || p.prompt != pending || pending.received || pending.cancelWriteDone != nil {
-		p.mu.Unlock()
 		return
 	}
 	done := make(chan struct{})
 	pending.cancelWriteDone = done
-	p.mu.Unlock()
+	pending.cancelSent = make(chan struct{})
+	selected := p.cancelPermissionsLocked(pending)
 	go func() {
 		defer close(done)
+		defer close(pending.cancelSent)
 		// No cancel frame may precede the original full prompt frame.
 		<-pending.writeDone
+		for _, writer := range selected {
+			<-writer
+		}
 		p.mu.Lock()
 		valid := p.err == nil && p.prompt == pending && !pending.received &&
 			p.sessionID == s.id && p.directory == s.directory && p.updates.epoch == s.epoch
@@ -64,8 +74,10 @@ func (s Session) beginPromptCancel(pending *pendingPrompt) {
 func (p *Peer) waitPromptWriters(ctx context.Context, pending *pendingPrompt) bool {
 	p.mu.Lock()
 	cancelWriter := pending.cancelWriteDone
+	permissionWriters := p.permissionWritersLocked(pending)
 	p.mu.Unlock()
-	for _, done := range []<-chan struct{}{pending.writeDone, cancelWriter} {
+	writers := append([]<-chan struct{}{pending.writeDone, cancelWriter}, permissionWriters...)
+	for _, done := range writers {
 		if done == nil {
 			continue
 		}
@@ -78,6 +90,22 @@ func (p *Peer) waitPromptWriters(ctx context.Context, pending *pendingPrompt) bo
 		}
 	}
 	return true
+}
+
+func (p *Peer) promptPermissionsUnresolved(pending *pendingPrompt) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return pending.permissionUnresolved
+}
+
+func (p *Peer) unresolvedPromptPermissions(reply promptReply) (PromptResult, error) {
+	p.updates.fault("permission_unresolved")
+	status, stopErr := p.Close()
+	cause := errors.Join(ErrPermissionUnresolved, ErrDisconnected)
+	if !status.TreeStopped {
+		cause = errors.Join(cause, stopErr, process.ErrTreeNotStopped)
+	}
+	return reply.result, errors.Join(reply.err, &PromptError{Cause: cause, Process: status})
 }
 
 func (p *Peer) cancelWasAttempted(pending *pendingPrompt) bool {

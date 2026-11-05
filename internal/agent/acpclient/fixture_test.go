@@ -27,6 +27,8 @@ func TestMain(m *testing.M) {
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Buffer(make([]byte, 1024), maxFrameBytes)
 	var cancellation cancelFixtureState
+	var permissions permissionFixtureState
+	var permissionRaces permissionRaceFixtureState
 	for scanner.Scan() {
 		f, err := os.OpenFile(os.Getenv("COORDICA_ACP_JOURNAL"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 		if err != nil {
@@ -36,6 +38,12 @@ func TestMain(m *testing.M) {
 		f.Close()
 		if err != nil {
 			os.Exit(5)
+		}
+		if strings.HasPrefix(scenario, "permission-race-") && permissionRaces.handle(scenario, scanner.Bytes()) {
+			continue
+		}
+		if strings.HasPrefix(scenario, "permission-") && permissions.handle(scenario, scanner.Bytes()) {
+			continue
 		}
 		var request struct {
 			JSONRPC string

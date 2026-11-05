@@ -39,7 +39,8 @@ type Peer struct {
 	prompt                  *pendingPrompt
 	configuration           ConfigSnapshot
 	configCall              *pendingConfig
-	lastRequestID           uint64 // Shared by Prompt and explicit configuration calls.
+	lastRequestID           uint64          // Shared by Prompt and explicit configuration calls.
+	permissions             permissionInbox // Protected by mu; native IDs are a separate namespace.
 }
 
 func Open(ctx context.Context, config Config) (*Peer, error) {
@@ -149,6 +150,7 @@ func (p *Peer) Close() (process.Result, error) {
 	p.mu.Lock()
 	prompt := p.prompt
 	configuration := p.configCall
+	permissionWriters := p.permissionWritersLocked(nil)
 	p.mu.Unlock()
 	if prompt != nil {
 		<-prompt.writeDone
@@ -162,6 +164,9 @@ func (p *Peer) Close() (process.Result, error) {
 	if configuration != nil {
 		<-configuration.writeDone
 	}
+	for _, done := range permissionWriters {
+		<-done
+	}
 	return p.result, p.waitErr
 }
 
@@ -170,6 +175,7 @@ func (p *Peer) fail(err error) {
 	defer p.mu.Unlock()
 	if p.err == nil {
 		p.err = err
+		p.invalidatePermissionsLocked(nil)
 		close(p.failed)
 		p.process.Stop()
 	}
